@@ -93,14 +93,14 @@ export class PlantGenerator {
         ageFrac, // gravity aging: petiole sag, rachis droop, leaflet tilt
       );
 
-      // Gravity-aware droop: youngest leaves nearly upright, old leaves sag heavily
-      // droopExtra ranges from 0 (young) to ~55 (very old)
-      // Base angle: even youngest leaves have slight forward tilt
-      const baseDroop = 5 + ageFrac * 10; // 5°-15° base
-      const droopDeg = baseDroop + node.droopExtra * 0.7; // up to ~55° total for old leaves
+      // Gravity-aware droop: youngest leaves nearly horizontal, old leaves hang down
+      // droopExtra ranges from 0 (young) to ~90 (very old)
+      // Real tomato: even young leaves tilt 15-20°, mature leaves 60-90°+
+      const baseDroop = 10 + ageFrac * 15; // 10°-25° base
+      const droopDeg = baseDroop + node.droopExtra * 0.9; // up to ~105° for oldest leaves
 
       // Roll increases with age — mature leaves twist under their own weight
-      const rollRange = 0.04 + ageFrac * 0.2; // young: ±2°, old: ±14°
+      const rollRange = 0.06 + ageFrac * 0.25; // young: ±3°, old: ±17°
 
       const leafMesh = new THREE.Mesh(
         leafGeo,

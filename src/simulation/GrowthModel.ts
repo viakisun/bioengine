@@ -129,11 +129,14 @@ export function computePlantState(day: number, genome: PlantGenome): PlantState 
     // Young leaves (<15 days): nearly upright, 0 extra droop
     // Middle-aged (15-40 days): moderate sag, petiole arcs outward
     // Old (40+ days): heavy sag, petiole droops strongly, leaf hangs
-    const droopExtra = age < 15
+    // Real tomato: young leaves ~15° from horizontal, mature leaves 60-90°+ droop
+    const droopExtra = age < 10
       ? 0
-      : age < 40
-        ? Math.min(25, (age - 15) * 0.6 * genome.leafDroopMultiplier)
-        : Math.min(55, 15 + (age - 40) * 0.8 * genome.leafDroopMultiplier);
+      : age < 25
+        ? Math.min(35, (age - 10) * 1.2 * genome.leafDroopMultiplier)
+        : age < 50
+          ? Math.min(65, 18 + (age - 25) * 1.2 * genome.leafDroopMultiplier)
+          : Math.min(90, 48 + (age - 50) * 1.0 * genome.leafDroopMultiplier);
 
     // Leaflet count with genome bias
     let leafletCount: number;

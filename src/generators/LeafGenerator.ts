@@ -63,11 +63,11 @@ export function createLeafGeometry(
   for (let v = 0; v < petPos.count; v++) {
     const x = petPos.getX(v);
     const t = x / petioleLen; // 0=base, 1=tip
-    // Young: arch factor +0.05 (upward), Old: -0.08 (downward sag)
-    const archStrength = 0.05 * (1 - af * 2.6); // +0.05 → -0.08
+    // Young: slight upward arch, Old: strong downward sag
+    const archStrength = 0.04 * (1 - af * 3.5); // +0.04 → -0.10
     const archY = Math.sin(t * Math.PI) * petioleLen * archStrength;
-    // Gravity pull increases toward tip, stronger with age
-    const gravityY = -t * t * petioleLen * af * 0.12;
+    // Gravity pull increases toward tip, much stronger with age
+    const gravityY = -t * t * petioleLen * af * 0.25;
     petPos.setY(v, petPos.getY(v) + archY + gravityY);
   }
   petPos.needsUpdate = true;
@@ -85,8 +85,8 @@ export function createLeafGeometry(
   rachisGeo.rotateZ(-Math.PI / 2);
   rachisGeo.translate(petioleLen + rachisLen / 2, 0, 0);
   // Rachis droop: increases with age as leaflet mass accumulates
-  // Young: slight droop (0.06), Old: heavy sag (0.20)
-  const rachisDroopFactor = 0.06 + af * 0.14;
+  // Young: slight droop (0.08), Old: heavy sag under weight (0.35)
+  const rachisDroopFactor = 0.08 + af * 0.27;
   const racPos = rachisGeo.getAttribute('position');
   for (let v = 0; v < racPos.count; v++) {
     const x = racPos.getX(v);
@@ -111,9 +111,9 @@ export function createLeafGeometry(
     const leafletSize = 0.14 * sizeFactor * maturity * baseSizeMod * rng.range(0.8, 1.2);
 
     // Gravity-aware leaflet tilt: older leaves have irregular drooping leaflets
-    // Young: nearly flat (±3°), Old: significant tilt (±18°) + twist (±12°)
-    const leafletDroopRange = 0.05 + af * 0.27; // radians: ~3° → ~18°
-    const leafletTwistRange = 0.03 + af * 0.18; // radians: ~2° → ~12°
+    // Young: nearly flat (±5°), Old: significant tilt (±25°) + twist (±15°)
+    const leafletDroopRange = 0.08 + af * 0.36; // radians: ~5° → ~25°
+    const leafletTwistRange = 0.05 + af * 0.22; // radians: ~3° → ~15°
 
     if (isTerminal) {
       const geo = createOvateLeaflet(leafletSize, curl * rng.range(0.7, 1.3), rng, params, true);
