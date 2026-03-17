@@ -170,9 +170,9 @@ export class GrowthController {
       const rachisLen = 0.28 * sizeMod * (0.6 + 0.4 * Math.sin(posT * Math.PI));
       if (rachisLen < 0.01) continue;
 
-      // Match full-detail gravity droop: baseDroop + droopExtra * 0.9
+      // Match full-detail gravity droop: baseDroop + droopExtra * 1.0
       const medAgeFrac = Math.min(1, (node.age ?? 0) / 80);
-      const droopAngle = (10 + medAgeFrac * 15 + node.droopExtra * 0.9) * Math.PI / 180;
+      const droopAngle = (15 + medAgeFrac * 20 + node.droopExtra * 1.0) * Math.PI / 180;
 
       // 3 ovate leaflet shapes forming compound leaf silhouette
       // Geometry extends along +X, so yaw (Y rotation) aims it outward

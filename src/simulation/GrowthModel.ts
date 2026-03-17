@@ -192,23 +192,28 @@ export function computePlantState(day: number, genome: PlantGenome): PlantState 
     const yellowing = age > 60 ? Math.min(1, (age - 60) / 30) : 0;
 
     // --- Droop model: weight-based + age-based (science-based) ---
-    // Component 1: Mechanical droop from leaf weight (cantilever beam analogy)
-    //   δ ∝ F·L²  where F = mass×g, L = petiole+rachis arm length
-    //   Heavier leaves droop more regardless of age
-    const armLenM = 0.2; // effective arm length ~20cm (petiole + half rachis)
-    const DROOP_WEIGHT_COEFF = 2500; // tuned: 25g leaf at armLen 0.2m → ~25° droop
+    // Real greenhouse tomato: once a leaf is ~50% expanded, the tip
+    // already points toward the ground. Fully mature leaves hang steeply
+    // (60-90°+ from horizontal), with leaf tips nearly vertical.
+    //
+    // Component 1: Mechanical droop from leaf weight (cantilever beam)
+    //   δ ∝ F·L²  where F = mass×g, L = petiole+rachis arm
+    //   Even moderate-sized leaves droop significantly under self-weight
+    const armLenM = 0.22; // effective arm length ~22cm (petiole + half rachis)
+    const DROOP_WEIGHT_COEFF = 6000; // aggressive: 15g leaf → ~35°, 25g → ~60°
     const weightDroop = (leafMassG / 1000) * armLenM * armLenM * DROOP_WEIGHT_COEFF;
 
-    // Component 2: Age-dependent turgor loss (older tissue sags more)
-    //   Young: full turgor → stiff, Old: turgor decreases → more flexible
-    const ageDroop = age < 10
+    // Component 2: Age-dependent turgor loss (older tissue is more flexible)
+    //   Young: full turgor → resists gravity, Old: turgor loss → hangs limp
+    const ageDroop = age < 8
       ? 0
-      : age < 30
-        ? Math.min(20, (age - 10) * 0.6 * genome.leafDroopMultiplier)
-        : Math.min(40, 12 + (age - 30) * 0.5 * genome.leafDroopMultiplier);
+      : age < 20
+        ? Math.min(25, (age - 8) * 1.2 * genome.leafDroopMultiplier)
+        : Math.min(55, 15 + (age - 20) * 0.8 * genome.leafDroopMultiplier);
 
-    // Combined droop (degrees): weight + age, capped at 100°
-    const droopExtra = Math.min(100, weightDroop + ageDroop);
+    // Combined droop (degrees): weight + age, capped at 120°
+    // Real tomato: mature leaf tips often point straight down or past vertical
+    const droopExtra = Math.min(120, weightDroop + ageDroop);
 
     // Leaflet count with genome bias
     let leafletCount: number;

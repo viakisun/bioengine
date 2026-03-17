@@ -64,10 +64,12 @@ export function createLeafGeometry(
     const x = petPos.getX(v);
     const t = x / petioleLen; // 0=base, 1=tip
     // Young: slight upward arch, Old: strong downward sag
-    const archStrength = 0.04 * (1 - af * 3.5); // +0.04 → -0.10
+    // Real tomato petiole: bows downward significantly under leaf weight
+    const archStrength = 0.03 * (1 - af * 4.0); // +0.03 → -0.09
     const archY = Math.sin(t * Math.PI) * petioleLen * archStrength;
-    // Gravity pull increases toward tip, much stronger with age
-    const gravityY = -t * t * petioleLen * af * 0.25;
+    // Gravity pull: cubic curve for stronger tip droop
+    // Even at af=0.3 (moderate age), noticeable sag at tip
+    const gravityY = -t * t * t * petioleLen * (0.08 + af * 0.35);
     petPos.setY(v, petPos.getY(v) + archY + gravityY);
   }
   petPos.needsUpdate = true;
@@ -85,8 +87,9 @@ export function createLeafGeometry(
   rachisGeo.rotateZ(-Math.PI / 2);
   rachisGeo.translate(petioleLen + rachisLen / 2, 0, 0);
   // Rachis droop: increases with age as leaflet mass accumulates
-  // Young: slight droop (0.08), Old: heavy sag under weight (0.35)
-  const rachisDroopFactor = 0.08 + af * 0.27;
+  // Real tomato: rachis bows strongly, tip leaflets point downward
+  // Young: moderate droop (0.12), Old: severe sag (0.55+)
+  const rachisDroopFactor = 0.12 + af * 0.45;
   const racPos = rachisGeo.getAttribute('position');
   for (let v = 0; v < racPos.count; v++) {
     const x = racPos.getX(v);
@@ -113,10 +116,10 @@ export function createLeafGeometry(
     const expansionScale = maturity * maturity;
     const leafletSize = 0.12 * sizeFactor * expansionScale * baseSizeMod * rng.range(0.8, 1.2);
 
-    // Gravity-aware leaflet tilt: older leaves have irregular drooping leaflets
-    // Young: nearly flat (±5°), Old: significant tilt (±25°) + twist (±15°)
-    const leafletDroopRange = 0.08 + af * 0.36; // radians: ~5° → ~25°
-    const leafletTwistRange = 0.05 + af * 0.22; // radians: ~3° → ~15°
+    // Gravity-aware leaflet tilt: leaflets droop and twist under own weight
+    // Young: nearly flat (±8°), Old: heavy tilt (±35°) + twist (±20°)
+    const leafletDroopRange = 0.14 + af * 0.48; // radians: ~8° → ~35°
+    const leafletTwistRange = 0.08 + af * 0.28; // radians: ~5° → ~20°
 
     if (isTerminal) {
       const geo = createOvateLeaflet(leafletSize, curl * rng.range(0.7, 1.3), rng, params, true);

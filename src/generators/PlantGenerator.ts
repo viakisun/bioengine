@@ -93,11 +93,11 @@ export class PlantGenerator {
         ageFrac, // gravity aging: petiole sag, rachis droop, leaflet tilt
       );
 
-      // Gravity-aware droop: youngest leaves nearly horizontal, old leaves hang down
-      // droopExtra ranges from 0 (young) to ~90 (very old)
-      // Real tomato: even young leaves tilt 15-20°, mature leaves 60-90°+
-      const baseDroop = 10 + ageFrac * 15; // 10°-25° base
-      const droopDeg = baseDroop + node.droopExtra * 0.9; // up to ~105° for oldest leaves
+      // Gravity-aware droop: real greenhouse tomato leaves hang steeply
+      // Even young-ish leaves tilt 20-30°, mature leaves 70-100°+
+      // droopExtra now includes weight-based component (larger leaves droop more)
+      const baseDroop = 15 + ageFrac * 20; // 15°-35° base tilt
+      const droopDeg = baseDroop + node.droopExtra * 1.0; // direct pass-through
 
       // Roll increases with age — mature leaves twist under their own weight
       const rollRange = 0.06 + ageFrac * 0.25; // young: ±3°, old: ±17°
