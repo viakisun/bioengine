@@ -108,7 +108,10 @@ export function createLeafGeometry(
 
     const isTerminal = i === pairs;
     const baseSizeMod = isTerminal ? 1.2 : (0.5 + 0.5 * Math.sin(t * Math.PI));
-    const leafletSize = 0.14 * sizeFactor * maturity * baseSizeMod * rng.range(0.8, 1.2);
+    // maturity² → young leaves are disproportionately small (non-linear expansion)
+    // Real tomato: leaf at 50% maturity is ~25% of final area, not 50%
+    const expansionScale = maturity * maturity;
+    const leafletSize = 0.12 * sizeFactor * expansionScale * baseSizeMod * rng.range(0.8, 1.2);
 
     // Gravity-aware leaflet tilt: older leaves have irregular drooping leaflets
     // Young: nearly flat (±5°), Old: significant tilt (±25°) + twist (±15°)

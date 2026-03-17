@@ -145,9 +145,8 @@ export class GrowthController {
     const heightM = state.heightCm / 100;
     if (heightM < 0.01) return group;
 
-    // Stem: tapered cylinder — herbaceous vine thickness (not tree trunk)
-    // Real tomato: ~14mm diameter base, ~4mm at growing tip
-    const baseRadius = Math.min(0.007, 0.002 + heightM * 0.003);
+    // Stem: tapered cylinder — real tomato: 10-16mm diameter at base, ~4mm at tip
+    const baseRadius = Math.min(0.012, 0.002 + heightM * 0.005);
     const tipRadius = 0.002;
     const stemGeo = new THREE.CylinderGeometry(tipRadius, baseRadius, heightM, 6);
     stemGeo.translate(0, heightM / 2, 0);
@@ -356,8 +355,8 @@ export class GrowthController {
     const heightM = state.heightCm / 100;
     if (heightM < 0.01) return group;
 
-    // Stem — herbaceous vine proportions
-    const baseR = Math.min(0.005, 0.002 + heightM * 0.002);
+    // Stem — herbaceous vine proportions (real tomato: 10-16mm base diameter)
+    const baseR = Math.min(0.008, 0.002 + heightM * 0.003);
     if (!this.simpleStemGeo) {
       this.simpleStemGeo = new THREE.CylinderGeometry(0.002, 0.005, 1, 4);
       this.simpleStemGeo.translate(0, 0.5, 0);

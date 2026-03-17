@@ -7,9 +7,10 @@ import type { NodeState } from './GrowthModel';
 const GRAVITY = 9.81; // m/s²
 const TOMATO_FRUIT_DENSITY = 1050; // kg/m³ (≈ water)
 const STEM_DENSITY = 800; // kg/m³ (green stem tissue)
-const LEAF_MASS_KG = 0.015; // ~15g per mature compound leaf
+// Leaf mass is now computed per-node from leafMassG field (science-based)
+const LEAF_MASS_FALLBACK_KG = 0.025; // fallback ~25g if leafMassG not available
 const MIN_RADIUS_MM = 2; // growing tip minimum (~4mm diameter)
-const MAX_RADIUS_MM = 7; // mature base maximum (~14mm diameter, herbaceous vine)
+const MAX_RADIUS_MM = 12; // mature base max (~24mm diameter; real data: stem 10-16mm dia)
 const WIRE_HEIGHT_CM = 350; // training wire at 3.5m
 
 /**
@@ -35,9 +36,12 @@ export function computePhysics(
     // Node's own contributions
     let nodeMass = 0;
 
-    // Leaf mass
+    // Leaf mass — science-based: scales with leaf area (sizeFactor²)
     if (node.leafMaturity > 0.1) {
-      nodeMass += LEAF_MASS_KG * node.leafSizeFactor * node.leafMaturity;
+      const leafMassKg = (node.leafMassG != null && node.leafMassG > 0)
+        ? node.leafMassG / 1000
+        : LEAF_MASS_FALLBACK_KG * node.leafSizeFactor * node.leafMaturity;
+      nodeMass += leafMassKg;
     }
 
     // Truss/fruit mass
@@ -68,7 +72,7 @@ export function computePhysics(
   // --- Pass 2: Compute stem radius from mass (Pipe Model) ---
   // Cross-section area ∝ mass supported
   // radius = sqrt(mass × supportFactor + minRadius²)
-  const supportCoeff = 0.000015 * strengthFactor; // tuned for herbaceous vine (2-7mm radius)
+  const supportCoeff = 0.000025 * strengthFactor; // tuned for herbaceous vine (2-12mm radius, real data)
 
   for (const node of nodes) {
     const rawRadius = Math.sqrt(node.massAboveKg * supportCoeff + (MIN_RADIUS_MM / 1000) ** 2) * 1000;

@@ -48,6 +48,10 @@ export interface PlantGenome {
   leafWaviness: number;            // surface bumpiness amplitude
   leafPetioleLength: number;       // petiole length (m)
 
+  // Internode & leaf expansion (science-based)
+  internodeLenCm: number;          // base internode length (cm), real data: 5-8cm
+  leafExpansionRate: number;       // leaf expansion sigmoid steepness (k), 0.25-0.45
+
   // Planting time offset (days)
   plantingDayOffset: number;
 }
@@ -106,6 +110,13 @@ export function generateGenome(seed: number): PlantGenome {
     leafLobeDepth: clamp(rng.gaussian(0.08, 0.03), 0.0, 0.15),
     leafWaviness: clamp(rng.gaussian(0.003, 0.001), 0.0, 0.006),
     leafPetioleLength: clamp(rng.gaussian(0.10, 0.015), 0.06, 0.14),
+
+    // Internode & leaf expansion — based on real greenhouse tomato data
+    // Real internode: mean 7.45cm (SD 0.8), range 3-8cm across genotypes
+    internodeLenCm: clamp(rng.gaussian(6.5, 0.8), 4.5, 8.5),
+    // Leaf expansion sigmoid k: higher = faster expansion
+    // Real leaf takes 14-21 days to fully expand
+    leafExpansionRate: clamp(rng.gaussian(0.35, 0.04), 0.25, 0.45),
 
     // Planting offset: some plants are a few days ahead or behind
     plantingDayOffset: clamp(rng.gaussian(0, 2), -5, 5),
