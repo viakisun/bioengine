@@ -427,21 +427,25 @@ function mergeGeometries(geos: THREE.BufferGeometry[]): THREE.BufferGeometry {
 }
 
 // Shared materials with procedural vein textures
+// OPAQUE — real leaves block light. Underside appears dark when lit from above.
+// This is important for robot vision simulation: occlusion, shadow, contrast.
 export const leafMaterial = new THREE.MeshStandardMaterial({
   map: getLeafColorTexture(),
   normalMap: getLeafNormalTexture(),
   normalScale: new THREE.Vector2(1.0, 1.0),
-  roughness: 0.65,
+  roughness: 0.65,           // tomato leaf: matte with slight waxy cuticle
   metalness: 0.0,
   side: THREE.DoubleSide,
+  envMapIntensity: 0.2,      // minimal env reflection — keeps green color dominant
 });
 
 export const yellowLeafMaterial = new THREE.MeshStandardMaterial({
   map: getLeafColorTexture(),
   normalMap: getLeafNormalTexture(),
   normalScale: new THREE.Vector2(1.0, 1.0),
-  color: 0xcccc80, // yellow tint multiplied with map
-  roughness: 0.65,
+  color: 0xcccc80,           // yellow tint multiplied with map
+  roughness: 0.6,
   metalness: 0.0,
   side: THREE.DoubleSide,
+  envMapIntensity: 0.3,
 });

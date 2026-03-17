@@ -71,11 +71,13 @@ export function createCalyxGeometry(): THREE.BufferGeometry {
   return geo;
 }
 
-// Shared materials
-export const fruitMaterial = new THREE.MeshStandardMaterial({
-  roughness: 0.45,
+// Shared materials — tomato fruit has a waxy, glossy skin
+export const fruitMaterial = new THREE.MeshPhysicalMaterial({
+  roughness: 0.28,          // glossy waxy tomato skin
   metalness: 0.0,
   color: 0x22781e,
+  clearcoat: 0.3,           // thin waxy coating
+  clearcoatRoughness: 0.15,
 });
 
 export const calyxMaterial = new THREE.MeshStandardMaterial({

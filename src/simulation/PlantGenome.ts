@@ -52,6 +52,11 @@ export interface PlantGenome {
   internodeLenCm: number;          // base internode length (cm), real data: 5-8cm
   leafExpansionRate: number;       // leaf expansion sigmoid steepness (k), 0.25-0.45
 
+  // Apex-driven internode elongation (GA-mediated)
+  // Real biology: leaf expands → produces GA → GA moves down → internode below elongates
+  internodeElongDelay: number;     // delay before elongation starts (days), 3-6
+  internodeElongMid: number;       // sigmoid midpoint for elongation (days after delay), 6-10
+
   // Planting time offset (days)
   plantingDayOffset: number;
 }
@@ -117,6 +122,12 @@ export function generateGenome(seed: number): PlantGenome {
     // Leaf expansion sigmoid k: higher = faster expansion
     // Real leaf takes 14-21 days to fully expand
     leafExpansionRate: clamp(rng.gaussian(0.35, 0.04), 0.25, 0.45),
+
+    // Apex-driven internode elongation
+    // Delay: leaf must expand and produce GA before internode elongates
+    internodeElongDelay: clamp(rng.gaussian(4.0, 0.5), 3, 6),
+    // Sigmoid midpoint: ~8 days after delay for half-elongation
+    internodeElongMid: clamp(rng.gaussian(8, 1.0), 6, 10),
 
     // Planting offset: some plants are a few days ahead or behind
     plantingDayOffset: clamp(rng.gaussian(0, 2), -5, 5),

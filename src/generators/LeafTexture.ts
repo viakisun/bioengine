@@ -138,11 +138,13 @@ function generateColorMap(): HTMLCanvasElement {
     for (let px = 0; px < TEX_SIZE; px++) {
       const idx = (py * TEX_SIZE + px) * 4;
 
-      // Base leaf color: dark green inter-vein areas
+      // Base leaf color: realistic tomato leaf green (Solanum lycopersicum)
+      // Real tomato leaves: rich green upper surface, chlorophyll-rich
+      // Not too dark (would look black under shadow) nor too bright (would look fake)
       const noise = fbmNoise(px, py);
-      const baseR = 32 + noise * 10 - 5;
-      const baseG = 100 + noise * 16 - 8;
-      const baseB = 28 + noise * 8 - 4;
+      const baseR = 35 + noise * 14 - 7;
+      const baseG = 95 + noise * 20 - 10;
+      const baseB = 22 + noise * 10 - 5;
 
       // Subtle edge shading
       const nv = py / TEX_SIZE;
@@ -158,10 +160,10 @@ function generateColorMap(): HTMLCanvasElement {
         ? Math.exp(-(dist * dist) / (2 * halfW * halfW))
         : 0;
 
-      // Vein color: much lighter green for strong contrast
-      const veinR = 75;
-      const veinG = 160;
-      const veinB = 55;
+      // Vein color: slightly lighter green — real veins are only subtly lighter
+      const veinR = 55;
+      const veinG = 125;
+      const veinB = 40;
 
       // Blend base with vein
       const r = baseR + (veinR - baseR) * veinIntensity;

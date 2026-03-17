@@ -1,11 +1,12 @@
 import * as THREE from 'three';
 
 export function createGreenhouse(scene: THREE.Scene): void {
-  // Ground plane
+  // Ground plane — concrete floor with weed barrier mat overlay
+  // Real greenhouse: poured concrete with white/gray weed control fabric on top
   const groundGeo = new THREE.PlaneGeometry(60, 10);
   const groundMat = new THREE.MeshStandardMaterial({
-    color: 0x2a2a28,
-    roughness: 0.85,
+    color: 0xa0a098,       // light concrete with weed mat — bright to reflect light up
+    roughness: 0.7,
     metalness: 0.0,
   });
   const ground = new THREE.Mesh(groundGeo, groundMat);
@@ -14,29 +15,41 @@ export function createGreenhouse(scene: THREE.Scene): void {
   ground.receiveShadow = true;
   scene.add(ground);
 
+  // Walking path between rows — slightly darker concrete strip
+  const pathGeo = new THREE.PlaneGeometry(60, 1.0);
+  const pathMat = new THREE.MeshStandardMaterial({
+    color: 0x909088,
+    roughness: 0.75,
+    metalness: 0.0,
+  });
+  const path = new THREE.Mesh(pathGeo, pathMat);
+  path.rotation.x = -Math.PI / 2;
+  path.position.set(0, -0.005, 1.5);  // offset to side of bed
+  path.receiveShadow = true;
+  scene.add(path);
+
   const frameLength = 34;
   const frameWidth = 5;
   const frameHeight = 4;
   const ridgeHeight = 5;
 
-  // Steel pipe material (replaces LineBasicMaterial for proper shadows)
+  // Galvanized steel pipe — silver-gray with high metalness
   const pipeMat = new THREE.MeshStandardMaterial({
-    color: 0x777777,
-    roughness: 0.4,
-    metalness: 0.6,
+    color: 0xb0b0a8,
+    roughness: 0.30,
+    metalness: 0.75,
   });
 
-  // Polycarbonate roof panel material (transparent with light transmission)
-  const roofMat = new THREE.MeshPhysicalMaterial({
-    color: 0xf8f8f0,
-    transmission: 0.82,
-    roughness: 0.12,
-    thickness: 0.004,   // 4mm polycarbonate
-    ior: 1.58,
+  // Polycarbonate roof panel material — simple transparency (no transmission for perf)
+  // transmission: 0.82 caused 16× scene re-render (1 per panel) → 1fps
+  const roofMat = new THREE.MeshStandardMaterial({
+    color: 0xf0f0e8,
+    roughness: 0.15,
     metalness: 0,
     side: THREE.DoubleSide,
     transparent: true,
-    opacity: 0.3,       // fallback for devices without transmission support
+    opacity: 0.25,       // polycarbonate: mostly see-through with slight haze
+    depthWrite: false,   // proper transparency rendering
   });
 
   const pipeRadius = 0.02; // 40mm diameter pipe
@@ -56,7 +69,7 @@ export function createGreenhouse(scene: THREE.Scene): void {
     const quat = new THREE.Quaternion().setFromUnitVectors(up, dir.normalize());
     mesh.quaternion.copy(quat);
 
-    mesh.castShadow = true;
+    mesh.castShadow = false; // frame shadow disabled for performance
     mesh.receiveShadow = true;
     return mesh;
   }

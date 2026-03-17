@@ -100,119 +100,125 @@ function lerpColor(c1: [number, number, number], c2: [number, number, number], t
 const GOLDEN_ANGLE = 137.508; // degrees
 
 export function computePlantState(day: number, genome: PlantGenome): PlantState {
-  const heightCm = genome.heightMaxCm * sigmoid(day, genome.heightSigmoidK, genome.heightSigmoidMid);
+  // ============================================================
+  // APEX-DRIVEN GROWTH MODEL
+  // ============================================================
+  // Real biology: shoot apical meristem (SAM) produces leaf primordia.
+  // Leaves expand → produce gibberellin (GA) → GA moves basipetally →
+  // internode BELOW the leaf elongates. Plant height = Σ(internode lengths).
+  //
+  // Result: early seedling is a rosette (compressed nodes, leaves stacked),
+  // visible stem appears only after internodes begin elongating (~day 20+).
+  // ============================================================
 
   const rawNodeCount = day < genome.nodeStartDay
     ? 0
     : (day - genome.nodeStartDay) / genome.nodeInterval + 1;
   const intNodeCount = Math.min(Math.floor(rawNodeCount), 50);
-  // Emergence fraction for the newest node (0 = just appearing, 1 = fully formed)
   const newestEmergence = rawNodeCount > 0 ? rawNodeCount - Math.floor(rawNodeCount) : 1;
 
+  const baseInternode = genome.internodeLenCm ?? 6.5;
+  const leafExpK = genome.leafExpansionRate ?? 0.35;
+
+  // Internode elongation parameters (GA-mediated delay)
+  const elongDelay = genome.internodeElongDelay ?? 4;
+  const elongMid = genome.internodeElongMid ?? 8;
+  const ELONG_K = 0.4; // sigmoid steepness for internode elongation
+
+  // --- Pass 1: Compute final internode length + current elongation for each node ---
+  // Hypocotyl: the stem below cotyledons (emerges day 5-7, reaches ~4cm)
+  const hypocotylCm = day < 5 ? 0 : Math.min(4, (day - 5) * 0.8);
+
+  const internodeData: Array<{ finalLen: number; currentLen: number; elongation: number }> = [];
+
+  for (let i = 0; i < intNodeCount; i++) {
+    const nodeDay = genome.nodeStartDay + i * genome.nodeInterval;
+    const age = day - nodeDay;
+    const nodeFrac = intNodeCount <= 1 ? 0 : i / (intNodeCount - 1);
+
+    // Final (potential) internode length — same biology as before
+    let finalLen: number;
+    if (i === 0) {
+      finalLen = 1.5; // first internode very short
+    } else if (i < 4) {
+      finalLen = 1.5 + i * 0.8; // seedling: 1.5, 2.3, 3.1, 3.9cm
+    } else {
+      // Growth vigor = derivative of sigmoid height curve at node creation time
+      const S = sigmoid(nodeDay, genome.heightSigmoidK, genome.heightSigmoidMid);
+      const vigor = 4 * S * (1 - S); // normalized 0-1, peak at sigmoid midpoint
+      finalLen = baseInternode * (0.5 + 0.5 * vigor);
+      if (nodeFrac > 0.8) {
+        finalLen *= 1.0 - (nodeFrac - 0.8) * 0.5;
+      }
+    }
+
+    // Internode elongation: delayed sigmoid
+    // Leaf must expand first → produce GA → internode below elongates
+    const elongAge = age - elongDelay;
+    const elongation = elongAge <= 0
+      ? 0.01  // pre-elongation: ~1% of final length (compressed primordium)
+      : Math.max(0.01, sigmoid(elongAge, ELONG_K, elongMid));
+
+    const currentLen = finalLen * elongation;
+    internodeData.push({ finalLen, currentLen, elongation });
+  }
+
+  // --- Pass 2: Accumulate height bottom-up from internodes ---
+  // Node i sits at: hypocotyl + Σ(internode[0..i] current lengths)
+  // (each node is at the TOP of its internode)
+  const nodeHeights: number[] = [];
+  let accHeight = hypocotylCm;
+  for (let i = 0; i < intNodeCount; i++) {
+    accHeight += internodeData[i].currentLen;
+    nodeHeights.push(accHeight);
+  }
+
+  // Total plant height
+  const heightCm = accHeight;
+
+  // --- Pass 3: Build node states with all properties ---
   const nodes: NodeState[] = [];
   let trussCount = 0;
   let totalFruits = 0;
   let maxRipenStage = -1;
 
-  // --- Internode length model ---
-  // Real tomato: seedling internodes 2-3cm, peak 5-8cm, slight decrease at top
-  // Use growth rate at node creation time to scale internode length
-  const baseInternode = genome.internodeLenCm ?? 6.5;
-  const leafExpK = genome.leafExpansionRate ?? 0.35;
-
-  // Accumulate height from internodes
-  let accumulatedHeightCm = 0;
-
   for (let i = 0; i < intNodeCount; i++) {
     const nodeDay = genome.nodeStartDay + i * genome.nodeInterval;
     const age = day - nodeDay;
     const isNewest = i === intNodeCount - 1 && intNodeCount > 0;
-
     const nodeFrac = intNodeCount <= 1 ? 0 : i / (intNodeCount - 1);
 
-    // --- Explicit internode length (science-based) ---
-    // Seedling nodes (i<4): short internodes 2-4cm
-    // Normal nodes: base × growth vigor at that time
-    // Growth vigor: derivative of sigmoid height curve at nodeDay
-    let internodeLenCm: number;
-    if (i === 0) {
-      internodeLenCm = 2.0; // first internode always short
-    } else if (i < 4) {
-      internodeLenCm = 2.0 + i * 0.6; // seedling: 2.0, 2.6, 3.2, 3.8cm
-    } else {
-      // Growth vigor = d/dt sigmoid = k·S·(1-S) where S = sigmoid(nodeDay)
-      const S = sigmoid(nodeDay, genome.heightSigmoidK, genome.heightSigmoidMid);
-      const vigor = 4 * S * (1 - S); // normalized 0-1, peak at sigmoid midpoint
-      internodeLenCm = baseInternode * (0.5 + 0.5 * vigor);
-      // Slight decrease for top nodes (resources diverted to fruit)
-      if (nodeFrac > 0.8) {
-        internodeLenCm *= 1.0 - (nodeFrac - 0.8) * 0.5;
-      }
-    }
-
-    // Scale internodes so total height matches sigmoid envelope
-    // (ensures visual height stays consistent with heightMaxCm curve)
-    accumulatedHeightCm += internodeLenCm;
-    // nodeHeightCm: use accumulated internodes, but scale to match sigmoid envelope
-    const rawAccHeight = accumulatedHeightCm;
-    // Scale factor: desired total height / accumulated raw height
-    // We compute this after the loop and back-fill, but for efficiency
-    // we use the sigmoid height fraction approach:
-    const nodeHeightCm = heightCm * (0.02 + 0.96 * nodeFrac);
+    const nodeHeightCm = nodeHeights[i];
+    const internodeLenCm = internodeData[i].currentLen;
 
     // 3D phyllotaxis: golden angle spiral + per-plant jitter
     const phyllotaxisAngle = (i * GOLDEN_ANGLE + genome.phyllotaxisJitter * i * 0.3) % 360;
 
     // --- Leaf expansion model (science-based) ---
-    // Real tomato leaf takes 14-21 days to fully expand (sigmoid curve)
-    // Phase 1 (0-3d): folded, ~2-5% of final size
-    // Phase 2 (3-10d): rapid expansion (5→50%)
-    // Phase 3 (10-18d): decelerating (50→95%)
-    // Phase 4 (18d+): fully expanded (95-100%)
     const leafExpansion = sigmoid(age, leafExpK, 9);
     const leafMaturity = Math.max(0.02, leafExpansion);
 
-    // --- Leaf size: position × expansion (science-based) ---
-    // potentialSize: maximum size this leaf CAN reach (based on node position)
-    // Actual size = potential × expansion fraction
+    // --- Leaf size: position × expansion ---
     const positionFactor = Math.sin(nodeFrac * Math.PI);
     const potentialSize = (0.55 + 0.45 * positionFactor) * genome.leafSizeMultiplier;
     const leafSizeFactor = potentialSize * leafExpansion;
 
-    // --- Leaf area & mass estimation (science-based) ---
-    // Reference: fully expanded standard leaf ≈ 600 cm² at sizeFactor=1.0
-    // SLA = 200 cm²/g dry, fresh:dry = 10:1
-    // Mass scales with area (∝ sizeFactor²)
-    const BASE_LEAF_AREA_CM2 = 600; // fully expanded reference leaf
+    // --- Leaf area & mass ---
+    const BASE_LEAF_AREA_CM2 = 600;
     const leafAreaCm2 = BASE_LEAF_AREA_CM2 * leafSizeFactor * leafSizeFactor;
-    // Fresh mass: area / SLA / dry-to-fresh ratio
-    // Simplified: ~0.025 kg at sizeFactor=1.0, scales with sizeFactor²
     const leafMassG = 25 * leafSizeFactor * leafSizeFactor * leafMaturity;
 
     const yellowing = age > 60 ? Math.min(1, (age - 60) / 30) : 0;
 
-    // --- Droop model: weight-based + age-based (science-based) ---
-    // Real greenhouse tomato: once a leaf is ~50% expanded, the tip
-    // already points toward the ground. Fully mature leaves hang steeply
-    // (60-90°+ from horizontal), with leaf tips nearly vertical.
-    //
-    // Component 1: Mechanical droop from leaf weight (cantilever beam)
-    //   δ ∝ F·L²  where F = mass×g, L = petiole+rachis arm
-    //   Even moderate-sized leaves droop significantly under self-weight
-    const armLenM = 0.22; // effective arm length ~22cm (petiole + half rachis)
-    const DROOP_WEIGHT_COEFF = 6000; // aggressive: 15g leaf → ~35°, 25g → ~60°
+    // --- Droop model: weight-based + age-based ---
+    const armLenM = 0.22;
+    const DROOP_WEIGHT_COEFF = 6000;
     const weightDroop = (leafMassG / 1000) * armLenM * armLenM * DROOP_WEIGHT_COEFF;
-
-    // Component 2: Age-dependent turgor loss (older tissue is more flexible)
-    //   Young: full turgor → resists gravity, Old: turgor loss → hangs limp
     const ageDroop = age < 8
       ? 0
       : age < 20
         ? Math.min(25, (age - 8) * 1.2 * genome.leafDroopMultiplier)
         : Math.min(55, 15 + (age - 20) * 0.8 * genome.leafDroopMultiplier);
-
-    // Combined droop (degrees): weight + age, capped at 120°
-    // Real tomato: mature leaf tips often point straight down or past vertical
     const droopExtra = Math.min(120, weightDroop + ageDroop);
 
     // Leaflet count with genome bias
@@ -222,6 +228,7 @@ export function computePlantState(day: number, genome: PlantGenome): PlantState 
     else if (biasedMaturity < 0.6) leafletCount = 7;
     else leafletCount = 9;
 
+    // Truss logic (unchanged)
     let truss: TrussState | null = null;
     const isTrussNode = i >= genome.trussStartNode
       && (i - genome.trussStartNode) % genome.trussInterval === 0;
@@ -264,8 +271,6 @@ export function computePlantState(day: number, genome: PlantGenome): PlantState 
               totalFruits++;
               if (ripenStage > maxRipenStage) maxRipenStage = ripenStage;
 
-              // Flower persists during early fruit formation (withering petals)
-              // Fades out over first 8 days of fruit growth
               if (fruitAge < 8) {
                 const fadeProgress = 1 - (fruitAge / 8);
                 flowers.push({ index: f, bloomProgress: bloomProgress * fadeProgress });
@@ -285,7 +290,6 @@ export function computePlantState(day: number, genome: PlantGenome): PlantState 
       yellowing, droopExtra, truss, age,
       emergence: isNewest ? newestEmergence : 1,
       leafAreaCm2, leafMassG, internodeLenCm,
-      // Physics fields — populated by computePhysics() below
       massAboveKg: 0, stemRadiusMm: 10, bendingMomentNm: 0,
       deflectionRad: 0, deflectionAzimuth: 0,
     });

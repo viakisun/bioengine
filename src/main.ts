@@ -20,9 +20,13 @@ const plantPositions = getPlantPositions(bedGroup);
 // Growth controller
 const growthController = new GrowthController(engine.scene);
 
-// Add plants at each position with unique seeds
+// Add plants — limit to 10 plants for robot simulation performance
+const MAX_PLANTS = 10;
 const baseSeed = 42;
-for (let i = 0; i < plantPositions.length; i++) {
+// Center the plants in the middle of the bed
+const startIdx = Math.max(0, Math.floor((plantPositions.length - MAX_PLANTS) / 2));
+const endIdx = Math.min(plantPositions.length, startIdx + MAX_PLANTS);
+for (let i = startIdx; i < endIdx; i++) {
   growthController.addPlant(baseSeed + i * 7919, plantPositions[i]);
 }
 
@@ -51,3 +55,6 @@ engine.controls.focusOnPlant(0, 1.0);
 engine.start();
 
 console.log(`FarmSim 3D: ${growthController.plantCount} plants on 30m bed`);
+
+// Debug: expose engine to console
+(window as any).__engine = engine;
