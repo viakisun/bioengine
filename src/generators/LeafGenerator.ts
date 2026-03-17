@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { SeededRandom } from '../utils/SeededRandom';
+import { getLeafColorTexture, getLeafNormalTexture } from './LeafTexture';
 
 // Genome-driven leaf shape parameters
 export interface LeafShapeParams {
@@ -188,6 +189,7 @@ function createOvateLeaflet(
 
   const positions: number[] = [];
   const normals: number[] = [];
+  const uvs: number[] = [];
   const indices: number[] = [];
 
   const cols = widthSegs * 2 + 1;
@@ -239,6 +241,11 @@ function createOvateLeaflet(
 
       positions.push(rowX, y, z);
 
+      // UV: u along length (0=base, 1=tip), v across width (0=left, 1=right)
+      const u = t;
+      const v = col / (cols - 1);
+      uvs.push(u, v);
+
       const curlEffect = curl * size * dist;
       const ny = 1 - curlEffect * 2;
       normals.push(0, Math.max(0.3, ny), curlEffect * Math.sign(z || 0.01));
@@ -266,6 +273,7 @@ function createOvateLeaflet(
 
       const lobePos = lobeGeo.getAttribute('position');
       const lobeNorm = lobeGeo.getAttribute('normal');
+      const lobeUv = lobeGeo.getAttribute('uv');
       const lobeIdx = lobeGeo.index;
       const baseVertex = positions.length / 3;
 
@@ -275,6 +283,10 @@ function createOvateLeaflet(
           lobeNorm ? lobeNorm.getX(i) : 0,
           lobeNorm ? lobeNorm.getY(i) : 1,
           lobeNorm ? lobeNorm.getZ(i) : 0,
+        );
+        uvs.push(
+          lobeUv ? lobeUv.getX(i) : 0.5,
+          lobeUv ? lobeUv.getY(i) : 0.5,
         );
       }
       if (lobeIdx) {
@@ -289,6 +301,7 @@ function createOvateLeaflet(
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geo.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
   geo.setIndex(indices);
   return geo;
 }
@@ -305,10 +318,13 @@ function createSmallLobe(
   const h = size * 0.5;
   const positions: number[] = [];
   const normals: number[] = [];
+  const uvs: number[] = [];
   const indices: number[] = [];
 
+  // Center vertex
   positions.push(0, 0, 0);
   normals.push(0, 1, 0);
+  uvs.push(0.5, 0.5);
 
   for (let i = 0; i <= segs * 2; i++) {
     const t = i / (segs * 2);
@@ -326,6 +342,8 @@ function createSmallLobe(
     positions.push(x, y, z);
     const ce = curl * w * dist;
     normals.push(0, Math.max(0.3, 1 - ce * 2), ce);
+    // UV: map radially from center
+    uvs.push(0.5 + Math.cos(angle) * 0.4, 0.5 + Math.sin(angle) * 0.4);
   }
 
   const edgeCount = segs * 2 + 1;
@@ -337,6 +355,7 @@ function createSmallLobe(
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geo.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
   geo.setIndex(indices);
   return geo;
 }
@@ -352,18 +371,33 @@ function mergeGeometries(geos: THREE.BufferGeometry[]): THREE.BufferGeometry {
 
   const positions = new Float32Array(totalVerts * 3);
   const normalsArr = new Float32Array(totalVerts * 3);
+  const uvsArr = new Float32Array(totalVerts * 2);
   const indices: number[] = [];
 
   let vertOffset = 0;
   let posOffset = 0;
+  let uvOffset = 0;
 
   for (const g of geos) {
     const pos = g.getAttribute('position');
     const norm = g.getAttribute('normal');
+    const uv = g.getAttribute('uv');
 
     for (let i = 0; i < pos.count * 3; i++) {
       positions[posOffset + i] = (pos.array as Float32Array)[i];
       if (norm) normalsArr[posOffset + i] = (norm.array as Float32Array)[i];
+    }
+
+    // UV: copy if present, otherwise default to (0.5, 0.0) — midrib base color
+    if (uv) {
+      for (let i = 0; i < pos.count * 2; i++) {
+        uvsArr[uvOffset + i] = (uv.array as Float32Array)[i];
+      }
+    } else {
+      for (let i = 0; i < pos.count; i++) {
+        uvsArr[uvOffset + i * 2] = 0.5;     // u = midrib center
+        uvsArr[uvOffset + i * 2 + 1] = 0.0; // v = base
+      }
     }
 
     if (g.index) {
@@ -374,26 +408,33 @@ function mergeGeometries(geos: THREE.BufferGeometry[]): THREE.BufferGeometry {
 
     vertOffset += pos.count;
     posOffset += pos.count * 3;
+    uvOffset += pos.count * 2;
     g.dispose();
   }
 
   const merged = new THREE.BufferGeometry();
   merged.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   merged.setAttribute('normal', new THREE.Float32BufferAttribute(normalsArr, 3));
+  merged.setAttribute('uv', new THREE.Float32BufferAttribute(uvsArr, 2));
   if (indices.length > 0) merged.setIndex(indices);
   return merged;
 }
 
-// Shared materials
+// Shared materials with procedural vein textures
 export const leafMaterial = new THREE.MeshStandardMaterial({
-  color: 0x2d7a25,
+  map: getLeafColorTexture(),
+  normalMap: getLeafNormalTexture(),
+  normalScale: new THREE.Vector2(1.0, 1.0),
   roughness: 0.65,
   metalness: 0.0,
   side: THREE.DoubleSide,
 });
 
 export const yellowLeafMaterial = new THREE.MeshStandardMaterial({
-  color: 0x99a838,
+  map: getLeafColorTexture(),
+  normalMap: getLeafNormalTexture(),
+  normalScale: new THREE.Vector2(1.0, 1.0),
+  color: 0xcccc80, // yellow tint multiplied with map
   roughness: 0.65,
   metalness: 0.0,
   side: THREE.DoubleSide,
