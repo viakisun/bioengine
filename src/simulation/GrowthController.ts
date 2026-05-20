@@ -49,7 +49,7 @@ export class GrowthController {
   }
 
   addPlant(seed: number, position: THREE.Vector3): void {
-    const genome = this.engine.addPlant(seed);
+    const genome = this.engine.addPlant({ seed });
     const generator = new PlantGenerator(seed);
     generator.genome = genome;
     this.plants.push({

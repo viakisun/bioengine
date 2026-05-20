@@ -6,6 +6,8 @@ import { SeededRandom } from '../utils/SeededRandom';
 import { getLeafColorTexture, getLeafNormalTexture } from './LeafTexture';
 import { PBRMaterial } from '@babylonjs/core/Materials/PBR/pbrMaterial';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
+import type { NodeState } from '../simulation/GrowthModel';
+import type { PlantGenome } from '../simulation/PlantGenome';
 
 export interface LeafShapeParams {
   serrationDepth: number;
@@ -141,6 +143,62 @@ export function createLeafMesh(
   ageFrac?: number
 ): Mesh {
   const chunk = buildLeafChunk(leafletCount, sizeFactor, maturity, curl, rng, shapeParams, ageFrac);
+  const mesh = new Mesh(name, scene);
+  applyChunkToMesh(chunk, mesh);
+  return mesh;
+}
+
+/**
+ * Build a leaf mesh driven directly by GrowthEngine output (NodeState + PlantGenome).
+ *
+ * Wires the engine's detailed biology into the geometry:
+ *   - node.leafSizeFactor + leafMaturity → mesh scale and expansion
+ *   - node.leafletCount                  → compound-leaf complexity
+ *   - node.droopExtra (degrees, 0–120)   → petiole + rachis gravity sag
+ *   - node.age                           → cumulative gravity / waviness aging
+ *   - genome.leafSerrationDepth/Freq, leafLobeDepth, leafWaviness, leafPetioleLength
+ *     → per-plant shape signature (62-param genome) instead of defaults
+ */
+export function createLeafMeshFromNode(
+  name: string,
+  scene: Scene,
+  node: NodeState,
+  genome: PlantGenome,
+  rng: SeededRandom
+): Mesh {
+  if (node.leafMaturity < 0.01) {
+    // Pruned or not yet emerged — return an empty mesh
+    return new Mesh(name, scene);
+  }
+
+  const shapeParams: LeafShapeParams = {
+    serrationDepth: genome.leafSerrationDepth,
+    serrationFreq: genome.leafSerrationFreq,
+    lobeDepth: genome.leafLobeDepth,
+    waviness: genome.leafWaviness,
+    petioleLength: genome.leafPetioleLength,
+  };
+
+  // droopExtra is in degrees (0–120). Convert to the [0..1] ageFrac
+  // that drives gravity curves inside buildLeafChunk. droop ~ age.
+  const ageFracFromDroop = Math.min(1, node.droopExtra / 120);
+  // Combine with raw age so very old leaves still age visually even
+  // with light loads.
+  const ageFromAge = Math.min(1, node.age / 80);
+  const ageFrac = Math.max(ageFracFromDroop, ageFromAge);
+
+  // curl: leaves curl slightly more as they yellow/senesce
+  const curl = 0.12 + node.yellowing * 0.15;
+
+  const chunk = buildLeafChunk(
+    node.leafletCount,
+    node.leafSizeFactor * genome.leafSizeMultiplier,
+    node.leafMaturity,
+    curl,
+    rng,
+    shapeParams,
+    ageFrac
+  );
   const mesh = new Mesh(name, scene);
   applyChunkToMesh(chunk, mesh);
   return mesh;

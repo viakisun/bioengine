@@ -13,6 +13,8 @@ import { createPathTrail, type PathTrailHandle } from './PathTrail';
 import { attachZonePicker } from './ZonePicker';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { createUwbAnchors, type UwbAnchorsHandle } from './UwbAnchors';
+import { GrowthEngine } from '../simulation/GrowthEngine';
+import { createShowcasePlant, type ShowcasePlantHandle } from './ShowcasePlant';
 
 const TOMATO_RIPEN_COLORS = [
   '#3c8a30', // green
@@ -85,6 +87,8 @@ export interface GreenhouseSceneHandle {
   robot: RobotHandle;
   pathTrail: PathTrailHandle;
   uwb: UwbAnchorsHandle;
+  growthEngine: GrowthEngine;
+  showcasePlant: ShowcasePlantHandle;
   plantNodes: TransformNode[];
   update: (day: number) => void;
   onZoneHover: (cb: (zoneId: number | null) => void) => void;
@@ -285,12 +289,38 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
     stem.material = stemMat;
   }
 
+  // GrowthEngine — drives the live showcase plant.
+  // Greenhouse environment params can be tweaked from this single seam.
+  const growthEngine = new GrowthEngine();
+  growthEngine.setEnvironment({
+    temperatureC: 23,
+    humidity: 0.7,
+    lightHoursPerDay: 14,
+    co2ppm: 800,
+    substrateWater: 0.6,
+    nutrientEC: 3.0,
+  });
+  const SHOWCASE_SEED = 20260520;
+  growthEngine.addPlant({ seed: SHOWCASE_SEED });
+
   const leafMat = getLeafMaterial(scene);
   const showcasePlantIndex = Math.floor(SCENARIO.plantCount / 2);
+  const showcasePlantSpec = SCENARIO.plants[showcasePlantIndex];
+  const showcasePlant = createShowcasePlant(
+    scene,
+    growthEngine,
+    SHOWCASE_SEED,
+    new Vector3(
+      showcasePlantSpec.position[0],
+      showcasePlantSpec.position[1],
+      showcasePlantSpec.position[2]
+    )
+  );
 
   for (let pi = 0; pi < SCENARIO.plantCount; pi++) {
     const distFromCenter = Math.abs(pi - showcasePlantIndex);
     const isShowcase = distFromCenter === 0;
+    if (isShowcase) continue; // showcase plant is rendered by ShowcasePlant from GrowthEngine
     const isNearShowcase = distFromCenter <= 2;
 
     let leafCount: number;
@@ -371,12 +401,15 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
     robot,
     pathTrail,
     uwb,
+    growthEngine,
+    showcasePlant,
     plantNodes,
     update(day) {
       heatmap.update(day);
       robot.update(day);
       pathTrail.update(day);
       uwb.update(robot.currentPosition());
+      showcasePlant.update(day);
 
       for (let i = 0; i < SCENARIO.plantCount; i++) {
         const plant = SCENARIO.plants[i];
