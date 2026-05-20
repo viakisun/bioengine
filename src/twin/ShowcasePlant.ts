@@ -7,6 +7,7 @@ import { Vector3, Quaternion } from '@babylonjs/core/Maths/math.vector';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { SeededRandom } from '../utils/SeededRandom';
 import { createLeafMeshFromNode, getLeafMaterial, getYellowLeafMaterial } from '../plant/LeafGenerator';
+import { createStemMesh, getStemMaterial } from '../plant/StemGenerator';
 import type { GrowthEngine } from '../simulation/GrowthEngine';
 import type { PlantState, NodeState } from '../simulation/GrowthModel';
 
@@ -39,12 +40,7 @@ export function createShowcasePlant(
 
   const leafMat = getLeafMaterial(scene);
   const yellowLeafMat = getYellowLeafMaterial(scene);
-
-  // PBR materials for stem / fruit
-  const stemMat = new PBRMaterial(`showcase_stem_${seed}`, scene);
-  stemMat.albedoColor = Color3.FromHexString('#3a5a25');
-  stemMat.metallic = 0;
-  stemMat.roughness = 0.8;
+  const stemMat = getStemMaterial(scene);
 
   let currentMeshes: Mesh[] = [];
   let lastState: PlantState | null = null;
@@ -62,17 +58,14 @@ export function createShowcasePlant(
 
     if (state.nodes.length === 0) return;
 
-    // Stem: stack of small segments per node, radius from physics
-    const topHeight = state.heightCm / 100;
-    const stem = MeshBuilder.CreateCylinder(
-      `showcase_stem_mesh_${seed}`,
-      { height: topHeight, diameter: 0.025, tessellation: 8 },
-      scene
-    );
-    stem.parent = root;
-    stem.position = new Vector3(0, topHeight / 2, 0);
-    stem.material = stemMat;
-    currentMeshes.push(stem);
+    // Stem: physics-driven curved tube with vertex-color woodiness
+    const stemRng = new SeededRandom(seed * 13);
+    const stem = createStemMesh(`showcase_stem_${seed}`, scene, state.nodes, stemRng);
+    if (stem) {
+      stem.parent = root;
+      stem.material = stemMat;
+      currentMeshes.push(stem);
+    }
 
     // Leaves: one mesh per node (created from NodeState)
     for (const node of state.nodes) {
