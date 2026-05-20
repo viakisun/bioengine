@@ -11,11 +11,75 @@ import { createHeatmap, type HeatmapHandle } from './Heatmap';
 import { createRobot, type RobotHandle } from './Robot';
 import { createPathTrail, type PathTrailHandle } from './PathTrail';
 import { attachZonePicker } from './ZonePicker';
+import { Mesh } from '@babylonjs/core/Meshes/mesh';
+import { createUwbAnchors, type UwbAnchorsHandle } from './UwbAnchors';
+
+const TOMATO_RIPEN_COLORS = [
+  '#3c8a30', // green
+  '#8c9432', // breaker
+  '#b9683c', // orange
+  '#d25240', // light red
+  '#c83228', // dark red
+];
+
+function addFruitCluster(scene: Scene, parent: TransformNode) {
+  const trussConfigs: Array<{ height: number; count: number; ripenStage: number }> = [
+    { height: 0.55, count: 4, ripenStage: 4 },
+    { height: 0.85, count: 3, ripenStage: 3 },
+    { height: 1.15, count: 5, ripenStage: 2 },
+    { height: 1.4, count: 4, ripenStage: 0 },
+  ];
+
+  for (const truss of trussConfigs) {
+    const trussNode = new TransformNode('truss', scene);
+    trussNode.parent = parent;
+    trussNode.position = new Vector3(0.08, truss.height, 0.04);
+
+    const pedicel = MeshBuilder.CreateCylinder(
+      'pedicel',
+      { height: 0.12, diameter: 0.006, tessellation: 5 },
+      scene
+    );
+    pedicel.parent = trussNode;
+    pedicel.rotation.z = -Math.PI / 3;
+    pedicel.position = new Vector3(0.05, -0.04, 0);
+    const pedMat = new PBRMaterial('pedMat', scene);
+    pedMat.albedoColor = Color3.FromHexString('#4a8a30');
+    pedMat.metallic = 0;
+    pedMat.roughness = 0.8;
+    pedicel.material = pedMat;
+
+    const fruitMat = new PBRMaterial(`fruit_${truss.ripenStage}_mat`, scene);
+    fruitMat.albedoColor = Color3.FromHexString(TOMATO_RIPEN_COLORS[truss.ripenStage]);
+    fruitMat.metallic = 0;
+    fruitMat.roughness = 0.28;
+    fruitMat.clearCoat.isEnabled = true;
+    fruitMat.clearCoat.intensity = 0.4;
+    fruitMat.clearCoat.roughness = 0.12;
+
+    for (let i = 0; i < truss.count; i++) {
+      const fruitSize = 0.045 + (truss.ripenStage >= 3 ? 0.01 : 0);
+      const fruit = MeshBuilder.CreateSphere(
+        `fruit_${truss.ripenStage}_${i}`,
+        { diameter: fruitSize, segments: 10 },
+        scene
+      );
+      fruit.parent = trussNode;
+      const angle = (i / truss.count) * Math.PI * 1.5 - Math.PI * 0.75;
+      const dropX = 0.08 + i * 0.025;
+      const dropY = -0.04 - i * 0.025;
+      const dropZ = Math.sin(angle) * 0.04;
+      fruit.position = new Vector3(dropX, dropY, dropZ);
+      fruit.material = fruitMat;
+    }
+  }
+}
 
 export interface GreenhouseSceneHandle {
   heatmap: HeatmapHandle;
   robot: RobotHandle;
   pathTrail: PathTrailHandle;
+  uwb: UwbAnchorsHandle;
   plantNodes: TransformNode[];
   update: (day: number) => void;
   onZoneHover: (cb: (zoneId: number | null) => void) => void;
@@ -103,42 +167,57 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
     stem.material = stemMat;
   }
 
-  // One full-detail showcase plant in the center
-  const showcasePlantIndex = Math.floor(SCENARIO.plantCount / 2);
-  const showcase = plantNodes[showcasePlantIndex];
   const leafMat = getLeafMaterial(scene);
-  const leafCount = 7;
-  for (let i = 0; i < leafCount; i++) {
-    const t = i / (leafCount - 1);
-    const heightY = 0.4 + t * 1.3;
-    const ageFrac = Math.min(1, (1 - t) * 0.9);
-    const maturity = 0.5 + (1 - t) * 0.5;
+  const showcasePlantIndex = Math.floor(SCENARIO.plantCount / 2);
+  const neighborhoodSize = 5;
 
-    for (const side of [-1, 1]) {
-      const rng = new SeededRandom(2000 + i * 100 + (side > 0 ? 7 : 13));
-      const leaf = createLeafMesh(
-        `showcase_leaf_${i}_${side}`,
-        scene,
-        7,
-        2.0,
-        maturity,
-        0.15,
-        rng,
-        undefined,
-        ageFrac
-      );
-      leaf.material = leafMat;
-      leaf.parent = showcase;
-      leaf.position = new Vector3(0, heightY, 0);
-      const azimuth = side > 0 ? 0 : Math.PI;
-      const phyll = i * 0.5;
-      leaf.rotationQuaternion = Quaternion.RotationAxis(Vector3.Up(), azimuth + phyll);
+  for (
+    let pi = showcasePlantIndex - neighborhoodSize;
+    pi <= showcasePlantIndex + neighborhoodSize;
+    pi++
+  ) {
+    if (pi < 0 || pi >= SCENARIO.plantCount) continue;
+    const isShowcase = pi === showcasePlantIndex;
+    const distFromCenter = Math.abs(pi - showcasePlantIndex);
+    const leafScale = isShowcase ? 2.0 : Math.max(1.0, 1.8 - distFromCenter * 0.18);
+    const leafCount = isShowcase ? 7 : 5;
+    const plantNode = plantNodes[pi];
+
+    for (let i = 0; i < leafCount; i++) {
+      const t = i / (leafCount - 1);
+      const heightY = 0.4 + t * 1.3;
+      const ageFrac = Math.min(1, (1 - t) * 0.9);
+      const maturity = 0.5 + (1 - t) * 0.5;
+
+      for (const side of [-1, 1]) {
+        const rng = new SeededRandom(2000 + pi * 1000 + i * 100 + (side > 0 ? 7 : 13));
+        const leaf = createLeafMesh(
+          `plant_${pi}_leaf_${i}_${side}`,
+          scene,
+          7,
+          leafScale,
+          maturity,
+          0.15,
+          rng,
+          undefined,
+          ageFrac
+        );
+        leaf.material = leafMat;
+        leaf.parent = plantNode;
+        leaf.position = new Vector3(0, heightY, 0);
+        const azimuth = side > 0 ? 0 : Math.PI;
+        const phyll = i * 0.5 + pi * 0.13;
+        leaf.rotationQuaternion = Quaternion.RotationAxis(Vector3.Up(), azimuth + phyll);
+      }
     }
+
+    if (isShowcase) addFruitCluster(scene, plantNode);
   }
 
   const heatmap = createHeatmap(scene);
   const robot = createRobot(scene);
   const pathTrail = createPathTrail(scene);
+  const uwb = createUwbAnchors(scene);
 
   let hoverCb: ((zoneId: number | null) => void) | null = null;
   let clickCb: ((zoneId: number | null) => void) | null = null;
@@ -157,11 +236,13 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
     heatmap,
     robot,
     pathTrail,
+    uwb,
     plantNodes,
     update(day) {
       heatmap.update(day);
       robot.update(day);
       pathTrail.update(day);
+      uwb.update(robot.currentPosition());
 
       for (let i = 0; i < SCENARIO.plantCount; i++) {
         const plant = SCENARIO.plants[i];

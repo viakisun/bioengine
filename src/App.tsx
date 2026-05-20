@@ -3,6 +3,7 @@ import { AnalysisPanel } from './components/AnalysisPanel';
 import { Timeline } from './components/Timeline';
 import { CameraPresets } from './components/CameraPresets';
 import { EventList } from './components/EventList';
+import { Minimap } from './components/Minimap';
 import { useTwinStore } from './store/twinStore';
 
 export function App() {
@@ -54,12 +55,19 @@ export function App() {
           <span id="hud-backend">--</span>
           <span style={{ color: '#6b7280' }}>·</span>
           <span id="hud-day" style={{ fontVariantNumeric: 'tabular-nums' }}>Day --</span>
+          <span style={{ color: '#6b7280' }}>·</span>
+          <span
+            id="hud-robot"
+            style={{ color: '#60a5fa', fontVariantNumeric: 'tabular-nums' }}
+          >UWB --</span>
         </div>
+
+        <Minimap />
 
         <div
           style={{
             position: 'absolute',
-            top: 12,
+            top: 156,
             right: 12,
             display: 'flex',
             gap: 6,
@@ -82,9 +90,18 @@ export function App() {
             fontSize: 10,
             color: '#6b7280',
             pointerEvents: 'none',
+            textAlign: 'right',
+            lineHeight: 1.5,
           }}
         >
-          스마트온실 디지털 트윈 PoC · Babylon.js {/* version */}
+          <div style={{
+            color: '#e0e0e0', fontWeight: 600, letterSpacing: 1, fontSize: 11, marginBottom: 2,
+          }}>
+            VIASOFT<span style={{ color: '#6ee7b7' }}>.AI</span>
+          </div>
+          스마트온실 디지털 트윈 PoC
+          <br />
+          김제 스마트팜혁신밸리 · UWB 4-anchor 위치측위
         </div>
       </div>
 

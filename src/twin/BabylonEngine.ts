@@ -120,6 +120,7 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
   let lastPlayTime = performance.now();
   const hudFps = document.getElementById('hud-fps');
   const hudDay = document.getElementById('hud-day');
+  const hudRobot = document.getElementById('hud-robot');
 
   engine.runRenderLoop(() => {
     const state = useTwinStore.getState();
@@ -147,6 +148,10 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
     if (hudFps && now - lastFpsUpdate > 250) {
       hudFps.textContent = `${engine!.getFps().toFixed(0)} fps`;
       if (hudDay) hudDay.textContent = `Day ${state.currentDay.toFixed(0)}`;
+      if (hudRobot && greenhouse) {
+        const p = greenhouse.robot.currentPosition();
+        hudRobot.textContent = `UWB x:${p.x.toFixed(2)}m z:${p.z.toFixed(2)}m`;
+      }
       lastFpsUpdate = now;
     }
   });

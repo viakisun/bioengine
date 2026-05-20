@@ -7,3 +7,4 @@ dist/
 .env.local
 .claude/settings.local.json
 verify-farmsim.mjs
+_ref/
