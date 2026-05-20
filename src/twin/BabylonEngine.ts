@@ -3,8 +3,10 @@ import { WebGPUEngine } from '@babylonjs/core/Engines/webgpuEngine';
 import { Scene } from '@babylonjs/core/scene';
 import { Color3, Color4 } from '@babylonjs/core/Maths/math.color';
 import { setupScene } from './SceneSetup';
-import { setupCamera } from './CameraRig';
-import { buildSamplePoCScene } from './PoCContent';
+import { setupCamera, type CameraRig } from './CameraRig';
+import { buildGreenhouseScene, type GreenhouseSceneHandle } from './GreenhouseScene';
+import { useTwinStore } from '../store/twinStore';
+import { SCENARIO } from '../data/mockScenario';
 
 import '@babylonjs/core/Helpers/sceneHelpers';
 import '@babylonjs/core/Materials/Textures/Loaders';
@@ -12,6 +14,8 @@ import '@babylonjs/core/Materials/Textures/Loaders';
 export interface BabylonEngineHandle {
   scene: Scene;
   engine: Engine | WebGPUEngine;
+  cameraRig: CameraRig;
+  greenhouse: GreenhouseSceneHandle;
   backend: 'webgpu' | 'webgl2';
   dispose: () => void;
 }
@@ -62,6 +66,7 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
   scene.ambientColor = new Color3(0.15, 0.15, 0.15);
 
   const cameraRig = setupCamera(scene, canvas);
+  cameraRig.setPreset(useTwinStore.getState().cameraPreset);
   console.log('[BabylonEngine] camera ready');
 
   try {
@@ -70,29 +75,78 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
     console.error('[BabylonEngine] setupScene failed:', err);
   }
 
+  let greenhouse: GreenhouseSceneHandle | null = null;
   try {
-    buildSamplePoCScene(scene);
+    greenhouse = buildGreenhouseScene(scene);
   } catch (err) {
-    console.error('[BabylonEngine] buildSamplePoCScene failed:', err);
+    console.error('[BabylonEngine] buildGreenhouseScene failed:', err);
   }
+
+  // Bridge zone picking → store
+  greenhouse?.onZoneHover((zoneId) => {
+    useTwinStore.getState().hoverZone(zoneId);
+    if (greenhouse) greenhouse.heatmap.setHoveredZone(zoneId);
+  });
+  greenhouse?.onZoneClick((zoneId) => {
+    if (zoneId !== null) {
+      useTwinStore.getState().selectZone(zoneId);
+      if (greenhouse) greenhouse.heatmap.setSelectedZone(zoneId);
+    }
+  });
+
+  // Store subscription — react to changes
+  const unsubStore = useTwinStore.subscribe((s, prev) => {
+    if (s.selectedZoneId !== prev.selectedZoneId && greenhouse) {
+      greenhouse.heatmap.setSelectedZone(s.selectedZoneId);
+    }
+    if (s.heatmapVisible !== prev.heatmapVisible && greenhouse) {
+      greenhouse.heatmap.setVisible(s.heatmapVisible);
+    }
+    if (s.fovVisible !== prev.fovVisible && greenhouse) {
+      greenhouse.robot.setFovVisible(s.fovVisible);
+    }
+    if (s.pathTrailVisible !== prev.pathTrailVisible && greenhouse) {
+      greenhouse.pathTrail.setVisible(s.pathTrailVisible);
+    }
+    if (s.cameraPreset !== prev.cameraPreset) {
+      cameraRig.setPreset(s.cameraPreset);
+    }
+  });
 
   console.log('[BabylonEngine] starting render loop');
 
   let lastFpsUpdate = 0;
-  let frameCount = 0;
+  let lastDayUpdate = -999;
+  let lastPlayTime = performance.now();
   const hudFps = document.getElementById('hud-fps');
+  const hudDay = document.getElementById('hud-day');
 
   engine.runRenderLoop(() => {
-    try {
-      scene.render();
-    } catch (err) {
-      if (frameCount === 0) console.error('[BabylonEngine] first frame render error:', err);
-    }
-    frameCount++;
+    const state = useTwinStore.getState();
 
     const now = performance.now();
+    if (state.playing) {
+      const dtSec = (now - lastPlayTime) / 1000;
+      const newDay = state.currentDay + dtSec * state.playSpeed * 2;
+      if (newDay >= SCENARIO.durationDays) {
+        useTwinStore.getState().setDay(SCENARIO.durationDays);
+        useTwinStore.getState().togglePlay();
+      } else {
+        useTwinStore.getState().setDay(newDay);
+      }
+    }
+    lastPlayTime = now;
+
+    if (greenhouse && Math.abs(state.currentDay - lastDayUpdate) > 0.05) {
+      greenhouse.update(state.currentDay);
+      lastDayUpdate = state.currentDay;
+    }
+
+    scene.render();
+
     if (hudFps && now - lastFpsUpdate > 250) {
-      hudFps.textContent = `${engine!.getFps().toFixed(0)} fps · frames ${frameCount}`;
+      hudFps.textContent = `${engine!.getFps().toFixed(0)} fps`;
+      if (hudDay) hudDay.textContent = `Day ${state.currentDay.toFixed(0)}`;
       lastFpsUpdate = now;
     }
   });
@@ -103,9 +157,12 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
   return {
     scene,
     engine,
+    cameraRig,
+    greenhouse: greenhouse!,
     backend,
     dispose() {
       window.removeEventListener('resize', onResize);
+      unsubStore();
       scene.dispose();
       engine!.dispose();
     },
