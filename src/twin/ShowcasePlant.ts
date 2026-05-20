@@ -3,13 +3,14 @@ import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
 import { PBRMaterial } from '@babylonjs/core/Materials/PBR/pbrMaterial';
+import { HighlightLayer } from '@babylonjs/core/Layers/highlightLayer';
 import { Vector3, Quaternion } from '@babylonjs/core/Maths/math.vector';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { SeededRandom } from '../utils/SeededRandom';
 import { createLeafMeshFromNode, getLeafMaterial, getYellowLeafMaterial } from '../plant/LeafGenerator';
 import { createStemMesh, getStemMaterial } from '../plant/StemGenerator';
 import type { GrowthEngine } from '../simulation/GrowthEngine';
-import type { PlantState, NodeState } from '../simulation/GrowthModel';
+import type { PlantState } from '../simulation/GrowthModel';
 
 const TOMATO_RIPEN_COLORS = [
   '#3c8a30', '#8c9432', '#b9683c', '#d25240', '#c83228', '#a02218',
@@ -26,7 +27,14 @@ export interface ShowcasePlantHandle {
   root: TransformNode;
   update: (day: number) => void;
   setVisible: (v: boolean) => void;
+  setSegmentationMode: (on: boolean) => void;
   currentState: () => PlantState | null;
+}
+
+interface PartGroup {
+  leaves: Mesh[];
+  fruits: Mesh[];
+  stem: Mesh | null;
 }
 
 export function createShowcasePlant(
@@ -43,13 +51,38 @@ export function createShowcasePlant(
   const stemMat = getStemMaterial(scene);
 
   let currentMeshes: Mesh[] = [];
+  let currentParts: PartGroup = { leaves: [], fruits: [], stem: null };
   let lastState: PlantState | null = null;
   let lastBuildDay = -999;
   const REBUILD_THRESHOLD_DAYS = 0.5;
 
+  // Highlight layer for segmentation-mode color outlines
+  const highlight = new HighlightLayer('showcase_hl', scene);
+  highlight.innerGlow = false;
+  highlight.outerGlow = true;
+  highlight.blurHorizontalSize = 0.6;
+  highlight.blurVerticalSize = 0.6;
+
+  let segmentationOn = false;
+  function applySegmentationHighlights() {
+    highlight.removeAllMeshes();
+    if (!segmentationOn) return;
+    for (const leaf of currentParts.leaves) {
+      highlight.addMesh(leaf, Color3.FromHexString('#6ee7b7'));
+    }
+    for (const fruit of currentParts.fruits) {
+      highlight.addMesh(fruit, Color3.FromHexString('#fbbf24'));
+    }
+    if (currentParts.stem) {
+      highlight.addMesh(currentParts.stem, Color3.FromHexString('#60a5fa'));
+    }
+  }
+
   function disposeAll() {
     for (const m of currentMeshes) m.dispose();
     currentMeshes = [];
+    currentParts = { leaves: [], fruits: [], stem: null };
+    highlight.removeAllMeshes();
   }
 
   function buildFromState(state: PlantState) {
@@ -65,6 +98,7 @@ export function createShowcasePlant(
       stem.parent = root;
       stem.material = stemMat;
       currentMeshes.push(stem);
+      currentParts.stem = stem;
     }
 
     // Leaves: one mesh per node (created from NodeState)
@@ -96,6 +130,7 @@ export function createShowcasePlant(
       );
       leaf.rotationQuaternion = q;
       currentMeshes.push(leaf);
+      currentParts.leaves.push(leaf);
 
       // Truss with fruits (if any)
       if (node.truss && node.truss.fruits.length > 0) {
@@ -127,9 +162,12 @@ export function createShowcasePlant(
           fruitMat.clearCoat.roughness = 0.12;
           fruitMesh.material = fruitMat;
           currentMeshes.push(fruitMesh);
+          currentParts.fruits.push(fruitMesh);
         }
       }
     }
+
+    applySegmentationHighlights();
   }
 
   return {
@@ -142,6 +180,11 @@ export function createShowcasePlant(
     },
     setVisible(v) {
       root.setEnabled(v);
+    },
+    setSegmentationMode(on) {
+      if (segmentationOn === on) return;
+      segmentationOn = on;
+      applySegmentationHighlights();
     },
     currentState: () => lastState,
   };

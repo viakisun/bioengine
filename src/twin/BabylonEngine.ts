@@ -111,6 +111,9 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
     if (s.cameraPreset !== prev.cameraPreset) {
       cameraRig.setPreset(s.cameraPreset);
     }
+    if (s.analysisMode !== prev.analysisMode && greenhouse) {
+      greenhouse.showcasePlant.setSegmentationMode(s.analysisMode);
+    }
   });
 
   console.log('[BabylonEngine] starting render loop');
