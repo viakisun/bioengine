@@ -22,13 +22,18 @@ const TOMATO_RIPEN_COLORS = [
   '#c83228', // dark red
 ];
 
-function addFruitCluster(scene: Scene, parent: TransformNode) {
-  const trussConfigs: Array<{ height: number; count: number; ripenStage: number }> = [
-    { height: 0.55, count: 4, ripenStage: 4 },
-    { height: 0.85, count: 3, ripenStage: 3 },
-    { height: 1.15, count: 5, ripenStage: 2 },
-    { height: 1.4, count: 4, ripenStage: 0 },
-  ];
+function addFruitCluster(scene: Scene, parent: TransformNode, detail: 'full' | 'reduced' = 'full') {
+  const trussConfigs: Array<{ height: number; count: number; ripenStage: number }> = detail === 'full'
+    ? [
+        { height: 0.55, count: 4, ripenStage: 4 },
+        { height: 0.85, count: 3, ripenStage: 3 },
+        { height: 1.15, count: 5, ripenStage: 2 },
+        { height: 1.4, count: 4, ripenStage: 0 },
+      ]
+    : [
+        { height: 0.7, count: 3, ripenStage: 4 },
+        { height: 1.1, count: 3, ripenStage: 2 },
+      ];
 
   for (const truss of trussConfigs) {
     const trussNode = new TransformNode('truss', scene);
@@ -127,21 +132,134 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
   bed.material = bedMat;
   bed.receiveShadows = true;
 
-  // Greenhouse frame ribs (simple A-frames at 4m intervals)
+  // Greenhouse frame (galvanized A-frames + ridge beam + side posts)
   const frameMat = new PBRMaterial('frameMat', scene);
-  frameMat.albedoColor = Color3.FromHexString('#b8b8b0');
+  frameMat.albedoColor = Color3.FromHexString('#c8c8c0');
   frameMat.metallic = 0.85;
-  frameMat.roughness = 0.35;
+  frameMat.roughness = 0.3;
+
+  const ridgeY = 4.5;
+  const eaveY = 3.6;
+  const halfWidth = 3.5;
+
   for (let i = 0; i <= bedLen / 4; i++) {
     const x = -bedLen / 2 + i * 4;
-    const beam = MeshBuilder.CreateCylinder(
-      `rib_${i}`,
-      { height: 5.2, diameter: 0.045 },
+    // Side posts (vertical)
+    for (const side of [-1, 1]) {
+      const post = MeshBuilder.CreateCylinder(
+        `post_${i}_${side}`,
+        { height: eaveY, diameter: 0.06 },
+        scene
+      );
+      post.position = new Vector3(x, eaveY / 2, side * halfWidth);
+      post.material = frameMat;
+    }
+    // Roof rafters (sloped)
+    for (const side of [-1, 1]) {
+      const rafterLen = Math.sqrt(halfWidth * halfWidth + (ridgeY - eaveY) * (ridgeY - eaveY));
+      const rafter = MeshBuilder.CreateCylinder(
+        `rafter_${i}_${side}`,
+        { height: rafterLen, diameter: 0.05 },
+        scene
+      );
+      rafter.position = new Vector3(x, (ridgeY + eaveY) / 2, side * halfWidth / 2);
+      rafter.rotation.x = side * Math.atan2(halfWidth, ridgeY - eaveY) - Math.PI / 2;
+      rafter.material = frameMat;
+    }
+  }
+
+  // Ridge beam (top long axis)
+  const ridge = MeshBuilder.CreateCylinder(
+    'ridge',
+    { height: bedLen + 1, diameter: 0.07 },
+    scene
+  );
+  ridge.position = new Vector3(0, ridgeY, 0);
+  ridge.rotation.z = Math.PI / 2;
+  ridge.material = frameMat;
+
+  // Eave beams (long axis at eave height)
+  for (const side of [-1, 1]) {
+    const eave = MeshBuilder.CreateCylinder(
+      `eave_${side}`,
+      { height: bedLen + 1, diameter: 0.05 },
       scene
     );
-    beam.position = new Vector3(x, 2.5, 2.6);
-    beam.rotation.x = -0.4;
-    beam.material = frameMat;
+    eave.position = new Vector3(0, eaveY, side * halfWidth);
+    eave.rotation.z = Math.PI / 2;
+    eave.material = frameMat;
+  }
+
+  // Roof panels (translucent polycarbonate)
+  const roofMat = new PBRMaterial('roofMat', scene);
+  roofMat.albedoColor = Color3.FromHexString('#dfe8e0');
+  roofMat.alpha = 0.18;
+  roofMat.metallic = 0.0;
+  roofMat.roughness = 0.12;
+  roofMat.indexOfRefraction = 1.49;
+  roofMat.backFaceCulling = false;
+  roofMat.transparencyMode = PBRMaterial.MATERIAL_ALPHABLEND;
+  roofMat.environmentIntensity = 1.2;
+
+  for (const side of [-1, 1]) {
+    const slopeLen = Math.sqrt(halfWidth * halfWidth + (ridgeY - eaveY) * (ridgeY - eaveY));
+    const panel = MeshBuilder.CreatePlane(
+      `roof_${side}`,
+      { width: bedLen + 1, height: slopeLen },
+      scene
+    );
+    panel.position = new Vector3(0, (ridgeY + eaveY) / 2, side * halfWidth / 2);
+    panel.rotation.x = -side * Math.atan2(halfWidth, ridgeY - eaveY);
+    panel.rotation.y = side > 0 ? 0 : Math.PI;
+    panel.material = roofMat;
+  }
+
+  // Side wall panels (translucent)
+  for (const side of [-1, 1]) {
+    const wall = MeshBuilder.CreatePlane(
+      `wall_${side}`,
+      { width: bedLen + 1, height: eaveY },
+      scene
+    );
+    wall.position = new Vector3(0, eaveY / 2, side * halfWidth);
+    wall.rotation.y = side > 0 ? -Math.PI / 2 : Math.PI / 2;
+    wall.material = roofMat;
+  }
+
+  // Overhead training wires (two parallel cables, then per-plant vertical strings)
+  const wireMat = new PBRMaterial('wireMat', scene);
+  wireMat.albedoColor = Color3.FromHexString('#888888');
+  wireMat.metallic = 0.8;
+  wireMat.roughness = 0.4;
+
+  const wireY = 3.4;
+  for (const wireZ of [-0.15, 0.15]) {
+    const wire = MeshBuilder.CreateCylinder(
+      `wire_${wireZ}`,
+      { height: bedLen + 0.5, diameter: 0.004 },
+      scene
+    );
+    wire.position = new Vector3(0, wireY, wireZ);
+    wire.rotation.z = Math.PI / 2;
+    wire.material = wireMat;
+  }
+
+  // Vertical training strings per plant (white twine)
+  const stringMat = new PBRMaterial('stringMat', scene);
+  stringMat.albedoColor = Color3.FromHexString('#e0d8c8');
+  stringMat.metallic = 0;
+  stringMat.roughness = 0.9;
+
+  for (const plant of SCENARIO.plants) {
+    for (const stringZ of [-0.15, 0.15]) {
+      const str = MeshBuilder.CreateCylinder(
+        `string_${plant.id}_${stringZ}`,
+        { height: wireY - SCENARIO.bedY, diameter: 0.002 },
+        scene
+      );
+      str.position = new Vector3(plant.position[0], (wireY + SCENARIO.bedY) / 2, stringZ);
+      str.material = stringMat;
+    }
   }
 
   // Plant placeholder markers (30) — simple stems
@@ -169,22 +287,36 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
 
   const leafMat = getLeafMaterial(scene);
   const showcasePlantIndex = Math.floor(SCENARIO.plantCount / 2);
-  const neighborhoodSize = 5;
 
-  for (
-    let pi = showcasePlantIndex - neighborhoodSize;
-    pi <= showcasePlantIndex + neighborhoodSize;
-    pi++
-  ) {
-    if (pi < 0 || pi >= SCENARIO.plantCount) continue;
-    const isShowcase = pi === showcasePlantIndex;
+  for (let pi = 0; pi < SCENARIO.plantCount; pi++) {
     const distFromCenter = Math.abs(pi - showcasePlantIndex);
-    const leafScale = isShowcase ? 2.0 : Math.max(1.0, 1.8 - distFromCenter * 0.18);
-    const leafCount = isShowcase ? 7 : 5;
-    const plantNode = plantNodes[pi];
+    const isShowcase = distFromCenter === 0;
+    const isNearShowcase = distFromCenter <= 2;
 
+    let leafCount: number;
+    let leafScale: number;
+    let leafletCount: number;
+    if (isShowcase) {
+      leafCount = 7;
+      leafScale = 2.0;
+      leafletCount = 7;
+    } else if (isNearShowcase) {
+      leafCount = 6;
+      leafScale = 1.7;
+      leafletCount = 7;
+    } else if (distFromCenter <= 6) {
+      leafCount = 4;
+      leafScale = 1.3;
+      leafletCount = 5;
+    } else {
+      leafCount = 3;
+      leafScale = 1.0;
+      leafletCount = 3;
+    }
+
+    const plantNode = plantNodes[pi];
     for (let i = 0; i < leafCount; i++) {
-      const t = i / (leafCount - 1);
+      const t = i / Math.max(1, leafCount - 1);
       const heightY = 0.4 + t * 1.3;
       const ageFrac = Math.min(1, (1 - t) * 0.9);
       const maturity = 0.5 + (1 - t) * 0.5;
@@ -194,7 +326,7 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
         const leaf = createLeafMesh(
           `plant_${pi}_leaf_${i}_${side}`,
           scene,
-          7,
+          leafletCount,
           leafScale,
           maturity,
           0.15,
@@ -211,7 +343,9 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
       }
     }
 
-    if (isShowcase) addFruitCluster(scene, plantNode);
+    if (distFromCenter <= 8) {
+      addFruitCluster(scene, plantNode, isShowcase ? 'full' : 'reduced');
+    }
   }
 
   const heatmap = createHeatmap(scene);
