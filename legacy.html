@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>스마트팜 토마토 생육 시뮬레이션 3D</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #1a1d23;
+  color: #e0e0e0;
+  font-family: -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+  overflow: hidden;
+  height: 100vh;
+}
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+#header {
+  text-align: center;
+  padding: 8px 16px;
+  background: linear-gradient(180deg, #22262e, #1a1d23);
+  border-bottom: 1px solid #2a2e36;
+  z-index: 10;
+}
+#header h1 { font-size: 16px; font-weight: 600; color: #c8d0dc; letter-spacing: 1px; }
+#header .subtitle { font-size: 10px; color: #6b7280; margin-top: 1px; }
+#canvas-wrap {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+#canvas-wrap canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+#stage-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 28px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.85);
+  text-shadow: 0 2px 12px rgba(0,0,0,0.7);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+#info-panel {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  padding: 6px 16px;
+  background: #22262e;
+  border-top: 1px solid #2a2e36;
+  flex-wrap: wrap;
+  z-index: 10;
+}
+.info-item { text-align: center; min-width: 70px; }
+.info-label { font-size: 9px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; }
+.info-value { font-size: 14px; font-weight: 600; color: #e5e7eb; margin-top: 1px; }
+.info-value.stage { color: #6ee7b7; font-size: 12px; }
+#controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: #1a1d23;
+  border-top: 1px solid #2a2e36;
+  z-index: 10;
+}
+#controls button {
+  background: #2a2e36;
+  border: 1px solid #3a3e46;
+  color: #e0e0e0;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+#controls button:hover { background: #3a3e46; }
+#scrubber-wrap { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+#scrubber {
+  -webkit-appearance: none; appearance: none;
+  width: 100%; height: 5px; border-radius: 3px;
+  background: #2a2e36; outline: none; cursor: pointer;
+}
+#scrubber::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%;
+  background: #6ee7b7; cursor: pointer; box-shadow: 0 0 6px rgba(110,231,183,0.4);
+}
+#scrubber-labels { display: flex; justify-content: space-between; font-size: 9px; color: #6b7280; }
+#speed-btn { font-size: 11px !important; width: auto !important; padding: 0 8px !important; font-weight: 600; }
+#plant-count { position: absolute; top: 8px; right: 12px; font-size: 10px; color: #6b7280; z-index: 10; }
+#fps-counter { position: absolute; top: 8px; left: 12px; font-size: 10px; color: #6b7280; z-index: 10; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="header">
+    <h1>스마트팜 토마토 생육 시뮬레이션 3D</h1>
+    <div class="subtitle">30m 행잉베드 코코배지 재배 | Three.js 비정형 식물 엔진</div>
+  </div>
+  <div id="canvas-wrap">
+    <canvas id="sim-canvas"></canvas>
+    <div id="stage-overlay"></div>
+    <div id="fps-counter">-- fps</div>
+    <div id="plant-count">-- plants</div>
+  </div>
+  <div id="info-panel">
+    <div class="info-item"><div class="info-label">생장단계</div><div class="info-value stage" id="v-stage">-</div></div>
+    <div class="info-item"><div class="info-label">Day</div><div class="info-value" id="v-day">0 / 120</div></div>
+    <div class="info-item"><div class="info-label">초장</div><div class="info-value" id="v-height">0 cm</div></div>
+    <div class="info-item"><div class="info-label">엽수</div><div class="info-value" id="v-leaves">0</div></div>
+    <div class="info-item"><div class="info-label">화방수</div><div class="info-value" id="v-trusses">0</div></div>
+    <div class="info-item"><div class="info-label">착과수</div><div class="info-value" id="v-fruits">0</div></div>
+    <div class="info-item"><div class="info-label">숙성단계</div><div class="info-value" id="v-ripen">-</div></div>
+  </div>
+  <div id="controls">
+    <button id="play-btn" title="재생/일시정지">&#9654;</button>
+    <button id="reset-btn" title="처음으로">&#9632;</button>
+    <div id="scrubber-wrap">
+      <input type="range" id="scrubber" min="0" max="120" step="0.1" value="0">
+      <div id="scrubber-labels"><span>Day 0</span><span>30</span><span>60</span><span>90</span><span>Day 120</span></div>
+    </div>
+    <button id="speed-btn" title="속도 변경">1x</button>
+  </div>
+</div>
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>

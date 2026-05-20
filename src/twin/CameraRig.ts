@@ -1,0 +1,54 @@
+import { Scene } from '@babylonjs/core/scene';
+import { ArcRotateCamera } from '@babylonjs/core/Cameras/arcRotateCamera';
+import { Vector3 } from '@babylonjs/core/Maths/math.vector';
+
+export interface CameraRig {
+  camera: ArcRotateCamera;
+  setPreset: (name: PresetView) => void;
+}
+
+export type PresetView = 'overview' | 'eye-level' | 'closeup' | 'robot-pov';
+
+const PRESETS: Record<PresetView, { alpha: number; beta: number; radius: number; target: Vector3 }> = {
+  overview: { alpha: -Math.PI / 2, beta: 0.6, radius: 18, target: new Vector3(0, 2, 0) },
+  'eye-level': { alpha: -Math.PI / 2, beta: Math.PI / 2 - 0.05, radius: 4.5, target: new Vector3(0, 1.6, 0) },
+  closeup: { alpha: -Math.PI / 2, beta: Math.PI / 2 - 0.2, radius: 1.6, target: new Vector3(0, 1.5, 0) },
+  'robot-pov': { alpha: 0, beta: Math.PI / 2.5, radius: 1.2, target: new Vector3(0, 1.8, 0) },
+};
+
+export function setupCamera(scene: Scene, canvas: HTMLCanvasElement): CameraRig {
+  const initial = PRESETS['eye-level'];
+
+  const camera = new ArcRotateCamera(
+    'cam',
+    initial.alpha,
+    initial.beta,
+    initial.radius,
+    initial.target.clone(),
+    scene
+  );
+  camera.attachControl(canvas, true);
+  camera.minZ = 0.05;
+  camera.maxZ = 120;
+  camera.wheelDeltaPercentage = 0.01;
+  camera.pinchDeltaPercentage = 0.01;
+  camera.lowerRadiusLimit = 0.3;
+  camera.upperRadiusLimit = 50;
+  camera.upperBetaLimit = Math.PI / 2 - 0.02;
+  camera.lowerBetaLimit = 0.02;
+  camera.fov = (45 * Math.PI) / 180;
+  camera.useAutoRotationBehavior = false;
+  camera.useBouncingBehavior = false;
+  camera.useFramingBehavior = false;
+
+  return {
+    camera,
+    setPreset(name) {
+      const p = PRESETS[name];
+      camera.alpha = p.alpha;
+      camera.beta = p.beta;
+      camera.radius = p.radius;
+      camera.target = p.target.clone();
+    },
+  };
+}
