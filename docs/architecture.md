@@ -1,345 +1,302 @@
-# 아키텍처 상세 — 생육 엔진 & 렌더링 파이프라인
+# 아키텍처 — 스마트온실 디지털 트윈 (Babylon.js + React)
+
+## 0. 문서 컨벤션
+
+- 본 문서는 `feature/babylon-twin` 브랜치 기준 (Babylon.js 9 + React 19 + Vite).
+- 이전 Three.js 진입점은 `legacy.html` 에 보존되어 있음 (참조용).
+- `_ref/smartfarm.mp4` (김제 스마트팜혁신밸리 UWB 시험 영상) 의 frame_07 모니터링 화면이 운영 화면 설계의 reference.
 
 ---
 
-## 1. 시스템 레이어 구조
+## 1. 레이어 구조
 
 ```
-┌───────────────────────────────────────────────────┐
-│                  Presentation Layer                 │
-│  UI (Timeline, InfoPanel) + Interaction (Picker)   │
-├───────────────────────────────────────────────────┤
-│                  Rendering Layer                    │
-│  Engine + PostProcessing + Generators + Materials   │
-├───────────────────────────────────────────────────┤
-│                  Simulation Layer                   │
-│  GrowthModel + PhysicsModel + GrowthEngine         │
-├───────────────────────────────────────────────────┤
-│                  Data Layer                         │
-│  PlantGenome + PlantState + SeededRandom            │
-└───────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────┐
+│         Presentation (React UI)                       │
+│  App / SceneCanvas / AnalysisPanel / Timeline /      │
+│  Minimap / CameraPresets / EventList / LabelOverlay /│
+│  CaptureThumbs / PointCloudPreview                    │
+├──────────────────────────────────────────────────────┤
+│         State (zustand)                               │
+│  src/store/twinStore.ts                               │
+├──────────────────────────────────────────────────────┤
+│         Scene (Babylon.js)                            │
+│  BabylonEngine / SceneSetup / CameraRig /             │
+│  GreenhouseScene / ShowcasePlant / Robot / Heatmap /  │
+│  PathTrail / UwbAnchors / ZonePicker / GroundTexture  │
+├──────────────────────────────────────────────────────┤
+│         Plant (mesh generators)                       │
+│  LeafGenerator / StemGenerator / FruitGenerator /     │
+│  TrussGenerator / LeafTexture                         │
+├──────────────────────────────────────────────────────┤
+│         Simulation (engine-agnostic biology)          │
+│  GrowthEngine / GrowthModel / PhysicsModel /          │
+│  PlantGenome / SunPosition                            │
+├──────────────────────────────────────────────────────┤
+│         Data (mocks)                                  │
+│  mockScenario (30 plants × 6 zones × 120 days,        │
+│  robot route, capture sessions, events)               │
+└──────────────────────────────────────────────────────┘
 ```
 
-**핵심 설계 원칙:**
-- **Simulation Layer는 Three.js에 의존하지 않음** — `GrowthEngine`, `GrowthModel`, `PhysicsModel`, `PlantGenome`은 순수 수학/데이터 코드
-- **Rendering Layer만 Three.js 의존** — 엔진 교체 시 이 레이어만 다시 구현
-- **PlantState 인터페이스가 두 레이어를 연결** — Simulation → PlantState → Rendering
+**핵심 설계 원칙**
+
+- **Simulation Layer는 렌더링 엔진에 의존하지 않음** — `src/simulation/*` 와 `src/sim/SunPosition.ts` 는 Three.js / Babylon 모두 zero dependency. 별도 worker / Node CLI 로도 그대로 실행 가능.
+- **PlantState 인터페이스가 두 레이어를 연결** — Simulation → `computeState(seed, day, env?) → PlantState` → Plant mesh generators.
+- **State는 단방향** — React UI → zustand → BabylonEngine.subscribe → scene update. 씬에서 store 직접 수정 (zone 클릭 등) 은 `useTwinStore.getState()` 통해 명시적으로.
 
 ---
 
-## 2. 생육 엔진 (Simulation Layer)
+## 2. Simulation Layer (엔진 무관)
 
-### 2.1 PlantGenome — 유전 파라미터 (62종)
+### 2.1 GrowthEngine — public façade
 
-`generateGenome(seed)` 함수가 Seed에서 결정론적으로 62개 파라미터를 생성.
+`src/simulation/GrowthEngine.ts` — 외부에서 생장 시뮬레이션을 다룰 단일 진입점.
 
-| 카테고리 | 파라미터 예시 | 범위 |
-|----------|-------------|------|
-| 성장 곡선 | `heightMaxCm`, `heightSigmoidK`, `heightSigmoidMid` | 160-200cm, 0.07-0.09, 38-42 |
-| 노드 생성 | `nodeStartDay`, `nodeInterval`, `phyllotaxisBase` | 6-8일, 2.5-3.5일, 130-140° |
-| 잎 형태 | `leafSizeMultiplier`, `leafletCountBias`, `leafDroop` | 0.8-1.2, -1~+1, 10-30° |
-| 화방/과실 | `trussStartNode`, `trussInterval`, `maxFruitDiameterMm` | 8-10, 3, 55-75mm |
-| 생체역학 | `stemStrength`, `youngsModulus`, `wireHeight` | 0.7-1.3, 2.5-4.5 GPa, 2.8-3.2m |
-| 절간 생물학 | `internodeLenCm`, `internodeElongDelay`, `internodeElongMid` | 5.5-7.5cm, 3-5일, 6-10일 |
-
-### 2.2 GrowthModel — Apex-Driven 생장 알고리즘
-
-**핵심 개념:** 전체 높이를 sigmoid로 결정하지 않고, 각 절간이 독립적으로 신장.
-
-```
-Plant Height = Hypocotyl(하배축) + Σ(각 절간의 현재 길이)
+```ts
+const engine = new GrowthEngine();
+engine.setEnvironment({
+  temperatureC: 23, humidity: 0.7, lightHoursPerDay: 14,
+  co2ppm: 800, nutrientEC: 3.0, substrateWater: 0.6,
+});
+engine.addPlant({
+  seed: 42,
+  genomeOverrides: { heightMaxCm: 220 },   // 게놈 일부 override
+});
+const state = engine.computeState(42, 75);
+// state.nodes[i].droopExtra, leafMassG, stemRadiusMm, ...
 ```
 
-#### 2.2.1 노드 생성 (Phyllotaxis)
+**메서드**
 
-```
-노드 수 = (day - nodeStartDay) / nodeInterval + 1
-```
+| API | 용도 |
+|-----|------|
+| `addPlant({ seed, genomeOverrides? })` | 식물 등록 + 게놈 일부 override |
+| `updateGenome(seed, overrides)` | 런타임 게놈 수정 (UI 슬라이더용) |
+| `removePlant(seed)` / `clear()` | 등록 해제 |
+| `setEnvironment({ ... })` / `getEnvironment()` | 6개 온실 환경 변수 |
+| `computeState(seed, day, envOverride?)` | 특정 일의 PlantState 산출 (소수일 OK) |
+| `computeAllStates(day)` | 모든 식물 일괄 |
+| `getSnapshot(day)` | 직렬화 가능한 스냅샷 |
+| `serialize()` / `fromSerialized(data)` | 엔진 상태 JSON 왕복 |
 
-- SAM(정단분열조직)이 `nodeInterval` (2.5-3.5일) 마다 새 노드를 생성
-- Phyllotaxis angle: ~137.5° (황금각) ± jitter
-- 최대 50개 노드 (120일 생육)
+### 2.2 환경 → 생장 모듈레이션
 
-#### 2.2.2 절간 신장 (Internode Elongation)
+`environmentStressFactor(env)` 가 6개 변수를 곱연산 band-pass로 결합하여 0.3–1.25 스트레스 계수 산출. `applyEnvironmentToGenome(genome, env)` 가 다음 파라미터를 스케일:
 
-```typescript
-// 각 절간이 독립적인 sigmoid 곡선으로 신장
-elongAge = (currentDay - nodeCreationDay) - ELONGATION_DELAY  // 3-5일 지연
-elongation = sigmoid(elongAge, k=0.4, mid=8)
+| 파라미터 | 영향 |
+|---------|------|
+| `heightSigmoidK` | 생장 속도 |
+| `leafSizeMultiplier` | 잎 최대 크기 |
+| `leafExpansionRate` | 잎 확장 시그모이드 가파름 |
+| `fruitMaxDiameterMm` | 과실 최대 직경 |
+| `nodeInterval` | 노드 생성 간격 (역수) |
 
-currentLength = finalLength × elongation
-```
+### 2.3 GrowthModel — apex-driven biology
 
-**생물학적 근거:**
-1. SAM에서 잎 원기 생성 (Day 0)
-2. 잎이 전개되어 GA(지베렐린) 생산 시작 (Day 3-5)
-3. GA가 아래 절간으로 이동, 세포 신장 촉진 (Day 5-7)
-4. 절간이 sigmoid 곡선으로 최종 길이까지 신장 (Day 5-25)
+`src/simulation/GrowthModel.ts` (336 라인).
 
-**효과:**
-- Day 10: 로제트 형태 (잎이 꼭대기에 압축, 줄기 거의 안 보임)
-- Day 25: 하부 절간 신장 시작, 잎 간격 벌어짐
-- Day 50+: 모든 절간 완전 신장, 기존 모델과 유사
+- **APEX-DRIVEN**: 줄기 정점(SAM)이 잎 원기 생성 → 잎 확장 → GA 생성 → GA 하향 이동 → 잎 아래 절간(internode) 신장. 결과: 초기 묘는 rosette(절간 짧음), 가시적 줄기는 ~20일 이후.
+- **3-pass 알고리즘**:
+  1. Pass 1: 각 노드의 잠재 절간 길이 + 현재 신장률 (지연된 sigmoid)
+  2. Pass 2: 절간 길이 누적 → 노드 높이
+  3. Pass 3: 노드별 상태 (잎 성숙도, 면적, 질량, 처짐, 화방/과실)
+- **NodeState 출력** — 노드별:
+  - `heightCm`, `phyllotaxisAngle` (golden angle spiral)
+  - `leafMaturity` (0–1), `leafSizeFactor`, `leafletCount`, `leafAreaCm2`, `leafMassG`
+  - `yellowing` (≥60일 노화)
+  - `droopExtra` (0–120°, weight + age 모델)
+  - `truss?` { flowers[], fruits[] } — 화방, 과실 (직경/숙도/색)
+  - 물리: `massAboveKg`, `stemRadiusMm`, `deflectionRad`, `deflectionAzimuth`
+- **잎 제거** — 가장 낮은 익은 과실 아래 잎은 `leafMaturity=0` (실제 농장 관행).
 
-#### 2.2.3 잎 전개 (Leaf Expansion)
+### 2.4 PhysicsModel — pipe model + cantilever
 
-```typescript
-leafAge = currentDay - nodeCreationDay
-expansion = sigmoid(leafAge, leafExpK=0.35, mid=7)
-leafSize = leafSizeGenome × expansion × vigor
-```
+`src/simulation/PhysicsModel.ts`.
 
-- 잎은 생성 후 14-21일에 걸쳐 최종 크기 도달
-- Vigor = `4S(1-S)` (성장 중반에 가장 큰 잎)
+- **Pass 1 (top→bottom)**: 노드별 mass 누적 (잎 + 과실 + 줄기 segment)
+- **Pass 2 (bottom→top)**: 줄기 반경 = √(mass × supportCoeff + minR²) — 파이프 모델. 2–12mm 범위 (실측 토마토 줄기 10–16mm 직경에 부합).
+- **Pass 3**: 화방 무게 → 굽힘 모멘트 → 처짐 각도 (E × I 기반). 최대 8.5° lean. wireAttachmentHeight 위는 와이어가 지지하므로 굽힘 없음.
+- **`computeTrussDroop(truss, genome)`** — 화방 페던컬을 캔틸레버 빔으로 모델링 (1–15cm 처짐).
 
-#### 2.2.4 화방 & 과실 발달
+### 2.5 PlantGenome — 30+ 게놈 파라미터
 
-```
-화방 위치: node index = trussStartNode + n × trussInterval
-개화: nodeCreationDay + 10일
-수분: 개화 후 3-5일
-과실 성장: 수분 후 sigmoid (40일)
-숙성: 6단계 (Green → Breaker → Turning → Pink → Light Red → Red)
-```
+`src/simulation/PlantGenome.ts`. `generateGenome(seed)` 가 SeededRandom 기반 결정론적 게놈 생성. `addPlant({ seed, genomeOverrides })` 로 일부만 override 가능.
 
-#### 2.2.5 물리 모델 (PhysicsModel)
+주요 카테고리:
+- 생장 곡선 (heightMaxCm, heightSigmoidK/Mid)
+- 노드 생성 (nodeStartDay, nodeInterval, phyllotaxisJitter)
+- 잎 (leafSizeMultiplier, leafletCountBias, leafDroopMultiplier)
+- 화방·과실 (trussStartNode, flowersPerTruss, fruitMaxDiameterMm, ripenStartAge)
+- 잎 형태 (leafSerrationDepth/Freq, leafLobeDepth, leafWaviness, leafPetioleLength)
+- 절간 (internodeLenCm, leafExpansionRate, internodeElongDelay/Mid)
+- 물리 (stemStrengthFactor, stemYoungsModulusMPa, stemWoodDensity)
+- 식재 오프셋 (plantingDayOffset)
 
-```
-각 노드에 대해 (위→아래 순회):
-  1. 누적 질량 = Σ(위 노드의 줄기질량 + 잎질량 + 과실질량)
-  2. 줄기 반경 = allometric(질량) — 12mm(기부) → 2mm(정단)
-  3. 굽힘 모멘트 = 누적질량 × 중력 × 레버암
-  4. 탄성 변형 = M / (E × I) — E=Young's modulus, I=단면2차모멘트
-  5. 변형 방향 = 과실 무게 중심 방향 + 유전적 편향
-```
+### 2.6 SunPosition — 시간대별 태양
 
-### 2.3 GrowthEngine — 렌더러 독립 데이터 레이어
-
-```typescript
-class GrowthEngine {
-  addPlant(seed: number): PlantGenome      // 식물 등록
-  computeState(seed, day): PlantState       // 특정 일의 상태 계산
-  getSnapshot(day): SimulationSnapshot      // 전체 식물 상태
-  toJSON(day): string                       // 직렬화 (API 전송용)
-}
-```
-
-**Three.js 코드 없음** — Unity, Unreal, 혹은 서버사이드에서도 그대로 사용 가능.
+`src/sim/SunPosition.ts` (엔진 무관). `getSunState(hourOfDay)` 가 35°N 위도 기준 태양 방향·색온도·강도 산출. `dayToHour(dayFraction)` 가 simulation day 의 fractional part를 6AM–6PM 일조 시간으로 매핑.
 
 ---
 
-## 3. 렌더링 파이프라인 (Rendering Layer)
+## 3. Scene Layer (Babylon.js)
 
-### 3.1 Engine 초기화
+### 3.1 BabylonEngine
 
-```
-WebGLRenderer (antialias, PCFSoftShadow, sRGB)
-    ↓
-Scene (sky background + fog)
-    ↓
-PMREMGenerator → 절차적 환경맵 (IBL)
-    ↓
-EffectComposer
-  ├── RenderPass (씬 렌더링)
-  ├── UnrealBloomPass (strength=0.15, threshold=0.85)
-  └── OutputPass (ACES Filmic tone mapping, exposure=1.2)
-```
+`src/twin/BabylonEngine.ts` — 엔진 부팅 + 렌더 루프.
 
-### 3.2 조명 시스템
+- WebGPU 우선 → 실패 시 WebGL2 fallback
+- HUD 텍스트 갱신 (fps · 백엔드 · day · UWB 좌표)
+- `useTwinStore.subscribe(...)` 로 store 변화에 반응 (선택 zone, 카메라 프리셋, 분석 모드, 레이어 토글)
+- 매 frame: day → sun 갱신, day delta > 0.05 → `greenhouse.update(day)`, 항상 `scene.render()`
+- 라벨 오버레이 매 frame `Vector3.Project` 로 3D world → 2D screen
 
-```
-태양광 (DirectionalLight)
-  ├── 강도: state.intensity × 4.5 × 0.78(폴리카보네이트 투과율)
-  ├── 색온도: 2500K(일출) → 5500K(정오) → 2500K(일몰)
-  ├── 그림자: PCFSoft, 1024×1024, frustum -6~+6
-  └── 태양 위치: 35°N 위도 태양고도 계산
+### 3.2 SceneSetup
 
-반구광 (HemisphereLight)
-  ├── 하늘: 0xe8e4d8 (폴리카보네이트 산란광)
-  ├── 지면: 0x3a3530 (어두운 반사)
-  └── 강도: 0.2 + intensity × 0.2
+`src/twin/SceneSetup.ts`.
 
-환경광 (AmbientLight)
-  └── 강도: 0.10 + intensity × 0.08 (순흑 방지 최소치)
+- **라이트**: HemisphericLight + DirectionalLight (sun) + CascadedShadowGenerator 시도 → 기본 ShadowGenerator(2048) PCF
+- **Sky**: `GradientMaterial` 스카이박스 (Hosek-Wilkie 대신 안정 그라데이션 — Babylon SkyMaterial 이 WebGPU 에서 silent fail)
+- **IBL**: `public/hdri/environment.env` (Babylon 공식 CC0 .env, 약 270KB) — `CubeTexture.CreateFromPrefilteredData` 로 PMREM
+- **포스트프로세싱 (`DefaultRenderingPipeline`)**: ACES 톤매핑, Bloom (threshold 0.85), Sharpen, FXAA, Vignette (1.6), Exposure 1.0, Contrast 1.1
+- **SSAO2**: WebGL2 에서만 활성 (WebGPU + PrePassRenderer 비호환 — Babylon 9.x 알려진 이슈)
+- **side-effect imports**: PostProcessRenderPipelineManagerSceneComponent, shadowGeneratorSceneComponent, geometryBufferRendererSceneComponent 등 명시 (트리쉐이킹 안전화)
 
-보조광 (Fill DirectionalLight)
-  └── 강도: 0.1 (온실 측벽 투과광)
-```
+### 3.3 GreenhouseScene
 
-**설계 원칙:** 태양이 총 조도의 67%+ 차지 → 명확한 광원 방향성
+`src/twin/GreenhouseScene.ts` — 전체 씬 빌더.
 
-### 3.3 머티리얼 체계
+| 구성 요소 | 메모 |
+|----------|------|
+| Ground (60×8m plane) | 절차적 콘크리트 PBR (`GroundTexture.ts`, RawTexture 512²) |
+| Walking path (30×1.2m) | 통로 |
+| Bed (30×0.35m, galvanized) | 행잉베드 |
+| Greenhouse frame | A-frame ribs 4m 간격 + ridge / eave 빔 + side posts |
+| Roof / wall panels | 반투명 폴리카보네이트 (alpha 0.18, IOR 1.49) |
+| Training wires | 천장 수평 2 와이어 + 식물별 수직 string |
+| Plants (30) | 가운데 1개 (`ShowcasePlant` — GrowthEngine 구동), 양쪽 ±5 풀 정적 foliage, 나머지 LOD 차등 |
+| `Heatmap` | RawTexture 256×16, 6 zone 색 (정상/부진/병해/수분스트레스) |
+| `Robot` | AGV + 6DOF cobot + FOV cone |
+| `PathTrail` | 3일 슬라이딩 윈도우 |
+| `UwbAnchors` | 4 코너 anchor + 거리선 |
+| `ZonePicker` | PointerObservable → store |
 
-| 오브젝트 | 머티리얼 | 주요 설정 |
-|----------|---------|----------|
-| 잎 | MeshStandardMaterial | roughness 0.65, 불투명, DoubleSide, envMap 0.2 |
-| 줄기 | MeshStandardMaterial | roughness 0.7, 녹색 |
-| 과실 | MeshPhysicalMaterial | clearcoat 0.3, roughness 0.28 |
-| 온실 프레임 | MeshStandardMaterial | roughness 0.30, metalness 0.75 (아연도금) |
-| 지붕 패널 | MeshStandardMaterial | transparent, opacity 0.25 |
-| 코코배지 | MeshStandardMaterial | roughness 0.85 (유기물) |
+### 3.4 ShowcasePlant — GrowthEngine 구동 라이브 식물
 
-**주의:** `MeshPhysicalMaterial.transmission`은 사용하지 않음 — 패널당 씬 전체 재렌더링 발생으로 심각한 성능 저하.
+`src/twin/ShowcasePlant.ts`.
 
-### 3.4 3D 메시 생성 (Generators)
+- 매 day-scrub (0.5일 임계) `engine.computeState(seed, day)` → `buildFromState(state)`
+- `disposeAll()` 가 `getChildMeshes(false)` 로 truss 자식 mesh + material 재귀 dispose (메모리 누수 방지)
+- 부위:
+  - **Stem**: `createStemMesh` — Catmull-Rom 곡선 + Frenet 프레임 + 노드별 deflection 누적 + woodiness 정점 색 (밑 갈색 → 위 녹색)
+  - **Leaves**: `createLeafMeshFromNode(node, genome, rng)` — 노드별 잎 메시. droopExtra → ageFrac, yellowing → curl, genome.leafSerration* 등 형태 파라미터
+  - **Truss**: `createTrussNode(truss, genome, azimuth, rng)` — peduncle + 페디셀 + per-fruit `createFruitNode` + 꽃 (5 petal + 5 sepal). 화방 처짐은 `computeTrussDroop` 으로 계산
+- **HighlightLayer** 분석 모드 oultine (leaf=초록 / fruit=노랑 / stem=파랑)
+- 부위별 mesh 리스트로 노출 → segmentation overlay 토글에 사용
 
-#### 줄기 (StemGenerator)
-```
-노드 위치 배열 → Catmull-Rom 스플라인 → TubeGeometry
-  - 반경: PhysicsModel에서 계산한 tapered radius
-  - 세그먼트: 노드 간 8개 보간점
-  - 색상: 녹색(상부) → 갈색(기부) 그라데이션
-```
+### 3.5 Plant generators
 
-#### 잎 (LeafGenerator)
-```
-복엽 구조:
-  잎자루(petiole) → 엽축(rachis) → 소엽(leaflet) × 5-9개
+`src/plant/*.ts` — Babylon `VertexData` 기반 메시 생성. 모든 generator 는 PBR Material 캐시 (`WeakMap<Scene, Material>`).
 
-  각 소엽:
-    타원형 기본 → 톱니(serration) 3-5쌍 → 곡면 왜곡(waviness)
-
-  텍스처:
-    256×256 Canvas → 엽맥 패턴(Bezier) → Color + Normal map
-    중심맥(midrib) + 2차맥 6쌍 + 표면 노이즈
-```
-
-#### 화방 (TrussGenerator)
-```
-화경(peduncle) → 소화경(pedicel) × N개
-  ├── 꽃 메시 (노란색 5-6판, 개화 중일 때)
-  └── 과실 메시 (sphere + 꽃받침 calyx)
-      - 불규칙 구형 (noise 변형)
-      - 6단계 숙성 색상
-      - 과실 질량에 의한 화방 처짐
-```
-
-### 3.5 LOD (Level of Detail) 시스템
-
-| LOD 단계 | 카메라 거리 | 잎 메시 | 과실 메시 | 줄기 |
-|----------|-----------|---------|----------|------|
-| Full | < 3m | 복엽 (5-9 소엽) | 개별 구 + 꽃받침 | Tube spline |
-| Medium | 3-8m | 3개 타원 오버레이 | 단순 구 | Cylinder |
-| Simple | > 8m | 십자 평면 2장 | 구 클러스터 | Line |
-
-### 3.6 환경 맵 (IBL)
-
-```glsl
-// 절차적 하늘 셰이더 (SphereGeometry + ShaderMaterial)
-sky = mix(horizonColor, topColor, pow(y, 0.4))    // 위쪽
-sky = mix(horizonColor, bottomColor, pow(-y, 0.6)) // 아래쪽
-sky += sunColor × (pow(dot, 8) × 0.5 + pow(dot, 256) × 3.0)  // 태양 디스크 + 글로우
-
-→ PMREMGenerator.fromScene() → scene.environment (간접광에 사용)
-```
-
----
-
-## 4. 온실 인프라 모델
-
-### 4.1 행잉거터 시스템 (HangingBed.ts)
-
-```
-높이 기준 (바닥=0):
-
-3.5m ─── 유인줄 고정선 (training wire) × 2본
-  │       │
-  │     유인줄 (training string) 0.35m 간격, 수직
-  │       │
-0.75m ── 거터 (V-channel, 240mm × 80mm)
-  │       ├── 코코배지 (200mm × 75mm, 1m 간격)
-  │       └── 점적관수 라인 (4mm PE)
-  │
-0.30m ── 튜브레일 × 2본 (51mm, 500mm 간격)
-  │       └── 지지 브라켓 (3m 간격)
-  │
-0.00m ── 콘크리트 바닥 + 통로
-```
-
-### 4.2 온실 골조 (Greenhouse.ts)
-
-```
-A-frame 구조:
-  - 4m 간격 리브
-  - 측면 높이 4m, 용마루 5m
-  - 폴리카보네이트 지붕 패널 (opacity 0.25)
-  - 아연도금 파이프 (40mm)
-```
-
----
-
-## 5. 인터페이스 정의 (핵심 타입)
-
-### PlantState
-
-```typescript
-interface PlantState {
-  day: number;
-  heightCm: number;
-  nodes: NodeState[];
-  stage: string;           // '육묘기' | '영양생장기' | ...
-  stageColor: string;
-  genome: PlantGenome;
-}
-```
-
-### NodeState
-
-```typescript
-interface NodeState {
-  index: number;
-  heightCm: number;
-  angle: number;           // phyllotaxis (rad)
-  leafSizeFactor: number;  // 0-1
-  leafExpansion: number;   // 0-1 (전개율)
-  leafDroopRad: number;    // 중력 처짐
-  hasLeaf: boolean;
-  pruned: boolean;         // 적엽 여부
-  truss?: TrussState;
-  stemRadiusMm?: number;
-  deflectionRad?: number;  // 줄기 휨 각도
-  deflectionAzimuth?: number;
-}
-```
-
-### FruitState
-
-```typescript
-interface FruitState {
-  diameterMm: number;
-  ripenStage: number;      // 0-5
-  ripenName: string;       // 'Green' → 'Red'
-  daysSincePollination: number;
-}
-```
-
----
-
-## 6. 성능 프로파일
-
-### 현재 병목 (10주 기준, Day 90)
-
-| 항목 | 수치 |
+| 파일 | 용도 |
 |------|------|
-| 총 메시 수 | ~3,500개 |
-| Draw calls | ~2,900회 |
-| 삼각형 수 | ~640K |
-| Geometry 수 | ~3,000개 |
-| Shadow casters | ~260개 |
+| `LeafTexture.ts` | RawTexture (Uint8Array RGBA) — color + normal 절차적 vein 텍스처 256×256. DynamicTexture 가 WebGPU+PBR 에서 silent fail → RawTexture 로 강제 |
+| `LeafGenerator.ts` | 복엽 메시 (petiole + rachis + 소엽 + lobe). PBR + SSS translucency (intensity 0.45). `createLeafMeshFromNode` 가 NodeState 직접 소비 |
+| `StemGenerator.ts` | Frenet-tube 줄기, 정점색 woodiness |
+| `FruitGenerator.ts` | sphere + 정점 노이즈 + clearcoat PBR (0.4) + per-fruit ripen 색 + 5-petal calyx |
+| `TrussGenerator.ts` | peduncle + 페디셀 + 꽃 + fruit. 화방 처짐 적용 |
 
-### 성능에 영향을 주는 주요 요인
+---
 
-1. **개별 메시 draw call** — 잎, 줄기 세그먼트, 소엽이 모두 개별 오브젝트
-2. **Shadow map** — castShadow 메시 수 × shadow pass
-3. **MeshPhysicalMaterial.transmission** — 사용 시 패널당 씬 재렌더링 (현재 비활성)
-4. **Bloom 포스트프로세싱** — 4-pass downscale + blur
+## 4. UI Layer (React)
 
-### 최적화 기회
+### 4.1 컴포넌트
 
-| 방법 | 예상 효과 | 난이도 |
-|------|----------|--------|
-| InstancedMesh (잎) | Draw call 90% 감소 | 중 |
-| BufferGeometry merge (식물별) | Draw call 80% 감소 | 중 |
-| Geometry 캐싱 (동일 크기 잎 재사용) | Memory 50% 감소 | 하 |
-| LOD 거리 조정 | Draw call 상황 의존 | 하 |
-| Shadow map cascading | 그림자 품질 유지 + 범위 확대 | 중 |
+```
+App.tsx
+ ├ SceneCanvas (Babylon mount + cleanup)
+ ├ 좌상단 HUD (fps · backend · day · UWB)
+ ├ EventList (최근 7일 이상 이벤트)
+ ├ Minimap (UWB 평면도 SVG)
+ ├ Layer toggles (히트맵 / FOV / 경로)
+ ├ LabelOverlay (3D→2D 동기 HTML 라벨)
+ ├ CameraPresets (overview/eye-level/closeup/robot-pov)
+ ├ VIASOFT.AI 브랜드 푸터
+ ├ AnalysisPanel (우측)
+ │   ├ 구역 헤더 + 헬스 칩
+ │   ├ 생육 지표 (초장/엽면적/착과/숙도)
+ │   ├ ChangeIndicator (어제 · 7일 대비)
+ │   ├ 14일 sparkline
+ │   ├ 구역 상태 구성
+ │   ├ 최근 촬영 세션 + CaptureThumbs (RGB/Depth/Mask) + AI 신뢰도
+ │   ├ PointCloudPreview (SVG 점군 평면 투영)
+ │   ├ Segmentation 모드 토글
+ │   └ 비교 모드 (off/yesterday/7days)
+ └ Timeline (날짜 + 이벤트 마커 + 촬영 세션 마커 + 재생 컨트롤)
+```
+
+### 4.2 zustand store
+
+`src/store/twinStore.ts` — 단일 store.
+
+```ts
+currentDay, playing, playSpeed
+selectedZoneId, selectedPlantId, hoveredZoneId
+analysisMode, compareMode
+heatmapVisible, pathTrailVisible, fovVisible
+cameraPreset
+// + setters
+```
+
+dev mode에서 `window.__twinStore = useTwinStore` 노출 (verify script 가 store 직접 driving).
+
+---
+
+## 5. 데이터 (mocks)
+
+`src/data/mockScenario.ts` 가 단일 시드 (20260520) 에서 결정론적 시나리오 생성:
+
+| | 수 |
+|---|---|
+| 식물 | 30 |
+| 구역 | 6 (5m 간격) |
+| 일 수 | 121 (Day 0–120) |
+| 로봇 키프레임 | 일 7회 × 120일 |
+| 촬영 세션 | 매 3일 × 4회 = ~160 |
+| 이상 이벤트 | ~35 (자동 분포) |
+
+`PlantSpec.daily[]` 가 일별 height/leafArea/fruitCount/ripenScore/healthLabel 동적 데이터.
+
+---
+
+## 6. 의도적 누락 (Out-of-Scope)
+
+| 항목 | 사유 |
+|------|------|
+| 온실/로봇 GLB 자산 | 절차적 메시로 frame_07 분위기 매칭 충분, 외부 자산 의존 제로 |
+| ThinInstance 인스턴싱 | 120 fps 여유 충분, 30 식물 규모에서 불필요 (≥100 식물 시 도입 권장) |
+| 빌보드 impostor | 단일 베드 30 식물 규모에서 불필요 |
+| 실제 백엔드 (WebSocket/MQTT) | All Mock 시제품 단계 |
+| Unreal Pixel Streaming | 별도 전시 데모 옵션 |
+| 모바일/태블릿 반응형 | 데스크탑 1080p–1440p 우선 |
+| 다국어 | 한국어 UI 단일 |
+| 시각 회귀 자동 테스트 | 수동 스크린샷 + Playwright 검증 |
+
+---
+
+## 7. 검증 (Verify)
+
+`verify-farmsim.mjs` (gitignored) — Playwright 헤드리스 검증 스크립트:
+
+- 0 page error, 0 HTTP 404
+- WebGPU 백엔드 자동 감지
+- fps 모니터링 (목표 60 fps, 실측 120 fps M-series)
+- Day/카메라 프리셋/분석모드 드라이빙 후 다 각도 스크린샷
+- 60s 재생 후 heap delta 측정 (목표 < +100 MB)
+- 오프라인 reload 테스트 (production build 기준)
+
+실행:
+```bash
+npm run dev
+node verify-farmsim.mjs
+```

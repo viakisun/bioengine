@@ -7,6 +7,8 @@ import {
   getDailySnapshot,
   type HealthLabel,
 } from '../data/mockScenario';
+import { PointCloudPreview } from './PointCloudPreview';
+import { CaptureThumbs } from './CaptureThumbs';
 
 const panelStyle: React.CSSProperties = {
   padding: '16px 16px 20px',
@@ -206,10 +208,10 @@ export function AnalysisPanel() {
               {(session.aiConfidence * 100).toFixed(1)} %
             </span>
           </div>
-          <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-            <ThumbnailPlaceholder label="RGB" color="#3a8a30" />
-            <ThumbnailPlaceholder label="Depth" color="#60a5fa" />
-            <ThumbnailPlaceholder label="Mask" color="#fbbf24" />
+          <CaptureThumbs session={session} healthLabel={dominant} />
+          <div style={{ marginTop: 8 }}>
+            <div style={{ fontSize: 10, color: '#6b7280', marginBottom: 4 }}>점군 미리보기</div>
+            <PointCloudPreview session={session} />
           </div>
         </>
       )}
@@ -256,28 +258,6 @@ export function AnalysisPanel() {
           </button>
         ))}
       </div>
-    </div>
-  );
-}
-
-function ThumbnailPlaceholder({ label, color }: { label: string; color: string }) {
-  return (
-    <div
-      style={{
-        flex: 1,
-        aspectRatio: '1',
-        background: `linear-gradient(135deg, ${color}33, ${color}11)`,
-        border: `1px solid ${color}55`,
-        borderRadius: 4,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontSize: 10,
-        color: '#9ca3af',
-        fontWeight: 600,
-      }}
-    >
-      {label}
     </div>
   );
 }

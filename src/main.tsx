@@ -1,5 +1,10 @@
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
+import { useTwinStore } from './store/twinStore';
+
+if (import.meta.env.DEV) {
+  (window as unknown as { __twinStore: typeof useTwinStore }).__twinStore = useTwinStore;
+}
 
 const root = document.getElementById('root');
 if (!root) throw new Error('#root not found');

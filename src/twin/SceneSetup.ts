@@ -10,6 +10,7 @@ import { SSAO2RenderingPipeline } from '@babylonjs/core/PostProcesses/RenderPipe
 import { ImageProcessingConfiguration } from '@babylonjs/core/Materials/imageProcessingConfiguration';
 import { Camera } from '@babylonjs/core/Cameras/camera';
 import { GradientMaterial } from '@babylonjs/materials/gradient/gradientMaterial';
+import { CubeTexture } from '@babylonjs/core/Materials/Textures/cubeTexture';
 
 import '@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent';
 import '@babylonjs/core/Rendering/geometryBufferRendererSceneComponent';
@@ -74,6 +75,7 @@ export async function setupScene(
   shadowGenerator.normalBias = 0.02;
 
   setupSky(scene);
+  setupIBL(scene);
 
   const pipeline = new DefaultRenderingPipeline('default', true, scene, [camera]);
   pipeline.samples = 4;
@@ -122,6 +124,19 @@ export async function setupScene(
   console.log('[SceneSetup] setup complete');
 
   return { sun, hemi, shadowGenerator, pipeline, ssao };
+}
+
+function setupIBL(scene: Scene) {
+  try {
+    const env = CubeTexture.CreateFromPrefilteredData('/hdri/environment.env', scene);
+    env.gammaSpace = false;
+    env.level = 1.0;
+    scene.environmentTexture = env;
+    scene.environmentIntensity = 0.6;
+    console.log('[SceneSetup] IBL loaded from /hdri/environment.env');
+  } catch (err) {
+    console.warn('[SceneSetup] local IBL load failed:', err);
+  }
 }
 
 function setupSky(scene: Scene) {

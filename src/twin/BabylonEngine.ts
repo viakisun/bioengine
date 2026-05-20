@@ -2,11 +2,15 @@ import { Engine } from '@babylonjs/core/Engines/engine';
 import { WebGPUEngine } from '@babylonjs/core/Engines/webgpuEngine';
 import { Scene } from '@babylonjs/core/scene';
 import { Color3, Color4 } from '@babylonjs/core/Maths/math.color';
-import { setupScene } from './SceneSetup';
+import { setupScene, type SceneSetupHandle } from './SceneSetup';
 import { setupCamera, type CameraRig } from './CameraRig';
 import { buildGreenhouseScene, type GreenhouseSceneHandle } from './GreenhouseScene';
 import { useTwinStore } from '../store/twinStore';
 import { SCENARIO } from '../data/mockScenario';
+import { getSunState, dayToHour } from '../sim/SunPosition';
+import { Vector3 } from '@babylonjs/core/Maths/math.vector';
+import { Matrix } from '@babylonjs/core/Maths/math.vector';
+import { getLabelOverlayHandle } from '../components/LabelOverlay';
 
 import '@babylonjs/core/Helpers/sceneHelpers';
 import '@babylonjs/core/Materials/Textures/Loaders';
@@ -69,8 +73,9 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
   cameraRig.setPreset(useTwinStore.getState().cameraPreset);
   console.log('[BabylonEngine] camera ready');
 
+  let sceneSetup: SceneSetupHandle | null = null;
   try {
-    await setupScene(scene, cameraRig.camera, { backend });
+    sceneSetup = await setupScene(scene, cameraRig.camera, { backend });
   } catch (err) {
     console.error('[BabylonEngine] setupScene failed:', err);
   }
@@ -143,6 +148,64 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
 
     if (greenhouse && Math.abs(state.currentDay - lastDayUpdate) > 0.05) {
       greenhouse.update(state.currentDay);
+
+      // Publish current label set (showcase plant + robot)
+      const labelHandleSet = getLabelOverlayHandle();
+      if (labelHandleSet) {
+        const showcaseState = greenhouse.showcasePlant.currentState();
+        const showcasePos = greenhouse.showcasePlant.root.position;
+        const robotPos = greenhouse.robot.currentPosition();
+        const robotTask = greenhouse.robot.currentTask();
+        const labels: Parameters<typeof labelHandleSet.setLabels>[0] = [];
+        if (showcaseState) {
+          labels.push({
+            id: 'showcase',
+            worldX: showcasePos.x,
+            worldY: showcaseState.heightCm / 100 + 0.25,
+            worldZ: showcasePos.z,
+            text: `식물 #${showcaseState.seed.toString().slice(-4)} · ${showcaseState.currentStage.name} · ${showcaseState.heightCm.toFixed(0)}cm`,
+            color: '#6ee7b7',
+          });
+        }
+        labels.push({
+          id: 'robot',
+          worldX: robotPos.x,
+          worldY: 1.7,
+          worldZ: robotPos.z,
+          text: robotTask === 'capturing' ? '🎯 촬영 중'
+            : robotTask === 'returning' ? '↩ 복귀'
+              : '○ 대기',
+          color: robotTask === 'capturing' ? '#fbbf24'
+            : robotTask === 'returning' ? '#60a5fa'
+              : '#6ee7b7',
+        });
+        labelHandleSet.setLabels(labels);
+      }
+
+
+      // Drive sun + ambient by the day fraction (one sim-day = one sunlight cycle)
+      const sun = sceneSetup?.sun;
+      const hemi = sceneSetup?.hemi;
+      if (sun && hemi) {
+        const hour = dayToHour(state.currentDay);
+        const sunState = getSunState(hour);
+        sun.direction = new Vector3(-sunState.dir.x, -sunState.dir.y, -sunState.dir.z);
+        sun.position = new Vector3(
+          sunState.dir.x * 12,
+          sunState.dir.y * 12,
+          sunState.dir.z * 12
+        );
+        sun.intensity = 0.8 + sunState.intensity * 3.0;
+        sun.diffuse = new Color3(sunState.color.r, sunState.color.g, sunState.color.b);
+        // Hemisphere/ambient gets a warmer tint at low sun
+        hemi.intensity = 0.25 + sunState.intensity * 0.45;
+        hemi.diffuse = new Color3(
+          0.85 + sunState.color.r * 0.15,
+          0.82 + sunState.color.g * 0.18,
+          0.78 + sunState.color.b * 0.22
+        );
+      }
+
       lastDayUpdate = state.currentDay;
     }
 
@@ -156,6 +219,29 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
         hudRobot.textContent = `UWB x:${p.x.toFixed(2)}m z:${p.z.toFixed(2)}m`;
       }
       lastFpsUpdate = now;
+    }
+
+    // Project 3D label positions to 2D screen
+    const labelHandle = getLabelOverlayHandle();
+    if (labelHandle && greenhouse) {
+      const canvasW = engine!.getRenderWidth();
+      const canvasH = engine!.getRenderHeight();
+      const dpr = engine!.getHardwareScalingLevel();
+      const cssW = canvasW * dpr;
+      const cssH = canvasH * dpr;
+      const transform = scene.getTransformMatrix();
+      const viewport = cameraRig.camera.viewport.toGlobal(canvasW, canvasH);
+      labelHandle.project((x, y, z) => {
+        const projected = Vector3.Project(
+          new Vector3(x, y, z),
+          Matrix.Identity(),
+          transform,
+          viewport
+        );
+        // projected.x/y are in render-target pixels; convert to CSS pixels
+        return { x: projected.x / dpr, y: projected.y / dpr, depth: projected.z };
+      });
+      void cssW; void cssH;
     }
   });
 

@@ -15,6 +15,7 @@ import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { createUwbAnchors, type UwbAnchorsHandle } from './UwbAnchors';
 import { GrowthEngine } from '../simulation/GrowthEngine';
 import { createShowcasePlant, type ShowcasePlantHandle } from './ShowcasePlant';
+import { getGroundAlbedoTexture, getGroundNormalTexture } from './GroundTexture';
 
 const TOMATO_RIPEN_COLORS = [
   '#3c8a30', // green
@@ -104,9 +105,12 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
     scene
   );
   const groundMat = new PBRMaterial('groundMat', scene);
-  groundMat.albedoColor = Color3.FromHexString('#9a9a92');
+  groundMat.albedoColor = new Color3(1, 1, 1);
+  groundMat.albedoTexture = getGroundAlbedoTexture(scene);
+  groundMat.bumpTexture = getGroundNormalTexture(scene);
   groundMat.metallic = 0;
-  groundMat.roughness = 0.85;
+  groundMat.roughness = 0.88;
+  groundMat.environmentIntensity = 0.45;
   ground.material = groundMat;
   ground.receiveShadows = true;
 

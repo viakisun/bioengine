@@ -1,20 +1,15 @@
 import { Scene } from '@babylonjs/core/scene';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
-import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
-import { PBRMaterial } from '@babylonjs/core/Materials/PBR/pbrMaterial';
 import { HighlightLayer } from '@babylonjs/core/Layers/highlightLayer';
 import { Vector3, Quaternion } from '@babylonjs/core/Maths/math.vector';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { SeededRandom } from '../utils/SeededRandom';
 import { createLeafMeshFromNode, getLeafMaterial, getYellowLeafMaterial } from '../plant/LeafGenerator';
 import { createStemMesh, getStemMaterial } from '../plant/StemGenerator';
+import { createTrussNode } from '../plant/TrussGenerator';
 import type { GrowthEngine } from '../simulation/GrowthEngine';
 import type { PlantState } from '../simulation/GrowthModel';
-
-const TOMATO_RIPEN_COLORS = [
-  '#3c8a30', '#8c9432', '#b9683c', '#d25240', '#c83228', '#a02218',
-];
 
 /**
  * Live, GrowthEngine-driven plant that rebuilds on every day-scrub.
@@ -51,6 +46,7 @@ export function createShowcasePlant(
   const stemMat = getStemMaterial(scene);
 
   let currentMeshes: Mesh[] = [];
+  let currentTransformNodes: TransformNode[] = [];
   let currentParts: PartGroup = { leaves: [], fruits: [], stem: null };
   let lastState: PlantState | null = null;
   let lastBuildDay = -999;
@@ -79,8 +75,14 @@ export function createShowcasePlant(
   }
 
   function disposeAll() {
-    for (const m of currentMeshes) m.dispose();
+    for (const m of currentMeshes) m.dispose(false, true);
+    // Recursively dispose all child meshes + materials under truss nodes
+    for (const n of currentTransformNodes) {
+      for (const child of n.getChildMeshes(false)) child.dispose(false, true);
+      n.dispose(false, true);
+    }
     currentMeshes = [];
+    currentTransformNodes = [];
     currentParts = { leaves: [], fruits: [], stem: null };
     highlight.removeAllMeshes();
   }
@@ -132,39 +134,29 @@ export function createShowcasePlant(
       currentMeshes.push(leaf);
       currentParts.leaves.push(leaf);
 
-      // Truss with fruits (if any)
-      if (node.truss && node.truss.fruits.length > 0) {
-        const trussAz = azimuthRad + Math.PI; // opposite to leaf
-        for (let f = 0; f < node.truss.fruits.length; f++) {
-          const fruit = node.truss.fruits[f];
-          const fruitSizeM = fruit.diameterMm / 1000;
-          const fruitMesh = MeshBuilder.CreateSphere(
-            `showcase_fruit_${seed}_${node.index}_${f}`,
-            { diameter: fruitSizeM, segments: 12 },
-            scene
-          );
-          fruitMesh.parent = root;
-          const dropX = Math.cos(trussAz) * (0.08 + f * 0.02);
-          const dropZ = Math.sin(trussAz) * (0.08 + f * 0.02);
-          const dropY = heightM - 0.04 - f * 0.025;
-          fruitMesh.position = new Vector3(dropX, dropY, dropZ);
+      // Truss with fruits/flowers — ported TrussGenerator
+      if (node.truss && (node.truss.fruits.length > 0 || node.truss.flowers.length > 0)) {
+        const trussRng = new SeededRandom(seed * 7919 + node.index * 31);
+        const trussNode = createTrussNode(
+          `showcase_truss_${seed}_${node.index}`,
+          scene,
+          node.truss,
+          engine.getGenome(seed)!,
+          azimuthRad + Math.PI,
+          trussRng
+        );
+        trussNode.parent = root;
+        trussNode.position = new Vector3(0, heightM - 0.02, 0);
 
-          const fruitMat = new PBRMaterial(
-            `showcase_fruit_mat_${seed}_${node.index}_${f}`,
-            scene
-          );
-          const colorHex = TOMATO_RIPEN_COLORS[Math.min(5, fruit.ripenStage)];
-          fruitMat.albedoColor = Color3.FromHexString(colorHex);
-          fruitMat.metallic = 0;
-          fruitMat.roughness = 0.28;
-          fruitMat.clearCoat.isEnabled = true;
-          fruitMat.clearCoat.intensity = 0.45;
-          fruitMat.clearCoat.roughness = 0.12;
-          fruitMesh.material = fruitMat;
-          currentMeshes.push(fruitMesh);
-          currentParts.fruits.push(fruitMesh);
-        }
+        // Collect fruit body meshes for highlight; track the truss node for dispose
+        trussNode.getChildMeshes().forEach((m) => {
+          if (m.name.includes('_body')) {
+            currentParts.fruits.push(m as Mesh);
+          }
+        });
+        currentTransformNodes.push(trussNode);
       }
+
     }
 
     applySegmentationHighlights();

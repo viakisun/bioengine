@@ -4,6 +4,7 @@ import { Timeline } from './components/Timeline';
 import { CameraPresets } from './components/CameraPresets';
 import { EventList } from './components/EventList';
 import { Minimap } from './components/Minimap';
+import { LabelOverlay } from './components/LabelOverlay';
 import { useTwinStore } from './store/twinStore';
 
 export function App() {
@@ -80,6 +81,7 @@ export function App() {
         </div>
 
         <EventList />
+        <LabelOverlay />
         <CameraPresets />
 
         <div
