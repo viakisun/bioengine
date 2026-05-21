@@ -5,11 +5,11 @@ import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
 import { PBRMaterial } from '@babylonjs/core/Materials/PBR/pbrMaterial';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
-import { SeededRandom } from '../utils/SeededRandom';
+import { SeededRandom } from '@farmsim/tomato-engine';
 import { createFruitNode } from './FruitGenerator';
-import { computeTrussDroop } from '../simulation/PhysicsModel';
-import type { TrussState } from '../simulation/GrowthModel';
-import type { PlantGenome } from '../simulation/PlantGenome';
+import { computeTrussDroop } from '@farmsim/tomato-engine';
+import type { TrussState } from '@farmsim/tomato-engine';
+import type { PlantGenome } from '@farmsim/tomato-engine';
 
 let cachedPeduncleMat: WeakMap<Scene, PBRMaterial> = new WeakMap();
 let cachedPedicelMat: WeakMap<Scene, PBRMaterial> = new WeakMap();

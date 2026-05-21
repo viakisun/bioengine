@@ -1,4 +1,4 @@
-import { SeededRandom } from '../utils/SeededRandom';
+import { SeededRandom } from './SeededRandom';
 
 export interface PlantGenome {
   seed: number;

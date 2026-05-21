@@ -6,8 +6,8 @@ import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
 import { PBRMaterial } from '@babylonjs/core/Materials/PBR/pbrMaterial';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
-import { SeededRandom } from '../utils/SeededRandom';
-import type { FruitState } from '../simulation/GrowthModel';
+import { SeededRandom } from '@farmsim/tomato-engine';
+import type { FruitState } from '@farmsim/tomato-engine';
 
 /**
  * Create the calyx (5-petal green star at the fruit top) as raw VertexData.

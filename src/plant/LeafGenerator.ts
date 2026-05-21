@@ -2,12 +2,12 @@ import { Scene } from '@babylonjs/core/scene';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData';
 import { Matrix } from '@babylonjs/core/Maths/math.vector';
-import { SeededRandom } from '../utils/SeededRandom';
+import { SeededRandom } from '@farmsim/tomato-engine';
 import { getLeafColorTexture, getLeafNormalTexture } from './LeafTexture';
 import { PBRMaterial } from '@babylonjs/core/Materials/PBR/pbrMaterial';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
-import type { NodeState } from '../simulation/GrowthModel';
-import type { PlantGenome } from '../simulation/PlantGenome';
+import type { NodeState } from '@farmsim/tomato-engine';
+import type { PlantGenome } from '@farmsim/tomato-engine';
 
 export interface LeafShapeParams {
   serrationDepth: number;

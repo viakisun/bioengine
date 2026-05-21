@@ -4,8 +4,8 @@ import { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { PBRMaterial } from '@babylonjs/core/Materials/PBR/pbrMaterial';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
-import { SeededRandom } from '../utils/SeededRandom';
-import type { NodeState } from '../simulation/GrowthModel';
+import { SeededRandom } from '@farmsim/tomato-engine';
+import type { NodeState } from '@farmsim/tomato-engine';
 
 const RADIAL_SEGMENTS = 8;
 const DIVISIONS_PER_NODE = 4;

@@ -7,6 +7,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),
+      '@farmsim/tomato-engine': resolve(__dirname, 'packages/tomato-engine/src'),
+      '@farmsim/tomato-geometry': resolve(__dirname, 'packages/tomato-geometry/src'),
     },
   },
   server: {
@@ -17,7 +19,6 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html'),
-        legacy: resolve(__dirname, 'legacy.html'),
       },
     },
   },

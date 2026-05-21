@@ -71,6 +71,9 @@ export interface NodeState {
   bendingMomentNm: number;
   deflectionRad: number;
   deflectionAzimuth: number;
+  // Stress fields (plant-level, copied per node for convenient access)
+  waterStress: number;       // 0-1, substrateWater 가 0.45 미만이면 증가
+  diseaseLoad: number;       // 0-1, healthLabel 'disease' 일 때 증가
 }
 
 export interface PlantState {
@@ -86,6 +89,17 @@ export interface PlantState {
   currentStage: { name: string; dayStart: number; dayEnd: number };
   hasCotyledons: boolean;
   cotyledonSize: number;
+  // Plant-level stress (mirrored per-node for convenience)
+  waterStress: number;
+  diseaseLoad: number;
+}
+
+/** Per-plant stress inputs that the renderer / health-label system can pass in. */
+export interface PlantStressInputs {
+  /** 0–1: derived from substrateWater (engine sets this from env) */
+  waterStress?: number;
+  /** 0–1: derived from healthLabel === 'disease' or sensor input */
+  diseaseLoad?: number;
 }
 
 function lerpColor(c1: [number, number, number], c2: [number, number, number], t: number): [number, number, number] {
@@ -99,7 +113,13 @@ function lerpColor(c1: [number, number, number], c2: [number, number, number], t
 
 const GOLDEN_ANGLE = 137.508; // degrees
 
-export function computePlantState(day: number, genome: PlantGenome): PlantState {
+export function computePlantState(
+  day: number,
+  genome: PlantGenome,
+  stress: PlantStressInputs = {}
+): PlantState {
+  const waterStress = Math.max(0, Math.min(1, stress.waterStress ?? 0));
+  const diseaseLoad = Math.max(0, Math.min(1, stress.diseaseLoad ?? 0));
   // ============================================================
   // APEX-DRIVEN GROWTH MODEL
   // ============================================================
@@ -219,7 +239,9 @@ export function computePlantState(day: number, genome: PlantGenome): PlantState 
       : age < 20
         ? Math.min(25, (age - 8) * 1.2 * genome.leafDroopMultiplier)
         : Math.min(55, 15 + (age - 20) * 0.8 * genome.leafDroopMultiplier);
-    const droopExtra = Math.min(120, weightDroop + ageDroop);
+    // Water-stress contribution (per user reference: leaf.droop += waterStress * ~30°)
+    const waterStressDroop = waterStress * 30;
+    const droopExtra = Math.min(120, weightDroop + ageDroop + waterStressDroop);
 
     // Leaflet count with genome bias
     let leafletCount: number;
@@ -292,6 +314,7 @@ export function computePlantState(day: number, genome: PlantGenome): PlantState 
       leafAreaCm2, leafMassG, internodeLenCm,
       massAboveKg: 0, stemRadiusMm: 10, bendingMomentNm: 0,
       deflectionRad: 0, deflectionAzimuth: 0,
+      waterStress, diseaseLoad,
     });
   }
 
@@ -332,5 +355,6 @@ export function computePlantState(day: number, genome: PlantGenome): PlantState 
     day, heightCm, nodes, nodeCount: intNodeCount, leafCount, trussCount,
     totalFruits, maxRipenStage, currentStage,
     hasCotyledons, cotyledonSize: Math.max(0, Math.min(1, cotyledonSize)),
+    waterStress, diseaseLoad,
   };
 }

@@ -4,7 +4,7 @@ import { PBRMaterial } from '@babylonjs/core/Materials/PBR/pbrMaterial';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { Vector3, Quaternion } from '@babylonjs/core/Maths/math.vector';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
-import { SeededRandom } from '../utils/SeededRandom';
+import { SeededRandom } from '@farmsim/tomato-engine';
 import { SCENARIO } from '../data/mockScenario';
 import { createLeafMesh, getLeafMaterial } from '../plant/LeafGenerator';
 import { createHeatmap, type HeatmapHandle } from './Heatmap';
@@ -13,7 +13,7 @@ import { createPathTrail, type PathTrailHandle } from './PathTrail';
 import { attachZonePicker } from './ZonePicker';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { createUwbAnchors, type UwbAnchorsHandle } from './UwbAnchors';
-import { GrowthEngine } from '../simulation/GrowthEngine';
+import { GrowthEngine } from '@farmsim/tomato-engine';
 import { createShowcasePlant, type ShowcasePlantHandle } from './ShowcasePlant';
 import { getGroundAlbedoTexture, getGroundNormalTexture } from './GroundTexture';
 

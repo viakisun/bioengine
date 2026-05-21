@@ -1,0 +1,330 @@
+// Compound tomato leaf geometry generator — engine-agnostic.
+//
+// Builds petiole + rachis + paired leaflets + terminal lobes + petiolules
+// as a single merged GeoChunk. The renderer wraps it (Babylon Mesh,
+// Three BufferGeometry, etc.). All rotation math uses the Mat4 helper
+// in ./types — no Babylon import.
+//
+// Stage-aware mode (preferred): pass `stageInfo` from
+//   @farmsim/tomato-engine's `getLeafStage(node, plantAge)`. The renderer
+//   then morphs leaflet count + serration smoothly. Legacy positional
+//   args still work for any caller that doesn't have a NodeState.
+
+import { SeededRandom } from '@farmsim/tomato-engine';
+import type { LeafStageInfo } from '@farmsim/tomato-engine';
+import {
+  type GeoChunk,
+  newChunk,
+  mergeChunks,
+  createCylinderChunk,
+  rotateChunkX,
+  rotateChunkY,
+  rotateChunkZ,
+  translateChunk,
+} from './types';
+
+export interface LeafShapeParams {
+  serrationDepth: number;
+  serrationFreq: number;
+  lobeDepth: number;
+  waviness: number;
+  petioleLength: number;
+}
+
+export const DEFAULT_LEAF_PARAMS: LeafShapeParams = {
+  serrationDepth: 0.18,
+  serrationFreq: 10,
+  lobeDepth: 0.08,
+  waviness: 0.003,
+  petioleLength: 0.08,
+};
+
+export interface LeafBuildParams {
+  /** Smooth stage info from getLeafStage(node, plantAge). Required for stage-aware morphing. */
+  stageInfo?: LeafStageInfo;
+  /** Total leaflet count (integer count; fractional rounded but smoothed via outermost-pair scale). */
+  leafletCount: number;
+  /** Scale factor — leafSizeFactor × leafSizeMultiplier */
+  sizeFactor: number;
+  /** Leaf expansion 0–1 (typically leafMaturity) */
+  maturity: number;
+  /** Cup/curl amount */
+  curl: number;
+  /** Gravity ageing factor 0–1 (droopExtra/120 ⊕ age/80 ⊕ waterStress*0.3) */
+  ageFrac: number;
+  /** Per-plant shape (typically from genome.leaf* fields) */
+  shape?: LeafShapeParams;
+}
+
+export function buildLeafChunk(paramsArg: LeafBuildParams, rng: SeededRandom): GeoChunk {
+  const params = paramsArg.shape ?? DEFAULT_LEAF_PARAMS;
+  const stageInfo = paramsArg.stageInfo;
+  const af = paramsArg.ageFrac;
+  const sizeFactor = paramsArg.sizeFactor;
+  const maturity = paramsArg.maturity;
+  const curl = paramsArg.curl;
+
+  // Effective shape — if stage info present, scale serration/lobe by stage strength.
+  // This is what gives the "early simple leaf → mature complex" morph.
+  const effSerrationDepth = params.serrationDepth * (stageInfo?.serrationStrength ?? 1);
+  const effLobeDepth = params.lobeDepth * (stageInfo?.lobeStrength ?? 1);
+  const effShape: LeafShapeParams = {
+    ...params,
+    serrationDepth: effSerrationDepth,
+    lobeDepth: effLobeDepth,
+  };
+
+  // leaflet count — fractional handling: integer leaflets, but the
+  // outermost pair fades in/out by (fractional part) so the morph is
+  // smooth, not snap.
+  const rawCount = stageInfo?.leafletCount ?? paramsArg.leafletCount;
+  const intCount = Math.max(1, Math.round(rawCount));
+  const outerScale = stageInfo
+    ? 1 - Math.abs(intCount - rawCount) * 2 // peaks at .5 fractional
+    : 1;
+  const pairs = Math.floor(intCount / 2);
+
+  const chunks: GeoChunk[] = [];
+
+  const petioleLen = params.petioleLength * sizeFactor * maturity;
+  const rachisLen = 0.32 * sizeFactor * maturity;
+
+  // Petiole — gravity arch (young) → sag (old)
+  const petioleBaseRadius = 0.0018 * sizeFactor;
+  const petioleTipRadius = 0.0012 * sizeFactor;
+  const petiole = createCylinderChunk(petioleTipRadius, petioleBaseRadius, petioleLen, 5, 6);
+  rotateChunkZ(petiole, -Math.PI / 2);
+  translateChunk(petiole, petioleLen / 2, 0, 0);
+
+  for (let v = 0; v < petiole.positions.length; v += 3) {
+    const x = petiole.positions[v];
+    const t = x / petioleLen;
+    const archStrength = 0.03 * (1 - af * 4.0);
+    const archY = Math.sin(t * Math.PI) * petioleLen * archStrength;
+    // Per user reference: exponent 1.6 cantilever profile (smoother than t³)
+    const gravityY = -Math.pow(t, 1.6) * petioleLen * (0.08 + af * 0.35);
+    petiole.positions[v + 1] += archY + gravityY;
+  }
+  chunks.push(petiole);
+
+  // Rachis — droop increases with age + leaflet weight
+  const rachisBaseRadius = 0.0010 * sizeFactor;
+  const rachisTipRadius = 0.0005 * sizeFactor;
+  const rachis = createCylinderChunk(rachisTipRadius, rachisBaseRadius, rachisLen, 4, 8);
+  rotateChunkZ(rachis, -Math.PI / 2);
+  translateChunk(rachis, petioleLen + rachisLen / 2, 0, 0);
+  const rachisDroopFactor = 0.12 + af * 0.45;
+  for (let v = 0; v < rachis.positions.length; v += 3) {
+    const x = rachis.positions[v];
+    const t = (x - petioleLen) / rachisLen;
+    if (t >= 0 && t <= 1) {
+      rachis.positions[v + 1] -= t * t * rachisLen * rachisDroopFactor;
+    }
+  }
+  chunks.push(rachis);
+
+  // Leaflets along rachis
+  for (let i = 0; i <= pairs; i++) {
+    const t = pairs === 0 ? 0.7 : 0.15 + 0.75 * (i / pairs);
+    const posAlongRachis = petioleLen + rachisLen * t;
+    const yOff = -t * t * rachisLen * rachisDroopFactor;
+
+    const isTerminal = i === pairs;
+    const baseSizeMod = isTerminal ? 1.2 : 0.5 + 0.5 * Math.sin(t * Math.PI);
+    const expansionScale = maturity * maturity;
+    // Outermost pair smooth fade-in during stage transition
+    const isOutermost = !isTerminal && i === pairs - 1;
+    const stageScale = isOutermost ? outerScale : 1;
+    const leafletSize = 0.12 * sizeFactor * expansionScale * baseSizeMod * stageScale * rng.range(0.8, 1.2);
+
+    const leafletDroopRange = 0.14 + af * 0.48;
+    const leafletTwistRange = 0.08 + af * 0.28;
+
+    if (isTerminal) {
+      const leaflet = createOvateLeaflet(leafletSize, curl * rng.range(0.7, 1.3), rng, effShape, true);
+      rotateChunkZ(leaflet, rng.range(-leafletDroopRange * 0.5, leafletDroopRange * 0.3));
+      rotateChunkX(leaflet, rng.range(-leafletTwistRange, leafletTwistRange));
+      translateChunk(leaflet, posAlongRachis, yOff, 0);
+      chunks.push(leaflet);
+    } else {
+      for (const side of [-1, 1]) {
+        const leaflet = createOvateLeaflet(
+          leafletSize * rng.range(0.85, 1.15),
+          curl * rng.range(0.5, 1.5),
+          rng,
+          effShape,
+          false
+        );
+        rotateChunkY(leaflet, side * rng.range(0.35, 0.65));
+        rotateChunkZ(leaflet, -Math.abs(rng.gaussian(0, leafletDroopRange)));
+        rotateChunkX(leaflet, rng.gaussian(0, leafletTwistRange));
+        translateChunk(leaflet, posAlongRachis, yOff, side * 0.025 * baseSizeMod);
+        chunks.push(leaflet);
+
+        const petioluleLen = 0.008 * baseSizeMod;
+        const petiolule = createCylinderChunk(
+          0.0004 * sizeFactor,
+          0.0006 * sizeFactor,
+          petioluleLen,
+          3,
+          1
+        );
+        rotateChunkX(petiolule, Math.PI / 2);
+        translateChunk(petiolule, posAlongRachis, yOff, side * petioluleLen * 0.5);
+        chunks.push(petiolule);
+      }
+
+      // Intercalary leaflets (small between main pairs) — only for higher-stage leaves
+      if (intCount >= 5 && i < pairs && rng.next() > 0.3) {
+        const interT = t + 0.5 / (pairs + 1) * 0.75;
+        const interPos = petioleLen + rachisLen * interT;
+        const interYOff = -interT * interT * rachisLen * rachisDroopFactor;
+        const interSize = leafletSize * 0.35 * rng.range(0.7, 1.3);
+        for (const side of [-1, 1]) {
+          if (rng.next() > 0.4) {
+            const small = createOvateLeaflet(interSize, curl * rng.range(0.3, 1.0), rng, effShape, false);
+            rotateChunkY(small, side * rng.range(0.4, 0.8));
+            rotateChunkZ(small, -Math.abs(rng.gaussian(0, leafletDroopRange * 0.7)));
+            translateChunk(small, interPos, interYOff, side * 0.015);
+            chunks.push(small);
+          }
+        }
+      }
+    }
+  }
+
+  return mergeChunks(chunks);
+}
+
+function createOvateLeaflet(
+  size: number,
+  curl: number,
+  rng: SeededRandom,
+  params: LeafShapeParams,
+  isTerminal: boolean
+): GeoChunk {
+  const length = size;
+  const maxWidth = size * 0.55;
+  const lengthSegs = 12;
+  const widthSegs = 4;
+  const cols = widthSegs * 2 + 1;
+
+  const chunk = newChunk();
+
+  for (let row = 0; row <= lengthSegs; row++) {
+    const t = row / lengthSegs;
+    let widthFactor: number;
+    if (t < 0.4) {
+      widthFactor = Math.sin((t / 0.4) * Math.PI * 0.5);
+    } else {
+      const tNorm = (t - 0.4) / 0.6;
+      widthFactor = Math.cos(tNorm * Math.PI * 0.5) * (1 - tNorm * 0.3);
+    }
+
+    const lobeModulation =
+      1 - params.lobeDepth * Math.sin(t * Math.PI * 3) * Math.max(0, 1 - t * 1.5);
+    const rowWidth = maxWidth * widthFactor * lobeModulation;
+    const rowX = t * length;
+
+    for (let col = 0; col < cols; col++) {
+      const colNorm = (col / (cols - 1)) * 2 - 1;
+      const absCol = Math.abs(colNorm);
+
+      let z = colNorm * rowWidth;
+
+      if (absCol > 0.6 && t > 0.05 && t < 0.95) {
+        const serrationPhase = t * params.serrationFreq * Math.PI * 2 + rng.next() * 0.5;
+        const toothShape = Math.max(0, Math.sin(serrationPhase));
+        const serrationAmp = rowWidth * params.serrationDepth * absCol;
+        z += Math.sign(colNorm) * toothShape * serrationAmp;
+      }
+
+      const dist = Math.sqrt(rowX * rowX + z * z) / size;
+      let y = curl * dist * dist * size * 3;
+
+      if (params.waviness > 0) {
+        y += params.waviness * Math.sin(rowX * 40) * Math.sin(z * 60) * (1 - absCol * 0.5);
+      }
+
+      const midribHeight = 0.002 * (1 - absCol * absCol) * size * 10;
+      y += midribHeight;
+
+      chunk.positions.push(rowX, y, z);
+
+      const u = t;
+      const v = col / (cols - 1);
+      chunk.uvs.push(u, v);
+
+      const curlEffect = curl * size * dist;
+      const ny = 1 - curlEffect * 2;
+      chunk.normals.push(0, Math.max(0.3, ny), curlEffect * Math.sign(z || 0.01));
+    }
+  }
+
+  for (let row = 0; row < lengthSegs; row++) {
+    for (let col = 0; col < cols - 1; col++) {
+      const a = row * cols + col;
+      const b = a + 1;
+      const c = a + cols;
+      const d = c + 1;
+      chunk.indices.push(a, c, b, b, c, d);
+    }
+  }
+
+  if (isTerminal && size > 0.03) {
+    for (const side of [-1, 1]) {
+      const lobe = createSmallLobe(size * 0.3, curl, rng, params);
+      rotateChunkY(lobe, side * 0.6);
+      translateChunk(lobe, size * 0.35, 0, side * maxWidth * 0.6);
+      const baseVertex = chunk.positions.length / 3;
+      chunk.positions.push(...lobe.positions);
+      chunk.normals.push(...lobe.normals);
+      chunk.uvs.push(...lobe.uvs);
+      for (const idx of lobe.indices) chunk.indices.push(idx + baseVertex);
+    }
+  }
+
+  return chunk;
+}
+
+function createSmallLobe(
+  size: number,
+  curl: number,
+  rng: SeededRandom,
+  params: LeafShapeParams
+): GeoChunk {
+  const segs = 6;
+  const w = size;
+  const h = size * 0.5;
+  const chunk = newChunk();
+
+  chunk.positions.push(0, 0, 0);
+  chunk.normals.push(0, 1, 0);
+  chunk.uvs.push(0.5, 0.5);
+
+  for (let i = 0; i <= segs * 2; i++) {
+    const t = i / (segs * 2);
+    const angle = t * Math.PI * 2;
+    let x = Math.cos(angle) * w;
+    let z = Math.sin(angle) * h;
+
+    const serration = 1 + params.serrationDepth * 0.5 * Math.sin(i * 4.5 + rng.next() * 2);
+    x *= serration;
+    z *= serration;
+
+    const dist = Math.sqrt(x * x + z * z);
+    const y = curl * dist * dist * w * 2;
+
+    chunk.positions.push(x, y, z);
+    const ce = curl * w * dist;
+    chunk.normals.push(0, Math.max(0.3, 1 - ce * 2), ce);
+    chunk.uvs.push(0.5 + Math.cos(angle) * 0.4, 0.5 + Math.sin(angle) * 0.4);
+  }
+
+  const edgeCount = segs * 2 + 1;
+  for (let i = 1; i < edgeCount; i++) {
+    chunk.indices.push(0, i, i + 1);
+  }
+  chunk.indices.push(0, edgeCount, 1);
+  return chunk;
+}

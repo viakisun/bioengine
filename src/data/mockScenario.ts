@@ -1,4 +1,4 @@
-import { SeededRandom } from '../utils/SeededRandom';
+import { SeededRandom } from '@farmsim/tomato-engine';
 
 export type HealthLabel = 'normal' | 'weak' | 'disease' | 'water-stress';
 export type EventType =

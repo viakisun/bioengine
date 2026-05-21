@@ -7,7 +7,7 @@ import { setupCamera, type CameraRig } from './CameraRig';
 import { buildGreenhouseScene, type GreenhouseSceneHandle } from './GreenhouseScene';
 import { useTwinStore } from '../store/twinStore';
 import { SCENARIO } from '../data/mockScenario';
-import { getSunState, dayToHour } from '../sim/SunPosition';
+import { getSunState, dayToHour } from '@farmsim/tomato-engine';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Matrix } from '@babylonjs/core/Maths/math.vector';
 import { getLabelOverlayHandle } from '../components/LabelOverlay';

@@ -1,12 +1,18 @@
 {
-  "name": "_farmsim",
+  "name": "farmsim-root",
   "version": "1.0.0",
-  "description": "",
+  "description": "스마트온실 디지털 트윈 (Babylon.js + React)",
+  "private": true,
   "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview"
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "tsc:engine": "tsc -p packages/tomato-engine --noEmit",
+    "tsc:geometry": "tsc -p packages/tomato-geometry --noEmit"
   },
   "dependencies": {
     "@babylonjs/core": "^9.8.0",

@@ -4,12 +4,12 @@ import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { HighlightLayer } from '@babylonjs/core/Layers/highlightLayer';
 import { Vector3, Quaternion } from '@babylonjs/core/Maths/math.vector';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
-import { SeededRandom } from '../utils/SeededRandom';
+import { SeededRandom } from '@farmsim/tomato-engine';
 import { createLeafMeshFromNode, getLeafMaterial, getYellowLeafMaterial } from '../plant/LeafGenerator';
 import { createStemMesh, getStemMaterial } from '../plant/StemGenerator';
 import { createTrussNode } from '../plant/TrussGenerator';
-import type { GrowthEngine } from '../simulation/GrowthEngine';
-import type { PlantState } from '../simulation/GrowthModel';
+import type { GrowthEngine } from '@farmsim/tomato-engine';
+import type { PlantState } from '@farmsim/tomato-engine';
 
 /**
  * Live, GrowthEngine-driven plant that rebuilds on every day-scrub.

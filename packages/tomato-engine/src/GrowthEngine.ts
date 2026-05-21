@@ -11,7 +11,7 @@
 // All inputs are JSON-serializable, all outputs are plain objects.
 
 import { type PlantGenome, generateGenome } from './PlantGenome';
-import { computePlantState, type PlantState } from './GrowthModel';
+import { computePlantState, type PlantState, type PlantStressInputs } from './GrowthModel';
 
 /**
  * Greenhouse environment parameters that modulate growth and physics.
@@ -208,7 +208,12 @@ export class GrowthEngine {
    *
    * Throws if the seed is not registered.
    */
-  computeState(seed: number, day: number, envOverride?: EnvironmentParams): PlantState {
+  computeState(
+    seed: number,
+    day: number,
+    envOverride?: EnvironmentParams,
+    stress?: PlantStressInputs
+  ): PlantState {
     const entry = this.plants.get(seed);
     if (!entry) throw new Error(`Plant with seed ${seed} not registered`);
 
@@ -216,9 +221,15 @@ export class GrowthEngine {
       ? { ...this.environment, ...envOverride }
       : this.environment;
 
+    // Auto-derive waterStress from substrateWater unless caller overrode it.
+    const autoStress: PlantStressInputs = {
+      waterStress: stress?.waterStress ?? Math.max(0, (0.45 - env.substrateWater) / 0.45),
+      diseaseLoad: stress?.diseaseLoad ?? 0,
+    };
+
     const effectiveGenome = applyEnvironmentToGenome(entry.genome, env);
     const effectiveDay = Math.max(0, day - effectiveGenome.plantingDayOffset);
-    return computePlantState(effectiveDay, effectiveGenome);
+    return computePlantState(effectiveDay, effectiveGenome, autoStress);
   }
 
   /** Compute states for every registered plant at a given day. */
