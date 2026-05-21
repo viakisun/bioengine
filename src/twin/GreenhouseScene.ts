@@ -18,6 +18,7 @@ import { useTwinStore } from '../store/twinStore';
 import { createShowcasePlant, type ShowcasePlantHandle } from './ShowcasePlant';
 import { createSupportingPlant, type SupportingPlantHandle } from './SupportingPlant';
 import { createPlantLODManager } from './PlantLODManager';
+import { createCocopeatBags, SUBSTRATE_TOP_Y } from './CocopeatBags';
 import { getGroundAlbedoTexture, getGroundNormalTexture } from './GroundTexture';
 
 const TOMATO_RIPEN_COLORS = [
@@ -266,14 +267,17 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
   stringMat.metallic = 0;
   stringMat.roughness = 0.9;
 
+  // Strings tie into the substrate mound (SUBSTRATE_TOP_Y) now, not
+  // the bed top, so they visually meet the plant stem base rather
+  // than disappearing into the bag.
   for (const plant of SCENARIO.plants) {
     for (const stringZ of [-0.15, 0.15]) {
       const str = MeshBuilder.CreateCylinder(
         `string_${plant.id}_${stringZ}`,
-        { height: wireY - SCENARIO.bedY, diameter: 0.002 },
+        { height: wireY - SUBSTRATE_TOP_Y, diameter: 0.002 },
         scene
       );
-      str.position = new Vector3(plant.position[0], (wireY + SCENARIO.bedY) / 2, stringZ);
+      str.position = new Vector3(plant.position[0], (wireY + SUBSTRATE_TOP_Y) / 2, stringZ);
       str.material = stringMat;
     }
   }
@@ -303,13 +307,19 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
     growthEngine.addPlant({ seed: SHOWCASE_SEED + 1 + i });
   }
 
+  // Cocopeat grow bags row + substrate mounds — bag top now occupies
+  // y ∈ [0.95, 1.05]. Plant root y is lifted from scenario's bedY
+  // (0.95) up to SUBSTRATE_TOP_Y (1.062) so the stem appears to
+  // emerge from the brown mound visible through each bag hole.
+  createCocopeatBags(scene);
+
   const showcasePlant = createShowcasePlant(
     scene,
     growthEngine,
     SHOWCASE_SEED,
     new Vector3(
       showcasePlantSpec.position[0],
-      showcasePlantSpec.position[1],
+      SUBSTRATE_TOP_Y,
       showcasePlantSpec.position[2]
     )
   );
@@ -331,7 +341,7 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
         scene,
         growthEngine,
         SHOWCASE_SEED + 1 + i,
-        new Vector3(spec.position[0], spec.position[1], spec.position[2]),
+        new Vector3(spec.position[0], SUBSTRATE_TOP_Y, spec.position[2]),
         rebuildOffset
       )
     );

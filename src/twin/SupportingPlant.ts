@@ -199,10 +199,12 @@ export function createSupportingPlant(
     const isDiseased = state.diseaseLoad > 0.3;
     const baseLeafMat = isDiseased ? diseasedLeafMat : leafMat;
 
-    // Leaves — every node (was every-other for performance, but the
-    // supporting plants are walked through at close range in the
-    // robot/closeup views and half-density made them look bare).
-    for (let i = 0; i < state.nodes.length; i++) {
+    // Leaves — every-other node (re-enabled after PLANT_COUNT 30 → 90
+    // tripled the load). 90 plants × every-node was pushing fps below
+    // 60; every-other-node × 90 plants is close to the previous
+    // 30 plants × every-node and the visual density is maintained
+    // because there are 3× more plants in the same bed length.
+    for (let i = 0; i < state.nodes.length; i += 2) {
       const node = state.nodes[i];
       if (node.leafMaturity < 0.1) continue;
 

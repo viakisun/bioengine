@@ -8,6 +8,7 @@ import { Constants } from '@babylonjs/core/Engines/constants';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { SCENARIO, HEALTH_COLORS, zoneHealthMix, type HealthLabel } from '../data/mockScenario';
+import { SUBSTRATE_TOP_Y } from './CocopeatBags';
 
 export interface HeatmapHandle {
   mesh: Mesh;
@@ -35,7 +36,10 @@ export function createHeatmap(scene: Scene): HeatmapHandle {
     { width: SCENARIO.bedLengthM, height: 0.9, subdivisions: 1 },
     scene
   );
-  mesh.position = new Vector3(0, SCENARIO.bedY + 0.085, 0.5);
+  // Sit above the cocopeat substrate mounds (SUBSTRATE_TOP_Y ≈ 1.062)
+  // by a small margin so the heatmap doesn't z-fight with the
+  // bag/mound geometry.
+  mesh.position = new Vector3(0, SUBSTRATE_TOP_Y + 0.022, 0.5);
   mesh.isPickable = true;
 
   const data = new Uint8Array(TEX_WIDTH * TEX_HEIGHT * 4);
