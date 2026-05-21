@@ -199,8 +199,10 @@ export function createSupportingPlant(
     const isDiseased = state.diseaseLoad > 0.3;
     const baseLeafMat = isDiseased ? diseasedLeafMat : leafMat;
 
-    // Leaves — every other node only (halves the leaf count vs showcase)
-    for (let i = 0; i < state.nodes.length; i += 2) {
+    // Leaves — every node (was every-other for performance, but the
+    // supporting plants are walked through at close range in the
+    // robot/closeup views and half-density made them look bare).
+    for (let i = 0; i < state.nodes.length; i++) {
       const node = state.nodes[i];
       if (node.leafMaturity < 0.1) continue;
 

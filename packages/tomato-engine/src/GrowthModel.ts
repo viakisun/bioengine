@@ -353,9 +353,10 @@ export function computePlantState(
     if (node.truss) {
       const hasRipeFruit = node.truss.fruits.some(f => f.ripenStage >= 4);
       if (hasRipeFruit) {
-        // Prune up to ~3 nodes above the ripe truss (covers the
-        // intermediate leaves + next-truss leaf).
-        pruneBelow = node.index + 3;
+        // Prune up to and including the ripe truss node (was +3 — too
+        // aggressive, removed two nodes' worth of leaves above the
+        // truss which were realistically still on the plant).
+        pruneBelow = node.index + 1;
         break; // lowest ripe truss found
       }
     }
@@ -367,14 +368,17 @@ export function computePlantState(
       }
     }
   }
-  // Age-based senescence (independent of pruning rule): leaves older
-  // than 50 days are progressively removed regardless of truss state.
-  // This kicks in before W12 when no truss has ripened yet.
+  // Age-based senescence — leaves fade gradually after age 65 and are
+  // fully senesced by 95 days. Previous 50–70 window dropped *all*
+  // leaves below ~1m of plant height to maturity=0 by day 114, so the
+  // visible (sub-1.5m) part of the canopy looked bare from any robot
+  // or operator-eye-level camera. Widened to 65–95 so the middle
+  // canopy (50–110cm height range) keeps faded but visible leaves.
   for (const node of nodes) {
-    if (node.leafMaturity > 0 && node.age > 50) {
-      const senFade = Math.min(1, (node.age - 50) / 20); // 0 → 1 over 50–70d
+    if (node.leafMaturity > 0 && node.age > 65) {
+      const senFade = Math.min(1, (node.age - 65) / 30); // 0 → 1 over 65–95d
       if (senFade >= 1) node.leafMaturity = 0;
-      else node.leafMaturity *= (1 - senFade * 0.7);
+      else node.leafMaturity *= (1 - senFade * 0.6);
     }
   }
 
