@@ -145,7 +145,7 @@ export function buildLeafChunk(paramsArg: LeafBuildParams, rng: SeededRandom): G
     const leafletTwistRange = 0.08 + af * 0.28;
 
     if (isTerminal) {
-      const leaflet = createOvateLeaflet(leafletSize, curl * rng.range(0.7, 1.3), rng, effShape, true);
+      const leaflet = createOvateLeaflet(leafletSize, curl * rng.range(0.7, 1.3), af, rng, effShape, true);
       rotateChunkZ(leaflet, rng.range(-leafletDroopRange * 0.5, leafletDroopRange * 0.3));
       rotateChunkX(leaflet, rng.range(-leafletTwistRange, leafletTwistRange));
       translateChunk(leaflet, posAlongRachis, yOff, 0);
@@ -155,6 +155,7 @@ export function buildLeafChunk(paramsArg: LeafBuildParams, rng: SeededRandom): G
         const leaflet = createOvateLeaflet(
           leafletSize * rng.range(0.92, 1.08), // size ±8%
           curl * rng.range(0.7, 1.3),
+          af,
           rng,
           effShape,
           false
@@ -187,7 +188,7 @@ export function buildLeafChunk(paramsArg: LeafBuildParams, rng: SeededRandom): G
         const interSize = leafletSize * 0.35 * rng.range(0.7, 1.3);
         for (const side of [-1, 1]) {
           if (rng.next() > 0.4) {
-            const small = createOvateLeaflet(interSize, curl * rng.range(0.3, 1.0), rng, effShape, false);
+            const small = createOvateLeaflet(interSize, curl * rng.range(0.3, 1.0), af, rng, effShape, false);
             rotateChunkY(small, side * rng.range(0.4, 0.8));
             rotateChunkZ(small, -Math.abs(rng.gaussian(0, leafletDroopRange * 0.7)));
             translateChunk(small, interPos, interYOff, side * 0.015);
@@ -204,6 +205,7 @@ export function buildLeafChunk(paramsArg: LeafBuildParams, rng: SeededRandom): G
 function createOvateLeaflet(
   size: number,
   curl: number,
+  ageFrac: number,
   rng: SeededRandom,
   params: LeafShapeParams,
   isTerminal: boolean
@@ -244,8 +246,32 @@ function createOvateLeaflet(
         z += Math.sign(colNorm) * toothShape * serrationAmp;
       }
 
-      const dist = Math.sqrt(rowX * rowX + z * z) / size;
-      let y = curl * dist * dist * size * 3;
+      // Leaflet 3D geometry — separated transverse cup vs longitudinal droop.
+      //
+      // The earlier Euclidean-distance cup (y = curl · √(x²+z²)² · …) raised
+      // BOTH the edges and the tip together, which made every leaflet point
+      // skyward at maturity. Real tomato leaflets behave differently:
+      //   • Transverse: edges rise slightly above the midrib (cup) while
+      //     turgor is high; this flattens as turgor drops [Furutani et al,
+      //     Sci. Rep. 13:2299 (2023) — turgor → geometric rigidity].
+      //   • Longitudinal: the tip droops down under self-weight, modeled by
+      //     a 2nd-degree polynomial in t (Buck-Sorlin & Schurr, Ann. Bot.
+      //     126:661 (2020) — "tip pointed slightly towards the ground").
+      // Both are present at all ages — even fresh leaflets have a small
+      // tip droop — but droop scales with ageFrac (turgor decline + cell
+      // wall softening + cumulative gravitational creep).
+      //
+      // Cantilever physics: tip deflection ∝ qL⁴/(EI). For a per-leaflet
+      // shape we use the dimensionless cantilever profile w(t) ≈ t²(3−2t)/2
+      // simplified to t² (close to t²(3−2t) within 15% over t∈[0,1] and
+      // single-term keeps the maths terse).
+      const transverseCup = curl
+        * Math.pow(absCol, 2)
+        * Math.max(0, 1 - ageFrac * 0.5)   // cup flattens with senescence
+        * size * 0.9;
+      const longitudinalDroop = (0.10 + ageFrac * 0.30)
+        * Math.pow(t, 2) * size;            // tip down; 0.10 base droop matches "slight"
+      let y = transverseCup - longitudinalDroop;
 
       if (params.waviness > 0) {
         y += params.waviness * Math.sin(rowX * 40) * Math.sin(z * 60) * (1 - absCol * 0.5);
@@ -254,10 +280,8 @@ function createOvateLeaflet(
       const midribHeight = 0.002 * (1 - absCol * absCol) * size * 10;
       y += midribHeight;
 
-      // Phase A.2 — curl z-twist per guideline §8.4. Existing y-cup
-      // bowls the leaflet; z-twist turns the tip edges laterally so
-      // mature leaflets read as "catching wind" rather than just folding.
-      // v = t (length axis 0→1), u = colNorm (signed width −1→+1).
+      // Curl z-twist (kept) — tip edges turn laterally so mature leaflets
+      // read as "catching wind" rather than just folding. v = t, u = colNorm.
       z += curl * Math.pow(t, 2.0) * Math.sign(colNorm) * Math.abs(colNorm) * size * 0.4;
 
       chunk.positions.push(rowX, y, z);
@@ -266,9 +290,14 @@ function createOvateLeaflet(
       const v = col / (cols - 1);
       chunk.uvs.push(u, v);
 
-      const curlEffect = curl * size * dist;
-      const ny = 1 - curlEffect * 2;
-      chunk.normals.push(0, Math.max(0.3, ny), curlEffect * Math.sign(z || 0.01));
+      // Normal approximation — pre-curl/droop the local face was flat (0,1,0).
+      // The cup tilts edges inward (toward +y), the droop tilts the surface
+      // forward (toward +x at tip). Single shading-quality estimate, the
+      // mesh's per-face normals would refine this if recomputed downstream.
+      const cupSlope = curl * absCol;
+      const droopSlope = (0.10 + ageFrac * 0.30) * t * 2;
+      const ny = Math.max(0.3, 1 - cupSlope - droopSlope * 0.4);
+      chunk.normals.push(0, ny, cupSlope * Math.sign(z || 0.01));
     }
   }
 

@@ -337,35 +337,46 @@ export function computePlantState(
     });
   }
 
-  // Leaf pruning — gap analysis P0 #2: "2-truss rule".
+  // Leaf pruning — smooth, ripening-progress-tracked.
   //
-  // Real greenhouse practice: when a truss ripens, growers prune ALL
-  // leaves up to and including the node just above it (next truss
-  // node). Previously we only pruned below the lowest ripe truss,
-  // which left too many lower leaves intact (W16 had ~34 leaves vs
-  // 16–22 standard).
+  // Earlier implementation triggered binary on/off pruning the moment
+  // any truss hit ripenStage >= 4: ~9 leaves disappeared in one frame
+  // per plant, and because each plant had a different plantingDayOffset
+  // the discrete jumps happened at different days (79, 84, 85, 88, 90…)
+  // which made the canopy flicker as the user scrubbed the timeline.
   //
-  // Also: continuous adaxial aging — leaves older than 50 days
-  // gradually senesce (yellowing → leafMaturity → 0) so the lower
-  // canopy doesn't accumulate indefinitely even before any truss ripens.
-  let pruneBelow = -1;
+  // New rule, matching real grower practice:
+  //   • Trigger earlier (ripenStage >= 2 / 채색기) — when fruit starts
+  //     coloring, growers begin removing lower leaves on that truss.
+  //   • Fade scales with ripening progress (0 at stage 2, 1 at stage 5).
+  //   • Distance-graduated: a leaf right below the ripening truss is
+  //     barely touched; one 5+ nodes below is fully pruned. This way
+  //     the pruning "front" moves up the stem smoothly instead of
+  //     dropping a whole block at once.
+  let highestRipenIdx = -1;
+  let highestRipenProgress = 0; // 0 at stage 2, 1 at stage 5
   for (const node of nodes) {
-    if (node.truss) {
-      const hasRipeFruit = node.truss.fruits.some(f => f.ripenStage >= 4);
-      if (hasRipeFruit) {
-        // Prune up to and including the ripe truss node (was +3 — too
-        // aggressive, removed two nodes' worth of leaves above the
-        // truss which were realistically still on the plant).
-        pruneBelow = node.index + 1;
-        break; // lowest ripe truss found
+    if (!node.truss) continue;
+    for (const f of node.truss.fruits) {
+      if (f.ripenStage >= 2) {
+        // stage 2 → 0, stage 5 → 1 (smooth over the 3-stage coloring window)
+        const stageFrac = Math.max(0, Math.min(1, (f.ripenStage + f.ripenFraction - 2) / 3));
+        if (node.index > highestRipenIdx) {
+          highestRipenIdx = node.index;
+          highestRipenProgress = stageFrac;
+        } else if (node.index === highestRipenIdx && stageFrac > highestRipenProgress) {
+          highestRipenProgress = stageFrac;
+        }
       }
     }
   }
-  if (pruneBelow > 0) {
+  if (highestRipenIdx > 0 && highestRipenProgress > 0) {
+    const FADE_NODE_RANGE = 5; // how many nodes below the ripening truss the prune front spans
     for (const node of nodes) {
-      if (node.index < pruneBelow) {
-        node.leafMaturity = 0; // pruned
-      }
+      const distBelow = highestRipenIdx - node.index;
+      if (distBelow <= 0) continue; // at or above the ripening truss → keep
+      const localFade = Math.min(1, distBelow / FADE_NODE_RANGE) * highestRipenProgress;
+      node.leafMaturity *= Math.max(0, 1 - localFade);
     }
   }
   // Age-based senescence — leaves fade gradually after age 65 and are
