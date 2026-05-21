@@ -49,10 +49,13 @@ export function PointCloudPreview({ session, width = 110, height = 110 }: Props)
       width={width}
       height={height}
       style={{
-        background: '#0a0d12',
+        // Light-theme tile: pale background + dim border, lets the
+        // viridis point cloud stay readable without the punchy dark
+        // panel feel from the earlier #0a0d12.
+        background: 'var(--bg-soft)',
         borderRadius: 4,
         display: 'block',
-        border: '1px solid #1f2530',
+        border: '1px solid var(--bd)',
       }}
     >
       {projected.map((p, i) => (
@@ -62,14 +65,14 @@ export function PointCloudPreview({ session, width = 110, height = 110 }: Props)
           cy={p.v * height}
           r={0.9}
           fill={depthColor(p.depthT)}
-          opacity={0.55 + p.intensity * 0.45}
+          opacity={0.6 + p.intensity * 0.4}
         />
       ))}
       <text
         x={4}
         y={11}
         fontSize={8}
-        fill="#6b7280"
+        fill="var(--fg-dim)"
         fontFamily="ui-monospace, monospace"
       >
         PCD {session.pointCloud.length}

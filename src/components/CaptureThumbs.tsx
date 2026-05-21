@@ -25,7 +25,7 @@ function rgbStyle(health: HealthLabel, size: number): React.CSSProperties {
       radial-gradient(circle at 50% 80%, ${baseHex}, ${baseHex}cc)
     `,
     borderRadius: 4,
-    border: '1px solid #2a2e36',
+    border: '1px solid var(--bd)',
   };
 }
 
@@ -36,7 +36,7 @@ function depthStyle(size: number): React.CSSProperties {
     height: size,
     background: 'radial-gradient(circle at 50% 50%, #fbbf24 0%, #ef4444 20%, #a855f7 50%, #1e3a8a 100%)',
     borderRadius: 4,
-    border: '1px solid #2a2e36',
+    border: '1px solid var(--bd)',
   };
 }
 
@@ -54,16 +54,17 @@ function maskStyle(health: HealthLabel, size: number): React.CSSProperties {
       radial-gradient(ellipse 60% 80% at 40% 50%, #6ee7b7aa, #6ee7b733 60%, transparent 80%)
     `,
     borderRadius: 4,
-    border: '1px solid #2a2e36',
+    border: '1px solid var(--bd)',
   };
 }
 
 function labelStyle(): React.CSSProperties {
   return {
-    fontSize: 9,
-    color: '#9ca3af',
-    marginTop: 2,
+    fontSize: 9.5,
+    color: 'var(--fg-dim)',
+    marginTop: 3,
     textAlign: 'center',
+    letterSpacing: 0.4,
   };
 }
 
