@@ -17,6 +17,10 @@ export function SceneCanvas() {
           return;
         }
         handleRef.current = handle;
+        if (import.meta.env.DEV) {
+          window.__debugScene = handle.scene;
+          window.__debugEngine = handle;
+        }
       })
       .catch((err) => {
         console.error('[SceneCanvas] engine create failed:', err);

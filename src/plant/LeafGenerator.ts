@@ -55,7 +55,11 @@ function bakeLeafVertexColors(
   const blended = getLeafBlendedColor(ageFrac, waterStress, yellowing);
   // Normalize relative to mature so that mature/unstressed/green = (1,1,1) tint
   // and we only deviate when actually aged/stressed/senescent.
-  const MATURE_R = 0.227, MATURE_G = 0.478, MATURE_B = 0.188;
+  // Must mirror LEAF_COLOR_MATURE in @farmsim/tomato-engine/LeafColors.
+  // Mature/normal leaves end up with tint (1,1,1) so the texture's
+  // baseline green shows unchanged; aged/stressed/senescent leaves
+  // deviate from there.
+  const MATURE_R = 0.165, MATURE_G = 0.400, MATURE_B = 0.125;
   const r = blended.r / MATURE_R;
   const g = blended.g / MATURE_G;
   const b = blended.b / MATURE_B;

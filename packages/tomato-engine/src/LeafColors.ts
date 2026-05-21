@@ -17,10 +17,14 @@ export interface LeafColorRGB {
   b: number;
 }
 
-export const LEAF_COLOR_YOUNG: LeafColorRGB      = { r: 0.373, g: 0.659, b: 0.188 }; // #5fa830 — fresh new leaf
-export const LEAF_COLOR_MATURE: LeafColorRGB     = { r: 0.227, g: 0.478, b: 0.188 }; // #3a7a30 — adult chlorophyll
-export const LEAF_COLOR_STRESS: LeafColorRGB     = { r: 0.478, g: 0.525, b: 0.208 }; // #7a8635 — water-stressed olive
-export const LEAF_COLOR_SENESCENCE: LeafColorRGB = { r: 0.659, g: 0.565, b: 0.188 }; // #a89030 — senescent yellow
+// Deeper palette — operator feedback "너무 옅어" (too pale). Mature
+// chlorophyll deepened from #3a7a30 → #2a6620 (about 30% darker), and
+// young leaves shifted to a richer #4a9028. The senescence and
+// stress hues stay roughly the same so transitions remain readable.
+export const LEAF_COLOR_YOUNG: LeafColorRGB      = { r: 0.290, g: 0.565, b: 0.157 }; // #4a9028
+export const LEAF_COLOR_MATURE: LeafColorRGB     = { r: 0.165, g: 0.400, b: 0.125 }; // #2a6620
+export const LEAF_COLOR_STRESS: LeafColorRGB     = { r: 0.435, g: 0.490, b: 0.180 }; // #6f7d2e
+export const LEAF_COLOR_SENESCENCE: LeafColorRGB = { r: 0.620, g: 0.510, b: 0.165 }; // #9f822a
 
 function mix(a: number, b: number, t: number): number {
   return a + (b - a) * t;

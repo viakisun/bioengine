@@ -223,18 +223,19 @@ export function computePlantState(
     const leafMaturity = Math.max(0.02, leafExpansion);
 
     // --- Leaf size: position × expansion ---
-    // Gap analysis P1 #3: positionFactor floor 0.55 → 0.70 so even
-    // basal/apical leaves are reasonably sized. Old curve had bottom
-    // and top leaves at 55% of canopy max, which dragged average
-    // leaf area below 600cm²/leaf vs 600–800cm² standard.
+    // Pushed further for visual lushness: positionFactor floor 0.70
+    // → 0.85, so basal and apical leaves are nearly as large as the
+    // canopy peak. With the relaxed pruning + senescence the bottom
+    // of the plant retains leaves longer; making those leaves big
+    // turns the canopy from "sparse skeleton" into "dense bush."
     const positionFactor = Math.sin(nodeFrac * Math.PI);
-    const potentialSize = (0.70 + 0.30 * positionFactor) * genome.leafSizeMultiplier;
+    const potentialSize = (0.85 + 0.20 * positionFactor) * genome.leafSizeMultiplier;
     const leafSizeFactor = potentialSize * leafExpansion;
 
     // --- Leaf area & mass ---
-    // Gap analysis P1 #3: 600 → 720 to match the upper half of the
-    // 600–800cm² range that beefsteak compound leaves reach at maturity.
-    const BASE_LEAF_AREA_CM2 = 720;
+    // 720 → 880 cm² — closer to the upper end of beefsteak compound
+    // leaves (real mature outdoor leaves can hit 900–1000 cm²).
+    const BASE_LEAF_AREA_CM2 = 880;
     const leafAreaCm2 = BASE_LEAF_AREA_CM2 * leafSizeFactor * leafSizeFactor;
     const leafMassG = 25 * leafSizeFactor * leafSizeFactor * leafMaturity;
 
@@ -345,22 +346,21 @@ export function computePlantState(
   // the discrete jumps happened at different days (79, 84, 85, 88, 90…)
   // which made the canopy flicker as the user scrubbed the timeline.
   //
-  // New rule, matching real grower practice:
-  //   • Trigger earlier (ripenStage >= 2 / 채색기) — when fruit starts
-  //     coloring, growers begin removing lower leaves on that truss.
-  //   • Fade scales with ripening progress (0 at stage 2, 1 at stage 5).
-  //   • Distance-graduated: a leaf right below the ripening truss is
-  //     barely touched; one 5+ nodes below is fully pruned. This way
-  //     the pruning "front" moves up the stem smoothly instead of
-  //     dropping a whole block at once.
+  // New rule, matching real grower practice BUT skewed for visual
+  // lushness (operator/demo use case):
+  //   • Trigger only at ripenStage >= 4 (담적색기 / 거의 완숙) instead of
+  //     the earlier >= 2 — much less aggressive. The earlier window
+  //     was biologically accurate but left the visible canopy too thin.
+  //   • Fade scales with ripening progress (0 at stage 4, 1 at stage 5).
+  //   • Distance-graduated over only 3 nodes (down from 5) so the prune
+  //     "shadow" is narrower and most of the stem keeps its leaves.
   let highestRipenIdx = -1;
-  let highestRipenProgress = 0; // 0 at stage 2, 1 at stage 5
+  let highestRipenProgress = 0;
   for (const node of nodes) {
     if (!node.truss) continue;
     for (const f of node.truss.fruits) {
-      if (f.ripenStage >= 2) {
-        // stage 2 → 0, stage 5 → 1 (smooth over the 3-stage coloring window)
-        const stageFrac = Math.max(0, Math.min(1, (f.ripenStage + f.ripenFraction - 2) / 3));
+      if (f.ripenStage >= 4) {
+        const stageFrac = Math.max(0, Math.min(1, (f.ripenStage + f.ripenFraction - 4) / 1));
         if (node.index > highestRipenIdx) {
           highestRipenIdx = node.index;
           highestRipenProgress = stageFrac;
@@ -371,25 +371,25 @@ export function computePlantState(
     }
   }
   if (highestRipenIdx > 0 && highestRipenProgress > 0) {
-    const FADE_NODE_RANGE = 5; // how many nodes below the ripening truss the prune front spans
+    const FADE_NODE_RANGE = 3;
     for (const node of nodes) {
       const distBelow = highestRipenIdx - node.index;
-      if (distBelow <= 0) continue; // at or above the ripening truss → keep
+      if (distBelow <= 0) continue;
       const localFade = Math.min(1, distBelow / FADE_NODE_RANGE) * highestRipenProgress;
       node.leafMaturity *= Math.max(0, 1 - localFade);
     }
   }
-  // Age-based senescence — leaves fade gradually after age 65 and are
-  // fully senesced by 95 days. Previous 50–70 window dropped *all*
-  // leaves below ~1m of plant height to maturity=0 by day 114, so the
-  // visible (sub-1.5m) part of the canopy looked bare from any robot
-  // or operator-eye-level camera. Widened to 65–95 so the middle
-  // canopy (50–110cm height range) keeps faded but visible leaves.
+  // Age-based senescence — leaves fade after age 80 and are fully
+  // senesced by 115 days. Widened again to keep more low-canopy leaves
+  // visible (user feedback: "무성해야돼" / should be lush). At day 92
+  // the previous 65–95 window had zeroed all nodes with age > 88,
+  // i.e. the lowest 6 nodes; the new 80–115 window only zeroes nodes
+  // age > 115, which on a 16-week scenario means *none*.
   for (const node of nodes) {
-    if (node.leafMaturity > 0 && node.age > 65) {
-      const senFade = Math.min(1, (node.age - 65) / 30); // 0 → 1 over 65–95d
+    if (node.leafMaturity > 0 && node.age > 80) {
+      const senFade = Math.min(1, (node.age - 80) / 35); // 0 → 1 over 80–115d
       if (senFade >= 1) node.leafMaturity = 0;
-      else node.leafMaturity *= (1 - senFade * 0.6);
+      else node.leafMaturity *= (1 - senFade * 0.45);
     }
   }
 

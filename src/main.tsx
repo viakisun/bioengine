@@ -7,6 +7,14 @@ if (import.meta.env.DEV) {
   (window as unknown as { __twinStore: typeof useTwinStore }).__twinStore = useTwinStore;
 }
 
+declare global {
+  // eslint-disable-next-line @typescript-eslint/consistent-type-definitions
+  interface Window {
+    __debugScene?: import('@babylonjs/core/scene').Scene;
+    __debugEngine?: import('./twin/BabylonEngine').BabylonEngineHandle;
+  }
+}
+
 const root = document.getElementById('root');
 if (!root) throw new Error('#root not found');
 

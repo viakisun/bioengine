@@ -121,10 +121,22 @@ export function createShowcasePlant(
   }
 
   function disposeAll() {
-    for (const m of currentMeshes) m.dispose(false, true);
+    // BUG fix: previously called dispose(false, true) which means
+    // "doNotRecurse=false, disposeMaterialAndTextures=true". The shared
+    // leafMat / stemMat / cotyledonMat are looked up via WeakMap caches
+    // (LeafGenerator.getLeafMaterial, etc.) and reused across every
+    // plant in the scene. Disposing them here killed the material on
+    // every rebuild, so after the first rebuild the leaves rendered
+    // against a disposed material and degenerated visually (user
+    // observation: "first load shows leaves, scrubbing the timeline
+    // makes them disappear").
+    //
+    // Pass `disposeMaterialAndTextures = false`. Material lifecycle is
+    // owned by the LeafGenerator caches, not by individual meshes.
+    for (const m of currentMeshes) m.dispose(false, false);
     for (const n of currentTransformNodes) {
-      for (const child of n.getChildMeshes(false)) child.dispose(false, true);
-      n.dispose(false, true);
+      for (const child of n.getChildMeshes(false)) child.dispose(false, false);
+      n.dispose(false, false);
     }
     currentMeshes = [];
     currentTransformNodes = [];
