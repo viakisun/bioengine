@@ -135,7 +135,11 @@ export function buildLeafChunk(paramsArg: LeafBuildParams, rng: SeededRandom): G
     // Outermost pair smooth fade-in during stage transition
     const isOutermost = !isTerminal && i === pairs - 1;
     const stageScale = isOutermost ? outerScale : 1;
-    const leafletSize = 0.12 * sizeFactor * expansionScale * baseSizeMod * stageScale * rng.range(0.8, 1.2);
+    // Phase A.3 — tighter asymmetry per guideline §7.2.
+    // Original 0.85–1.15 size (±15%) + 0.35–0.65 rad (20–37°) angle was
+    // too irregular. Guideline asks ±5–12% size + 3–8° angle; we use
+    // midpoint values that still feel organic but no longer toy-like.
+    const leafletSize = 0.12 * sizeFactor * expansionScale * baseSizeMod * stageScale * rng.range(0.92, 1.08);
 
     const leafletDroopRange = 0.14 + af * 0.48;
     const leafletTwistRange = 0.08 + af * 0.28;
@@ -149,13 +153,14 @@ export function buildLeafChunk(paramsArg: LeafBuildParams, rng: SeededRandom): G
     } else {
       for (const side of [-1, 1]) {
         const leaflet = createOvateLeaflet(
-          leafletSize * rng.range(0.85, 1.15),
-          curl * rng.range(0.5, 1.5),
+          leafletSize * rng.range(0.92, 1.08), // size ±8%
+          curl * rng.range(0.7, 1.3),
           rng,
           effShape,
           false
         );
-        rotateChunkY(leaflet, side * rng.range(0.35, 0.65));
+        // ±0.25 rad (≈14°) — between guideline's 8° and our previous 37°
+        rotateChunkY(leaflet, side * rng.range(0.20, 0.30));
         rotateChunkZ(leaflet, -Math.abs(rng.gaussian(0, leafletDroopRange)));
         rotateChunkX(leaflet, rng.gaussian(0, leafletTwistRange));
         translateChunk(leaflet, posAlongRachis, yOff, side * 0.025 * baseSizeMod);
@@ -213,14 +218,14 @@ function createOvateLeaflet(
 
   for (let row = 0; row <= lengthSegs; row++) {
     const t = row / lengthSegs;
-    let widthFactor: number;
-    if (t < 0.4) {
-      widthFactor = Math.sin((t / 0.4) * Math.PI * 0.5);
-    } else {
-      const tNorm = (t - 0.4) / 0.6;
-      widthFactor = Math.cos(tNorm * Math.PI * 0.5) * (1 - tNorm * 0.3);
-    }
-
+    // Phase A.1 — leafletWidth single function per guideline §8.3.
+    // Base ovate sin(πt)·(1−0.25t) × (1 + teeth + organic) replaces the
+    // older two-branch sin/cos profile. Lobe modulation kept as a small
+    // multiplicative term for the classic compound-leaf bumping.
+    const widthBase = Math.sin(Math.PI * t) * (1 - 0.25 * t);
+    const widthTeeth = Math.sin(t * Math.PI * 18) * params.serrationDepth * 0.08;
+    const widthOrganic = (rng.next() - 0.5) * params.serrationDepth * 0.05;
+    const widthFactor = Math.max(0, widthBase * (1 + widthTeeth + widthOrganic));
     const lobeModulation =
       1 - params.lobeDepth * Math.sin(t * Math.PI * 3) * Math.max(0, 1 - t * 1.5);
     const rowWidth = maxWidth * widthFactor * lobeModulation;
@@ -248,6 +253,12 @@ function createOvateLeaflet(
 
       const midribHeight = 0.002 * (1 - absCol * absCol) * size * 10;
       y += midribHeight;
+
+      // Phase A.2 — curl z-twist per guideline §8.4. Existing y-cup
+      // bowls the leaflet; z-twist turns the tip edges laterally so
+      // mature leaflets read as "catching wind" rather than just folding.
+      // v = t (length axis 0→1), u = colNorm (signed width −1→+1).
+      z += curl * Math.pow(t, 2.0) * Math.sign(colNorm) * Math.abs(colNorm) * size * 0.4;
 
       chunk.positions.push(rowX, y, z);
 

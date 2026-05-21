@@ -5,6 +5,7 @@ import { CameraPresets } from './components/CameraPresets';
 import { EventList } from './components/EventList';
 import { Minimap } from './components/Minimap';
 import { LabelOverlay } from './components/LabelOverlay';
+import { EnvironmentControls } from './components/EnvironmentControls';
 import { useTwinStore } from './store/twinStore';
 
 export function App() {
@@ -83,6 +84,17 @@ export function App() {
         <EventList />
         <LabelOverlay />
         <CameraPresets />
+
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 80,
+            left: 12,
+            zIndex: 5,
+          }}
+        >
+          <EnvironmentControls />
+        </div>
 
         <div
           style={{

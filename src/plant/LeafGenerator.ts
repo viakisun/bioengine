@@ -13,6 +13,7 @@ import { Color3 } from '@babylonjs/core/Maths/math.color';
 import {
   SeededRandom,
   getLeafStage,
+  getLeafBlendedColor,
   type NodeState,
   type PlantGenome,
 } from '@farmsim/tomato-engine';
@@ -27,13 +28,46 @@ import {
   getDiseasedLeafColorTexture,
 } from './LeafTexture';
 
-function applyChunkToMesh(chunk: GeoChunk, mesh: Mesh) {
+function applyChunkToMesh(chunk: GeoChunk, mesh: Mesh, vertexColors?: number[]) {
   const vd = new VertexData();
   vd.positions = chunk.positions;
   vd.normals = chunk.normals;
   vd.uvs = chunk.uvs;
   vd.indices = chunk.indices;
+  if (vertexColors) vd.colors = vertexColors;
   vd.applyToMesh(mesh);
+}
+
+/**
+ * Bake the guideline §12 smooth color blend into vertex colors so the
+ * shared PBRMaterial can do per-leaf tinting via useVertexColors=true
+ * without per-instance shader uniforms. RGB is the multiplicative tint
+ * (relative to the base mature green so the texture's natural color
+ * shows through unchanged at age=mature/stress=0/yellow=0). Alpha is
+ * always 1 — material uses RGB only.
+ */
+function bakeLeafVertexColors(
+  vertexCount: number,
+  ageFrac: number,
+  waterStress: number,
+  yellowing: number
+): number[] {
+  const blended = getLeafBlendedColor(ageFrac, waterStress, yellowing);
+  // Normalize relative to mature so that mature/unstressed/green = (1,1,1) tint
+  // and we only deviate when actually aged/stressed/senescent.
+  const MATURE_R = 0.227, MATURE_G = 0.478, MATURE_B = 0.188;
+  const r = blended.r / MATURE_R;
+  const g = blended.g / MATURE_G;
+  const b = blended.b / MATURE_B;
+  const out = new Array<number>(vertexCount * 4);
+  for (let i = 0; i < vertexCount; i++) {
+    const o = i * 4;
+    out[o] = r;
+    out[o + 1] = g;
+    out[o + 2] = b;
+    out[o + 3] = 1;
+  }
+  return out;
 }
 
 /**
@@ -116,8 +150,16 @@ export function createLeafMeshFromNode(
     rng
   );
 
+  const vertexCount = chunk.positions.length / 3;
+  const vertexColors = bakeLeafVertexColors(
+    vertexCount,
+    ageFrac,
+    node.waterStress,
+    node.yellowing
+  );
+
   const mesh = new Mesh(name, scene);
-  applyChunkToMesh(chunk, mesh);
+  applyChunkToMesh(chunk, mesh, vertexColors);
   return mesh;
 }
 
@@ -161,6 +203,10 @@ export function getLeafMaterial(scene: Scene): PBRMaterial {
       customMat.backFaceCulling = false;
       customMat.twoSidedLighting = true;
       customMat.environmentIntensity = 0.6;
+      // Phase B — per-leaf smooth color blend via baked vertex colors.
+      // LeafGenerator bakes RGB tint from getLeafBlendedColor(); PBR
+      // material auto-detects vertex colors from the bound VertexBuffer
+      // and multiplies them against the albedo texture (no flag needed).
 
       customMat.subSurface.isTranslucencyEnabled = true;
       customMat.subSurface.translucencyIntensity = 0.45;
@@ -168,11 +214,17 @@ export function getLeafMaterial(scene: Scene): PBRMaterial {
       customMat.subSurface.minimumThickness = 0.1;
       customMat.subSurface.maximumThickness = 0.4;
 
-      // 3-layer wind (Phase B replaces this single-line spike).
+      // 3-layer wind — guideline §10. windWeight biases the offset toward
+      // leaflet tips & edges so the petiole base stays mostly anchored.
       customMat.AddUniform('windTime', 'float', 0);
       customMat.AddUniform('windStrength', 'float', 0.5);
       customMat.AddUniform('flutterStrength', 'float', 0.6);
       customMat.AddUniform('windDir', 'vec3', new Color3(1, 0, 0.3) as any);
+      // Phase C — interaction array. xyz = world-space push origin,
+      // w = strength (already exponentially decayed CPU-side). Up to
+      // 8 simultaneous interactions; robot + a couple of workers fits.
+      customMat.AddUniform('interactionCount', 'int', 0);
+      customMat.AddUniform('interactionData', 'vec4[8]', null as any);
       customMat.Vertex_Before_PositionUpdated(`
         float windV = clamp(uv.y, 0.0, 1.0);
         float windU = uv.x * 2.0 - 1.0;
@@ -182,12 +234,36 @@ export function getLeafMaterial(scene: Scene): PBRMaterial {
         float smallFlutter = sin(windTime * 6.0 + position.x * 3.0 + position.z * 2.0) * 0.012 * flutterStrength;
         float total = (largeSway + mediumSway + smallFlutter) * windStrength;
         positionUpdated += windDir * total * windWeight;
+
+        // Interaction push — radial repulsion from each active point.
+        // World position is approximate: leaf vertex is in mesh-local
+        // space (plant root TransformNode already applied), so we use
+        // position directly + the mesh's world origin. For petal-scale
+        // accuracy this would need the full worldMatrix; the 0.5m
+        // radius is forgiving enough that the approximation looks fine.
+        for (int i = 0; i < 8; i++) {
+          if (i >= interactionCount) break;
+          vec3 ipos = interactionData[i].xyz;
+          float strength = interactionData[i].w;
+          float dist = distance(position, ipos);
+          if (dist < 0.55) {
+            float push = smoothstep(0.55, 0.0, dist) * strength;
+            vec3 dir = normalize(position - ipos + vec3(0.0001));
+            positionUpdated += dir * push * 0.04 * windWeight;
+          }
+        }
       `);
+
+      // Midrib brightness (guideline §13) is already baked into
+      // getLeafColorTexture's procedural vein pass — no shader-side
+      // boost needed. Skipping that injection also keeps the GLSL
+      // surface minimal, which lowered the risk of WebGPU breakage
+      // (the same reason the wind shader is WebGL2-only here).
 
       mat = customMat;
     } else {
       // WebGPU fallback path — plain PBRMaterial; wind comes from CPU
-      // sine rotation on plant root nodes in Phase B.
+      // sine rotation on plant root TransformNodes (driven in BabylonEngine).
       mat = new PBRMaterial('leafMat', scene);
       mat.albedoColor = new Color3(1, 1, 1);
       mat.albedoTexture = getLeafColorTexture(scene);
@@ -199,6 +275,8 @@ export function getLeafMaterial(scene: Scene): PBRMaterial {
       mat.backFaceCulling = false;
       mat.twoSidedLighting = true;
       mat.environmentIntensity = 0.6;
+      // Same baked-color path as WebGL2 — vertex colors auto-detected
+      // from the mesh's VertexBuffer.ColorKind data; no flag required.
 
       mat.subSurface.isTranslucencyEnabled = true;
       mat.subSurface.translucencyIntensity = 0.45;

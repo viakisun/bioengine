@@ -146,22 +146,91 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
     return cachedLeafMatRef;
   }
 
+  // Reusable interaction-uniform buffers — avoid per-frame allocations.
+  const INTERACTION_MAX = 8;
+  const interactionFloats = new Float32Array(INTERACTION_MAX * 4);
+  let lastInteractionTick = performance.now();
+
   engine.runRenderLoop(() => {
     const state = useTwinStore.getState();
 
     const now = performance.now();
+    const dtInter = (now - lastInteractionTick) / 1000;
+    lastInteractionTick = now;
 
-    // Push wind uniforms each frame — WebGL2 only
+    // Robot contributes a continuous interaction while capturing —
+    // the camera head's world position pushes leaves immediately
+    // around it. While idle/returning the robot doesn't disturb plants.
+    if (greenhouse) {
+      const task = greenhouse.robot.currentTask();
+      if (task === 'capturing') {
+        const rp = greenhouse.robot.currentPosition();
+        useTwinStore.getState().addInteraction({
+          position: [rp.x, rp.y + 0.6, rp.z],
+          radius: 0.55,
+          strength: 0.8,
+          lifetime: 1.2,
+        });
+      }
+    }
+    // Drain stale interactions (age beyond lifetime drops them).
+    useTwinStore.getState().tickInteractions(dtInter);
+
+    // Phase D — LOD distance check (10Hz throttled internally).
+    if (greenhouse) {
+      greenhouse.plantLOD.update(cameraRig.camera.globalPosition);
+    }
+
+    // Push wind + interaction uniforms each frame — WebGL2 only.
+    // On WebGPU we use the CPU sine fallback further down.
     if (isShaderWindEnabled()) {
       const lm = getLeafMatForUniform();
       if (lm && typeof lm.getEffect === 'function') {
         const eff = lm.getEffect();
         if (eff) {
           eff.setFloat('windTime', now / 1000);
-          eff.setFloat('windStrength', 0.5);
-          eff.setFloat('flutterStrength', 0.6);
-          eff.setVector3('windDir', new Vector3(1, 0, 0.3));
+          eff.setFloat('windStrength', state.windStrength);
+          eff.setFloat('flutterStrength', state.flutterStrength);
+          eff.setVector3(
+            'windDir',
+            new Vector3(state.windDirection[0], state.windDirection[1], state.windDirection[2])
+          );
+
+          // Pack at most INTERACTION_MAX interaction vec4s.
+          // w = exp-decayed strength so the shader doesn't need timing.
+          const active = state.interactions.slice(0, INTERACTION_MAX);
+          for (let i = 0; i < active.length; i++) {
+            const p = active[i];
+            const decay = Math.exp(-p.age * 2);
+            const o = i * 4;
+            interactionFloats[o] = p.position[0];
+            interactionFloats[o + 1] = p.position[1];
+            interactionFloats[o + 2] = p.position[2];
+            interactionFloats[o + 3] = p.strength * decay;
+          }
+          eff.setInt('interactionCount', active.length);
+          if (active.length > 0) {
+            eff.setArray4('interactionData', interactionFloats as unknown as number[]);
+          }
         }
+      }
+    } else if (greenhouse) {
+      // WebGPU fallback — gently rock the plant root TransformNodes so
+      // the whole plant breathes. Only z-axis tilt (subtle) so leaves
+      // don't appear locked-frame static. Strength is scaled down vs
+      // shader path because we're rotating the whole hierarchy.
+      const t = now / 1000;
+      const baseAmp = 0.012 * state.windStrength;
+      const baseFreq = 0.7;
+      const showcase = greenhouse.showcasePlant.root;
+      const showcaseSway = Math.sin(t * baseFreq + showcase.position.x * 0.3) * baseAmp;
+      showcase.rotation.z = showcaseSway;
+      showcase.rotation.x = Math.sin(t * baseFreq * 1.3 + showcase.position.z * 0.4) * baseAmp * 0.5;
+      for (const sp of greenhouse.supportingPlants) {
+        const r = sp.root;
+        const phase = r.position.x * 0.25 + r.position.z * 0.4;
+        r.rotation.z = Math.sin(t * baseFreq + phase) * baseAmp;
+        r.rotation.x = Math.sin(t * baseFreq * 1.3 + phase * 1.7) * baseAmp * 0.5;
       }
     }
 

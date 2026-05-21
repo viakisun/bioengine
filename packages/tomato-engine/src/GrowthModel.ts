@@ -241,7 +241,13 @@ export function computePlantState(
         : Math.min(55, 15 + (age - 20) * 0.8 * genome.leafDroopMultiplier);
     // Water-stress contribution (per user reference: leaf.droop += waterStress * ~30°)
     const waterStressDroop = waterStress * 30;
-    const droopExtra = Math.min(120, weightDroop + ageDroop + waterStressDroop);
+    // Senescence droop — yellowing leaves sag further from chlorophyll
+    // breakdown + cell turgor loss (real biology + user reference §9).
+    const senescenceDroop = yellowing * 25;
+    const droopExtra = Math.min(
+      120,
+      weightDroop + ageDroop + waterStressDroop + senescenceDroop
+    );
 
     // Leaflet count with genome bias
     let leafletCount: number;

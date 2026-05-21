@@ -42,7 +42,7 @@ import { createStemMesh, getStemMaterial } from '../plant/StemGenerator';
 
 export interface SupportingPlantHandle {
   root: TransformNode;
-  update: (day: number, healthLabel?: HealthLabel) => void;
+  update: (day: number, healthLabel?: HealthLabel, waterStressOverride?: number) => void;
   setVisible: (v: boolean) => void;
   currentState: () => PlantState | null;
 }
@@ -126,6 +126,7 @@ export function createSupportingPlant(
   let currentMeshes: Mesh[] = [];
   let lastState: PlantState | null = null;
   let lastBuildDay = -999;
+  let lastOverride = 0;
   const REBUILD_THRESHOLD_DAYS = 2.0; // coarser — these are background plants
 
   function disposeAll() {
@@ -249,14 +250,22 @@ export function createSupportingPlant(
 
   return {
     root,
-    update(day, healthLabel) {
+    update(day, healthLabel, waterStressOverride = 0) {
       // Stagger rebuilds via per-plant offset so 29 supporting plants
-      // don't all dispose+rebuild on the same frame.
+      // don't all dispose+rebuild on the same frame. Operator slider
+      // (waterStressOverride > 0) also forces an immediate rebuild
+      // when it changes meaningfully, so feedback is instant.
       const adjusted = day + rebuildOffset;
-      if (Math.abs(adjusted - lastBuildDay) < REBUILD_THRESHOLD_DAYS) return;
+      const overrideChanged = Math.abs(waterStressOverride - lastOverride) > 0.05;
+      if (!overrideChanged && Math.abs(adjusted - lastBuildDay) < REBUILD_THRESHOLD_DAYS) return;
       lastBuildDay = adjusted;
+      lastOverride = waterStressOverride;
       const { envOverride, stress } = healthLabelToInputs(healthLabel);
-      const state = engine.computeState(seed, day, envOverride, stress);
+      const mergedStress: PlantStressInputs | undefined =
+        waterStressOverride > 0
+          ? { ...(stress ?? {}), waterStress: Math.max(stress?.waterStress ?? 0, waterStressOverride) }
+          : stress;
+      const state = engine.computeState(seed, day, envOverride, mergedStress);
       buildFromState(state);
     },
     setVisible(v) {

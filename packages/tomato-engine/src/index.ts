@@ -48,3 +48,12 @@ export { SeededRandom } from './SeededRandom';
 
 export { LeafStage, getLeafStage } from './LeafStage';
 export type { LeafStageInfo } from './LeafStage';
+
+export {
+  LEAF_COLOR_YOUNG,
+  LEAF_COLOR_MATURE,
+  LEAF_COLOR_STRESS,
+  LEAF_COLOR_SENESCENCE,
+  getLeafBlendedColor,
+} from './LeafColors';
+export type { LeafColorRGB } from './LeafColors';

@@ -403,3 +403,63 @@ if (stageInfo.stage === LeafStage.COMPOUND_MATURE) {
 ---
 
 각 단계는 verify-farmsim.mjs 의 day-별 스크린샷 (Day 5/15/25/50/80/100/120) 으로 시각 확인 가능. `/tmp/farmsim-verify-*.png` 참조.
+
+---
+
+## 11. Wind simulation (Phase B)
+
+장면 전체에 적용되는 단일 바람 모델 — `useTwinStore.windStrength / flutterStrength / windDirection`. 잎 정점 위치에 3-layer sin 의 합을 더해 정적 메시처럼 보이지 않게 한다.
+
+```
+windWeight = clamp(pow(uv.y, 1.4) + pow(|uv.x*2-1|, 0.8)*0.35, 0, 1)
+largeSway  = sin(t·0.6  + x·0.15 + z·0.10) · 0.08
+mediumSway = sin(t·1.4  + x·0.80)         · 0.035
+flutter    = sin(t·6.0  + x·3.0  + z·2.0) · 0.012 · flutterStrength
+Δposition  = windDir · (large + medium + flutter) · windStrength · windWeight
+```
+
+- `windWeight` 가 잎자루(uv.y=0)는 거의 0, 잎끝/가장자리는 1 — 베이스가 흔들리지 않고 끝만 펄럭임
+- WebGL2 → `PBRCustomMaterial.Vertex_Before_PositionUpdated` 로 GPU 측 주입, `BabylonEngine` 이 frame 마다 `setFloat('windTime', ...)` 만 push
+- WebGPU → PBRCustomMaterial GLSL 컴파일 실패 (Phase S 의 확인된 위험) → CPU sine 으로 plant root TransformNode 의 z/x 축 미세 회전으로 대체
+
+조정: `EnvironmentControls` 슬라이더 (`windStrength: 0–1`).
+
+## 12. Interaction deformation (Phase C)
+
+로봇이 식물에 다가가 잎이 살짝 밀렸다 천천히 복귀. shader 측 uniform array (vec4[8]) — xyz = 푸시 원점, w = 강도. 우리 source: Robot 이 `task === 'capturing'` 일 때 매 frame `addInteraction(...)`. 강도는 시간에 따라 `exp(-age*2)` 로 감쇠, 1.2s 후 사라짐.
+
+```glsl
+for (int i = 0; i < 8; i++) {
+  if (i >= interactionCount) break;
+  vec3 ipos = interactionData[i].xyz;
+  float dist = distance(position, ipos);
+  if (dist < 0.55) {
+    float push = smoothstep(0.55, 0.0, dist) * interactionData[i].w;
+    vec3 dir = normalize(position - ipos);
+    positionUpdated += dir * push * 0.04 * windWeight;
+  }
+}
+```
+
+- `windWeight` 와 곱해 잎자루는 영향 없음, 잎 끝만 밀림
+- WebGL2 only — WebGPU 는 shader injection 불가, fallback 없음 (CPU 단계에서 plant root 만 흔드는 wind 가 어느 정도 시각적 보상)
+
+## 13. LOD 거리 스위칭 (Phase D)
+
+29 supporting plants 가 카메라 거리에 따라:
+- < 14 m → 전체 geometry (현재 Light LOD, GrowthEngine-driven)
+- > 18 m → leaf-texture billboard plane (Mesh.BILLBOARDMODE_Y)
+- 14–18 m 사이는 deadband — 마지막 상태 유지 → pop-flicker 방지
+
+`PlantLODManager` 가 매 100ms 위치 check (30 식물 × 매 frame 은 불필요한 cost). 분석 모드에선 `forceFull()` 로 전체 메시 강제.
+
+**다음 단계 (deferred)**: ThinInstance master mesh 로 29 식물 → 1 draw call, LOD3 zone-cluster billboard. 현재 식물 수 (~30) 에선 draw-call budget 여유가 있어 마이그레이션 비용 대비 이득이 작아 보류. 식물 수가 60+ 로 늘면 필수.
+
+## 14. Smooth leaf color (Phase A.5 + B)
+
+매 leaf rebuild 시 `getLeafBlendedColor(ageFrac, waterStress, yellowing)` 로 RGB 계산 → mesh vertex colors (RGBA, A=1) baking. PBRMaterial 의 자동 vertex-color multiply 로 albedo texture 위에 곱해진다.
+
+- 4-색 팔레트: young `#5fa830` → mature `#3a7a30` → stress `#7a8635` → senescence `#a89030`
+- 모두 mature 대비로 정규화돼 unstressed/young 잎은 텍스처 색 그대로 (tint=1)
+- 노화/스트레스가 진행하면 부드럽게 색이 빠짐 — discrete material swap 보다 시각적으로 자연스러움
+- shader 호환성 의존 X — WebGPU/WebGL2 모두 동일 경로

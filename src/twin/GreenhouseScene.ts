@@ -14,8 +14,10 @@ import { attachZonePicker } from './ZonePicker';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { createUwbAnchors, type UwbAnchorsHandle } from './UwbAnchors';
 import { GrowthEngine } from '@farmsim/tomato-engine';
+import { useTwinStore } from '../store/twinStore';
 import { createShowcasePlant, type ShowcasePlantHandle } from './ShowcasePlant';
 import { createSupportingPlant, type SupportingPlantHandle } from './SupportingPlant';
+import { createPlantLODManager } from './PlantLODManager';
 import { getGroundAlbedoTexture, getGroundNormalTexture } from './GroundTexture';
 
 const TOMATO_RIPEN_COLORS = [
@@ -92,6 +94,7 @@ export interface GreenhouseSceneHandle {
   growthEngine: GrowthEngine;
   showcasePlant: ShowcasePlantHandle;
   supportingPlants: SupportingPlantHandle[];
+  plantLOD: import('./PlantLODManager').PlantLODManagerHandle;
   update: (day: number) => void;
   onZoneHover: (cb: (zoneId: number | null) => void) => void;
   onZoneClick: (cb: (zoneId: number | null) => void) => void;
@@ -350,6 +353,8 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
     (zoneId) => clickCb?.(zoneId)
   );
 
+  const plantLOD = createPlantLODManager(scene, scene.activeCamera!, supportingPlants);
+
   return {
     heatmap,
     robot,
@@ -358,6 +363,7 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
     growthEngine,
     showcasePlant,
     supportingPlants,
+    plantLOD,
     update(day) {
       heatmap.update(day);
       robot.update(day);
@@ -367,10 +373,11 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
       // Wire each supporting plant to its mockScenario healthLabel
       // → engine env override + stress inputs.
       const dayIdx = Math.max(0, Math.min(SCENARIO.durationDays, Math.floor(day)));
+      const waterStressOverride = useTwinStore.getState().waterStressOverride;
       for (let i = 0; i < supportingPlants.length; i++) {
         const plant = SCENARIO.plants[supportingPlantIds[i]];
         const snap = plant.daily[Math.min(plant.daily.length - 1, dayIdx)];
-        supportingPlants[i].update(day, snap.health);
+        supportingPlants[i].update(day, snap.health, waterStressOverride);
       }
     },
     onZoneHover(cb) { hoverCb = cb; },
