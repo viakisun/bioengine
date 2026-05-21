@@ -1,6 +1,7 @@
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { useTwinStore } from './store/twinStore';
+import './ui/ui-kit.css';
 
 if (import.meta.env.DEV) {
   (window as unknown as { __twinStore: typeof useTwinStore }).__twinStore = useTwinStore;
