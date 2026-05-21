@@ -8,6 +8,7 @@ import { Scene } from '@babylonjs/core/scene';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData';
 import { PBRMaterial } from '@babylonjs/core/Materials/PBR/pbrMaterial';
+import { PBRCustomMaterial } from '@babylonjs/materials/custom/pbrCustomMaterial';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import {
   SeededRandom,
@@ -124,26 +125,87 @@ const cachedLeafMaterial = new WeakMap<Scene, PBRMaterial>();
 const cachedYellowLeafMaterial = new WeakMap<Scene, PBRMaterial>();
 const cachedDiseasedLeafMaterial = new WeakMap<Scene, PBRMaterial>();
 
+/**
+ * Shader-side wind toggle.
+ *
+ * Spike result (Phase S): PBRCustomMaterial's GLSL injection (AddUniform +
+ * Vertex_Before_PositionUpdated) fails to compile on Babylon 9 WebGPU
+ * backend ("GLSL compilation failed" page error, plant invisible).
+ * Works on WebGL2.
+ *
+ * BabylonEngine calls setShaderWindEnabled(backend === 'webgl2') at boot.
+ * When false, getLeafMaterial returns plain PBRMaterial (no wind). Wind
+ * on WebGPU is delivered via CPU sine fallback in Phase B (plant root
+ * TransformNode rotation per frame).
+ */
+let _useShaderWind = false;
+export function setShaderWindEnabled(enabled: boolean) {
+  _useShaderWind = enabled;
+}
+export function isShaderWindEnabled() {
+  return _useShaderWind;
+}
+
 export function getLeafMaterial(scene: Scene): PBRMaterial {
   let mat = cachedLeafMaterial.get(scene);
   if (!mat) {
-    mat = new PBRMaterial('leafMat', scene);
-    mat.albedoColor = new Color3(1, 1, 1);
-    mat.albedoTexture = getLeafColorTexture(scene);
-    mat.bumpTexture = getLeafNormalTexture(scene);
-    mat.invertNormalMapY = false;
-    mat.invertNormalMapX = false;
-    mat.metallic = 0.0;
-    mat.roughness = 0.6;
-    mat.backFaceCulling = false;
-    mat.twoSidedLighting = true;
-    mat.environmentIntensity = 0.6;
+    if (_useShaderWind) {
+      const customMat = new PBRCustomMaterial('leafMat', scene);
+      customMat.albedoColor = new Color3(1, 1, 1);
+      customMat.albedoTexture = getLeafColorTexture(scene);
+      customMat.bumpTexture = getLeafNormalTexture(scene);
+      customMat.invertNormalMapY = false;
+      customMat.invertNormalMapX = false;
+      customMat.metallic = 0.0;
+      customMat.roughness = 0.6;
+      customMat.backFaceCulling = false;
+      customMat.twoSidedLighting = true;
+      customMat.environmentIntensity = 0.6;
 
-    mat.subSurface.isTranslucencyEnabled = true;
-    mat.subSurface.translucencyIntensity = 0.45;
-    mat.subSurface.tintColor = Color3.FromHexString('#2a6818');
-    mat.subSurface.minimumThickness = 0.1;
-    mat.subSurface.maximumThickness = 0.4;
+      customMat.subSurface.isTranslucencyEnabled = true;
+      customMat.subSurface.translucencyIntensity = 0.45;
+      customMat.subSurface.tintColor = Color3.FromHexString('#2a6818');
+      customMat.subSurface.minimumThickness = 0.1;
+      customMat.subSurface.maximumThickness = 0.4;
+
+      // 3-layer wind (Phase B replaces this single-line spike).
+      customMat.AddUniform('windTime', 'float', 0);
+      customMat.AddUniform('windStrength', 'float', 0.5);
+      customMat.AddUniform('flutterStrength', 'float', 0.6);
+      customMat.AddUniform('windDir', 'vec3', new Color3(1, 0, 0.3) as any);
+      customMat.Vertex_Before_PositionUpdated(`
+        float windV = clamp(uv.y, 0.0, 1.0);
+        float windU = uv.x * 2.0 - 1.0;
+        float windWeight = clamp(pow(windV, 1.4) + pow(abs(windU), 0.8) * 0.35, 0.0, 1.0);
+        float largeSway = sin(windTime * 0.6 + position.x * 0.15 + position.z * 0.1) * 0.08;
+        float mediumSway = sin(windTime * 1.4 + position.x * 0.8) * 0.035;
+        float smallFlutter = sin(windTime * 6.0 + position.x * 3.0 + position.z * 2.0) * 0.012 * flutterStrength;
+        float total = (largeSway + mediumSway + smallFlutter) * windStrength;
+        positionUpdated += windDir * total * windWeight;
+      `);
+
+      mat = customMat;
+    } else {
+      // WebGPU fallback path — plain PBRMaterial; wind comes from CPU
+      // sine rotation on plant root nodes in Phase B.
+      mat = new PBRMaterial('leafMat', scene);
+      mat.albedoColor = new Color3(1, 1, 1);
+      mat.albedoTexture = getLeafColorTexture(scene);
+      mat.bumpTexture = getLeafNormalTexture(scene);
+      mat.invertNormalMapY = false;
+      mat.invertNormalMapX = false;
+      mat.metallic = 0.0;
+      mat.roughness = 0.6;
+      mat.backFaceCulling = false;
+      mat.twoSidedLighting = true;
+      mat.environmentIntensity = 0.6;
+
+      mat.subSurface.isTranslucencyEnabled = true;
+      mat.subSurface.translucencyIntensity = 0.45;
+      mat.subSurface.tintColor = Color3.FromHexString('#2a6818');
+      mat.subSurface.minimumThickness = 0.1;
+      mat.subSurface.maximumThickness = 0.4;
+    }
 
     cachedLeafMaterial.set(scene, mat);
   }

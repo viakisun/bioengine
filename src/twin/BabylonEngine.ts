@@ -10,6 +10,7 @@ import { SCENARIO } from '../data/mockScenario';
 import { getSunState, dayToHour } from '@farmsim/tomato-engine';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Matrix } from '@babylonjs/core/Maths/math.vector';
+import { setShaderWindEnabled, isShaderWindEnabled } from '../plant/LeafGenerator';
 import { getLabelOverlayHandle } from '../components/LabelOverlay';
 
 import '@babylonjs/core/Helpers/sceneHelpers';
@@ -64,6 +65,12 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
 
   const hudBackend = document.getElementById('hud-backend');
   if (hudBackend) hudBackend.textContent = backend === 'webgpu' ? 'WebGPU' : 'WebGL2';
+
+  // Shader-side wind only supported on WebGL2 (PBRCustomMaterial GLSL
+  // injection fails to compile on Babylon 9 WebGPU backend). WebGPU
+  // gets a CPU sine fallback later.
+  setShaderWindEnabled(backend === 'webgl2');
+  console.log(`[BabylonEngine] shader wind: ${isShaderWindEnabled() ? 'ON (WebGL2)' : 'OFF (WebGPU fallback)'}`);
 
   const scene = new Scene(engine);
   scene.clearColor = new Color4(0.55, 0.7, 0.85, 1);
@@ -130,10 +137,34 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
   const hudDay = document.getElementById('hud-day');
   const hudRobot = document.getElementById('hud-robot');
 
+  // Resolve cached leaf material once for per-frame wind uniform update
+  let cachedLeafMatRef: any = null;
+  function getLeafMatForUniform() {
+    if (!cachedLeafMatRef && scene) {
+      cachedLeafMatRef = scene.getMaterialByName('leafMat');
+    }
+    return cachedLeafMatRef;
+  }
+
   engine.runRenderLoop(() => {
     const state = useTwinStore.getState();
 
     const now = performance.now();
+
+    // Push wind uniforms each frame — WebGL2 only
+    if (isShaderWindEnabled()) {
+      const lm = getLeafMatForUniform();
+      if (lm && typeof lm.getEffect === 'function') {
+        const eff = lm.getEffect();
+        if (eff) {
+          eff.setFloat('windTime', now / 1000);
+          eff.setFloat('windStrength', 0.5);
+          eff.setFloat('flutterStrength', 0.6);
+          eff.setVector3('windDir', new Vector3(1, 0, 0.3));
+        }
+      }
+    }
+
     if (state.playing) {
       const dtSec = (now - lastPlayTime) / 1000;
       const newDay = state.currentDay + dtSec * state.playSpeed * 2;
