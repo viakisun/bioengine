@@ -26,8 +26,12 @@ import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { SupportingPlantHandle } from './SupportingPlant';
 import { getLeafColorTexture } from '../plant/LeafTexture';
 
-const LOD_NEAR = 14; // metres — closer than this → full geometry
-const LOD_FAR = 18;  // metres — further than this → billboard
+// Bed is 30 m end-to-end, so a camera in the centre still sees the
+// far plants at ~15 m. Old 14/18 threshold meant overview cameras
+// flipped end plants to billboards mid-frame; pushed out to 24/30
+// so only true distance shots (>30 m) trigger the swap.
+const LOD_NEAR = 24;
+const LOD_FAR = 30;
 
 interface PlantSlot {
   plant: SupportingPlantHandle;

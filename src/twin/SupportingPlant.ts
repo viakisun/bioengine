@@ -19,7 +19,6 @@ import { Scene } from '@babylonjs/core/scene';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData';
-import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
 import { PBRMaterial } from '@babylonjs/core/Materials/PBR/pbrMaterial';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { Vector3, Quaternion } from '@babylonjs/core/Maths/math.vector';
@@ -39,6 +38,7 @@ import {
 } from '@farmsim/tomato-geometry';
 import { getLeafMaterial, getYellowLeafMaterial, getDiseasedLeafMaterial } from '../plant/LeafGenerator';
 import { createStemMesh, getStemMaterial } from '../plant/StemGenerator';
+import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
 
 export interface SupportingPlantHandle {
   root: TransformNode;
@@ -91,6 +91,21 @@ function getFruitMats(scene: Scene): PBRMaterial[] {
   return mats;
 }
 
+// Shared peduncle material — single thin cylinder hanging from each
+// truss node so the cluster looks attached to the plant.
+let cachedPeduncleMat: WeakMap<Scene, PBRMaterial> = new WeakMap();
+function getPeduncleMat(scene: Scene): PBRMaterial {
+  let m = cachedPeduncleMat.get(scene);
+  if (!m) {
+    m = new PBRMaterial('supportPeduncleMat', scene);
+    m.albedoColor = Color3.FromHexString('#4a8a30');
+    m.metallic = 0;
+    m.roughness = 0.85;
+    cachedPeduncleMat.set(scene, m);
+  }
+  return m;
+}
+
 let cachedCotyledonMat: WeakMap<Scene, PBRMaterial> = new WeakMap();
 function getCotyledonMat(scene: Scene): PBRMaterial {
   let mat = cachedCotyledonMat.get(scene);
@@ -122,8 +137,10 @@ export function createSupportingPlant(
   const stemMat = getStemMaterial(scene);
   const cotMat = getCotyledonMat(scene);
   const fruitMats = getFruitMats(scene);
+  const peduncleMat = getPeduncleMat(scene);
 
   let currentMeshes: Mesh[] = [];
+  let currentTrussNodes: TransformNode[] = [];
   let lastState: PlantState | null = null;
   let lastBuildDay = -999;
   let lastOverride = 0;
@@ -132,6 +149,11 @@ export function createSupportingPlant(
   function disposeAll() {
     for (const m of currentMeshes) m.dispose(false, false);
     currentMeshes = [];
+    // TransformNode.dispose(false, true) disposes the node AND all its
+    // child meshes — the truss generator creates many child meshes
+    // (peduncle, pedicels, fruits, sepals) that all need to go.
+    for (const n of currentTrussNodes) n.dispose(false, true);
+    currentTrussNodes = [];
   }
 
   function buildFromState(state: PlantState) {
@@ -224,25 +246,65 @@ export function createSupportingPlant(
       );
       currentMeshes.push(leaf);
 
-      // Fruits — just spheres, no peduncle/pedicel/flower geometry
+      // Truss — peduncle + clustered fruits.
+      //
+      // Earlier this rendered fruits in a straight line which read as a
+      // "string of beads"; tried full createTrussNode (peduncle + N
+      // pedicels + sepals + flowers per fruit) but at 12 trusses × 29
+      // plants × ~25 meshes/truss it dropped fps from 120 → 16.
+      //
+      // Middle path: one shared peduncle cylinder + fruits clustered in
+      // a small radial group around its tip. Costs ~ N fruits + 1 cyl
+      // per truss (was N spheres before, ~30× cheaper than full truss).
       if (node.truss && node.truss.fruits.length > 0) {
         const trussAz = azimuthRad + Math.PI;
-        for (let f = 0; f < node.truss.fruits.length; f++) {
-          const fruit = node.truss.fruits[f];
-          if (fruit.diameterMm < 6) continue; // too small to bother
-          const fruitMat = fruitMats[Math.min(5, fruit.ripenStage)];
-          const fruitMesh = MeshBuilder.CreateSphere(
-            `support_fruit_${seed}_${i}_${f}`,
-            { diameter: fruit.diameterMm / 1000, segments: 8 },
+        const ripeFruits = node.truss.fruits.filter((f) => f.diameterMm >= 6);
+        if (ripeFruits.length > 0) {
+          // Peduncle: short cylinder lateral from stem, slight downward droop.
+          const pedLen = 0.06 + Math.min(0.05, ripeFruits.length * 0.008);
+          const peduncle = MeshBuilder.CreateCylinder(
+            `support_ped_${seed}_${i}`,
+            { height: pedLen, diameter: 0.005, tessellation: 5 },
             scene
           );
-          fruitMesh.parent = root;
-          const dx = Math.cos(trussAz) * (0.06 + f * 0.022);
-          const dz = Math.sin(trussAz) * (0.06 + f * 0.022);
-          const dy = heightM - 0.04 - f * 0.02;
-          fruitMesh.position = new Vector3(dx, dy, dz);
-          fruitMesh.material = fruitMat;
-          currentMeshes.push(fruitMesh);
+          peduncle.parent = root;
+          peduncle.material = peduncleMat;
+          peduncle.rotation.z = -Math.PI / 2 + 0.15;
+          peduncle.rotation.y = trussAz;
+          const pedMidR = pedLen / 2;
+          peduncle.position = new Vector3(
+            Math.cos(trussAz) * pedMidR,
+            heightM - 0.03,
+            Math.sin(trussAz) * pedMidR
+          );
+          currentMeshes.push(peduncle);
+
+          // Cluster fruits around peduncle tip with bounded radial offsets,
+          // not in a line. Seeded RNG so the layout is stable across rebuilds.
+          const fruitRng = new SeededRandom(seed * 7919 + i * 31);
+          const cx = Math.cos(trussAz) * pedLen;
+          const cz = Math.sin(trussAz) * pedLen;
+          const cy = heightM - 0.05 - pedLen * 0.15;
+          for (let f = 0; f < ripeFruits.length; f++) {
+            const fruit = ripeFruits[f];
+            const fruitMat = fruitMats[Math.min(5, fruit.ripenStage)];
+            const fruitMesh = MeshBuilder.CreateSphere(
+              `support_fruit_${seed}_${i}_${f}`,
+              { diameter: fruit.diameterMm / 1000, segments: 8 },
+              scene
+            );
+            fruitMesh.parent = root;
+            // Random direction in horizontal plane + slight vertical hang.
+            const localAngle = fruitRng.next() * Math.PI * 2;
+            const localR = (fruit.diameterMm / 1000) * (0.5 + fruitRng.next() * 0.6);
+            fruitMesh.position = new Vector3(
+              cx + Math.cos(localAngle) * localR,
+              cy - fruitRng.next() * (fruit.diameterMm / 1000) * 0.5,
+              cz + Math.sin(localAngle) * localR
+            );
+            fruitMesh.material = fruitMat;
+            currentMeshes.push(fruitMesh);
+          }
         }
       }
     }
