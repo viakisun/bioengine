@@ -58,11 +58,15 @@ export function createHeatmap(scene: Scene): HeatmapHandle {
   mat.albedoColor = new Color3(1, 1, 1);
   mat.albedoTexture = tex;
   mat.emissiveTexture = tex;
-  mat.emissiveColor = new Color3(0.8, 0.8, 0.8);
+  // Reduced emissive + alpha — earlier values made the heatmap read as
+  // bright pink/red rectangles on the light-theme background. 0.35
+  // emissive + 0.32 alpha keeps the zone color readable but lets the
+  // bed texture and plant shadows show through.
+  mat.emissiveColor = new Color3(0.35, 0.35, 0.35);
   mat.metallic = 0;
   mat.roughness = 0.6;
   mat.backFaceCulling = false;
-  mat.alpha = 0.55;
+  mat.alpha = 0.32;
   mat.transparencyMode = PBRMaterial.MATERIAL_ALPHABLEND;
   mesh.material = mat;
 

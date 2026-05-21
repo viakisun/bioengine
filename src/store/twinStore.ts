@@ -58,6 +58,22 @@ interface TwinState {
   toggleDebugLodColors: () => void;
   toggleDebugInteractionRadius: () => void;
 
+  // Robot position + task — published by BabylonEngine each frame so
+  // React components (TopBar pill, PatrolMap live dot) can subscribe
+  // without a getElementById polling hack.
+  robotX: number;
+  robotZ: number;
+  robotTask: 'idle' | 'patrolling' | 'capturing' | 'returning';
+  publishRobotState: (x: number, z: number, task: 'idle' | 'patrolling' | 'capturing' | 'returning') => void;
+
+  // Live fps + backend label — also published by BabylonEngine; the
+  // DOM hud-* spans stay around for legacy verify scripts but the
+  // pill reads from the store now.
+  fps: number;
+  backend: 'webgpu' | 'webgl2' | null;
+  publishFps: (fps: number) => void;
+  publishBackend: (b: 'webgpu' | 'webgl2') => void;
+
   setDay: (day: number) => void;
   togglePlay: () => void;
   setPlaySpeed: (speed: number) => void;
@@ -130,6 +146,16 @@ export const useTwinStore = create<TwinState>((set) => ({
     set((s) => ({ debugShowLodColors: !s.debugShowLodColors })),
   toggleDebugInteractionRadius: () =>
     set((s) => ({ debugShowInteractionRadius: !s.debugShowInteractionRadius })),
+
+  robotX: 0,
+  robotZ: 0,
+  robotTask: 'idle',
+  publishRobotState: (x, z, task) => set({ robotX: x, robotZ: z, robotTask: task }),
+
+  fps: 0,
+  backend: null,
+  publishFps: (fps) => set({ fps }),
+  publishBackend: (backend) => set({ backend }),
 
   setDay: (day) =>
     set({

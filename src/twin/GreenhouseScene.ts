@@ -109,12 +109,15 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
     scene
   );
   const groundMat = new PBRMaterial('groundMat', scene);
-  groundMat.albedoColor = new Color3(1, 1, 1);
+  // Lift the ground albedo into the light theme so it doesn't read as a
+  // dark slab against the #e8e6df UI. Tinting the white-texture sample
+  // toward a warm cream matches the reference's gradient floor.
+  groundMat.albedoColor = Color3.FromHexString('#d9d3bf');
   groundMat.albedoTexture = getGroundAlbedoTexture(scene);
   groundMat.bumpTexture = getGroundNormalTexture(scene);
   groundMat.metallic = 0;
   groundMat.roughness = 0.88;
-  groundMat.environmentIntensity = 0.45;
+  groundMat.environmentIntensity = 0.6;
   ground.material = groundMat;
   ground.receiveShadows = true;
 
@@ -125,7 +128,8 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
   );
   path.position = new Vector3(0, 0.005, 1.5);
   const pathMat = new PBRMaterial('pathMat', scene);
-  pathMat.albedoColor = Color3.FromHexString('#7a7a72');
+  // Light walkway tint, matches the reference's pale concrete look.
+  pathMat.albedoColor = Color3.FromHexString('#b6b3a4');
   pathMat.metallic = 0;
   pathMat.roughness = 0.9;
   path.material = pathMat;

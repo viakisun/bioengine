@@ -65,6 +65,7 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
 
   const hudBackend = document.getElementById('hud-backend');
   if (hudBackend) hudBackend.textContent = backend === 'webgpu' ? 'WebGPU' : 'WebGL2';
+  useTwinStore.getState().publishBackend(backend);
 
   // Shader-side wind only supported on WebGL2 (PBRCustomMaterial GLSL
   // injection fails to compile on Babylon 9 WebGPU backend). WebGPU
@@ -113,6 +114,12 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
   const unsubStore = useTwinStore.subscribe((s, prev) => {
     if (s.selectedZoneId !== prev.selectedZoneId && greenhouse) {
       greenhouse.heatmap.setSelectedZone(s.selectedZoneId);
+      // Pan the camera to the selected zone's center so clicking a
+      // zone card / chip in the UI immediately frames it in 3D.
+      if (s.selectedZoneId !== null) {
+        const zone = SCENARIO.zones[s.selectedZoneId];
+        if (zone) cameraRig.focusZone((zone.startX + zone.endX) / 2);
+      }
     }
     if (s.heatmapVisible !== prev.heatmapVisible && greenhouse) {
       greenhouse.heatmap.setVisible(s.heatmapVisible);
@@ -314,8 +321,17 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
 
     scene.render();
 
-    if (hudFps && now - lastFpsUpdate > 250) {
-      hudFps.textContent = `${engine!.getFps().toFixed(0)} fps`;
+    if (now - lastFpsUpdate > 250) {
+      const fps = engine!.getFps();
+      const store = useTwinStore.getState();
+      store.publishFps(fps);
+      if (greenhouse) {
+        const p = greenhouse.robot.currentPosition();
+        const task = greenhouse.robot.currentTask();
+        store.publishRobotState(p.x, p.z, task);
+      }
+      // Legacy hud spans — kept for old verify scripts. Cheap text writes.
+      if (hudFps) hudFps.textContent = `${fps.toFixed(0)} fps`;
       if (hudDay) hudDay.textContent = `Day ${state.currentDay.toFixed(0)}`;
       if (hudRobot && greenhouse) {
         const p = greenhouse.robot.currentPosition();

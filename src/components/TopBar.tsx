@@ -8,7 +8,7 @@
  * Reference: _ref/Sim UI v2 _standalone_.html top toolbar.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useTwinStore } from '../store/twinStore';
 import { SCENARIO, zoneHealthMix } from '../data/mockScenario';
 import { GROWTH_STAGES } from '@farmsim/tomato-engine';
@@ -30,41 +30,18 @@ function currentStageName(day: number): string {
   return GROWTH_STAGES[GROWTH_STAGES.length - 1].name;
 }
 
-/**
- * Robot UWB position is updated by BabylonEngine's render loop into
- * `<span id="hud-robot">` text. We poll it via rAF rather than wire
- * yet another store field, since the position changes every frame and
- * we only need it for display in this pill.
- */
-function useRobotPosLabel(): string {
-  const [label, setLabel] = useState('x --  z --');
-  useEffect(() => {
-    let raf = 0;
-    const tick = () => {
-      const el = document.getElementById('hud-robot');
-      if (el && el.textContent && el.textContent !== '--') {
-        // The Babylon engine writes "UWB x:0.00m z:0.00m" — strip the prefix
-        const t = el.textContent.replace(/^UWB\s*/, '');
-        setLabel(t);
-      }
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-  return label;
-}
-
 export function TopBar() {
   const currentDay = useTwinStore((s) => s.currentDay);
   const cameraPreset = useTwinStore((s) => s.cameraPreset);
   const setCameraPreset = useTwinStore((s) => s.setCameraPreset);
   const selectZone = useTwinStore((s) => s.selectZone);
+  const robotX = useTwinStore((s) => s.robotX);
+  const robotZ = useTwinStore((s) => s.robotZ);
 
   const dayInt = Math.round(currentDay);
   const total = SCENARIO.durationDays;
   const stageName = currentStageName(currentDay);
-  const robotLabel = useRobotPosLabel();
+  const robotLabel = `x ${robotX.toFixed(2)}m · z ${robotZ.toFixed(2)}m`;
 
   const zoneStatuses = useMemo(() => {
     return SCENARIO.zones.map((z) => {

@@ -5,6 +5,8 @@ import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 export interface CameraRig {
   camera: ArcRotateCamera;
   setPreset: (name: PresetView) => void;
+  /** Pan to a specific bed X coordinate and zoom into a 'closeup' style. */
+  focusZone: (centerX: number) => void;
 }
 
 export type PresetView = 'overview' | 'eye-level' | 'closeup' | 'robot-pov';
@@ -49,6 +51,13 @@ export function setupCamera(scene: Scene, canvas: HTMLCanvasElement): CameraRig 
       camera.beta = p.beta;
       camera.radius = p.radius;
       camera.target = p.target.clone();
+    },
+    focusZone(centerX) {
+      const p = PRESETS['eye-level'];
+      camera.alpha = p.alpha;
+      camera.beta = p.beta;
+      camera.radius = 5.5;
+      camera.target = new Vector3(centerX, 1.4, 0);
     },
   };
 }

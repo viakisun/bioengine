@@ -21,7 +21,6 @@
 import { useMemo } from 'react';
 import {
   SCENARIO,
-  getRobotStateAtDay,
   getDailySnapshot,
   zoneHealthMix,
 } from '../data/mockScenario';
@@ -79,10 +78,18 @@ interface MarkerSpec {
   zoneId: number;
 }
 
+interface HistoryDot {
+  worldX: number;
+  tone: 'ok' | 'warn' | 'bad';
+  daysAgo: number; // for opacity fade
+}
+
 export function PatrolMap() {
   const currentDay = useTwinStore((s) => s.currentDay);
+  const robotX = useTwinStore((s) => s.robotX);
+  const robotZ = useTwinStore((s) => s.robotZ);
 
-  const { markers, robotWorld, recentDay, zoneTones } = useMemo(() => {
+  const { markers, history, recentDay, zoneTones } = useMemo(() => {
     // Find the most recent patrol day (captures happen every 3 days).
     // If the current day has its own captures we use those; otherwise
     // fall back to the previous patrol so the map is never empty.
@@ -111,18 +118,34 @@ export function PatrolMap() {
       };
     });
 
-    const robotKf = getRobotStateAtDay(currentDay);
-    const robotWorld = { x: robotKf.position[0], z: robotKf.position[2] };
+    // History: small dots from the previous ~9 days of patrols
+    // (3 previous patrol days). Older dots fade out.
+    const history: HistoryDot[] = [];
+    if (recentDay > 0) {
+      for (let back = 3; back <= 9; back += 3) {
+        const d = recentDay - back;
+        if (d < 0) break;
+        const sessions = SCENARIO.captureSessions.filter((s) => s.day === d);
+        for (const s of sessions) {
+          const snap = getDailySnapshot(SCENARIO.plants[s.targetPlantId], d);
+          history.push({
+            worldX: s.robotPosition[0],
+            tone: healthTone(snap.health),
+            daysAgo: back,
+          });
+        }
+      }
+    }
 
     const zoneTones = SCENARIO.zones.map((z) => healthTone(zoneHealthMix(z, currentDay).dominant));
 
-    return { markers, robotWorld, recentDay, zoneTones };
+    return { markers, history, recentDay, zoneTones };
   }, [currentDay]);
 
   // Robot trail end-to-end (the patrol path along z = 1.5).
   const trailStart = worldToSvg(-BED_LEN / 2, ROBOT_Z);
   const trailEnd = worldToSvg(BED_LEN / 2, ROBOT_Z);
-  const robotS = worldToSvg(robotWorld.x, robotWorld.z);
+  const robotS = worldToSvg(robotX, robotZ || ROBOT_Z);
   // Past portion = from trailStart to current robot x.
   const pastEndX = Math.max(trailStart.u, Math.min(trailEnd.u, robotS.u));
 
@@ -216,6 +239,22 @@ export function PatrolMap() {
           strokeWidth={2.8}
           strokeLinecap="round"
         />
+
+        {/* History dots — past 3 patrol days, fading by age */}
+        {history.map((h, i) => {
+          const { u, v } = worldToSvg(h.worldX, ROBOT_Z);
+          const opacity = Math.max(0.18, 0.55 - h.daysAgo * 0.05);
+          return (
+            <circle
+              key={`hist-${i}`}
+              cx={u}
+              cy={v + 4}
+              r={1.6}
+              fill={TONE_FILL[h.tone]}
+              opacity={opacity}
+            />
+          );
+        })}
 
         {/* Capture-session waypoint markers */}
         {markers.map((m) => {
