@@ -21,6 +21,7 @@ import {
 } from '../data/mockScenario';
 import type { HealthLabel } from '../data/mockScenario';
 import { CaptureThumbs } from './CaptureThumbs';
+import { PatrolMap } from './PatrolMap';
 import {
   Eyebrow,
   TabStrip,
@@ -31,11 +32,12 @@ import {
   Sparkline,
 } from '../ui';
 
-type SidebarTab = 'zones' | 'events' | 'env';
+type SidebarTab = 'zones' | 'events' | 'patrol' | 'env';
 
 const TABS: ReadonlyArray<TabItem<SidebarTab>> = [
   { id: 'zones', label: '구역' },
   { id: 'events', label: '이벤트' },
+  { id: 'patrol', label: '경로' },
   { id: 'env', label: '환경' },
 ];
 
@@ -66,6 +68,7 @@ export function AnalysisPanel() {
 
       {tab === 'zones' && <ZonesTab />}
       {tab === 'events' && <EventsTab />}
+      {tab === 'patrol' && <PatrolMap />}
       {tab === 'env' && <EnvTab />}
     </div>
   );
