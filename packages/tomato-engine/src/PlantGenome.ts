@@ -88,7 +88,10 @@ export function generateGenome(seed: number): PlantGenome {
     leafHueBias: rng.gaussian(0, 0.05),
 
     // Trusses / Fruits
-    trussStartNode: Math.round(clamp(rng.gaussian(10, 1), 8, 12)),
+    // Gap analysis P1 #5: mean 10 → 9 (range 7–11). First truss
+    // appears 1 node earlier so W4 has ≥0.5 trusses on average
+    // (was 0.05). Matches the 1–2 truss W4 standard.
+    trussStartNode: Math.round(clamp(rng.gaussian(9, 1), 7, 11)),
     trussInterval: rng.next() < 0.15 ? 2 : 3, // 15% chance of 2-node interval
     flowersPerTruss: Math.round(clamp(rng.gaussian(5, 1.0), 3, 8)),
     fruitMaxDiameterMm: clamp(rng.gaussian(75, 8), 55, 95),

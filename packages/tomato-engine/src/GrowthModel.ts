@@ -166,7 +166,11 @@ export function computePlantState(
       // Growth vigor = derivative of sigmoid height curve at node creation time
       const S = sigmoid(nodeDay, genome.heightSigmoidK, genome.heightSigmoidMid);
       const vigor = 4 * S * (1 - S); // normalized 0-1, peak at sigmoid midpoint
-      finalLen = baseInternode * (0.5 + 0.5 * vigor);
+      // Gap analysis P0 #1: floor 0.5 → 0.75 so off-peak nodes still
+      // elongate to ~75% of baseInternode (was dropping to 50%).
+      // Real beefsteak indeterminate keeps 6–10cm internodes nearly
+      // whole-season; old curve produced ~3.25cm extremes.
+      finalLen = baseInternode * (0.75 + 0.5 * vigor);
       if (nodeFrac > 0.8) {
         finalLen *= 1.0 - (nodeFrac - 0.8) * 0.5;
       }
@@ -219,12 +223,18 @@ export function computePlantState(
     const leafMaturity = Math.max(0.02, leafExpansion);
 
     // --- Leaf size: position × expansion ---
+    // Gap analysis P1 #3: positionFactor floor 0.55 → 0.70 so even
+    // basal/apical leaves are reasonably sized. Old curve had bottom
+    // and top leaves at 55% of canopy max, which dragged average
+    // leaf area below 600cm²/leaf vs 600–800cm² standard.
     const positionFactor = Math.sin(nodeFrac * Math.PI);
-    const potentialSize = (0.55 + 0.45 * positionFactor) * genome.leafSizeMultiplier;
+    const potentialSize = (0.70 + 0.30 * positionFactor) * genome.leafSizeMultiplier;
     const leafSizeFactor = potentialSize * leafExpansion;
 
     // --- Leaf area & mass ---
-    const BASE_LEAF_AREA_CM2 = 600;
+    // Gap analysis P1 #3: 600 → 720 to match the upper half of the
+    // 600–800cm² range that beefsteak compound leaves reach at maturity.
+    const BASE_LEAF_AREA_CM2 = 720;
     const leafAreaCm2 = BASE_LEAF_AREA_CM2 * leafSizeFactor * leafSizeFactor;
     const leafMassG = 25 * leafSizeFactor * leafSizeFactor * leafMaturity;
 
@@ -299,8 +309,11 @@ export function computePlantState(
               totalFruits++;
               if (ripenStage > maxRipenStage) maxRipenStage = ripenStage;
 
-              if (fruitAge < 8) {
-                const fadeProgress = 1 - (fruitAge / 8);
+              // Gap analysis P1 #4: 8d → 14d. Real flowers + sepals
+              // remain visible (yellowing) for ~2 weeks after fruit set,
+              // overlapping with young green fruit on the same truss.
+              if (fruitAge < 14) {
+                const fadeProgress = 1 - (fruitAge / 14);
                 flowers.push({ index: f, bloomProgress: bloomProgress * fadeProgress });
               }
             } else {
@@ -324,13 +337,25 @@ export function computePlantState(
     });
   }
 
-  // Leaf pruning: remove leaves below lowest ripe truss (greenhouse practice)
+  // Leaf pruning — gap analysis P0 #2: "2-truss rule".
+  //
+  // Real greenhouse practice: when a truss ripens, growers prune ALL
+  // leaves up to and including the node just above it (next truss
+  // node). Previously we only pruned below the lowest ripe truss,
+  // which left too many lower leaves intact (W16 had ~34 leaves vs
+  // 16–22 standard).
+  //
+  // Also: continuous adaxial aging — leaves older than 50 days
+  // gradually senesce (yellowing → leafMaturity → 0) so the lower
+  // canopy doesn't accumulate indefinitely even before any truss ripens.
   let pruneBelow = -1;
   for (const node of nodes) {
     if (node.truss) {
       const hasRipeFruit = node.truss.fruits.some(f => f.ripenStage >= 4);
       if (hasRipeFruit) {
-        pruneBelow = node.index;
+        // Prune up to ~3 nodes above the ripe truss (covers the
+        // intermediate leaves + next-truss leaf).
+        pruneBelow = node.index + 3;
         break; // lowest ripe truss found
       }
     }
@@ -340,6 +365,16 @@ export function computePlantState(
       if (node.index < pruneBelow) {
         node.leafMaturity = 0; // pruned
       }
+    }
+  }
+  // Age-based senescence (independent of pruning rule): leaves older
+  // than 50 days are progressively removed regardless of truss state.
+  // This kicks in before W12 when no truss has ripened yet.
+  for (const node of nodes) {
+    if (node.leafMaturity > 0 && node.age > 50) {
+      const senFade = Math.min(1, (node.age - 50) / 20); // 0 → 1 over 50–70d
+      if (senFade >= 1) node.leafMaturity = 0;
+      else node.leafMaturity *= (1 - senFade * 0.7);
     }
   }
 
