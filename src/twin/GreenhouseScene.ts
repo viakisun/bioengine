@@ -15,6 +15,7 @@ import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { createUwbAnchors, type UwbAnchorsHandle } from './UwbAnchors';
 import { GrowthEngine } from '@farmsim/tomato-engine';
 import { createShowcasePlant, type ShowcasePlantHandle } from './ShowcasePlant';
+import { createSupportingPlant, type SupportingPlantHandle } from './SupportingPlant';
 import { getGroundAlbedoTexture, getGroundNormalTexture } from './GroundTexture';
 
 const TOMATO_RIPEN_COLORS = [
@@ -90,7 +91,7 @@ export interface GreenhouseSceneHandle {
   uwb: UwbAnchorsHandle;
   growthEngine: GrowthEngine;
   showcasePlant: ShowcasePlantHandle;
-  plantNodes: TransformNode[];
+  supportingPlants: SupportingPlantHandle[];
   update: (day: number) => void;
   onZoneHover: (cb: (zoneId: number | null) => void) => void;
   onZoneClick: (cb: (zoneId: number | null) => void) => void;
@@ -270,30 +271,7 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
     }
   }
 
-  // Plant placeholder markers (30) — simple stems
-  const stemMat = new PBRMaterial('stemMat', scene);
-  stemMat.albedoColor = Color3.FromHexString('#3a5a25');
-  stemMat.metallic = 0;
-  stemMat.roughness = 0.8;
-
-  const plantNodes: TransformNode[] = [];
-  for (let i = 0; i < SCENARIO.plantCount; i++) {
-    const plant = SCENARIO.plants[i];
-    const node = new TransformNode(`plant_${i}`, scene);
-    node.position = new Vector3(plant.position[0], plant.position[1], plant.position[2]);
-    plantNodes.push(node);
-
-    const stem = MeshBuilder.CreateCylinder(
-      `stem_${i}`,
-      { height: 1.5, diameter: 0.025, tessellation: 6 },
-      scene
-    );
-    stem.parent = node;
-    stem.position = new Vector3(0, 0.75, 0);
-    stem.material = stemMat;
-  }
-
-  // GrowthEngine — drives the live showcase plant.
+  // GrowthEngine — drives all 30 plants (showcase + 29 supporting).
   // Greenhouse environment params can be tweaked from this single seam.
   const growthEngine = new GrowthEngine();
   growthEngine.setEnvironment({
@@ -304,12 +282,20 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
     substrateWater: 0.6,
     nutrientEC: 3.0,
   });
-  const SHOWCASE_SEED = 20260520;
-  growthEngine.addPlant({ seed: SHOWCASE_SEED });
 
-  const leafMat = getLeafMaterial(scene);
+  const SHOWCASE_SEED = 20260520;
   const showcasePlantIndex = Math.floor(SCENARIO.plantCount / 2);
   const showcasePlantSpec = SCENARIO.plants[showcasePlantIndex];
+
+  // Register all 30 plants — showcase gets the canonical seed,
+  // supporting plants get derivatives so they share the same scenario day
+  // schedule but otherwise look like individuals.
+  growthEngine.addPlant({ seed: SHOWCASE_SEED });
+  for (let i = 0; i < SCENARIO.plantCount; i++) {
+    if (i === showcasePlantIndex) continue;
+    growthEngine.addPlant({ seed: SHOWCASE_SEED + 1 + i });
+  }
+
   const showcasePlant = createShowcasePlant(
     scene,
     growthEngine,
@@ -321,65 +307,20 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
     )
   );
 
-  for (let pi = 0; pi < SCENARIO.plantCount; pi++) {
-    const distFromCenter = Math.abs(pi - showcasePlantIndex);
-    const isShowcase = distFromCenter === 0;
-    if (isShowcase) continue; // showcase plant is rendered by ShowcasePlant from GrowthEngine
-    const isNearShowcase = distFromCenter <= 2;
-
-    let leafCount: number;
-    let leafScale: number;
-    let leafletCount: number;
-    if (isShowcase) {
-      leafCount = 7;
-      leafScale = 2.0;
-      leafletCount = 7;
-    } else if (isNearShowcase) {
-      leafCount = 6;
-      leafScale = 1.7;
-      leafletCount = 7;
-    } else if (distFromCenter <= 6) {
-      leafCount = 4;
-      leafScale = 1.3;
-      leafletCount = 5;
-    } else {
-      leafCount = 3;
-      leafScale = 1.0;
-      leafletCount = 3;
-    }
-
-    const plantNode = plantNodes[pi];
-    for (let i = 0; i < leafCount; i++) {
-      const t = i / Math.max(1, leafCount - 1);
-      const heightY = 0.4 + t * 1.3;
-      const ageFrac = Math.min(1, (1 - t) * 0.9);
-      const maturity = 0.5 + (1 - t) * 0.5;
-
-      for (const side of [-1, 1]) {
-        const rng = new SeededRandom(2000 + pi * 1000 + i * 100 + (side > 0 ? 7 : 13));
-        const leaf = createLeafMesh(
-          `plant_${pi}_leaf_${i}_${side}`,
-          scene,
-          leafletCount,
-          leafScale,
-          maturity,
-          0.15,
-          rng,
-          undefined,
-          ageFrac
-        );
-        leaf.material = leafMat;
-        leaf.parent = plantNode;
-        leaf.position = new Vector3(0, heightY, 0);
-        const azimuth = side > 0 ? 0 : Math.PI;
-        const phyll = i * 0.5 + pi * 0.13;
-        leaf.rotationQuaternion = Quaternion.RotationAxis(Vector3.Up(), azimuth + phyll);
-      }
-    }
-
-    if (distFromCenter <= 8) {
-      addFruitCluster(scene, plantNode, isShowcase ? 'full' : 'reduced');
-    }
+  // Supporting plants — 29 Light-LOD GrowthEngine-driven plants
+  // (replaces the old "scale static foliage by heightCm/220" path).
+  const supportingPlants: SupportingPlantHandle[] = [];
+  for (let i = 0; i < SCENARIO.plantCount; i++) {
+    if (i === showcasePlantIndex) continue;
+    const spec = SCENARIO.plants[i];
+    supportingPlants.push(
+      createSupportingPlant(
+        scene,
+        growthEngine,
+        SHOWCASE_SEED + 1 + i,
+        new Vector3(spec.position[0], spec.position[1], spec.position[2])
+      )
+    );
   }
 
   const heatmap = createHeatmap(scene);
@@ -407,20 +348,14 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
     uwb,
     growthEngine,
     showcasePlant,
-    plantNodes,
+    supportingPlants,
     update(day) {
       heatmap.update(day);
       robot.update(day);
       pathTrail.update(day);
       uwb.update(robot.currentPosition());
       showcasePlant.update(day);
-
-      for (let i = 0; i < SCENARIO.plantCount; i++) {
-        const plant = SCENARIO.plants[i];
-        const snap = plant.daily[Math.max(0, Math.min(plant.daily.length - 1, Math.floor(day)))];
-        const heightScale = snap.heightCm / 220;
-        plantNodes[i].scaling = new Vector3(1, Math.max(0.05, heightScale), 1);
-      }
+      for (const sp of supportingPlants) sp.update(day);
     },
     onZoneHover(cb) { hoverCb = cb; },
     onZoneClick(cb) { clickCb = cb; },
