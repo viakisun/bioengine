@@ -108,13 +108,17 @@ export function createFruitNode(
   body.scaling = new Vector3(radiusM, radiusM, radiusM);
   body.parent = root;
 
+  // Per-ripening-stage surface — 6 stages, matte unripe → glossier as it ripens
+  // Green (0) → Breaker (1) → Coloring (2) → Pink (3) → Dark Red (4) → Fully Ripe (5)
+  const stage = Math.max(0, Math.min(5, fruit.ripenStage));
   const bodyMat = new PBRMaterial(`${name}_mat`, scene);
   bodyMat.albedoColor = fruitColorFromState(fruit);
   bodyMat.metallic = 0;
-  bodyMat.roughness = 0.28;
-  bodyMat.clearCoat.isEnabled = true;
-  bodyMat.clearCoat.intensity = 0.4;
-  bodyMat.clearCoat.roughness = 0.12;
+  // Roughness lowers as fruit ripens (waxy cuticle thickens)
+  bodyMat.roughness = 0.4 - stage * 0.025; // 0.40 → 0.275
+  bodyMat.clearCoat.isEnabled = stage >= 2;
+  bodyMat.clearCoat.intensity = stage < 2 ? 0 : 0.25 + (stage - 2) * 0.1; // 0 → 0.55
+  bodyMat.clearCoat.roughness = 0.18 - stage * 0.012;
   body.material = bodyMat;
 
   // Calyx (only for visible-size fruits)

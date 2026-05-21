@@ -29,7 +29,10 @@ import {
   getLeafStage,
   type GrowthEngine,
   type PlantState,
+  type EnvironmentParams,
+  type PlantStressInputs,
 } from '@farmsim/tomato-engine';
+import type { HealthLabel } from '../data/mockScenario';
 import {
   buildLeafChunk,
   buildCotyledonChunk,
@@ -39,9 +42,33 @@ import { createStemMesh, getStemMaterial } from '../plant/StemGenerator';
 
 export interface SupportingPlantHandle {
   root: TransformNode;
-  update: (day: number) => void;
+  update: (day: number, healthLabel?: HealthLabel) => void;
   setVisible: (v: boolean) => void;
   currentState: () => PlantState | null;
+}
+
+/** Map mockScenario healthLabel → engine env override + stress inputs. */
+function healthLabelToInputs(label: HealthLabel | undefined): {
+  envOverride?: EnvironmentParams;
+  stress?: PlantStressInputs;
+} {
+  if (!label || label === 'normal') return {};
+  if (label === 'water-stress') {
+    return {
+      envOverride: { substrateWater: 0.25 }, // engine auto-derives waterStress
+      stress: { waterStress: 0.75 },
+    };
+  }
+  if (label === 'disease') {
+    return { stress: { diseaseLoad: 0.8 } };
+  }
+  if (label === 'weak') {
+    return {
+      envOverride: { lightHoursPerDay: 9, temperatureC: 17 },
+      stress: { waterStress: 0.2 },
+    };
+  }
+  return {};
 }
 
 // Light fruit color cache by ripenStage (shared across all supporting plants)
@@ -82,7 +109,9 @@ export function createSupportingPlant(
   scene: Scene,
   engine: GrowthEngine,
   seed: number,
-  worldPosition: Vector3
+  worldPosition: Vector3,
+  /** Offset (days) to stagger rebuilds across plants — spreads GC load. */
+  rebuildOffset = 0
 ): SupportingPlantHandle {
   const root = new TransformNode(`support_${seed}`, scene);
   root.position.copyFrom(worldPosition);
@@ -220,10 +249,14 @@ export function createSupportingPlant(
 
   return {
     root,
-    update(day) {
-      if (Math.abs(day - lastBuildDay) < REBUILD_THRESHOLD_DAYS) return;
-      lastBuildDay = day;
-      const state = engine.computeState(seed, day);
+    update(day, healthLabel) {
+      // Stagger rebuilds via per-plant offset so 29 supporting plants
+      // don't all dispose+rebuild on the same frame.
+      const adjusted = day + rebuildOffset;
+      if (Math.abs(adjusted - lastBuildDay) < REBUILD_THRESHOLD_DAYS) return;
+      lastBuildDay = adjusted;
+      const { envOverride, stress } = healthLabelToInputs(healthLabel);
+      const state = engine.computeState(seed, day, envOverride, stress);
       buildFromState(state);
     },
     setVisible(v) {

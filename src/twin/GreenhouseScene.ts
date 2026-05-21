@@ -309,18 +309,27 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
 
   // Supporting plants — 29 Light-LOD GrowthEngine-driven plants
   // (replaces the old "scale static foliage by heightCm/220" path).
+  // Stagger rebuilds by spreading each plant's offset across the
+  // 2-day rebuild window, so dispose/create work is amortized across
+  // many frames instead of bunching every 2 sim-days.
   const supportingPlants: SupportingPlantHandle[] = [];
+  const supportingPlantIds: number[] = []; // parallel array → SCENARIO.plants[id]
+  let supportIdx = 0;
   for (let i = 0; i < SCENARIO.plantCount; i++) {
     if (i === showcasePlantIndex) continue;
     const spec = SCENARIO.plants[i];
+    const rebuildOffset = (supportIdx / 29) * 2.0; // 0 → ~2 days
     supportingPlants.push(
       createSupportingPlant(
         scene,
         growthEngine,
         SHOWCASE_SEED + 1 + i,
-        new Vector3(spec.position[0], spec.position[1], spec.position[2])
+        new Vector3(spec.position[0], spec.position[1], spec.position[2]),
+        rebuildOffset
       )
     );
+    supportingPlantIds.push(i);
+    supportIdx++;
   }
 
   const heatmap = createHeatmap(scene);
@@ -355,7 +364,14 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
       pathTrail.update(day);
       uwb.update(robot.currentPosition());
       showcasePlant.update(day);
-      for (const sp of supportingPlants) sp.update(day);
+      // Wire each supporting plant to its mockScenario healthLabel
+      // → engine env override + stress inputs.
+      const dayIdx = Math.max(0, Math.min(SCENARIO.durationDays, Math.floor(day)));
+      for (let i = 0; i < supportingPlants.length; i++) {
+        const plant = SCENARIO.plants[supportingPlantIds[i]];
+        const snap = plant.daily[Math.min(plant.daily.length - 1, dayIdx)];
+        supportingPlants[i].update(day, snap.health);
+      }
     },
     onZoneHover(cb) { hoverCb = cb; },
     onZoneClick(cb) { clickCb = cb; },

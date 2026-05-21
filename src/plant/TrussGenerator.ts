@@ -148,10 +148,18 @@ export function createTrussNode(
       fruitNode.position = new Vector3(xAlong, baseY - pedicelLen - fruitR * 0.5, 0);
     } else {
       const flower = truss.flowers[it.index];
+      // Petal-fall ramps from 0 to 1 once bloomProgress passes 0.7
+      const petalDrop = flower.bloomProgress > 0.7
+        ? Math.min(1, (flower.bloomProgress - 0.7) / 0.3)
+        : 0;
+      // Ovary swell mirrors petal drop (ovary visible as petals fade)
+      const ovarySwell = petalDrop * 0.8;
       const flowerNode = createFlowerNode(
         `${name}_flower_${it.index}`,
         scene,
-        flower.bloomProgress
+        flower.bloomProgress,
+        petalDrop,
+        ovarySwell
       );
       flowerNode.parent = root;
       flowerNode.position = new Vector3(xAlong, baseY - pedicelLen - 0.005, 0);
@@ -162,34 +170,53 @@ export function createTrussNode(
 }
 
 /**
- * Small 5-petal tomato flower (yellow). bloomProgress 0–1 scales
- * petal length so closed buds appear smaller.
+ * 5-stage tomato flower:
+ *   1. Bud         bloomProgress < 0.2  — petals closed, sepals dominate
+ *   2. Opening     0.2 ≤ p < 0.5         — petals halfway, reflex starts
+ *   3. Full bloom  0.5 ≤ p < 0.8         — petals fully spread, stigma out
+ *   4. Petal fall  p ≥ 0.8 AND petalDropProgress > 0
+ *                                       — petals drop & fade, sepals remain
+ *   5. Ovary swell controlled by ovarySwellProgress (0–1)
+ *                                       — small green sphere inside the sepals
+ *                                         representing the developing fruit
  */
-function createFlowerNode(name: string, scene: Scene, bloomProgress: number): TransformNode {
+function createFlowerNode(
+  name: string,
+  scene: Scene,
+  bloomProgress: number,
+  petalDropProgress = 0,
+  ovarySwellProgress = 0
+): TransformNode {
   const root = new TransformNode(name, scene);
   const petalLen = 0.012 * Math.max(0.2, bloomProgress);
   const petalW = 0.005;
   const petalCount = 5;
 
-  for (let i = 0; i < petalCount; i++) {
-    const angle = (i / petalCount) * Math.PI * 2;
-    const petal = MeshBuilder.CreatePlane(
-      `${name}_petal_${i}`,
-      { width: petalW, height: petalLen },
-      scene
-    );
-    petal.parent = root;
-    petal.position = new Vector3(
-      Math.cos(angle) * petalLen * 0.4,
-      0,
-      Math.sin(angle) * petalLen * 0.4
-    );
-    petal.rotation.y = angle;
-    petal.rotation.x = -0.6 * bloomProgress; // reflex curl
-    petal.material = getPetalMat(scene);
+  // Petals — visible while not fully dropped
+  if (petalDropProgress < 0.99) {
+    const dropFade = 1 - petalDropProgress;
+    const dropY = -0.005 * petalDropProgress; // sag downward
+    for (let i = 0; i < petalCount; i++) {
+      const angle = (i / petalCount) * Math.PI * 2;
+      const petal = MeshBuilder.CreatePlane(
+        `${name}_petal_${i}`,
+        { width: petalW, height: petalLen * dropFade },
+        scene
+      );
+      petal.parent = root;
+      petal.position = new Vector3(
+        Math.cos(angle) * petalLen * 0.4,
+        dropY,
+        Math.sin(angle) * petalLen * 0.4
+      );
+      petal.rotation.y = angle;
+      // Reflex curl deepens with bloom, then extends down as it drops
+      petal.rotation.x = -0.6 * bloomProgress - 0.4 * petalDropProgress;
+      petal.material = getPetalMat(scene);
+    }
   }
 
-  // Sepals (5 green outer)
+  // Sepals — always present (even after petal drop they stay)
   const sepalLen = petalLen * 0.7;
   for (let i = 0; i < petalCount; i++) {
     const angle = (i / petalCount) * Math.PI * 2 + Math.PI / petalCount;
@@ -207,6 +234,23 @@ function createFlowerNode(name: string, scene: Scene, bloomProgress: number): Tr
     sepal.rotation.y = angle;
     sepal.rotation.x = -0.3;
     sepal.material = getSepalMat(scene);
+  }
+
+  // Ovary swelling — small green sphere appears as petals fall
+  if (ovarySwellProgress > 0.01) {
+    const ovarySize = 0.003 + ovarySwellProgress * 0.008; // 3mm → 11mm
+    const ovary = MeshBuilder.CreateSphere(
+      `${name}_ovary`,
+      { diameter: ovarySize, segments: 8 },
+      scene
+    );
+    ovary.parent = root;
+    ovary.position = new Vector3(0, -0.002, 0);
+    const ovaryMat = new PBRMaterial(`${name}_ovaryMat`, scene);
+    ovaryMat.albedoColor = Color3.FromHexString('#3a8a30');
+    ovaryMat.metallic = 0;
+    ovaryMat.roughness = 0.5;
+    ovary.material = ovaryMat;
   }
 
   return root;
