@@ -86,6 +86,8 @@ interface HistoryDot {
 
 export function PatrolMap() {
   const currentDay = useTwinStore((s) => s.currentDay);
+  const setDay = useTwinStore((s) => s.setDay);
+  const selectZone = useTwinStore((s) => s.selectZone);
   const robotX = useTwinStore((s) => s.robotX);
   const robotZ = useTwinStore((s) => s.robotZ);
 
@@ -256,11 +258,23 @@ export function PatrolMap() {
           );
         })}
 
-        {/* Capture-session waypoint markers */}
+        {/* Capture-session waypoint markers — click to jump to that
+            session's day (markers within the same patrol day share the
+            same `recentDay` so the click effectively scrubs into
+            that moment of capture). */}
         {markers.map((m) => {
           const { u, v } = worldToSvg(m.worldX, m.worldZ);
           return (
-            <g key={m.index}>
+            <g
+              key={m.index}
+              style={{ cursor: 'pointer' }}
+              onClick={() => {
+                if (recentDay >= 0) {
+                  setDay(recentDay + m.hour / 24);
+                  selectZone(m.zoneId);
+                }
+              }}
+            >
               <circle
                 cx={u}
                 cy={v}
@@ -321,8 +335,15 @@ export function PatrolMap() {
           </span>
         ) : (
           markers.map((m) => (
-            <div
+            <button
               key={m.index}
+              type="button"
+              onClick={() => {
+                if (recentDay >= 0) {
+                  setDay(recentDay + m.hour / 24);
+                  selectZone(m.zoneId);
+                }
+              }}
               style={{
                 display: 'grid',
                 gridTemplateColumns: '18px 1fr auto',
@@ -330,7 +351,15 @@ export function PatrolMap() {
                 alignItems: 'center',
                 padding: '4px 2px',
                 fontSize: 11.5,
+                background: 'transparent',
+                border: 'none',
+                font: 'inherit',
+                cursor: 'pointer',
+                textAlign: 'left',
+                borderRadius: 6,
               }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-soft)')}
+              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
             >
               <span
                 className="mono"
@@ -358,7 +387,7 @@ export function PatrolMap() {
               <span className="mono" style={{ fontSize: 10.5, color: 'var(--fg-dim)' }}>
                 {m.hour}:00
               </span>
-            </div>
+            </button>
           ))
         )}
       </div>

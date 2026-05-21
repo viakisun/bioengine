@@ -30,6 +30,23 @@ function currentStageName(day: number): string {
   return GROWTH_STAGES[GROWTH_STAGES.length - 1].name;
 }
 
+const ROBOT_TASK_KO: Record<'idle' | 'patrolling' | 'capturing' | 'returning', string> = {
+  idle: '대기',
+  patrolling: '순찰',
+  capturing: '촬영',
+  returning: '복귀',
+};
+
+const ROBOT_TASK_TONE: Record<
+  'idle' | 'patrolling' | 'capturing' | 'returning',
+  'ok' | 'warn' | undefined
+> = {
+  idle: 'ok',
+  patrolling: 'ok',
+  capturing: 'warn',
+  returning: 'warn',
+};
+
 export function TopBar() {
   const currentDay = useTwinStore((s) => s.currentDay);
   const cameraPreset = useTwinStore((s) => s.cameraPreset);
@@ -37,11 +54,14 @@ export function TopBar() {
   const selectZone = useTwinStore((s) => s.selectZone);
   const robotX = useTwinStore((s) => s.robotX);
   const robotZ = useTwinStore((s) => s.robotZ);
+  const robotTask = useTwinStore((s) => s.robotTask);
 
   const dayInt = Math.round(currentDay);
   const total = SCENARIO.durationDays;
   const stageName = currentStageName(currentDay);
   const robotLabel = `x ${robotX.toFixed(2)}m · z ${robotZ.toFixed(2)}m`;
+  const taskLabel = ROBOT_TASK_KO[robotTask];
+  const taskTone = ROBOT_TASK_TONE[robotTask];
 
   const zoneStatuses = useMemo(() => {
     return SCENARIO.zones.map((z) => {
@@ -76,7 +96,10 @@ export function TopBar() {
           <PillSep />
           <span style={{ color: 'var(--fg-mute)' }}>{stageName}</span>
         </Pill>
-        <Pill>
+        <Pill tone={taskTone}>
+          <span style={{ color: 'var(--fg-mute)' }}>로봇</span>
+          <span style={{ color: 'var(--fg)', fontWeight: 600 }}>{taskLabel}</span>
+          <PillSep />
           <span className="mono" style={{ color: 'var(--fg)' }}>
             {robotLabel}
           </span>
