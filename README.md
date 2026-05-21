@@ -2,6 +2,8 @@
 
 토마토 행잉베드 온실의 운영을 위한 웹 기반 디지털 트윈. Babylon.js 9 + React 19 + Vite + WebGPU.
 
+> **모노레포 구조** — `packages/tomato-engine` (생육 알고리즘, 엔진 무관) + `packages/tomato-geometry` (식물 메시 generator, 엔진 무관) + `apps/farmsim` (Babylon + React 운영 화면). 두 패키지는 다른 프로젝트 / Node CLI / worker 에서 그대로 import 가능.
+
 레퍼런스 환경: **김제 스마트팜혁신밸리** (UWB 위치측위 시험, `_ref/smartfarm.mp4` frame_07).
 
 ```
@@ -43,11 +45,12 @@ npm run preview           # production build 미리보기
 - **타임라인** (하): 120일 스크럽 + 이상 이벤트 + 촬영 세션 마커
 - **UWB 평면도** (우상단): 4-anchor 거리선 + 로봇 실시간 위치 (cm 단위)
 
-### 생육 엔진 (engine-agnostic)
+### 생육 엔진 (engine-agnostic, `@farmsim/tomato-engine`)
 
-`src/simulation/GrowthEngine.ts` — 식물 생장 알고리즘. Babylon/Three 의존 zero.
+`packages/tomato-engine/` — 식물 생장 알고리즘. Babylon/Three 의존 zero.
 
 ```ts
+import { GrowthEngine } from '@farmsim/tomato-engine';
 const engine = new GrowthEngine();
 engine.setEnvironment({ temperatureC: 23, lightHoursPerDay: 14, ... });
 engine.addPlant({ seed: 42, genomeOverrides: { heightMaxCm: 220 } });
@@ -101,8 +104,11 @@ node verify-farmsim.mjs
 
 ## 문서
 
+- [docs/stage-by-stage.md](docs/stage-by-stage.md) — **부위별 단계별 알고리즘** (떡잎/잎/꽃/과실/줄기/스트레스, 모델↔메시 매핑, 사용자 참조 자료와의 차이)
 - [docs/architecture.md](docs/architecture.md) — 레이어 구조, 생육 엔진, 씬 구성
 - [docs/development-guide.md](docs/development-guide.md) — 폴더 구조, 워크플로, WebGPU 호환성, 자주 마주칠 이슈
+- [packages/tomato-engine/README.md](packages/tomato-engine/README.md) — engine-agnostic 생육 패키지 API
+- [packages/tomato-geometry/README.md](packages/tomato-geometry/README.md) — engine-agnostic geometry generator API
 
 ---
 

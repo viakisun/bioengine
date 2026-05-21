@@ -3,41 +3,66 @@
 ## 0. 문서 컨벤션
 
 - 본 문서는 `feature/babylon-twin` 브랜치 기준 (Babylon.js 9 + React 19 + Vite).
-- 이전 Three.js 진입점은 `legacy.html` 에 보존되어 있음 (참조용).
+- **모노레포** (npm workspaces): `packages/tomato-engine` + `packages/tomato-geometry` + apps/farmsim (현재 `src/`).
+- 부위별 단계별 알고리즘 + 모델↔메시 매핑은 [stage-by-stage.md](./stage-by-stage.md) 가 단일 권위 문서.
 - `_ref/smartfarm.mp4` (김제 스마트팜혁신밸리 UWB 시험 영상) 의 frame_07 모니터링 화면이 운영 화면 설계의 reference.
 
 ---
 
-## 1. 레이어 구조
+## 1. 레이어 구조 (모노레포)
 
 ```
 ┌──────────────────────────────────────────────────────┐
-│         Presentation (React UI)                       │
-│  App / SceneCanvas / AnalysisPanel / Timeline /      │
-│  Minimap / CameraPresets / EventList / LabelOverlay /│
-│  CaptureThumbs / PointCloudPreview                    │
-├──────────────────────────────────────────────────────┤
-│         State (zustand)                               │
-│  src/store/twinStore.ts                               │
-├──────────────────────────────────────────────────────┤
-│         Scene (Babylon.js)                            │
-│  BabylonEngine / SceneSetup / CameraRig /             │
-│  GreenhouseScene / ShowcasePlant / Robot / Heatmap /  │
-│  PathTrail / UwbAnchors / ZonePicker / GroundTexture  │
-├──────────────────────────────────────────────────────┤
-│         Plant (mesh generators)                       │
-│  LeafGenerator / StemGenerator / FruitGenerator /     │
-│  TrussGenerator / LeafTexture                         │
-├──────────────────────────────────────────────────────┤
-│         Simulation (engine-agnostic biology)          │
-│  GrowthEngine / GrowthModel / PhysicsModel /          │
-│  PlantGenome / SunPosition                            │
-├──────────────────────────────────────────────────────┤
-│         Data (mocks)                                  │
-│  mockScenario (30 plants × 6 zones × 120 days,        │
-│  robot route, capture sessions, events)               │
+│  apps/farmsim (src/)                                  │
+│                                                       │
+│  Presentation (React UI)                              │
+│  └ App / SceneCanvas / AnalysisPanel / Timeline /    │
+│    Minimap / CameraPresets / EventList /             │
+│    LabelOverlay / CaptureThumbs / PointCloudPreview  │
+│                                                       │
+│  State (zustand)  src/store/twinStore.ts             │
+│                                                       │
+│  Scene (Babylon.js)                                   │
+│  └ BabylonEngine / SceneSetup / CameraRig /          │
+│    GreenhouseScene / ShowcasePlant / SupportingPlant │
+│    / Robot / Heatmap / PathTrail / UwbAnchors /      │
+│    ZonePicker / GroundTexture                        │
+│                                                       │
+│  Plant wrappers (Babylon)                             │
+│  └ LeafGenerator (Mesh + material) /                 │
+│    StemGenerator / FruitGenerator / TrussGenerator / │
+│    LeafTexture (RawTexture wrapper)                  │
+│                                                       │
+│  Data (mocks)  mockScenario (30 plants × 6 zones ×   │
+│                120 days, robot route, sessions,      │
+│                events)                                │
+└──────────────────────────────────────────────────────┘
+            │ depends on
+            ▼
+┌──────────────────────────────────────────────────────┐
+│  packages/tomato-geometry  (zero Babylon/Three)       │
+│  └ buildLeafChunk (stage-aware morphing) /           │
+│    buildCotyledonChunk / buildLeafColorBytes (+      │
+│    optional diseaseLoad overlay) /                   │
+│    buildLeafNormalBytes / catmullRomPath /           │
+│    GeoChunk + Mat4 primitives                        │
+└──────────────────────────────────────────────────────┘
+            │ depends on
+            ▼
+┌──────────────────────────────────────────────────────┐
+│  packages/tomato-engine  (zero deps — pure TS)        │
+│  └ GrowthEngine / GrowthModel / PhysicsModel /       │
+│    PlantGenome / SunPosition / SeededRandom /        │
+│    LeafStage (getLeafStage helper with smooth        │
+│                blendT for renderers)                 │
 └──────────────────────────────────────────────────────┘
 ```
+
+**원칙**:
+- `tomato-engine` 은 Node CLI / worker / CI 어디서나 그대로 import 가능. 30+ 게놈 파라미터, 6 환경 변수, PlantState + NodeState + TrussState 전체 출력. JSON 왕복 지원.
+- `tomato-geometry` 는 `tomato-engine` 의 NodeState/PlantGenome/LeafStageInfo 만 import. 출력은 raw vertex array (`GeoChunk`) + texture bytes (`Uint8Array`). Babylon import 0.
+- apps/farmsim 만 Babylon 의존. 두 패키지의 출력을 `Mesh` / `RawTexture` 로 wrap.
+- 부위별 단계별 알고리즘 ↔ 코드 매핑은 [stage-by-stage.md](./stage-by-stage.md) 참조.
 
 **핵심 설계 원칙**
 

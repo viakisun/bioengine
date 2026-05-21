@@ -24,48 +24,63 @@ open http://localhost:8090/
 
 ---
 
-## 1. 폴더 구조
+## 1. 폴더 구조 (모노레포)
 
 ```
-src/
-  main.tsx              ── React entry
-  App.tsx               ── 전체 레이아웃
-  components/           ── React UI 컴포넌트
-  store/twinStore.ts    ── zustand 단일 store
-  data/mockScenario.ts  ── Mock 시나리오 데이터
-  twin/                 ── Babylon 씬 레이어
-    BabylonEngine.ts        ── 엔진 부팅 + 렌더 루프 + store 구독
-    SceneSetup.ts           ── 라이트/IBL/sky/포스트프로세싱
-    CameraRig.ts            ── ArcRotateCamera + 4 프리셋
-    GreenhouseScene.ts      ── 씬 빌더 (ground/베드/식물/온실/와이어/로봇/heatmap/anchor)
-    ShowcasePlant.ts        ── GrowthEngine 구동 라이브 식물
-    GroundTexture.ts        ── 절차적 콘크리트 RawTexture
-    Robot.ts                ── AGV + 6DOF cobot
-    Heatmap.ts              ── 베드 위 동적 색 텍스처
-    PathTrail.ts            ── 로봇 과거 경로
-    UwbAnchors.ts           ── 4 코너 anchor + 거리선
-    ZonePicker.ts           ── pointer → store
-  plant/                ── Babylon mesh generators
-    LeafGenerator.ts
-    LeafTexture.ts          ── RawTexture (DynamicTexture 가 WebGPU+PBR 에서 fail)
-    StemGenerator.ts
-    FruitGenerator.ts
-    TrussGenerator.ts
-  simulation/           ── 엔진 무관 (zero Babylon/Three)
-    GrowthEngine.ts         ── public façade
-    GrowthModel.ts          ── apex-driven 생장 (336 줄)
-    PhysicsModel.ts         ── pipe-model 줄기 + 캔틸레버 화방
-    PlantGenome.ts          ── 30+ 게놈 파라미터
-    GrowthController.ts     ── (legacy Three.js 진입점 전용)
-  sim/SunPosition.ts    ── 35°N 태양 위치 (엔진 무관)
-  utils/SeededRandom.ts
-  utils/LSystem.ts      ── (현재 미사용, legacy)
+packages/
+  tomato-engine/           ── zero deps (Node/worker/browser OK)
+    src/
+      GrowthEngine.ts          ── public façade (env, addPlant, computeState)
+      GrowthModel.ts           ── apex-driven 생장 (340+ 줄)
+      PhysicsModel.ts          ── pipe-model 줄기 + 캔틸레버 화방
+      PlantGenome.ts           ── 30+ 게놈 파라미터
+      SunPosition.ts           ── 35°N 태양 위치
+      SeededRandom.ts          ── deterministic RNG
+      LeafStage.ts             ── getLeafStage helper (smooth blendT)
+      index.ts                 ── barrel exports
+
+  tomato-geometry/         ── zero Babylon/Three (peer: tomato-engine)
+    src/
+      types.ts                 ── GeoChunk + Mat4 + cylinder + merge
+      leafChunk.ts             ── buildLeafChunk (stage-aware)
+      leafTexture.ts           ── buildLeafColorBytes (+ diseaseLoad overlay)
+                                  + buildLeafNormalBytes
+      cotyledonChunk.ts        ── buildCotyledonChunk (떡잎)
+      stemPath.ts              ── catmullRomPath
+      index.ts                 ── barrel exports
+
+src/                        ── apps/farmsim (Babylon + React)
+  main.tsx                   ── React entry (DEV: window.__twinStore exposed)
+  App.tsx                    ── 전체 레이아웃
+  components/                ── React UI 컴포넌트
+    AnalysisPanel / Timeline / Minimap / CameraPresets /
+    EventList / LabelOverlay / CaptureThumbs / PointCloudPreview
+  store/twinStore.ts         ── zustand 단일 store
+  data/mockScenario.ts       ── Mock 시나리오 (30 plants × 120 days)
+  twin/                      ── Babylon 씬 레이어
+    BabylonEngine.ts             ── 엔진 부팅 + 렌더 루프 + store 구독
+    SceneSetup.ts                ── 라이트/IBL/sky/포스트프로세싱
+    CameraRig.ts                 ── ArcRotateCamera + 4 프리셋
+    GreenhouseScene.ts           ── 씬 빌더 + GrowthEngine 인스턴스 + 30 식물 등록
+    ShowcasePlant.ts             ── 가운데 풀 detail 식물 (engine-driven)
+    SupportingPlant.ts           ── 29 식물 Light LOD (engine-driven, stagger rebuild)
+    GroundTexture.ts             ── 절차적 콘크리트 RawTexture
+    Robot.ts                     ── AGV + 6DOF cobot
+    Heatmap.ts / PathTrail.ts / UwbAnchors.ts / ZonePicker.ts
+  plant/                     ── Babylon mesh wrappers (생성기 알고리즘은 패키지에)
+    LeafGenerator.ts             ── createLeafMeshFromNode + leaf/yellow/diseased materials
+    LeafTexture.ts               ── RawTexture wrapper (buildLeafColorBytes 호출)
+    StemGenerator.ts             ── createStemMesh (Frenet curve, woodiness vertex color)
+    FruitGenerator.ts            ── createFruitNode + per-stage clearcoat
+    TrussGenerator.ts            ── createTrussNode + 5-stage flower (bud→petalFall→ovary)
+
 public/
   favicon.svg
-  hdri/environment.env  ── Babylon CC0 IBL (~270KB)
+  hdri/environment.env       ── Babylon CC0 IBL (~270KB)
 docs/
+  stage-by-stage.md          ── 부위별 단계별 알고리즘 가이드
   architecture.md
-  development-guide.md  ── 이 파일
+  development-guide.md       ── 이 파일
 ```
 
 ---
@@ -75,11 +90,16 @@ docs/
 ### 2.1 빌드 / 타입체크 / 미리보기
 
 ```bash
+npm install           # workspaces 자동 link
 npm run dev           # Vite dev server (port 8090, HMR)
 npm run build         # tsc --noEmit + vite build → dist/
 npm run preview       # production build 미리보기
-npx tsc --noEmit      # 타입체크만
+npx tsc --noEmit      # apps 타입체크
+npm run tsc:engine    # packages/tomato-engine 단독 타입체크
+npm run tsc:geometry  # packages/tomato-geometry 단독 타입체크
 ```
+
+패키지 별 단독 빌드를 검증하는 이유: `tomato-engine` 이 우연히 Babylon 을 import 해도 apps 의 tsc 에선 통과해버림. 단독 검증으로 zero-deps 원칙 보장.
 
 ### 2.2 식물 생장 로직 수정
 
