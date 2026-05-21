@@ -55,45 +55,32 @@ export function LabelOverlay() {
     };
   }, []);
 
+  // Reference pattern: a single focus label rides above the showcase
+  // plant (or whichever element the engine pushes first). Earlier the
+  // overlay rendered every label (robot + showcase + 30 supporting),
+  // which read as visual noise. Picking only the first visible label
+  // matches the screenshot's clean "one tag, one leader line" look.
+  const focus = labels.find((l) => l.visible);
+
   return (
     <>
-      {labels.filter((l) => l.visible).map((l) => (
+      {focus && (
         <div
-          key={l.id}
+          key={focus.id}
+          className="scene-label mono"
           style={{
             position: 'absolute',
-            left: l.sx,
-            top: l.sy,
-            transform: 'translate3d(-50%, -120%, 0)',
-            background: 'rgba(26,29,35,0.85)',
-            color: l.color ?? '#e0e0e0',
-            border: `1px solid ${l.color ?? '#3a3e46'}55`,
-            borderRadius: 6,
-            padding: '3px 8px',
-            fontSize: 10,
-            fontWeight: 600,
+            left: focus.sx,
+            top: focus.sy,
+            transform: 'translate3d(-50%, -140%, 0)',
             pointerEvents: 'none',
-            whiteSpace: 'nowrap',
-            backdropFilter: 'blur(4px)',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
             zIndex: 7,
+            whiteSpace: 'nowrap',
           }}
         >
-          {l.text}
-          <div
-            style={{
-              position: 'absolute',
-              left: '50%',
-              top: '100%',
-              transform: 'translate(-50%, -1px)',
-              width: 1,
-              height: 12,
-              background: l.color ?? '#3a3e46',
-              opacity: 0.6,
-            }}
-          />
+          {focus.text}
         </div>
-      ))}
+      )}
     </>
   );
 }

@@ -73,8 +73,11 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
   console.log(`[BabylonEngine] shader wind: ${isShaderWindEnabled() ? 'ON (WebGL2)' : 'OFF (WebGPU fallback)'}`);
 
   const scene = new Scene(engine);
-  scene.clearColor = new Color4(0.55, 0.7, 0.85, 1);
-  scene.ambientColor = new Color3(0.15, 0.15, 0.15);
+  // Light-theme UI background is #e8e6df — pick a slightly cooler creme
+  // (more grey-cyan) for the canvas so the bed/plants stand out without
+  // a hard edge against the surrounding panels.
+  scene.clearColor = new Color4(0.86, 0.87, 0.85, 1);
+  scene.ambientColor = new Color3(0.22, 0.22, 0.22);
 
   const cameraRig = setupCamera(scene, canvas);
   cameraRig.setPreset(useTwinStore.getState().cameraPreset);

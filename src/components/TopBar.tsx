@@ -1,0 +1,174 @@
+/**
+ * Top bar — two status pills on the left + zone status chips + camera
+ * preset tab-strip on the right. Replaces the previous floating FPS HUD
+ * (now hidden) and the LayerToggles (now in the 환경 sidebar tab) and
+ * the CameraPresets bottom-center widget (consolidated here per the
+ * reference layout).
+ *
+ * Reference: _ref/Sim UI v2 _standalone_.html top toolbar.
+ */
+
+import { useEffect, useMemo, useState } from 'react';
+import { useTwinStore } from '../store/twinStore';
+import { SCENARIO, zoneHealthMix } from '../data/mockScenario';
+import { GROWTH_STAGES } from '@farmsim/tomato-engine';
+import { Pill, PillSep } from '../ui/Pill';
+import { TabStrip, type TabItem } from '../ui/TabStrip';
+import type { PresetView } from '../twin/CameraRig';
+
+const CAMERA_PRESETS: ReadonlyArray<TabItem<PresetView>> = [
+  { id: 'overview', label: '전체' },
+  { id: 'eye-level', label: '작업자' },
+  { id: 'closeup', label: '근접' },
+  { id: 'robot-pov', label: '로봇' },
+];
+
+function currentStageName(day: number): string {
+  for (const s of GROWTH_STAGES) {
+    if (day >= s.dayStart && day < s.dayEnd) return s.name;
+  }
+  return GROWTH_STAGES[GROWTH_STAGES.length - 1].name;
+}
+
+/**
+ * Robot UWB position is updated by BabylonEngine's render loop into
+ * `<span id="hud-robot">` text. We poll it via rAF rather than wire
+ * yet another store field, since the position changes every frame and
+ * we only need it for display in this pill.
+ */
+function useRobotPosLabel(): string {
+  const [label, setLabel] = useState('x --  z --');
+  useEffect(() => {
+    let raf = 0;
+    const tick = () => {
+      const el = document.getElementById('hud-robot');
+      if (el && el.textContent && el.textContent !== '--') {
+        // The Babylon engine writes "UWB x:0.00m z:0.00m" — strip the prefix
+        const t = el.textContent.replace(/^UWB\s*/, '');
+        setLabel(t);
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  return label;
+}
+
+export function TopBar() {
+  const currentDay = useTwinStore((s) => s.currentDay);
+  const cameraPreset = useTwinStore((s) => s.cameraPreset);
+  const setCameraPreset = useTwinStore((s) => s.setCameraPreset);
+  const selectZone = useTwinStore((s) => s.selectZone);
+
+  const dayInt = Math.round(currentDay);
+  const total = SCENARIO.durationDays;
+  const stageName = currentStageName(currentDay);
+  const robotLabel = useRobotPosLabel();
+
+  const zoneStatuses = useMemo(() => {
+    return SCENARIO.zones.map((z) => {
+      const { dominant } = zoneHealthMix(z, currentDay);
+      const tone: 'ok' | 'warn' | 'bad' =
+        dominant === 'normal' ? 'ok' : dominant === 'disease' ? 'bad' : 'warn';
+      return { zoneId: z.zoneId, tone };
+    });
+  }, [currentDay]);
+  const badCount = zoneStatuses.filter((z) => z.tone !== 'ok').length;
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        top: 12,
+        left: 12,
+        right: 12,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+        zIndex: 10,
+        pointerEvents: 'none',
+      }}
+    >
+      {/* Left: status pills */}
+      <div style={{ display: 'flex', gap: 8, pointerEvents: 'auto' }}>
+        <Pill tone="ok">
+          <span className="mono">
+            Day <b>{dayInt}</b> / {total}
+          </span>
+          <PillSep />
+          <span style={{ color: 'var(--fg-mute)' }}>{stageName}</span>
+        </Pill>
+        <Pill>
+          <span className="mono" style={{ color: 'var(--fg)' }}>
+            {robotLabel}
+          </span>
+        </Pill>
+      </div>
+
+      <div style={{ flex: 1 }} />
+
+      {/* Right: zone status chips + camera presets */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          pointerEvents: 'auto',
+        }}
+      >
+        <div
+          className="panel"
+          style={{
+            padding: '6px 10px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+          }}
+        >
+          <span style={{ fontSize: 11, color: 'var(--fg-mute)' }}>구역</span>
+          <div style={{ display: 'flex', gap: 4 }}>
+            {zoneStatuses.map(({ zoneId, tone }) => (
+              <button
+                key={zoneId}
+                type="button"
+                onClick={() => selectZone(zoneId)}
+                title={`구역 ${zoneId + 1}`}
+                style={{
+                  width: 22,
+                  height: 22,
+                  borderRadius: 4,
+                  border: '1px solid var(--bd)',
+                  background:
+                    tone === 'ok'
+                      ? 'var(--ok-soft)'
+                      : tone === 'warn'
+                      ? 'var(--warn-soft)'
+                      : 'var(--bad-soft)',
+                  color: 'var(--fg)',
+                  cursor: 'pointer',
+                  font: 'inherit',
+                  fontSize: 10.5,
+                  fontWeight: 600,
+                }}
+              >
+                {zoneId + 1}
+              </button>
+            ))}
+          </div>
+          {badCount > 0 && (
+            <span style={{ fontSize: 11, color: 'var(--bad)', fontWeight: 600 }}>
+              {badCount} 이상
+            </span>
+          )}
+        </div>
+
+        <TabStrip<PresetView>
+          items={CAMERA_PRESETS}
+          active={cameraPreset}
+          onSelect={setCameraPreset}
+        />
+      </div>
+    </div>
+  );
+}

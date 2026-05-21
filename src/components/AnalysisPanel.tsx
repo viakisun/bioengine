@@ -1,297 +1,404 @@
+/**
+ * Sidebar — tabbed analysis panel.
+ *
+ * Three tabs:
+ *   • 구역 — MiniUWB row + 6 zone cards in a 2-col grid; selecting a
+ *     zone reveals metrics + sparkline + capture thumbs below.
+ *   • 이벤트 — flat list of recent events (most recent first).
+ *   • 환경 — wind / water-stress sliders (EnvironmentControls inline)
+ *     plus a couple of read-only environment metrics.
+ *
+ * Reference: _ref/Sim UI v2 _standalone_.html .zone / .evt / .uwb classes.
+ */
+
+import { useMemo, useState } from 'react';
 import { useTwinStore } from '../store/twinStore';
 import {
   SCENARIO,
-  HEALTH_COLORS,
   HEALTH_LABELS_KO,
   zoneHealthMix,
   getDailySnapshot,
-  type HealthLabel,
 } from '../data/mockScenario';
-import { PointCloudPreview } from './PointCloudPreview';
+import type { HealthLabel } from '../data/mockScenario';
 import { CaptureThumbs } from './CaptureThumbs';
+import {
+  Eyebrow,
+  TabStrip,
+  type TabItem,
+  ZoneCard,
+  EventRow,
+  MiniUWB,
+  Sparkline,
+} from '../ui';
 
-const panelStyle: React.CSSProperties = {
-  padding: '16px 16px 20px',
-  fontSize: 12,
-  color: '#e0e0e0',
-  height: '100%',
-  overflowY: 'auto',
-};
+type SidebarTab = 'zones' | 'events' | 'env';
 
-const sectionTitle: React.CSSProperties = {
-  fontSize: 10,
-  color: '#6b7280',
-  textTransform: 'uppercase',
-  letterSpacing: 0.7,
-  fontWeight: 600,
-  marginTop: 16,
-  marginBottom: 6,
-};
+const TABS: ReadonlyArray<TabItem<SidebarTab>> = [
+  { id: 'zones', label: '구역' },
+  { id: 'events', label: '이벤트' },
+  { id: 'env', label: '환경' },
+];
 
-const metricRow: React.CSSProperties = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  padding: '6px 0',
-  borderBottom: '1px solid #2a2e36',
-};
-
-const chipStyle = (color: string): React.CSSProperties => ({
-  display: 'inline-block',
-  background: color,
-  color: '#0a0d12',
-  padding: '2px 8px',
-  borderRadius: 4,
-  fontWeight: 600,
-  fontSize: 10,
-  letterSpacing: 0.3,
-});
-
-function delta(value: number, format: (v: number) => string = (v) => v.toFixed(1)) {
-  const positive = value >= 0;
-  const color = Math.abs(value) < 0.01 ? '#6b7280' : positive ? '#6ee7b7' : '#ef4444';
-  const sign = positive ? '+' : '';
-  return <span style={{ color, fontWeight: 600 }}>{sign}{format(value)}</span>;
-}
-
-function Sparkline({ values, color }: { values: number[]; color: string }) {
-  if (values.length < 2) return null;
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const range = max - min || 1;
-  const W = 120;
-  const H = 28;
-  const points = values
-    .map((v, i) => {
-      const x = (i / (values.length - 1)) * W;
-      const y = H - ((v - min) / range) * H;
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(' ');
-  return (
-    <svg width={W} height={H} style={{ display: 'block' }}>
-      <polyline points={points} fill="none" stroke={color} strokeWidth={1.5} />
-    </svg>
-  );
+function zoneHealthToTone(h: HealthLabel): 'ok' | 'warn' | 'bad' {
+  if (h === 'normal') return 'ok';
+  if (h === 'disease') return 'bad';
+  return 'warn';
 }
 
 export function AnalysisPanel() {
+  const [tab, setTab] = useState<SidebarTab>('zones');
+
+  return (
+    <div
+      className="scroll-y"
+      style={{
+        height: '100%',
+        overflowY: 'auto',
+        padding: '14px 14px 18px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 14,
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+        <TabStrip<SidebarTab> items={TABS} active={tab} onSelect={setTab} />
+      </div>
+
+      {tab === 'zones' && <ZonesTab />}
+      {tab === 'events' && <EventsTab />}
+      {tab === 'env' && <EnvTab />}
+    </div>
+  );
+}
+
+/* ===================== Zones tab ===================== */
+
+function ZonesTab() {
+  const currentDay = useTwinStore((s) => s.currentDay);
   const selectedZoneId = useTwinStore((s) => s.selectedZoneId);
   const hoveredZoneId = useTwinStore((s) => s.hoveredZoneId);
-  const currentDay = useTwinStore((s) => s.currentDay);
-  const analysisMode = useTwinStore((s) => s.analysisMode);
-  const compareMode = useTwinStore((s) => s.compareMode);
-  const toggleAnalysisMode = useTwinStore((s) => s.toggleAnalysisMode);
-  const setCompareMode = useTwinStore((s) => s.setCompareMode);
+  const selectZone = useTwinStore((s) => s.selectZone);
 
   const displayZoneId = hoveredZoneId ?? selectedZoneId;
 
-  if (displayZoneId === null) {
-    return (
-      <div style={panelStyle}>
-        <div style={sectionTitle}>분석 패널</div>
-        <p style={{ color: '#6b7280', lineHeight: 1.5 }}>
-          베드 위 색상 구역을 클릭하면 생육 지표, AI 분석 결과, 변화량이 표시됩니다.
-        </p>
-        <div style={sectionTitle}>전체 현황</div>
-        <ZoneOverviewGrid currentDay={currentDay} />
-      </div>
-    );
-  }
-
-  const zone = SCENARIO.zones[displayZoneId];
-  const { dominant, counts } = zoneHealthMix(zone, currentDay);
-
-  let totalH = 0, totalLA = 0, totalFruits = 0, totalRipen = 0, totalConf = 0, sampleN = 0;
-  for (const pid of zone.plantIds) {
-    const snap = getDailySnapshot(SCENARIO.plants[pid], currentDay);
-    totalH += snap.heightCm;
-    totalLA += snap.leafAreaCm2;
-    totalFruits += snap.fruitCount;
-    totalRipen += snap.ripenScore;
-    sampleN++;
-  }
-  const session = SCENARIO.captureSessions.find(
-    (s) => s.zoneId === zone.zoneId && s.day <= currentDay && currentDay - s.day < 3
+  const zoneHealth = SCENARIO.zones.map((z) =>
+    zoneHealthToTone(zoneHealthMix(z, currentDay).dominant)
   );
-  totalConf = session?.aiConfidence ?? 0;
-
-  const avgH = totalH / sampleN;
-  const avgLA = totalLA / sampleN;
-  const avgRipen = totalRipen / sampleN;
-
-  const yest = Math.max(0, currentDay - 1);
-  const sevenDaysAgo = Math.max(0, currentDay - 7);
-  let yestH = 0, sevenH = 0;
-  for (const pid of zone.plantIds) {
-    yestH += getDailySnapshot(SCENARIO.plants[pid], yest).heightCm;
-    sevenH += getDailySnapshot(SCENARIO.plants[pid], sevenDaysAgo).heightCm;
-  }
-  yestH /= sampleN;
-  sevenH /= sampleN;
-
-  const sparkValues: number[] = [];
-  for (let d = Math.max(0, currentDay - 14); d <= currentDay; d += 1) {
-    let h = 0;
-    for (const pid of zone.plantIds) h += getDailySnapshot(SCENARIO.plants[pid], d).heightCm;
-    sparkValues.push(h / sampleN);
-  }
 
   return (
-    <div style={panelStyle}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <div style={{ fontSize: 14, fontWeight: 600, color: '#e5e7eb' }}>
-          구역 {zone.zoneId + 1}
-        </div>
-        <span style={chipStyle(HEALTH_COLORS[dominant])}>{HEALTH_LABELS_KO[dominant]}</span>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <MiniUWB zoneHealth={zoneHealth} leftCaption="0m" caption="7m · 6베드" />
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        {SCENARIO.zones.map((zone) => {
+          const { dominant } = zoneHealthMix(zone, currentDay);
+          const bad = dominant !== 'normal';
+          return (
+            <ZoneCard
+              key={zone.zoneId}
+              num={zone.zoneId + 1}
+              title={`구역 ${zone.zoneId + 1}`}
+              state={HEALTH_LABELS_KO[dominant]}
+              bad={bad}
+              selected={displayZoneId === zone.zoneId}
+              onClick={() => selectZone(zone.zoneId)}
+            />
+          );
+        })}
       </div>
-      <div style={{ fontSize: 10, color: '#6b7280', marginBottom: 12 }}>
+
+      {displayZoneId !== null && <ZoneDetail zoneId={displayZoneId} />}
+    </div>
+  );
+}
+
+function ZoneDetail({ zoneId }: { zoneId: number }) {
+  const currentDay = useTwinStore((s) => s.currentDay);
+  const zone = SCENARIO.zones[zoneId];
+
+  const { totals, sparkValues, session, dominant } = useMemo(() => {
+    let totalH = 0,
+      totalLA = 0,
+      totalFruits = 0,
+      totalRipen = 0;
+    const n = zone.plantIds.length;
+    for (const pid of zone.plantIds) {
+      const snap = getDailySnapshot(SCENARIO.plants[pid], currentDay);
+      totalH += snap.heightCm;
+      totalLA += snap.leafAreaCm2;
+      totalFruits += snap.fruitCount;
+      totalRipen += snap.ripenScore;
+    }
+    const spark: number[] = [];
+    for (let d = Math.max(0, currentDay - 14); d <= currentDay; d += 1) {
+      let h = 0;
+      for (const pid of zone.plantIds) {
+        h += getDailySnapshot(SCENARIO.plants[pid], d).heightCm;
+      }
+      spark.push(h / n);
+    }
+    const session = SCENARIO.captureSessions.find(
+      (s) => s.zoneId === zone.zoneId && s.day <= currentDay && currentDay - s.day < 3
+    );
+    return {
+      totals: {
+        avgH: totalH / n,
+        avgLA: totalLA / n,
+        avgFruits: totalFruits / n,
+        avgRipen: totalRipen / n,
+      },
+      sparkValues: spark,
+      session,
+      dominant: zoneHealthMix(zone, currentDay).dominant,
+    };
+  }, [zone, currentDay]);
+
+  return (
+    <div
+      className="panel"
+      style={{
+        padding: '12px 14px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 10,
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg)' }}>
+          구역 {zone.zoneId + 1}
+        </span>
+        <span
+          style={{
+            fontSize: 11,
+            fontWeight: 600,
+            color:
+              dominant === 'normal'
+                ? 'var(--ok)'
+                : dominant === 'disease'
+                ? 'var(--bad)'
+                : 'var(--warn)',
+          }}
+        >
+          {HEALTH_LABELS_KO[dominant]}
+        </span>
+      </div>
+      <div className="mono" style={{ fontSize: 10.5, color: 'var(--fg-dim)' }}>
         {zone.startX.toFixed(1)} ~ {zone.endX.toFixed(1)} m · {zone.plantIds.length}그루
       </div>
 
-      <div style={sectionTitle}>생육 지표 (구역 평균)</div>
-      <div style={metricRow}>
-        <span style={{ color: '#9ca3af' }}>초장</span>
-        <span>{avgH.toFixed(1)} cm</span>
-      </div>
-      <div style={metricRow}>
-        <span style={{ color: '#9ca3af' }}>엽면적</span>
-        <span>{avgLA.toFixed(0)} cm²</span>
-      </div>
-      <div style={metricRow}>
-        <span style={{ color: '#9ca3af' }}>착과수</span>
-        <span>{(totalFruits / sampleN).toFixed(1)} 개/그루</span>
-      </div>
-      <div style={metricRow}>
-        <span style={{ color: '#9ca3af' }}>숙도</span>
-        <span>{(avgRipen * 100).toFixed(0)} %</span>
-      </div>
+      <Eyebrow>생육 지표 · 평균</Eyebrow>
+      <MetricRow label="초장">
+        <span className="mono">{totals.avgH.toFixed(1)} cm</span>
+      </MetricRow>
+      <MetricRow label="엽면적">
+        <span className="mono">{totals.avgLA.toFixed(0)} cm²</span>
+      </MetricRow>
+      <MetricRow label="착과수">
+        <span className="mono">{totals.avgFruits.toFixed(1)} 개/그루</span>
+      </MetricRow>
+      <MetricRow label="숙도">
+        <span className="mono">{(totals.avgRipen * 100).toFixed(0)} %</span>
+      </MetricRow>
 
-      <div style={sectionTitle}>변화량</div>
-      <div style={metricRow}>
-        <span style={{ color: '#9ca3af' }}>어제 대비</span>
-        {delta(avgH - yestH, (v) => `${v.toFixed(2)} cm`)}
+      <div
+        style={{
+          background: 'var(--bg-soft)',
+          border: '1px solid var(--bd)',
+          borderRadius: 8,
+          padding: '6px 8px',
+          marginTop: 4,
+        }}
+      >
+        <Sparkline
+          values={sparkValues}
+          cursorIndex={sparkValues.length - 1}
+          color="var(--ok)"
+          label="최근 14일 초장 추이"
+          height={56}
+        />
       </div>
-      <div style={metricRow}>
-        <span style={{ color: '#9ca3af' }}>7일 전 대비</span>
-        {delta(((avgH - sevenH) / Math.max(0.01, sevenH)) * 100, (v) => `${v.toFixed(1)} %`)}
-      </div>
-      <div style={{ marginTop: 8 }}>
-        <div style={{ fontSize: 10, color: '#6b7280', marginBottom: 4 }}>최근 14일 초장 추이</div>
-        <Sparkline values={sparkValues} color="#6ee7b7" />
-      </div>
-
-      <div style={sectionTitle}>구역 상태 구성</div>
-      {(Object.keys(counts) as HealthLabel[]).map((k) =>
-        counts[k] > 0 ? (
-          <div key={k} style={metricRow}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{
-                width: 8, height: 8, borderRadius: 4,
-                background: HEALTH_COLORS[k], display: 'inline-block',
-              }} />
-              {HEALTH_LABELS_KO[k]}
-            </span>
-            <span>{counts[k]} / {zone.plantIds.length}</span>
-          </div>
-        ) : null
-      )}
 
       {session && (
         <>
-          <div style={sectionTitle}>최근 촬영 세션</div>
-          <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 4 }}>
-            Day {session.day} · {session.hour}:00 · 식물 #{session.targetPlantId + 1}
-          </div>
-          <div style={metricRow}>
-            <span style={{ color: '#9ca3af' }}>AI 분석 신뢰도</span>
-            <span style={{ color: session.aiConfidence > 0.9 ? '#6ee7b7' : '#fbbf24' }}>
-              {(session.aiConfidence * 100).toFixed(1)} %
-            </span>
+          <Eyebrow>최근 촬영 세션</Eyebrow>
+          <div
+            className="mono"
+            style={{ fontSize: 10.5, color: 'var(--fg-dim)', marginTop: -4 }}
+          >
+            Day {session.day} · {session.hour}:00 · #{session.targetPlantId + 1}
           </div>
           <CaptureThumbs session={session} healthLabel={dominant} />
-          <div style={{ marginTop: 8 }}>
-            <div style={{ fontSize: 10, color: '#6b7280', marginBottom: 4 }}>점군 미리보기</div>
-            <PointCloudPreview session={session} />
-          </div>
         </>
       )}
+    </div>
+  );
+}
 
-      <div style={sectionTitle}>분석 모드</div>
-      <button
-        type="button"
-        onClick={toggleAnalysisMode}
-        style={{
-          background: analysisMode ? '#6ee7b7' : '#2a2e36',
-          color: analysisMode ? '#0a0d12' : '#e0e0e0',
-          border: '1px solid #3a3e46',
-          borderRadius: 6,
-          padding: '6px 10px',
-          fontSize: 11,
-          cursor: 'pointer',
-          width: '100%',
-          fontWeight: 600,
-        }}
-      >
-        세그멘테이션 오버레이 {analysisMode ? 'ON' : 'OFF'}
-      </button>
+function MetricRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        padding: '4px 0',
+        borderBottom: '1px solid var(--bd)',
+        fontSize: 12,
+        color: 'var(--fg)',
+      }}
+    >
+      <span style={{ color: 'var(--fg-mute)' }}>{label}</span>
+      {children}
+    </div>
+  );
+}
 
-      <div style={sectionTitle}>비교</div>
-      <div style={{ display: 'flex', gap: 4 }}>
-        {(['off', 'yesterday', '7days'] as const).map((mode) => (
-          <button
-            key={mode}
-            onClick={() => setCompareMode(mode)}
-            type="button"
-            style={{
-              background: compareMode === mode ? '#6ee7b7' : '#2a2e36',
-              color: compareMode === mode ? '#0a0d12' : '#9ca3af',
-              border: '1px solid #3a3e46',
-              borderRadius: 4,
-              padding: '4px 8px',
-              fontSize: 10,
-              cursor: 'pointer',
-              flex: 1,
-              fontWeight: 600,
-            }}
-          >
-            {mode === 'off' ? '없음' : mode === 'yesterday' ? '어제' : '7일'}
-          </button>
-        ))}
+/* ===================== Events tab ===================== */
+
+function EventsTab() {
+  const currentDay = useTwinStore((s) => s.currentDay);
+  const setDay = useTwinStore((s) => s.setDay);
+
+  // Most recent up to 30 events at/before current day (skip future).
+  const events = useMemo(() => {
+    return [...SCENARIO.events]
+      .filter((e) => e.day <= currentDay + 0.5)
+      .sort((a, b) => b.day - a.day)
+      .slice(0, 30);
+  }, [currentDay]);
+
+  return (
+    <div
+      className="panel"
+      style={{ padding: '6px 6px', display: 'flex', flexDirection: 'column', gap: 2 }}
+    >
+      {events.length === 0 ? (
+        <div
+          style={{
+            padding: 16,
+            fontSize: 12,
+            color: 'var(--fg-mute)',
+            textAlign: 'center',
+          }}
+        >
+          아직 이벤트가 없습니다.
+        </div>
+      ) : (
+        events.map((evt) => (
+          <EventRow
+            key={evt.id}
+            severity={evt.severity}
+            title={evt.descriptionKo}
+            sub={`구역 ${evt.zoneId + 1} · 식물 #${evt.plantId + 1}`}
+            meta={`Day ${evt.day}`}
+            onClick={() => setDay(evt.day)}
+          />
+        ))
+      )}
+    </div>
+  );
+}
+
+/* ===================== Env tab ===================== */
+
+function EnvTab() {
+  const windStrength = useTwinStore((s) => s.windStrength);
+  const setWindStrength = useTwinStore((s) => s.setWindStrength);
+  const waterStressOverride = useTwinStore((s) => s.waterStressOverride);
+  const setWaterStressOverride = useTwinStore((s) => s.setWaterStressOverride);
+
+  const heatmapVisible = useTwinStore((s) => s.heatmapVisible);
+  const fovVisible = useTwinStore((s) => s.fovVisible);
+  const pathTrailVisible = useTwinStore((s) => s.pathTrailVisible);
+  const toggleHeatmap = useTwinStore((s) => s.toggleHeatmap);
+  const toggleFov = useTwinStore((s) => s.toggleFov);
+  const togglePathTrail = useTwinStore((s) => s.togglePathTrail);
+
+  return (
+    <div
+      className="panel"
+      style={{ padding: '14px 14px', display: 'flex', flexDirection: 'column', gap: 14 }}
+    >
+      <Eyebrow>환경 제어</Eyebrow>
+      <SliderRow
+        label="바람 세기"
+        value={windStrength}
+        onChange={setWindStrength}
+        valueText={windStrength.toFixed(2)}
+      />
+      <SliderRow
+        label="수분 스트레스"
+        value={waterStressOverride}
+        onChange={setWaterStressOverride}
+        valueText={waterStressOverride > 0 ? waterStressOverride.toFixed(2) : 'OFF'}
+      />
+
+      <Eyebrow>레이어</Eyebrow>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <ToggleBtn on={heatmapVisible} onClick={toggleHeatmap}>
+          히트맵
+        </ToggleBtn>
+        <ToggleBtn on={fovVisible} onClick={toggleFov}>
+          FOV
+        </ToggleBtn>
+        <ToggleBtn on={pathTrailVisible} onClick={togglePathTrail}>
+          경로
+        </ToggleBtn>
       </div>
     </div>
   );
 }
 
-function ZoneOverviewGrid({ currentDay }: { currentDay: number }) {
-  const selectZone = useTwinStore((s) => s.selectZone);
+function SliderRow({
+  label,
+  value,
+  onChange,
+  valueText,
+}: {
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+  valueText: string;
+}) {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-      {SCENARIO.zones.map((zone) => {
-        const { dominant } = zoneHealthMix(zone, currentDay);
-        return (
-          <button
-            key={zone.zoneId}
-            type="button"
-            onClick={() => selectZone(zone.zoneId)}
-            style={{
-              background: '#22262e',
-              border: `1px solid ${HEALTH_COLORS[dominant]}44`,
-              borderRadius: 6,
-              padding: 8,
-              cursor: 'pointer',
-              textAlign: 'left',
-              color: '#e0e0e0',
-            }}
-          >
-            <div style={{ fontSize: 11, fontWeight: 600 }}>구역 {zone.zoneId + 1}</div>
-            <div style={{
-              fontSize: 9, color: HEALTH_COLORS[dominant], marginTop: 2, fontWeight: 600,
-            }}>
-              {HEALTH_LABELS_KO[dominant]}
-            </div>
-          </button>
-        );
-      })}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <div
+        style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}
+      >
+        <span style={{ color: 'var(--fg-mute)' }}>{label}</span>
+        <span className="mono" style={{ color: 'var(--ok)' }}>
+          {valueText}
+        </span>
+      </div>
+      <input
+        type="range"
+        className="slim"
+        min={0}
+        max={1}
+        step={0.05}
+        value={value}
+        onChange={(e) => onChange(parseFloat(e.target.value))}
+      />
     </div>
+  );
+}
+
+function ToggleBtn({
+  on,
+  onClick,
+  children,
+}: {
+  on: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`btn${on ? ' is-active' : ''}`}
+      style={{ padding: '0 12px' }}
+    >
+      {children}
+    </button>
   );
 }
