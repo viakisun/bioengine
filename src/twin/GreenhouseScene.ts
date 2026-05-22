@@ -12,7 +12,6 @@ import { createRobot, type RobotHandle } from './Robot';
 import { createPathTrail, type PathTrailHandle } from './PathTrail';
 import { attachZonePicker } from './ZonePicker';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
-import { createUwbAnchors, type UwbAnchorsHandle } from './UwbAnchors';
 import { GrowthEngine } from '@farmsim/tomato-engine';
 import { useTwinStore } from '../store/twinStore';
 import { createShowcasePlant, type ShowcasePlantHandle } from './ShowcasePlant';
@@ -91,7 +90,6 @@ export interface GreenhouseSceneHandle {
   heatmap: HeatmapHandle;
   robot: RobotHandle;
   pathTrail: PathTrailHandle;
-  uwb: UwbAnchorsHandle;
   growthEngine: GrowthEngine;
   showcasePlant: ShowcasePlantHandle;
   supportingPlants: SupportingPlantHandle[];
@@ -352,7 +350,6 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
   const heatmap = createHeatmap(scene);
   const robot = createRobot(scene);
   const pathTrail = createPathTrail(scene);
-  const uwb = createUwbAnchors(scene);
 
   let hoverCb: ((zoneId: number | null) => void) | null = null;
   let clickCb: ((zoneId: number | null) => void) | null = null;
@@ -373,7 +370,6 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
     heatmap,
     robot,
     pathTrail,
-    uwb,
     growthEngine,
     showcasePlant,
     supportingPlants,
@@ -382,7 +378,6 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
       heatmap.update(day);
       robot.update(day);
       pathTrail.update(day);
-      uwb.update(robot.currentPosition());
       showcasePlant.update(day);
       // Wire each supporting plant to its mockScenario healthLabel
       // → engine env override + stress inputs.

@@ -3,15 +3,27 @@ import { AnalysisPanel } from './components/AnalysisPanel';
 import { TimelinePanel } from './components/TimelinePanel';
 import { LabelOverlay } from './components/LabelOverlay';
 import { TopBar } from './components/TopBar';
+import { LayerDock } from './components/LayerDock';
+import { useTwinStore } from './store/twinStore';
 
 export function App() {
+  const consoleExpanded = useTwinStore((s) => s.consoleExpanded);
+  // Two heights for the bottom row: collapsed 88px (72 panel + 16
+  // breathing room) vs expanded 296px. Exposed as a CSS var so the
+  // LayerDock floating pill can position itself just above whichever
+  // height is current and slide in lockstep with the panel.
+  const consoleH = consoleExpanded ? 296 : 88;
+
   return (
     <div
       style={{
         height: '100vh',
         display: 'grid',
-        gridTemplate: '1fr 280px / 1fr 360px',
+        gridTemplate: `1fr ${consoleH}px / 1fr 360px`,
         background: '#e8e6df',
+        // Inline-style CSS var consumed by .layer-dock
+        ['--console-h' as string]: `${consoleH}px`,
+        transition: 'grid-template-rows 0.25s cubic-bezier(.4,.0,.2,1)',
       }}
     >
       {/* Main 3D view + scene-overlay UI */}
@@ -30,6 +42,9 @@ export function App() {
 
         {/* Scene labels (single focus plant) */}
         <LabelOverlay />
+
+        {/* Floating dock — camera + speed */}
+        <LayerDock />
 
         {/* Dev-mode FPS / backend HUD — hidden visually but the id-bearing
             spans must stay so BabylonEngine.runRenderLoop's

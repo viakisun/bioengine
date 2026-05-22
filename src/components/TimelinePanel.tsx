@@ -1,17 +1,21 @@
 /**
- * Bottom timeline panel — the "star" of the redesigned UI.
+ * Bottom timeline panel — collapsible "console-shell" pattern from v3.
  *
- * Replaces the old Timeline + EventList combination with a single panel
- * containing:
- *   • play/back/forward nav + big "Day NNN / 120" + 단계 label
- *   • Speed selector (0.5× / 1× / 2× / 4× / 8×)
- *   • Dual sparkline: 평균 키 (heightCm) + 누적 수확량 (ripening progress)
- *   • Event dot row above the main scrub track
- *   • Main draggable track + drag-head
- *   • Day markers (D0 D15 ... D120)
- *   • Stage bands with current stage highlighted
+ * Two modes (toggled via store.consoleExpanded + the ▲ expand-btn at
+ * the top of the panel):
  *
- * Reference: _ref/Sim UI v2 _standalone_.html `.timeline-wrap`.
+ *   Collapsed (72px) — default
+ *     Nav (◀ ▶ ▶), Day NNN / 단계 label, KPI inline (키·수확량),
+ *     event dots + main scrub track + drag head, day labels (D0..D120).
+ *     Sparkline + stage bands hidden.
+ *
+ *   Expanded (280px)
+ *     Above the always-visible row, two compact side-by-side
+ *     sparklines (평균키 + 누적수확량) and the stage-band strip
+ *     (each band is a button — click jumps to that stage's middle day).
+ *
+ * Speed selector + camera presets live in the floating LayerDock pill
+ * to the bottom-right of the scene.
  */
 
 import { useMemo } from 'react';
@@ -23,7 +27,6 @@ import { StageBands } from '../ui/StageBands';
 import { PlayBtn } from '../ui/PlayBtn';
 import { BtnIcon } from '../ui/BtnIcon';
 
-const SPEEDS = [0.5, 1, 2, 4, 8] as const;
 const DAY_LABELS = [0, 15, 30, 45, 60, 75, 90, 105, 120] as const;
 
 /** Aggregate plant snapshots into daily averages once at module load. */
@@ -59,17 +62,13 @@ function currentStageName(day: number): string {
   return GROWTH_STAGES[GROWTH_STAGES.length - 1].name;
 }
 
-function severityClass(sev: 'info' | 'warning' | 'critical'): string {
-  return sev === 'critical' ? 'bad' : sev === 'warning' ? 'warn' : 'ok';
-}
-
 export function TimelinePanel() {
   const currentDay = useTwinStore((s) => s.currentDay);
   const playing = useTwinStore((s) => s.playing);
-  const playSpeed = useTwinStore((s) => s.playSpeed);
   const setDay = useTwinStore((s) => s.setDay);
   const togglePlay = useTwinStore((s) => s.togglePlay);
-  const setPlaySpeed = useTwinStore((s) => s.setPlaySpeed);
+  const consoleExpanded = useTwinStore((s) => s.consoleExpanded);
+  const toggleConsole = useTwinStore((s) => s.toggleConsole);
 
   const total = SCENARIO.durationDays;
   const dayInt = Math.max(0, Math.min(total, Math.round(currentDay)));
@@ -78,7 +77,6 @@ export function TimelinePanel() {
   const heightNow = heightAvg[dayInt] ?? 0;
   const ripenNow = ripenAvg[dayInt] ?? 0;
 
-  // Previous / next event jump targets
   const prevNextEvents = useMemo(() => {
     const sorted = [...SCENARIO.events].sort((a, b) => a.day - b.day);
     const prev = [...sorted].reverse().find((e) => e.day < currentDay - 0.5);
@@ -88,20 +86,75 @@ export function TimelinePanel() {
 
   return (
     <div
-      className="panel timeline-panel"
+      className={`panel timeline-panel console-shell ${consoleExpanded ? 'expanded' : 'collapsed'}`}
       style={{
         margin: '0 12px 12px',
-        padding: '14px 18px',
+        padding: '10px 16px 8px',
         display: 'flex',
         flexDirection: 'column',
-        gap: 12,
+        gap: 8,
         flex: 1,
         minWidth: 0,
+        overflow: 'hidden',
       }}
     >
-      {/* Top row: nav + big Day + stage label + speed selector */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      {/* Top expand handle */}
+      <button
+        type="button"
+        className="expand-btn"
+        onClick={toggleConsole}
+        title={consoleExpanded ? '타임라인 접기' : '타임라인 펼치기'}
+        aria-label="toggle timeline panel"
+      >
+        {consoleExpanded ? '▼' : '▲'}
+      </button>
+
+      {/* Expanded-only: dual sparklines + stage bands at the top */}
+      {consoleExpanded && (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <div
+              style={{
+                background: 'var(--bg-soft)',
+                border: '1px solid var(--bd)',
+                borderRadius: 6,
+                padding: '2px 6px',
+              }}
+            >
+              <Sparkline
+                values={heightAvg}
+                cursorIndex={dayInt}
+                color="var(--ok)"
+                label="평균 키"
+                valueText={`${heightNow.toFixed(0)}cm`}
+                height={48}
+              />
+            </div>
+            <div
+              style={{
+                background: 'var(--bg-soft)',
+                border: '1px solid var(--bd)',
+                borderRadius: 6,
+                padding: '2px 6px',
+              }}
+            >
+              <Sparkline
+                values={ripenAvg}
+                cursorIndex={dayInt}
+                color="var(--warn)"
+                label="누적 수확량"
+                valueText={`${Math.round(ripenNow * 100)}%`}
+                height={48}
+              />
+            </div>
+          </div>
+          <StageBands currentDay={currentDay} totalDays={total} />
+        </>
+      )}
+
+      {/* Always-visible: nav + Day/단계/KPI + scrub */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <BtnIcon
             onClick={() => prevNextEvents.prev && setDay(prevNextEvents.prev.day)}
             disabled={!prevNextEvents.prev}
@@ -110,7 +163,7 @@ export function TimelinePanel() {
             ◀
           </BtnIcon>
           <PlayBtn onClick={togglePlay} title={playing ? '일시정지' : '재생'}>
-            <span style={{ fontSize: 14 }}>{playing ? '❚❚' : '▶'}</span>
+            <span style={{ fontSize: 13 }}>{playing ? '❚❚' : '▶'}</span>
           </PlayBtn>
           <BtnIcon
             onClick={() => prevNextEvents.next && setDay(prevNextEvents.next.day)}
@@ -121,115 +174,58 @@ export function TimelinePanel() {
           </BtnIcon>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <span style={{ fontSize: 11, color: 'var(--fg-dim)' }}>현재 일자</span>
-          <span
-            className="mono"
-            style={{ fontSize: 22, fontWeight: 700, color: 'var(--fg)', lineHeight: 1 }}
-          >
-            Day {dayInt.toString().padStart(3, '0')}
-            <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--fg-dim)' }}>
-              {' '}
-              / {total}
-            </span>
+        <div className="mono" style={{ fontSize: 16, fontWeight: 700, color: 'var(--fg)' }}>
+          Day {dayInt.toString().padStart(3, '0')}
+          <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--fg-dim)' }}>
+            {' '}
+            / {total}
           </span>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginLeft: 16 }}>
-          <span style={{ fontSize: 11, color: 'var(--fg-dim)' }}>단계</span>
-          <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--fg)', lineHeight: 1 }}>
-            {currentStageName(currentDay)}
-          </span>
-        </div>
+        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg)' }}>
+          {currentStageName(currentDay)}
+        </span>
 
-        <div style={{ flex: 1 }} />
+        <span className="kpi-inline">
+          키 <b>{heightNow.toFixed(0)}cm</b>
+          <span style={{ opacity: 0.4, margin: '0 4px' }}>·</span>
+          수확 <b>{Math.round(ripenNow * 100)}%</b>
+        </span>
 
-        <div className="tab-strip" role="group" aria-label="재생 속도">
-          {SPEEDS.map((s) => (
-            <button
-              key={s}
-              type="button"
-              className={playSpeed === s ? 'is-on mono' : 'mono'}
-              onClick={() => setPlaySpeed(s)}
-            >
-              {s}×
-            </button>
-          ))}
+        <div style={{ flex: 1, position: 'relative', height: 18 }}>
+          {/* Event dots — clickable, jump to day */}
+          {SCENARIO.events.map((evt) => {
+            const left = (evt.day / total) * 100;
+            const color =
+              evt.severity === 'critical'
+                ? 'var(--bad)'
+                : evt.severity === 'warning'
+                ? 'var(--warn)'
+                : 'var(--ok)';
+            return (
+              <button
+                key={evt.id}
+                type="button"
+                title={evt.descriptionKo}
+                onClick={() => setDay(evt.day)}
+                style={{
+                  position: 'absolute',
+                  left: `${left}%`,
+                  top: 0,
+                  transform: 'translate(-50%, 0)',
+                  width: 8,
+                  height: 8,
+                  borderRadius: 4,
+                  border: '1.5px solid white',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.18)',
+                  cursor: 'pointer',
+                  background: color,
+                  padding: 0,
+                }}
+              />
+            );
+          })}
         </div>
-      </div>
-
-      {/* Dual sparklines */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-        <div
-          style={{
-            background: 'var(--bg-soft)',
-            border: '1px solid var(--bd)',
-            borderRadius: 8,
-            padding: '4px 6px',
-            position: 'relative',
-          }}
-        >
-          <Sparkline
-            values={heightAvg}
-            cursorIndex={dayInt}
-            color="var(--ok)"
-            label="평균 키"
-            valueText={`${heightNow.toFixed(0)}cm`}
-            height={64}
-          />
-        </div>
-        <div
-          style={{
-            background: 'var(--bg-soft)',
-            border: '1px solid var(--bd)',
-            borderRadius: 8,
-            padding: '4px 6px',
-            position: 'relative',
-          }}
-        >
-          <Sparkline
-            values={ripenAvg}
-            cursorIndex={dayInt}
-            color="var(--warn)"
-            label="누적 수확량"
-            valueText={`${Math.round(ripenNow * 100)}%`}
-            height={64}
-          />
-        </div>
-      </div>
-
-      {/* Event dots + main track */}
-      <div style={{ position: 'relative', height: 22 }}>
-        {SCENARIO.events.map((evt) => {
-          const left = (evt.day / total) * 100;
-          return (
-            <button
-              key={evt.id}
-              type="button"
-              title={evt.descriptionKo}
-              onClick={() => setDay(evt.day)}
-              className={`tl-evt ${severityClass(evt.severity)}`}
-              style={{
-                position: 'absolute',
-                left: `${left}%`,
-                top: '50%',
-                transform: 'translate(-50%, -50%)',
-                width: 10,
-                height: 10,
-                borderRadius: 5,
-                border: '2px solid white',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.18)',
-                cursor: 'pointer',
-                background:
-                  evt.severity === 'critical'
-                    ? 'var(--bad)'
-                    : evt.severity === 'warning'
-                    ? 'var(--warn)'
-                    : 'var(--ok)',
-              }}
-            />
-          );
-        })}
       </div>
 
       <div style={{ position: 'relative', height: 8 }}>
@@ -259,28 +255,15 @@ export function TimelinePanel() {
             left: `${dayPct}%`,
             top: '50%',
             transform: 'translate(-50%, -50%)',
-            width: 20,
-            height: 20,
-            borderRadius: 10,
+            width: 18,
+            height: 18,
+            borderRadius: 9,
             background: 'white',
             border: '3px solid var(--fg)',
             boxShadow: '0 4px 10px rgba(30,40,30,0.25)',
             pointerEvents: 'none',
           }}
-        >
-          <span
-            style={{
-              position: 'absolute',
-              left: '50%',
-              top: '50%',
-              transform: 'translate(-50%, -50%)',
-              width: 6,
-              height: 6,
-              borderRadius: 3,
-              background: 'var(--fg)',
-            }}
-          />
-        </div>
+        />
         <input
           type="range"
           min={0}
@@ -298,7 +281,7 @@ export function TimelinePanel() {
         />
       </div>
 
-      <div style={{ position: 'relative', height: 16 }}>
+      <div style={{ position: 'relative', height: 12 }}>
         {DAY_LABELS.map((d) => (
           <span
             key={d}
@@ -307,7 +290,7 @@ export function TimelinePanel() {
               position: 'absolute',
               left: `${(d / total) * 100}%`,
               transform: 'translateX(-50%)',
-              fontSize: 10.5,
+              fontSize: 10,
               color: 'var(--fg-dim)',
             }}
           >
@@ -315,8 +298,6 @@ export function TimelinePanel() {
           </span>
         ))}
       </div>
-
-      <StageBands currentDay={currentDay} totalDays={total} />
     </div>
   );
 }

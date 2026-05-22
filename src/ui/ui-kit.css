@@ -212,6 +212,80 @@ input[type="range"].slim::-moz-range-thumb {
   border-radius: 4px;
 }
 
+/* ===== Console shell — collapsible bottom timeline ===== */
+.console-shell {
+  position: relative;
+  transition: height 0.25s cubic-bezier(.4, .0, .2, 1);
+}
+.console-shell.collapsed { height: 72px; }
+.console-shell.expanded { height: 280px; }
+
+/* The little ▲ / ▼ handle that sticks up out of the console's top */
+.expand-btn {
+  position: absolute;
+  top: -16px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 56px;
+  height: 18px;
+  background: var(--bg-panel);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--bd);
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  cursor: pointer;
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg-mute);
+  z-index: 1;
+  transition: color 0.12s, background 0.12s;
+}
+.expand-btn:hover { color: var(--fg); background: #fbfbf8; }
+
+/* ===== Layer dock — floating glass pill (camera + speed) ===== */
+.layer-dock {
+  position: absolute;
+  right: 14px;
+  /* Sits just above the console; --console-h is published from App */
+  bottom: calc(var(--console-h, 72px) + 14px);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--bg-panel);
+  -webkit-backdrop-filter: blur(16px) saturate(1.3);
+  backdrop-filter: blur(16px) saturate(1.3);
+  border: 1px solid var(--bd);
+  border-radius: 999px;
+  box-shadow: var(--shadow);
+  z-index: 9;
+  transition: bottom 0.25s cubic-bezier(.4, .0, .2, 1);
+}
+.dock-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--bd-strong);
+}
+
+/* ===== KPI inline (collapsed console) ===== */
+.kpi-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--fg-mute);
+  white-space: nowrap;
+}
+.kpi-inline b {
+  color: var(--fg);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
+
 /* ===== Scene label — single focus plant tag ===== */
 .scene-label {
   position: relative;

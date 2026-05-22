@@ -16,4 +16,3 @@ export { StageBands } from './StageBands';
 export { ZoneCard } from './ZoneCard';
 export { EventRow } from './EventRow';
 export type { EventSeverity } from './EventRow';
-export { MiniUWB } from './MiniUWB';

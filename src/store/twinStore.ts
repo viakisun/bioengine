@@ -74,6 +74,13 @@ interface TwinState {
   publishFps: (fps: number) => void;
   publishBackend: (b: 'webgpu' | 'webgl2') => void;
 
+  // v3 UI — collapsible bottom console (timeline panel). Default
+  // collapsed so the 3D scene fills the viewport; user clicks the
+  // expand-btn at the top of the console to reveal full sparkline +
+  // stage bands.
+  consoleExpanded: boolean;
+  toggleConsole: () => void;
+
   setDay: (day: number) => void;
   togglePlay: () => void;
   setPlaySpeed: (speed: number) => void;
@@ -156,6 +163,9 @@ export const useTwinStore = create<TwinState>((set) => ({
   backend: null,
   publishFps: (fps) => set({ fps }),
   publishBackend: (backend) => set({ backend }),
+
+  consoleExpanded: false,
+  toggleConsole: () => set((s) => ({ consoleExpanded: !s.consoleExpanded })),
 
   setDay: (day) =>
     set({

@@ -13,15 +13,6 @@ import { useTwinStore } from '../store/twinStore';
 import { SCENARIO, zoneHealthMix } from '../data/mockScenario';
 import { GROWTH_STAGES } from '@farmsim/tomato-engine';
 import { Pill, PillSep } from '../ui/Pill';
-import { TabStrip, type TabItem } from '../ui/TabStrip';
-import type { PresetView } from '../twin/CameraRig';
-
-const CAMERA_PRESETS: ReadonlyArray<TabItem<PresetView>> = [
-  { id: 'overview', label: '전체' },
-  { id: 'eye-level', label: '작업자' },
-  { id: 'closeup', label: '근접' },
-  { id: 'robot-pov', label: '로봇' },
-];
 
 function currentStageName(day: number): string {
   for (const s of GROWTH_STAGES) {
@@ -49,17 +40,12 @@ const ROBOT_TASK_TONE: Record<
 
 export function TopBar() {
   const currentDay = useTwinStore((s) => s.currentDay);
-  const cameraPreset = useTwinStore((s) => s.cameraPreset);
-  const setCameraPreset = useTwinStore((s) => s.setCameraPreset);
   const selectZone = useTwinStore((s) => s.selectZone);
-  const robotX = useTwinStore((s) => s.robotX);
-  const robotZ = useTwinStore((s) => s.robotZ);
   const robotTask = useTwinStore((s) => s.robotTask);
 
   const dayInt = Math.round(currentDay);
   const total = SCENARIO.durationDays;
   const stageName = currentStageName(currentDay);
-  const robotLabel = `x ${robotX.toFixed(2)}m · z ${robotZ.toFixed(2)}m`;
   const taskLabel = ROBOT_TASK_KO[robotTask];
   const taskTone = ROBOT_TASK_TONE[robotTask];
 
@@ -99,10 +85,6 @@ export function TopBar() {
         <Pill tone={taskTone}>
           <span style={{ color: 'var(--fg-mute)' }}>로봇</span>
           <span style={{ color: 'var(--fg)', fontWeight: 600 }}>{taskLabel}</span>
-          <PillSep />
-          <span className="mono" style={{ color: 'var(--fg)' }}>
-            {robotLabel}
-          </span>
         </Pill>
       </div>
 
@@ -162,12 +144,6 @@ export function TopBar() {
             </span>
           )}
         </div>
-
-        <TabStrip<PresetView>
-          items={CAMERA_PRESETS}
-          active={cameraPreset}
-          onSelect={setCameraPreset}
-        />
       </div>
     </div>
   );

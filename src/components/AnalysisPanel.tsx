@@ -19,7 +19,6 @@ import {
   zoneHealthMix,
   getDailySnapshot,
 } from '../data/mockScenario';
-import type { HealthLabel } from '../data/mockScenario';
 import { CaptureThumbs } from './CaptureThumbs';
 import { PatrolMap } from './PatrolMap';
 import {
@@ -28,7 +27,6 @@ import {
   type TabItem,
   ZoneCard,
   EventRow,
-  MiniUWB,
   Sparkline,
 } from '../ui';
 
@@ -40,12 +38,6 @@ const TABS: ReadonlyArray<TabItem<SidebarTab>> = [
   { id: 'patrol', label: '경로' },
   { id: 'env', label: '환경' },
 ];
-
-function zoneHealthToTone(h: HealthLabel): 'ok' | 'warn' | 'bad' {
-  if (h === 'normal') return 'ok';
-  if (h === 'disease') return 'bad';
-  return 'warn';
-}
 
 export function AnalysisPanel() {
   const [tab, setTab] = useState<SidebarTab>('zones');
@@ -84,14 +76,8 @@ function ZonesTab() {
 
   const displayZoneId = hoveredZoneId ?? selectedZoneId;
 
-  const zoneHealth = SCENARIO.zones.map((z) =>
-    zoneHealthToTone(zoneHealthMix(z, currentDay).dominant)
-  );
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <MiniUWB zoneHealth={zoneHealth} leftCaption="0m" caption="7m · 6베드" />
-
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
         {SCENARIO.zones.map((zone) => {
           const { dominant } = zoneHealthMix(zone, currentDay);

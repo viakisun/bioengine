@@ -1,4 +1,5 @@
 import { GROWTH_STAGES } from '@farmsim/tomato-engine';
+import { useTwinStore } from '../store/twinStore';
 
 interface StageBandsProps {
   currentDay: number;
@@ -20,6 +21,8 @@ const STAGE_BG = [
 const STAGE_LABEL = ['정식', '영양생장', '개화기', '착과기', '과실비대', '숙성'] as const;
 
 export function StageBands({ currentDay, totalDays }: StageBandsProps) {
+  const setDay = useTwinStore((s) => s.setDay);
+
   return (
     <div
       style={{
@@ -34,9 +37,13 @@ export function StageBands({ currentDay, totalDays }: StageBandsProps) {
       {GROWTH_STAGES.map((stage, i) => {
         const isCurrent = currentDay >= stage.dayStart && currentDay < stage.dayEnd;
         const widthPct = ((stage.dayEnd - stage.dayStart) / totalDays) * 100;
+        const midDay = (stage.dayStart + stage.dayEnd) / 2;
         return (
-          <div
+          <button
             key={stage.name}
+            type="button"
+            onClick={() => setDay(midDay)}
+            title={`${STAGE_LABEL[i] ?? stage.name} (Day ${Math.round(midDay)})`}
             style={{
               position: 'relative',
               width: `${widthPct}%`,
@@ -47,8 +54,13 @@ export function StageBands({ currentDay, totalDays }: StageBandsProps) {
               fontWeight: isCurrent ? 600 : 500,
               color: isCurrent ? 'var(--fg)' : 'var(--fg-mute)',
               background: STAGE_BG[i] ?? 'var(--bg-softer)',
-              transition: 'color 0.15s',
+              border: 'none',
+              cursor: 'pointer',
+              font: 'inherit',
+              transition: 'color 0.15s, filter 0.15s',
             }}
+            onMouseEnter={(e) => (e.currentTarget.style.filter = 'brightness(0.96)')}
+            onMouseLeave={(e) => (e.currentTarget.style.filter = 'none')}
           >
             {STAGE_LABEL[i] ?? stage.name}
             {isCurrent && (
@@ -63,7 +75,7 @@ export function StageBands({ currentDay, totalDays }: StageBandsProps) {
                 }}
               />
             )}
-          </div>
+          </button>
         );
       })}
     </div>

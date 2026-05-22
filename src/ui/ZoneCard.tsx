@@ -27,11 +27,11 @@ export function ZoneCard({ num, title, state, bad, selected, onClick }: ZoneCard
         transition: 'border-color 0.12s',
       }}
     >
-      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg)' }}>{title}</div>
+      <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)' }}>{title}</div>
       <div
         style={{
-          fontSize: 11.5,
-          marginTop: 2,
+          fontSize: 12,
+          marginTop: 3,
           color: bad ? 'var(--bad)' : 'var(--fg-mute)',
         }}
       >
