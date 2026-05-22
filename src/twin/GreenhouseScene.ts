@@ -102,9 +102,11 @@ export interface GreenhouseSceneHandle {
 export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
   const bedLen = SCENARIO.bedLengthM;
 
+  // Greenhouse footprint floor — sized to match the structural envelope
+  // so the floor visually fills the building.
   const ground = MeshBuilder.CreateGround(
     'ground',
-    { width: bedLen + 4, height: 8, subdivisions: 2 },
+    { width: bedLen + 4, height: 24, subdivisions: 4 },
     scene
   );
   const groundMat = new PBRMaterial('groundMat', scene);
@@ -153,40 +155,72 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
   frameMat.metallic = 0.85;
   frameMat.roughness = 0.3;
 
-  const ridgeY = 4.5;
-  const eaveY = 3.6;
-  const halfWidth = 3.5;
+  // Real Korean smart-farm greenhouse footprint: ~24m wide × ~34m long,
+  // with eaves at 5.5m and ridge at 7m. This generously envelopes the
+  // 30m × 0.35m bed in the middle and leaves room for future multi-bed
+  // expansion. End walls cap the long axis (no more "infinite tunnel").
+  const ridgeY = 7.0;
+  const eaveY = 5.5;
+  const halfWidth = 12.0;
+  const endMargin = 2.0;
+  const halfLen = bedLen / 2 + endMargin;
 
+  // A-frames spaced every 4m along the length.
   for (let i = 0; i <= bedLen / 4; i++) {
     const x = -bedLen / 2 + i * 4;
     // Side posts (vertical)
     for (const side of [-1, 1]) {
       const post = MeshBuilder.CreateCylinder(
         `post_${i}_${side}`,
-        { height: eaveY, diameter: 0.06 },
+        { height: eaveY, diameter: 0.08 },
         scene
       );
       post.position = new Vector3(x, eaveY / 2, side * halfWidth);
       post.material = frameMat;
     }
-    // Roof rafters (sloped)
+    // Roof rafters — go from eave (Z=±halfWidth, Y=eaveY) to ridge (Z=0, Y=ridgeY).
+    // Cylinder default extends along +Y; we tilt it by the slope angle so its
+    // ends land exactly at eave/ridge. Sign by side direction.
     for (const side of [-1, 1]) {
       const rafterLen = Math.sqrt(halfWidth * halfWidth + (ridgeY - eaveY) * (ridgeY - eaveY));
       const rafter = MeshBuilder.CreateCylinder(
         `rafter_${i}_${side}`,
-        { height: rafterLen, diameter: 0.05 },
+        { height: rafterLen, diameter: 0.06 },
         scene
       );
       rafter.position = new Vector3(x, (ridgeY + eaveY) / 2, side * halfWidth / 2);
-      rafter.rotation.x = side * Math.atan2(halfWidth, ridgeY - eaveY) - Math.PI / 2;
+      rafter.rotation.x = -side * Math.atan2(halfWidth, ridgeY - eaveY);
       rafter.material = frameMat;
     }
+  }
+
+  // End-cap frames (front + back walls of the greenhouse).
+  for (const xSign of [-1, 1]) {
+    const xEnd = xSign * halfLen;
+    // Vertical end posts at the four corners + middle
+    for (const side of [-1, 1]) {
+      const post = MeshBuilder.CreateCylinder(
+        `endpost_${xSign}_${side}`,
+        { height: eaveY, diameter: 0.08 },
+        scene
+      );
+      post.position = new Vector3(xEnd, eaveY / 2, side * halfWidth);
+      post.material = frameMat;
+    }
+    // Center support post under the ridge at each end
+    const center = MeshBuilder.CreateCylinder(
+      `endcenter_${xSign}`,
+      { height: ridgeY, diameter: 0.08 },
+      scene
+    );
+    center.position = new Vector3(xEnd, ridgeY / 2, 0);
+    center.material = frameMat;
   }
 
   // Ridge beam (top long axis)
   const ridge = MeshBuilder.CreateCylinder(
     'ridge',
-    { height: bedLen + 1, diameter: 0.07 },
+    { height: halfLen * 2, diameter: 0.08 },
     scene
   );
   ridge.position = new Vector3(0, ridgeY, 0);
@@ -197,7 +231,7 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
   for (const side of [-1, 1]) {
     const eave = MeshBuilder.CreateCylinder(
       `eave_${side}`,
-      { height: bedLen + 1, diameter: 0.05 },
+      { height: halfLen * 2, diameter: 0.06 },
       scene
     );
     eave.position = new Vector3(0, eaveY, side * halfWidth);
@@ -216,11 +250,11 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
   roofMat.transparencyMode = PBRMaterial.MATERIAL_ALPHABLEND;
   roofMat.environmentIntensity = 1.2;
 
+  const slopeLen = Math.sqrt(halfWidth * halfWidth + (ridgeY - eaveY) * (ridgeY - eaveY));
   for (const side of [-1, 1]) {
-    const slopeLen = Math.sqrt(halfWidth * halfWidth + (ridgeY - eaveY) * (ridgeY - eaveY));
     const panel = MeshBuilder.CreatePlane(
       `roof_${side}`,
-      { width: bedLen + 1, height: slopeLen },
+      { width: halfLen * 2, height: slopeLen },
       scene
     );
     panel.position = new Vector3(0, (ridgeY + eaveY) / 2, side * halfWidth / 2);
@@ -233,12 +267,28 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
   for (const side of [-1, 1]) {
     const wall = MeshBuilder.CreatePlane(
       `wall_${side}`,
-      { width: bedLen + 1, height: eaveY },
+      { width: halfLen * 2, height: eaveY },
       scene
     );
     wall.position = new Vector3(0, eaveY / 2, side * halfWidth);
     wall.rotation.y = side > 0 ? -Math.PI / 2 : Math.PI / 2;
     wall.material = roofMat;
+  }
+
+  // End walls (front + back) — flat rectangular panels at X = ±halfLen,
+  // with a triangular gable section above the eave to match the roof slope.
+  // We approximate the gable + rectangular wall as a single plane covering
+  // the full ridge height; the polycarb is translucent so the visual
+  // difference vs a precise gable cutout is minimal.
+  for (const xSign of [-1, 1]) {
+    const endWall = MeshBuilder.CreatePlane(
+      `endwall_${xSign}`,
+      { width: halfWidth * 2, height: ridgeY },
+      scene
+    );
+    endWall.position = new Vector3(xSign * halfLen, ridgeY / 2, 0);
+    endWall.rotation.y = xSign > 0 ? Math.PI : 0;
+    endWall.material = roofMat;
   }
 
   // Overhead training wires (two parallel cables, then per-plant vertical strings)
