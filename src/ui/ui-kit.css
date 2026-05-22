@@ -784,6 +784,31 @@ input[type="range"].slim::-moz-range-thumb {
   font-size: 11px;
 }
 
+/* ===== Color picker row (label + <input type=color> + hex readout) ===== */
+.color-row {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-md);
+  font-size: 11px;
+  cursor: pointer;
+}
+.color-row input[type="color"] {
+  width: 28px;
+  height: 22px;
+  border: 1px solid var(--bd);
+  border-radius: var(--radius-xs);
+  background: transparent;
+  cursor: pointer;
+  padding: 1px;
+}
+.color-row input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+.color-row input[type="color"]::-webkit-color-swatch {
+  border: none;
+  border-radius: 2px;
+}
+
 /* ===== TopBar — top floating toolbar ===== */
 .topbar {
   position: absolute;

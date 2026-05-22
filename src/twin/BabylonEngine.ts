@@ -2,13 +2,14 @@ import { Engine } from '@babylonjs/core/Engines/engine';
 import { WebGPUEngine } from '@babylonjs/core/Engines/webgpuEngine';
 import { Scene } from '@babylonjs/core/scene';
 import { Color3, Color4 } from '@babylonjs/core/Maths/math.color';
+import { ImageProcessingConfiguration } from '@babylonjs/core/Materials/imageProcessingConfiguration';
 import type { Material } from '@babylonjs/core/Materials/material';
 import { setupScene, type SceneSetupHandle } from './SceneSetup';
 import { setupCamera, type CameraRig } from './CameraRig';
 import { buildGreenhouseScene, type GreenhouseSceneHandle } from './GreenhouseScene';
-import { useTwinStore } from '../store/twinStore';
+import { useTwinStore, type LightingState } from '../store/twinStore';
 import { SCENARIO } from '../data/mockScenario';
-import { getSunState, dayToHour } from '@farmsim/tomato-engine';
+import { getSunState } from '@farmsim/tomato-engine';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Matrix } from '@babylonjs/core/Maths/math.vector';
 import { setShaderWindEnabled, isShaderWindEnabled } from '../plant/LeafGenerator';
@@ -50,6 +51,66 @@ function createWebGL2(canvas: HTMLCanvasElement): Engine {
   });
 }
 
+function toneMappingTypeFor(mode: LightingState['toneMapping']): number | null {
+  if (mode === 'aces') return ImageProcessingConfiguration.TONEMAPPING_ACES;
+  if (mode === 'standard') return ImageProcessingConfiguration.TONEMAPPING_STANDARD;
+  return null;
+}
+
+/** Push a LightingState snapshot to all relevant scene objects. Idempotent. */
+function applyLightingToScene(scene: Scene, setup: SceneSetupHandle, L: LightingState) {
+  // Sun direction follows manualHour; intensity + color from store.
+  const sunState = getSunState(L.manualHour);
+  setup.sun.direction = new Vector3(-sunState.dir.x, -sunState.dir.y, -sunState.dir.z);
+  setup.sun.position = new Vector3(sunState.dir.x * 12, sunState.dir.y * 12, sunState.dir.z * 12);
+  setup.sun.intensity = L.sunIntensity;
+  setup.sun.diffuse = Color3.FromHexString(L.sunColorHex);
+
+  // Hemi + ambient
+  setup.hemi.intensity = L.hemiIntensity;
+  setup.hemi.diffuse = Color3.FromHexString(L.hemiColorHex);
+  setup.hemi.groundColor = Color3.FromHexString(L.hemiGroundColorHex);
+  scene.environmentIntensity = L.hdriIntensity;
+  scene.ambientColor = new Color3(L.ambientGray, L.ambientGray, L.ambientGray);
+
+  // Shadows (sun.shadowEnabled gates whether any shadow map renders)
+  setup.sun.shadowEnabled = L.shadowsEnabled;
+  setup.shadowGenerator.darkness = L.shadowDarkness;
+  setup.shadowGenerator.bias = L.shadowBias;
+  setup.shadowGenerator.normalBias = L.shadowNormalBias;
+
+  // Tone mapping — apply to both scene's config and pipeline's config to
+  // avoid the two diverging.
+  const tmType = toneMappingTypeFor(L.toneMapping);
+  scene.imageProcessingConfiguration.toneMappingEnabled = tmType !== null;
+  if (tmType !== null) scene.imageProcessingConfiguration.toneMappingType = tmType;
+  scene.imageProcessingConfiguration.exposure = L.exposure;
+  scene.imageProcessingConfiguration.contrast = L.contrast;
+
+  const pipeImg = setup.pipeline.imageProcessing;
+  if (pipeImg) {
+    pipeImg.toneMappingEnabled = tmType !== null;
+    if (tmType !== null) pipeImg.toneMappingType = tmType;
+    pipeImg.exposure = L.exposure;
+    pipeImg.contrast = L.contrast;
+    pipeImg.vignetteEnabled = L.vignetteEnabled;
+    pipeImg.vignetteWeight = L.vignetteWeight;
+  }
+
+  // Bloom / Sharpen
+  setup.pipeline.bloomEnabled = L.bloomEnabled;
+  setup.pipeline.bloomThreshold = L.bloomThreshold;
+  setup.pipeline.bloomWeight = L.bloomWeight;
+  setup.pipeline.sharpenEnabled = L.sharpenEnabled;
+  setup.pipeline.sharpen.edgeAmount = L.sharpenEdge;
+
+  // SSAO (null on WebGPU — silently skipped)
+  if (setup.ssao) {
+    setup.ssao.totalStrength = L.ssaoEnabled ? L.ssaoStrength : 0;
+    setup.ssao.radius = L.ssaoRadius;
+  }
+}
+
 export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<BabylonEngineHandle> {
   console.log('[BabylonEngine] creating engine');
 
@@ -88,6 +149,7 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
   let sceneSetup: SceneSetupHandle | null = null;
   try {
     sceneSetup = await setupScene(scene, cameraRig.camera, { backend });
+    applyLightingToScene(scene, sceneSetup, useTwinStore.getState().lighting);
   } catch (err) {
     console.error('[BabylonEngine] setupScene failed:', err);
   }
@@ -136,6 +198,9 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
     }
     if (s.analysisMode !== prev.analysisMode && greenhouse) {
       greenhouse.showcasePlant.setSegmentationMode(s.analysisMode);
+    }
+    if (s.lighting !== prev.lighting && sceneSetup) {
+      applyLightingToScene(scene, sceneSetup, s.lighting);
     }
   });
 
@@ -294,29 +359,8 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
         labelHandleSet.setLabels(labels);
       }
 
-
-      // Drive sun + ambient by the day fraction (one sim-day = one sunlight cycle)
-      const sun = sceneSetup?.sun;
-      const hemi = sceneSetup?.hemi;
-      if (sun && hemi) {
-        const hour = dayToHour(state.currentDay);
-        const sunState = getSunState(hour);
-        sun.direction = new Vector3(-sunState.dir.x, -sunState.dir.y, -sunState.dir.z);
-        sun.position = new Vector3(
-          sunState.dir.x * 12,
-          sunState.dir.y * 12,
-          sunState.dir.z * 12
-        );
-        sun.intensity = 0.8 + sunState.intensity * 3.0;
-        sun.diffuse = new Color3(sunState.color.r, sunState.color.g, sunState.color.b);
-        // Hemisphere/ambient gets a warmer tint at low sun
-        hemi.intensity = 0.25 + sunState.intensity * 0.45;
-        hemi.diffuse = new Color3(
-          0.85 + sunState.color.r * 0.15,
-          0.82 + sunState.color.g * 0.18,
-          0.78 + sunState.color.b * 0.22
-        );
-      }
+      // Sun + ambient are driven by store.lighting (see applyLightingToScene
+      // in the subscribe handler) — they no longer follow currentDay here.
 
       lastDayUpdate = state.currentDay;
     }

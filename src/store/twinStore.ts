@@ -4,6 +4,148 @@ import { SCENARIO } from '../data/mockScenario';
 
 export type CompareMode = 'off' | 'yesterday' | '7days';
 
+export type ToneMappingMode = 'aces' | 'standard' | 'none';
+export type LightingPresetName = 'default' | 'golden' | 'overcast' | 'noon-bright' | 'grow-light';
+
+export interface LightingState {
+  // Time
+  manualHour: number;
+
+  // Sun
+  sunIntensity: number;
+  sunColorHex: string;
+
+  // Ambient
+  hemiIntensity: number;
+  hemiColorHex: string;
+  hemiGroundColorHex: string;
+  hdriIntensity: number;
+  ambientGray: number;
+
+  // Shadows
+  shadowsEnabled: boolean;
+  shadowDarkness: number;
+  shadowBias: number;
+  shadowNormalBias: number;
+
+  // Tone mapping
+  exposure: number;
+  contrast: number;
+  toneMapping: ToneMappingMode;
+
+  // Post-FX
+  bloomEnabled: boolean;
+  bloomThreshold: number;
+  bloomWeight: number;
+  vignetteEnabled: boolean;
+  vignetteWeight: number;
+  sharpenEnabled: boolean;
+  sharpenEdge: number;
+  ssaoEnabled: boolean;
+  ssaoStrength: number;
+  ssaoRadius: number;
+}
+
+// Defaults mirror SceneSetup.ts hardcoded values so toggling between
+// "default" preset and the boot state is a no-op.
+export const LIGHTING_DEFAULTS: LightingState = {
+  manualHour: 12,
+
+  sunIntensity: 3.2,
+  sunColorHex: '#fff6d8',
+
+  hemiIntensity: 0.55,
+  hemiColorHex: '#e8e4d8',
+  hemiGroundColorHex: '#3a3530',
+  hdriIntensity: 0.6,
+  ambientGray: 0.22,
+
+  shadowsEnabled: true,
+  shadowDarkness: 0,
+  shadowBias: 0.002,
+  shadowNormalBias: 0.02,
+
+  exposure: 1.0,
+  contrast: 1.1,
+  toneMapping: 'aces',
+
+  bloomEnabled: true,
+  bloomThreshold: 0.85,
+  bloomWeight: 0.3,
+  vignetteEnabled: true,
+  vignetteWeight: 1.6,
+  sharpenEnabled: true,
+  sharpenEdge: 0.2,
+  ssaoEnabled: true,
+  ssaoStrength: 1.1,
+  ssaoRadius: 0.6,
+};
+
+const LIGHTING_PRESETS: Record<LightingPresetName, Partial<LightingState>> = {
+  default: LIGHTING_DEFAULTS,
+  golden: {
+    manualHour: 17,
+    sunIntensity: 2.8,
+    sunColorHex: '#ffb87a',
+    hemiIntensity: 0.4,
+    hemiColorHex: '#ffd9a8',
+    hemiGroundColorHex: '#3a2a20',
+    hdriIntensity: 0.55,
+    exposure: 1.1,
+    contrast: 1.15,
+    bloomEnabled: true,
+    bloomThreshold: 0.7,
+    bloomWeight: 0.5,
+    vignetteEnabled: true,
+    vignetteWeight: 2.4,
+  },
+  overcast: {
+    manualHour: 12,
+    sunIntensity: 1.2,
+    sunColorHex: '#dde6ee',
+    hemiIntensity: 0.95,
+    hemiColorHex: '#dde6ee',
+    hemiGroundColorHex: '#3a3a3a',
+    hdriIntensity: 0.85,
+    exposure: 1.0,
+    contrast: 0.95,
+    bloomEnabled: false,
+    vignetteEnabled: true,
+    vignetteWeight: 0.8,
+  },
+  'noon-bright': {
+    manualHour: 12,
+    sunIntensity: 4.2,
+    sunColorHex: '#fffbe8',
+    hemiIntensity: 0.65,
+    hemiColorHex: '#eee8d8',
+    hemiGroundColorHex: '#3a3530',
+    hdriIntensity: 0.7,
+    exposure: 1.05,
+    contrast: 1.15,
+    bloomEnabled: true,
+    bloomThreshold: 0.88,
+    bloomWeight: 0.35,
+  },
+  'grow-light': {
+    manualHour: 22,
+    sunIntensity: 0.1,
+    sunColorHex: '#1a2030',
+    hemiIntensity: 1.4,
+    hemiColorHex: '#ff64b4',
+    hemiGroundColorHex: '#180920',
+    hdriIntensity: 0.05,
+    ambientGray: 0.05,
+    exposure: 1.1,
+    contrast: 1.3,
+    bloomEnabled: true,
+    bloomThreshold: 0.5,
+    bloomWeight: 0.7,
+    vignetteEnabled: true,
+    vignetteWeight: 2.6,
+  },
+};
+
 export interface InteractionPoint {
   position: [number, number, number];
   radius: number;
@@ -80,6 +222,14 @@ interface TwinState {
   // stage bands.
   consoleExpanded: boolean;
   toggleConsole: () => void;
+
+  // Lighting — every value above the "current scene's" hardcoded default
+  // is exposed for the 조명 sidebar tab. BabylonEngine.subscribe applies
+  // changes immediately on each frame's render setup.
+  lighting: LightingState;
+  setLighting: (patch: Partial<LightingState>) => void;
+  resetLighting: () => void;
+  applyLightingPreset: (name: LightingPresetName) => void;
 
   setDay: (day: number) => void;
   togglePlay: () => void;
@@ -166,6 +316,12 @@ export const useTwinStore = create<TwinState>((set) => ({
 
   consoleExpanded: false,
   toggleConsole: () => set((s) => ({ consoleExpanded: !s.consoleExpanded })),
+
+  lighting: { ...LIGHTING_DEFAULTS },
+  setLighting: (patch) => set((s) => ({ lighting: { ...s.lighting, ...patch } })),
+  resetLighting: () => set({ lighting: { ...LIGHTING_DEFAULTS } }),
+  applyLightingPreset: (name) =>
+    set({ lighting: { ...LIGHTING_DEFAULTS, ...LIGHTING_PRESETS[name] } }),
 
   setDay: (day) =>
     set({
