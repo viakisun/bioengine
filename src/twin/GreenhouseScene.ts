@@ -124,12 +124,37 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
   ground.material = groundMat;
   ground.receiveShadows = true;
 
-  // Multi-bed layout — five parallel hanging beds along Z.
-  // The center bed (Z=0) carries the simulation's 90 plants + heatmap;
-  // the four sister beds are visual-only (cocopeat-prepped, awaiting
-  // the next planting cycle), which matches the reference photos of
-  // empty K-smartfarm interiors.
-  const BED_Z_POSITIONS = [-6, -3, 0, 3, 6] as const;
+  // Multi-bed layout — 13 parallel hanging beds at the standard Korean
+  // smart-farm pitch (1.6m bed-to-bed). Bed depth 0.6m and aisle 1.0m
+  // are the typical 시방서 values (베드폭 0.45-0.7m, 통로 0.8-1.1m).
+  // Tube-rail gauge 0.55m fits comfortably inside the 1.0m aisle.
+  //
+  // The center bed (Z=0) is the simulation focus: heatmap + heavy-LOD
+  // showcase + scenario-driven health labels. The other 12 are visually
+  // identical but use 'normal' health (visual sister beds, same growth
+  // engine, unique seeds).
+  const BED_PITCH = 1.6;
+  const BED_COUNT = 13;
+  const BED_DEPTH = 0.6;
+  const BED_Z_POSITIONS: number[] = Array.from(
+    { length: BED_COUNT },
+    (_, i) => (i - (BED_COUNT - 1) / 2) * BED_PITCH,
+  );
+  // Aisles sit halfway between adjacent beds → BED_COUNT - 1 = 12 aisles.
+  const AISLE_Z_POSITIONS: number[] = Array.from(
+    { length: BED_COUNT - 1 },
+    (_, i) => (BED_Z_POSITIONS[i] + BED_Z_POSITIONS[i + 1]) / 2,
+  );
+
+  // ACTIVE_BED_INDICES — which beds actually carry tomato plants.
+  // The rest are visually present (bed box + cocopeat + stands +
+  // overhead wire) but kept empty, which matches the K-smartfarm "next
+  // planting cycle" look and keeps the procedural plant cost bounded.
+  //
+  // To turn this into a 13-bed full house (≈1,170 plants, heavy), set
+  //   const ACTIVE_BED_INDICES = BED_Z_POSITIONS.map((_, i) => i);
+  // To show only the central row, set [Math.floor(BED_COUNT / 2)].
+  const ACTIVE_BED_INDICES: number[] = [6, 7];  // center bed + one neighbor
 
   const bedMat = new PBRMaterial('bedMat', scene);
   bedMat.albedoColor = Color3.FromHexString('#c0c0b8');
@@ -139,7 +164,7 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
   for (const [bedIdx, bedZ] of BED_Z_POSITIONS.entries()) {
     const bed = MeshBuilder.CreateBox(
       `bed_${bedIdx}`,
-      { width: bedLen, height: 0.15, depth: 0.35 },
+      { width: bedLen, height: 0.15, depth: BED_DEPTH },
       scene
     );
     bed.position = new Vector3(0, SCENARIO.bedY - 0.075, bedZ);
@@ -338,19 +363,23 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
     }
   }
 
-  // Vertical training strings per plant (white twine) — one string
-  // per plant slot per bed.
+  // Vertical training strings per plant (white twine) — only on the
+  // beds that actually carry plants. Empty beds get the overhead wire
+  // (permanent infrastructure) but no per-plant strings (those are
+  // tied when plants are placed). Merged per bed for one draw call.
   const stringMat = new PBRMaterial('stringMat', scene);
   stringMat.albedoColor = Color3.FromHexString('#e0d8c8');
   stringMat.metallic = 0;
   stringMat.roughness = 0.9;
 
-  for (const [bedIdx, bedZ] of BED_Z_POSITIONS.entries()) {
+  for (const bedIdx of ACTIVE_BED_INDICES) {
+    const bedZ = BED_Z_POSITIONS[bedIdx];
+    const stringMeshes: Mesh[] = [];
     for (const plant of SCENARIO.plants) {
       for (const stringOffset of [-0.15, 0.15]) {
         const str = MeshBuilder.CreateCylinder(
-          `string_b${bedIdx}_${plant.id}_${stringOffset}`,
-          { height: wireY - SUBSTRATE_TOP_Y, diameter: 0.002 },
+          `tmpString_${bedIdx}_${plant.id}_${stringOffset}`,
+          { height: wireY - SUBSTRATE_TOP_Y, diameter: 0.002, tessellation: 6 },
           scene
         );
         str.position = new Vector3(
@@ -358,8 +387,13 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
           (wireY + SUBSTRATE_TOP_Y) / 2,
           bedZ + stringOffset,
         );
-        str.material = stringMat;
+        stringMeshes.push(str);
       }
+    }
+    const merged = Mesh.MergeMeshes(stringMeshes, true, true, undefined, false, true);
+    if (merged) {
+      merged.name = `strings_bed${bedIdx}`;
+      merged.material = stringMat;
     }
   }
 
@@ -391,10 +425,10 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
     return SHOWCASE_SEED + 1 + bedIdx * PLANT_BLOCK + slot;
   };
 
-  // Register every plant across all five beds with the growth engine.
-  // No hardcoded shape data — engine.getGenome(seed) yields a fresh
-  // genome per seed (height curve, fruit ploidy, leaf turn etc.).
-  for (let bedIdx = 0; bedIdx < BED_Z_POSITIONS.length; bedIdx++) {
+  // Register plants in the growth engine only for ACTIVE_BED_INDICES.
+  // The empty beds still own the visual infrastructure (bed/cocopeat/
+  // stands/wires) but don't pay the procedural plant cost.
+  for (const bedIdx of ACTIVE_BED_INDICES) {
     for (let slot = 0; slot < PLANT_BLOCK; slot++) {
       growthEngine.addPlant({ seed: plantSeedFor(bedIdx, slot) });
     }
@@ -419,15 +453,15 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
       centerZ: bedZ,
       lengthM: bedLen,
       bedTopY: SCENARIO.bedY,
+      bedDepthM: BED_DEPTH,
       material: frameMat,
       instanceTag: `bed${bedIdx}`,
     });
   }
 
   // Tube rails — pair of pipes laid in each aisle for the robot/cart
-  // to roll on. Gauge 55cm per K-smartfarm spec; hairpin loops cap
-  // both X ends.
-  const AISLE_Z_POSITIONS = [-4.5, -1.5, 1.5, 4.5] as const;
+  // to roll on. Gauge 55cm + 48.3mm diameter per K-smartfarm spec;
+  // hairpin loops cap both X ends.
   for (const [aisleIdx, aisleZ] of AISLE_Z_POSITIONS.entries()) {
     createTubeRail(scene, {
       centerZ: aisleZ,
@@ -468,9 +502,9 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
   // health (visual-only).
   const supportingPlantSlotIds: number[] = [];
   let supportIdx = 0;
-  const totalSupports = BED_Z_POSITIONS.length * PLANT_BLOCK - 1; // minus showcase slot
+  const totalSupports = ACTIVE_BED_INDICES.length * PLANT_BLOCK - 1; // minus showcase slot
 
-  for (let bedIdx = 0; bedIdx < BED_Z_POSITIONS.length; bedIdx++) {
+  for (const bedIdx of ACTIVE_BED_INDICES) {
     const bedZ = BED_Z_POSITIONS[bedIdx];
     const isMainBed = bedIdx === MAIN_BED_IDX;
     for (let slot = 0; slot < PLANT_BLOCK; slot++) {
