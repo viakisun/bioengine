@@ -7,6 +7,20 @@
  * Reference: _ref/Sim UI v2 _standalone_.html — adapted to our use.
  */
 
+/* ===== Layout utilities — flex rows/cols with token gaps ===== */
+.row { display: flex; align-items: center; }
+.row.gap-xs { gap: var(--gap-xs); }
+.row.gap-sm { gap: var(--gap-sm); }
+.row.gap-md { gap: var(--gap-md); }
+.row.gap-lg { gap: var(--gap-lg); }
+.row.gap-xl { gap: var(--gap-xl); }
+.col { display: flex; flex-direction: column; }
+.col.gap-xs { gap: var(--gap-xs); }
+.col.gap-sm { gap: var(--gap-sm); }
+.col.gap-md { gap: var(--gap-md); }
+.col.gap-lg { gap: var(--gap-lg); }
+.col.gap-xl { gap: var(--gap-xl); }
+
 /* ===== Panel — glass card ===== */
 .panel {
   background: var(--bg-panel);
