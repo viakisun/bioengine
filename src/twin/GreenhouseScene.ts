@@ -280,6 +280,10 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
   // We approximate the gable + rectangular wall as a single plane covering
   // the full ridge height; the polycarb is translucent so the visual
   // difference vs a precise gable cutout is minimal.
+  //
+  // Rotation: default plane lies in XY (normal +Z). Rotating around Y by
+  // ±π/2 puts it in the YZ plane (normal ±X). "Width" then runs along Z,
+  // matching halfWidth*2; "height" stays along Y, matching ridgeY.
   for (const xSign of [-1, 1]) {
     const endWall = MeshBuilder.CreatePlane(
       `endwall_${xSign}`,
@@ -287,7 +291,7 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
       scene
     );
     endWall.position = new Vector3(xSign * halfLen, ridgeY / 2, 0);
-    endWall.rotation.y = xSign > 0 ? Math.PI : 0;
+    endWall.rotation.y = xSign > 0 ? -Math.PI / 2 : Math.PI / 2;
     endWall.material = roofMat;
   }
 
