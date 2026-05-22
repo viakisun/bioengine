@@ -239,16 +239,37 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
     eave.material = frameMat;
   }
 
-  // Roof panels (translucent polycarbonate)
+  // Roof + wall polycarbonate.
+  //
+  // Two non-obvious settings, both load-bearing for visual correctness:
+  //
+  //  1. needDepthPrePass = true
+  //     Without it, the alpha-blended polycarb is drawn *after* opaque
+  //     geometry but doesn't depth-test cleanly against leaf chunks
+  //     that use alpha-test. The wall behind the bed then bleeds a
+  //     milky tint across the leaves in front of it (classic
+  //     transparent-over-alpha-tested ordering bug). Forcing a
+  //     depth-only pre-pass fixes that — the polycarb still blends
+  //     correctly where it's actually closer than the plants.
+  //
+  //  2. environmentIntensity kept low (0.5).
+  //     The HDRI reflection on a near-transparent surface was
+  //     producing a strong white sheen that read as "fog over the
+  //     plants" in the viewer's image. 0.5 keeps a hint of sky tint
+  //     but stops the milkiness.
+  //
+  // Alpha also lowered (0.18 → 0.08) so the polycarb reads as truly
+  // glassy — real horticultural polycarbonate is closer to this.
   const roofMat = new PBRMaterial('roofMat', scene);
   roofMat.albedoColor = Color3.FromHexString('#dfe8e0');
-  roofMat.alpha = 0.18;
+  roofMat.alpha = 0.08;
   roofMat.metallic = 0.0;
   roofMat.roughness = 0.12;
   roofMat.indexOfRefraction = 1.49;
   roofMat.backFaceCulling = false;
   roofMat.transparencyMode = PBRMaterial.MATERIAL_ALPHABLEND;
-  roofMat.environmentIntensity = 1.2;
+  roofMat.environmentIntensity = 0.5;
+  roofMat.needDepthPrePass = true;
 
   const slopeLen = Math.sqrt(halfWidth * halfWidth + (ridgeY - eaveY) * (ridgeY - eaveY));
   for (const side of [-1, 1]) {
