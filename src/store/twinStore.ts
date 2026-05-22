@@ -362,17 +362,18 @@ export const useTwinStore = create<TwinState>((set) => ({
   consoleExpanded: false,
   toggleConsole: () => set((s) => ({ consoleExpanded: !s.consoleExpanded })),
 
-  lighting: { ...LIGHTING_DEFAULTS, ...QUALITY_PRESETS[10].lightingPatch },
+  lighting: { ...LIGHTING_DEFAULTS, ...QUALITY_PRESETS[9].lightingPatch },
   setLighting: (patch) => set((s) => ({ lighting: { ...s.lighting, ...patch } })),
   resetLighting: () => set({ lighting: { ...LIGHTING_DEFAULTS } }),
   applyLightingPreset: (name) =>
     set({ lighting: { ...LIGHTING_DEFAULTS, ...LIGHTING_PRESETS[name] } }),
 
-  // Render quality — default level 10 (Showpiece). The boot path in
-  // BabylonEngine reads this once on init; the subscribe handler picks
-  // up live changes.
-  renderQuality: 10,
-  renderFX: { ...QUALITY_PRESETS[10].fx },
+  // Render quality — default Lv 9 (Extreme). Lv 10 (Showpiece) is
+  // intentionally heavier than most laptops can sustain; the user can
+  // bump up via the slider when verifying on a beefier box. Lv 9 still
+  // ships TAA + SSR + DOF + God Rays + Lens Flare + Glow + 720 plants.
+  renderQuality: 9,
+  renderFX: { ...QUALITY_PRESETS[9].fx },
   setRenderQuality: (level) => {
     const lv = Math.max(1, Math.min(10, Math.round(level)));
     const preset = QUALITY_PRESETS[lv];
