@@ -1,0 +1,15 @@
+{
+  "name": "@farmsim/tomato-geometry",
+  "version": "0.1.0",
+  "description": "Engine-agnostic procedural geometry for tomato plant parts (leaf chunks, leaf textures, stem path, cotyledon). Outputs raw vertex arrays — wrap with Babylon/Three/Filament/etc.",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "tsc": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@farmsim/tomato-engine": "*"
+  }
+}

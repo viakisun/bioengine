@@ -1,303 +1,234 @@
-# 개발 가이드 — 향후 과제 & 엔진 전환 방법론
+# 개발 가이드 — 스마트온실 디지털 트윈
+
+대상: 이 코드베이스에 새로 합류하는 개발자.
+
+브랜치: `feature/babylon-twin` (Babylon.js 9 + React 19 + Vite).
 
 ---
 
-## 1. 현재 상태 요약
+## 0. 빠른 시작
 
-### 완료된 항목
-- [x] Apex-driven 생장 모델 (절간 독립 신장)
-- [x] 62개 유전 파라미터 기반 개체 변이
-- [x] 구조역학 물리 모델 (질량 기반 줄기 굽힘)
-- [x] 복엽 잎 절차적 생성 (소엽 5-9개, 톱니, 잎맥 텍스처)
-- [x] 6단계 과실 숙성 모델
-- [x] 네덜란드식 온실 인프라 (거터, 코코배지, 튜브레일, 유인줄)
-- [x] PBR 조명 (IBL + 태양광 + ACES 톤매핑 + Bloom)
-- [x] LOD 3단계 시스템
-- [x] 과실 클릭 수확 인터랙션
-- [x] 120일 타임라인 재생/스크러빙
+```bash
+git checkout feature/babylon-twin
+npm install
+npm run dev
+open http://localhost:8090/
+```
 
-### 미완료 항목
-- [ ] InstancedMesh 최적화 (현재 10주 제한)
-- [ ] SSAO 포스트프로세싱 (성능 문제로 비활성)
-- [ ] 줄기 낙하 유인 (하강재배 시뮬레이션)
-- [ ] 엽면적 지수(LAI) 기반 캐노피 광 차단
-- [ ] 로봇 시점 카메라 (고정 위치에서의 뎁스맵)
-- [ ] 과실 오클루전 분석 (잎에 가려진 과실 비율)
-- [ ] 환경 센서 데이터 연동 (온도, 습도, CO₂)
-- [ ] 다중 Row 온실 (현재 단일 Row)
-- [ ] 곁순 제거, 적심 등 추가 재배 관리 시뮬레이션
+`/legacy.html` 로 가면 이전 Three.js 진입점도 동시에 확인 가능.
+
+요구 사항:
+- Node 20+ (Vite 8 호환)
+- macOS / Linux. Windows 미테스트.
+- 권장: Chrome 119+ (WebGPU). Safari/Firefox 는 WebGL2 fallback.
 
 ---
 
-## 2. 남은 핵심 과제
+## 1. 폴더 구조 (모노레포)
 
-### 2.1 성능 최적화 (최우선)
+```
+packages/
+  tomato-engine/           ── zero deps (Node/worker/browser OK)
+    src/
+      GrowthEngine.ts          ── public façade (env, addPlant, computeState)
+      GrowthModel.ts           ── apex-driven 생장 (340+ 줄)
+      PhysicsModel.ts          ── pipe-model 줄기 + 캔틸레버 화방
+      PlantGenome.ts           ── 30+ 게놈 파라미터
+      SunPosition.ts           ── 35°N 태양 위치
+      SeededRandom.ts          ── deterministic RNG
+      LeafStage.ts             ── getLeafStage helper (smooth blendT)
+      index.ts                 ── barrel exports
 
-**문제:** 10주에서도 3,500개 개별 메시 → draw call 병목
-**목표:** 86주 이상에서 30fps
+  tomato-geometry/         ── zero Babylon/Three (peer: tomato-engine)
+    src/
+      types.ts                 ── GeoChunk + Mat4 + cylinder + merge
+      leafChunk.ts             ── buildLeafChunk (stage-aware)
+      leafTexture.ts           ── buildLeafColorBytes (+ diseaseLoad overlay)
+                                  + buildLeafNormalBytes
+      cotyledonChunk.ts        ── buildCotyledonChunk (떡잎)
+      stemPath.ts              ── catmullRomPath
+      index.ts                 ── barrel exports
 
-#### 방법 A: InstancedMesh (추천)
+src/                        ── apps/farmsim (Babylon + React)
+  main.tsx                   ── React entry (DEV: window.__twinStore exposed)
+  App.tsx                    ── 전체 레이아웃
+  components/                ── React UI 컴포넌트
+    AnalysisPanel / Timeline / Minimap / CameraPresets /
+    EventList / LabelOverlay / CaptureThumbs / PointCloudPreview
+  store/twinStore.ts         ── zustand 단일 store
+  data/mockScenario.ts       ── Mock 시나리오 (30 plants × 120 days)
+  twin/                      ── Babylon 씬 레이어
+    BabylonEngine.ts             ── 엔진 부팅 + 렌더 루프 + store 구독
+    SceneSetup.ts                ── 라이트/IBL/sky/포스트프로세싱
+    CameraRig.ts                 ── ArcRotateCamera + 4 프리셋
+    GreenhouseScene.ts           ── 씬 빌더 + GrowthEngine 인스턴스 + 30 식물 등록
+    ShowcasePlant.ts             ── 가운데 풀 detail 식물 (engine-driven)
+    SupportingPlant.ts           ── 29 식물 Light LOD (engine-driven, stagger rebuild)
+    GroundTexture.ts             ── 절차적 콘크리트 RawTexture
+    Robot.ts                     ── AGV + 6DOF cobot
+    Heatmap.ts / PathTrail.ts / UwbAnchors.ts / ZonePicker.ts
+  plant/                     ── Babylon mesh wrappers (생성기 알고리즘은 패키지에)
+    LeafGenerator.ts             ── createLeafMeshFromNode + leaf/yellow/diseased materials
+    LeafTexture.ts               ── RawTexture wrapper (buildLeafColorBytes 호출)
+    StemGenerator.ts             ── createStemMesh (Frenet curve, woodiness vertex color)
+    FruitGenerator.ts            ── createFruitNode + per-stage clearcoat
+    TrussGenerator.ts            ── createTrussNode + 5-stage flower (bud→petalFall→ovary)
 
-```typescript
-// 동일 geometry를 하나의 InstancedMesh로 통합
-// 각 인스턴스는 transform matrix만 다름
-const leafGeo = createLeafGeometry(params);
-const leafInstanced = new THREE.InstancedMesh(leafGeo, leafMaterial, maxLeaves);
-for (let i = 0; i < leafCount; i++) {
-  const matrix = new THREE.Matrix4();
-  matrix.compose(position, quaternion, scale);
-  leafInstanced.setMatrixAt(i, matrix);
+public/
+  favicon.svg
+  hdri/environment.env       ── Babylon CC0 IBL (~270KB)
+docs/
+  stage-by-stage.md          ── 부위별 단계별 알고리즘 가이드
+  architecture.md
+  development-guide.md       ── 이 파일
+```
+
+---
+
+## 2. 일반 워크플로
+
+### 2.1 빌드 / 타입체크 / 미리보기
+
+```bash
+npm install           # workspaces 자동 link
+npm run dev           # Vite dev server (port 8090, HMR)
+npm run build         # tsc --noEmit + vite build → dist/
+npm run preview       # production build 미리보기
+npx tsc --noEmit      # apps 타입체크
+npm run tsc:engine    # packages/tomato-engine 단독 타입체크
+npm run tsc:geometry  # packages/tomato-geometry 단독 타입체크
+```
+
+패키지 별 단독 빌드를 검증하는 이유: `tomato-engine` 이 우연히 Babylon 을 import 해도 apps 의 tsc 에선 통과해버림. 단독 검증으로 zero-deps 원칙 보장.
+
+### 2.2 식물 생장 로직 수정
+
+`src/simulation/GrowthModel.ts` 또는 `PhysicsModel.ts` 만 건드리면 됨. PlantState 인터페이스 변경 시:
+1. `GrowthModel.ts` 의 `NodeState` / `PlantState` 타입 업데이트
+2. `LeafGenerator.createLeafMeshFromNode` / `StemGenerator.createStemMesh` 가 새 필드 사용하도록 수정
+3. `ShowcasePlant.buildFromState` 가 새 필드 활용
+
+게놈 파라미터 추가:
+1. `PlantGenome.ts` 의 `PlantGenome` 인터페이스 + `generateGenome` 에 기본값 추가
+2. 사용 위치 (GrowthModel, PhysicsModel) 에서 default-fallback 처리
+
+### 2.3 환경 변수 (온도/조도 등) 슬라이더 추가
+
+`GrowthEngine.setEnvironment({ ... })` 가 6개 변수 받음. UI 슬라이더 추가 절차:
+1. `twinStore` 에 새 필드 + setter
+2. `BabylonEngine.subscribe` 에서 변화 시 `greenhouse.growthEngine.setEnvironment({...})` 호출
+3. ShowcasePlant 이 다음 day-scrub 에서 자동으로 새 환경 반영 (computeState 가 환경 적용)
+
+### 2.4 새 React 컴포넌트 추가
+
+- `components/` 폴더에 새 파일
+- store 구독: `const x = useTwinStore((s) => s.x)`
+- 3D world 좌표 라벨 필요시: `LabelOverlay` 에 `setLabels` 호출 (BabylonEngine 렌더 루프가 매 frame project)
+
+### 2.5 mesh dispose 주의
+
+씬에서 mesh를 동적 생성/제거할 때 (예: ShowcasePlant), TransformNode.dispose() 는 **기본적으로 자식 mesh를 dispose 하지 않음**. 반드시 다음 패턴 사용:
+
+```ts
+for (const child of node.getChildMeshes(false)) {
+  child.dispose(false, true);   // disposeMaterialAndTextures = true
 }
+node.dispose(false, true);
 ```
 
-- 장점: 1회 draw call로 수천 개 잎 렌더링
-- 단점: 잎 크기/형태가 모두 다르면 geometry를 몇 종류로 그룹핑 필요
-- 예상 효과: draw call 2,900 → ~100
+`ShowcasePlant.disposeAll()` 이 좋은 참조.
 
-#### 방법 B: BufferGeometry Merge (차선)
+---
 
-```typescript
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-// 식물 1그루의 모든 geometry를 하나로 병합
-const merged = mergeGeometries(allGeos);
-const plantMesh = new THREE.Mesh(merged, sharedMaterial);
+## 3. WebGPU vs WebGL2 호환성 메모
+
+| 기능 | WebGPU | WebGL2 |
+|------|--------|--------|
+| SSAO2RenderingPipeline | ❌ Babylon 9.x PrePassRenderer 비호환 | ✅ 활성 (코드에서 자동 분기) |
+| DynamicTexture + PBRMaterial | ❌ silent fail (mesh 안 보임) | ✅ |
+| RawTexture (Uint8Array) | ✅ | ✅ |
+| HighlightLayer | ✅ | ✅ |
+| GradientMaterial (sky) | ✅ | ✅ |
+| `SkyMaterial` (Hosek-Wilkie) | ❌ silent fail | ✅ |
+| HDRCubeTexture (.env prefiltered) | ✅ | ✅ |
+| CascadedShadowGenerator | ⚠️ 일부 device 불안정 (현재 기본 ShadowGenerator 사용) | ✅ |
+
+**일반 원칙**: WebGPU 우선 시도, side-effect import 누락 시 silent fail 가능. 의심 시 `await tryWebGPU` 를 `null` 반환하게 강제하고 WebGL2 결과와 비교.
+
+---
+
+## 4. 검증 (Playwright)
+
+`verify-farmsim.mjs` (gitignored). 처음 사용 시:
+
+```bash
+npm install --no-save playwright@1.60.0
+# (기존 시스템 Chrome 사용, 별도 chromium 다운로드 없음)
+node verify-farmsim.mjs
 ```
 
-- 장점: 구현 간단, 식물당 1-2 draw call
-- 단점: 동적 업데이트 불가 (잎 제거 시 전체 재생성)
+출력:
+- 콘솔 에러 / 페이지 에러 / HTTP 4xx-5xx 목록
+- HUD 텍스트 (fps · backend)
+- 스크린샷 `/tmp/farmsim-verify.png` + 변화 상태별 추가
+- 60초 재생 후 heap delta (목표 < +100MB)
+- 오프라인 reload 테스트 (production build 권장)
 
-### 2.2 로봇 비전 시뮬레이션
+기본 스크린샷 사이즈: 1920×1200. viewport 조정 시 `verify-farmsim.mjs` 의 `newPage({ viewport: ... })` 수정.
 
-**목적:** 수확 로봇의 카메라가 보는 것과 유사한 영상 생성
+---
 
-필요한 기능:
-1. **고정 시점 카메라** — 로봇 팔 위치에서의 뷰
-2. **Depth map 출력** — 과실까지 거리 정보
-3. **Segmentation map** — 잎/줄기/과실/배경 구분 (색상 코딩)
-4. **Occlusion 분석** — 각 과실의 가시 비율 (%)
-5. **Bounding box 출력** — 2D/3D bbox (학습 데이터 생성)
+## 5. 자주 마주칠 이슈
 
-#### 구현 방향
+### 5.1 dev server 안 뜨거나 404 폭주
+- Vite optimize cache stale: `rm -rf node_modules/.vite && npm run dev`
+- 8090 포트 점유: `lsof -ti:8090 | xargs kill -9`
 
-```typescript
-// 1. 별도 렌더 타겟에 세그멘테이션 렌더
-const segTarget = new THREE.WebGLRenderTarget(w, h);
-scene.traverse(obj => {
-  if (obj.userData.type === 'leaf') obj.material = segMaterials.leaf;
-  if (obj.userData.type === 'fruit') obj.material = segMaterials.fruit;
-});
-renderer.setRenderTarget(segTarget);
-renderer.render(scene, robotCamera);
+### 5.2 잎이 안 보임 (검정 / 사라짐)
+- DynamicTexture 사용 가능성 → `RawTexture` 로 교체 (`LeafTexture.ts` 참조)
+- 카메라 시야 밖 → `cameraRig.setPreset('overview')` 로 확인
 
-// 2. Depth는 WebGLRenderer.readRenderTargetPixels로 추출
+### 5.3 setupScene 실패
+- side-effect import 누락 → `SceneSetup.ts` 상단 `@babylonjs/core/PostProcesses/...` import 확인
+
+### 5.4 메모리 증가
+- ShowcasePlant 같은 동적 mesh 재생성에서 `disposeAll` 의 자식 재귀 dispose 확인 (위 2.5 참조)
+
+### 5.5 분석 모드 토글했는데 outline 안 보임
+- ShowcasePlant 의 leaf/fruit/stem mesh 가 `currentParts` 에 추가됐는지 확인
+- 분석 모드 토글 후 `applySegmentationHighlights()` 가 호출되는지 (mesh 재빌드 시 자동)
+
+---
+
+## 6. CI / 배포
+
+현재 CI 없음. 수동 배포:
+
+```bash
+npm run build         # dist/ 생성
+# dist/ 를 정적 호스팅 (Vercel/Netlify/S3 모두 동작)
+# /hdri/environment.env 가 함께 배포되어야 IBL 로딩
 ```
 
-### 2.3 하강재배 (Lowering) 시뮬레이션
+배포 전 production build 검증:
 
-실제 네덜란드식 토마토 재배에서는 줄기가 유인줄을 따라 위로 자라다가, 와이어 높이(3.5m)에 도달하면 줄기를 아래로 내리면서(lowering) 수평으로 이동시킴.
-
-```
-현재: 줄기가 일직선으로 위로만 성장
-목표: wireHeight 도달 후 줄기가 수평으로 이동하며 늘어지는 형태
-
-구현:
-  - wireHeight 이후 노드는 수평 방향(Row 방향)으로 이동
-  - 줄기 경로가 L자 형태
-  - StemGenerator가 이 경로를 따라 Catmull-Rom 스플라인 생성
+```bash
+npm run build
+npm run preview       # dist/ 를 4173 포트로 서빙
+node verify-farmsim.mjs   # URL 만 preview 포트로 변경
 ```
 
 ---
 
-## 3. 엔진 전환 가이드
+## 7. 향후 작업 (Out-of-Scope, future)
 
-### 3.1 현재 아키텍처의 이식성
-
-```
-┌─────────────────────────────────────┐
-│  이식 가능 (엔진 무관)               │
-│                                      │
-│  PlantGenome.ts     — 순수 TS       │
-│  GrowthModel.ts     — 순수 TS       │
-│  PhysicsModel.ts    — 순수 TS       │
-│  GrowthEngine.ts    — 순수 TS       │
-│  SeededRandom.ts    — 순수 TS       │
-│  SunPosition.ts     — Three.Vector3 │
-│                       만 교체 필요   │
-└─────────────────────────────────────┘
-
-┌─────────────────────────────────────┐
-│  재구현 필요 (엔진 종속)             │
-│                                      │
-│  Engine.ts           → 렌더러 교체   │
-│  PlantGenerator.ts   → 메시 생성     │
-│  StemGenerator.ts    → 메시 생성     │
-│  LeafGenerator.ts    → 메시 생성     │
-│  FruitGenerator.ts   → 메시 생성     │
-│  TrussGenerator.ts   → 메시 생성     │
-│  LeafTexture.ts      → 텍스처 생성   │
-│  Greenhouse.ts       → 환경 모델링   │
-│  HangingBed.ts       → 환경 모델링   │
-│  Lighting.ts         → 조명 시스템   │
-│  GrowthController.ts → 업데이트 루프 │
-└─────────────────────────────────────┘
-```
-
-### 3.2 Unreal Engine 전환 (추천)
-
-**추천 이유:**
-1. **Nanite** — 수백만 폴리곤 자동 LOD, draw call 문제 근본 해결
-2. **Lumen** — 실시간 글로벌 일루미네이션 (SSAO 불필요)
-3. **Virtual Shadow Maps** — 수천 개 오브젝트에도 고품질 그림자
-4. **Niagara** — 잎 떨림, 물방울 등 파티클 이펙트
-5. **물리 엔진 내장** — 줄기/잎 물리를 Chaos Physics로 대체 가능
-6. **Blueprint + C++** — 비프로그래머도 파라미터 조정 가능
-
-#### 전환 전략
-
-```
-Phase 1: Simulation Core 이식 (1-2주)
-  - PlantGenome, GrowthModel, PhysicsModel을 C++ 클래스로 변환
-  - PlantState 구조체 정의
-  - SeededRandom → FRandomStream (UE 내장)
-  - SunPosition → UE의 SunSky actor로 대체
-
-Phase 2: Procedural Mesh 생성 (2-3주)
-  - UProceduralMeshComponent 사용
-  - StemGenerator → Spline Mesh Component
-  - LeafGenerator → Procedural Mesh (또는 Foliage System)
-  - FruitGenerator → Static Mesh + Material Instance Dynamic
-
-Phase 3: 환경 구축 (1주)
-  - 온실 골조: Static Mesh (Blender에서 모델링 권장)
-  - 거터/튜브레일: Spline Mesh
-  - 폴리카보네이트: Translucent Material
-  - 조명: Directional Light + Sky Light (Lumen)
-
-Phase 4: 로봇 시뮬레이션 (2-3주)
-  - SceneCapture2D → RGB + Depth + Segmentation 동시 출력
-  - Custom Stencil → 오브젝트 세그멘테이션
-  - Unreal에서 직접 학습 데이터 export
-```
-
-#### UE5 핵심 이점 비교
-
-| 기능 | Three.js (현재) | Unreal Engine 5 |
-|------|----------------|-----------------|
-| Draw call 제한 | ~3,000에서 1fps | Nanite: 수백만 폴리곤 OK |
-| 그림자 | 1024 shadow map, 좁은 범위 | Virtual Shadow Map: 무한 범위 |
-| AO | GTAO 비활성 (성능) | Lumen: 실시간 GI+AO |
-| 투명 재질 | transmission 사용 불가 (16× 비용) | Translucent: 정상 비용 |
-| 로봇 카메라 | 별도 구현 필요 | SceneCapture + Depth 내장 |
-| 물리 | 자체 간단 모델 | Chaos Physics 통합 |
-
-### 3.3 Unity 전환 (대안)
-
-**장점:**
-- C# (TypeScript 경험자에게 친숙)
-- ML-Agents (로봇 학습 시뮬레이션 통합)
-- HDRP (High Definition Render Pipeline)의 SSAO, Bloom 품질
-- WebGL 빌드 지원 (웹 배포 유지 가능)
-
-**단점 (Unreal 대비):**
-- Nanite 없음 — SRP Batcher + GPU Instancing 수동 설정 필요
-- GI 품질 낮음 (Lumen 대비)
-- 식물 메시 최적화를 직접 해야 함
-
-#### 전환 시 참고
-
-```
-PlantGenome.ts  → PlantGenome.cs (ScriptableObject)
-GrowthModel.ts  → GrowthModel.cs (MonoBehaviour 아님, 순수 C# 클래스)
-PhysicsModel.ts → PhysicsModel.cs
-PlantState      → struct PlantState (value type 권장)
-
-메시 생성:
-  Mesh mesh = new Mesh();
-  mesh.vertices = ...;
-  mesh.triangles = ...;
-  // 또는 ProBuilder API 사용
-```
-
-### 3.4 전환하지 않고 Three.js 유지 시
-
-**InstancedMesh + geometry 캐싱**으로 86주 30fps 달성 가능 (추정).
-다만 아래 기능은 Three.js에서 한계:
-
-| 기능 | Three.js 한계 |
-|------|--------------|
-| 글로벌 일루미네이션 | 없음 (IBL로 근사) |
-| 실시간 AO | GTAO 성능 비용 높음 |
-| Subsurface scattering | 잎 투과광 표현 불가 |
-| Depth of Field | 가능하나 추가 패스 |
-| 물리 시뮬레이션 | 없음 (자체 구현) |
-| 대규모 씬 | draw call 수동 관리 |
-
----
-
-## 4. 코드 컨벤션 & 개발 가이드
-
-### 4.1 파일 구조 규칙
-
-- `simulation/` — Three.js import 금지 (SunPosition.ts의 Vector3 제외)
-- `generators/` — PlantState를 입력받아 THREE.Group을 반환
-- `environment/` — 정적 환경 오브젝트 생성
-- `core/` — 렌더러, 카메라, 제어 기반 인프라
-
-### 4.2 새로운 식물 기관 추가 방법
-
-```
-1. PlantGenome.ts에 유전 파라미터 추가
-   예: rootLength, rootBranchCount
-
-2. GrowthModel.ts의 computePlantState()에 상태 계산 추가
-   예: NodeState에 rootState 필드 추가
-
-3. generators/에 새 생성기 추가
-   예: RootGenerator.ts → function generateRoot(state): THREE.Group
-
-4. PlantGenerator.ts에서 조립
-   예: group.add(generateRoot(node.rootState))
-```
-
-### 4.3 유전 파라미터 조정 팁
-
-```typescript
-// PlantGenome.ts의 generateGenome()에서 범위 조정
-// 예: 더 큰 잎을 원하면
-leafSizeMultiplier: 1.0 + rng.gaussian(0, 0.15),
-// → 범위를 넓히면 개체 변이 증가
-leafSizeMultiplier: 1.0 + rng.gaussian(0, 0.3),
-```
-
-### 4.4 디버깅
-
-```typescript
-// main.ts에서 window.__engine으로 런타임 접근 가능
-const engine = window.__engine;
-engine.renderer.info  // draw call, triangle count
-engine.scene.traverse(obj => { ... })  // 씬 탐색
-```
-
----
-
-## 5. 참고 자료
-
-### 토마토 생육 모델
-- De Koning, A.N.M. (1994) — *Development and dry matter distribution in glasshouse tomato*
-- Heuvelink, E. (2005) — *Tomatoes (Crop Production Science in Horticulture)*
-- Jones et al. (1991) — *TOMGRO: A dynamic tomato growth model*
-
-### 네덜란드식 온실 재배
-- Priva 온실 자동화 시스템
-- HortiDaily (hortiDailey.com) — 온실 재배 기술 뉴스
-- 네덜란드 Wageningen University — 온실 연구
-
-### Three.js 최적화
-- Three.js InstancedMesh 문서
-- BufferGeometryUtils.mergeGeometries
-- GTAOPass / SSAOPass 파라미터 가이드
-
-### 수확 로봇 비전
-- Agrobot (딸기 수확 로봇)
-- AppHarvest / Root AI (토마토 수확)
-- Sweeper Project (EU, 고추 수확 로봇)
+| 작업 | 시점 / 트리거 |
+|------|-------------|
+| ThinInstance 인스턴싱 (지지 식물 29 그루) | 식물 ≥ 100 그루 또는 fps < 60 시 |
+| 빌보드 impostor + 사전 렌더 atlas | 다중 베드 (≥ 3 베드) 시 |
+| 온실/로봇 GLB 자산 교체 | 디자이너가 Blender/Sketchfab 모델 제공 시 |
+| 실제 백엔드 연동 (WebSocket/MQTT) | 시제품 → 본 제품 단계 |
+| Unreal Pixel Streaming 전시 데모 | 별도 일정/예산 |
+| 모바일/태블릿 반응형 | 운영 화면 안정화 후 |
+| 시각 회귀 자동 테스트 | CI 구축과 함께 |
+| 환경 변수 UI 슬라이더 | 디버그/시연 모드 필요 시 |

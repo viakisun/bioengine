@@ -1,7 +1,21 @@
-# FarmSim 3D — 스마트팜 토마토 생육 시뮬레이터
+# 스마트온실 디지털 트윈 — VIASOFT.AI
 
-네덜란드식 행잉거터 온실 환경에서 토마토(Solanum lycopersicum)의 120일 생육 과정을 3D로 시뮬레이션하는 WebGL 애플리케이션.
-수확 로봇 비전 시뮬레이션 및 스마트팜 교육 목적으로 설계됨.
+토마토 행잉베드 온실의 운영을 위한 웹 기반 디지털 트윈. Babylon.js 9 + React 19 + Vite + WebGPU.
+
+> **모노레포 구조** — `packages/tomato-engine` (생육 알고리즘, 엔진 무관) + `packages/tomato-geometry` (식물 메시 generator, 엔진 무관) + `apps/farmsim` (Babylon + React 운영 화면). 두 패키지는 다른 프로젝트 / Node CLI / worker 에서 그대로 import 가능.
+
+레퍼런스 환경: **김제 스마트팜혁신밸리** (UWB 위치측위 시험, `_ref/smartfarm.mp4` frame_07).
+
+```
+운영 화면 (좌측 3D 씬 / 우측 분석 패널 / 하단 타임라인 / 상단 UWB 평면도)
+   ├ 30m 행잉베드 × 30 식물 × 6 zone
+   ├ 가운데 풀-디테일 식물 (생육 엔진 구동, 매 day-scrub 재빌드)
+   ├ AGV + 6DOF 협동로봇 (촬영 중 LED/FOV 색 변경)
+   ├ 베드 위 heatmap (구역별 정상/생육부진/병해/수분스트레스 색)
+   ├ UWB 4-anchor + 실시간 거리선 + 평면도 미니맵
+   ├ 분석 패널: 구역 지표 + 14일 sparkline + 어제/7일 대비 + RGB/Depth/Mask + 점군 + AI 신뢰도
+   └ 분석 모드 토글 → HighlightLayer segmentation overlay
+```
 
 ---
 
@@ -9,156 +23,108 @@
 
 ```bash
 npm install
-npm run dev        # http://localhost:8090
+npm run dev               # http://localhost:8090
 ```
+
+`/legacy.html` 은 이전 Three.js 프로토타입 (참조).
 
 빌드:
 ```bash
-npm run build      # dist/ 에 정적 파일 생성
-npm run preview    # 빌드 결과 미리보기
+npm run build             # tsc --noEmit + vite build → dist/
+npm run preview           # production build 미리보기
 ```
+
+---
+
+## 핵심 기능
+
+### 운영 화면
+
+- **3D 씬** (좌): 30m 베드, 30 식물 (가운데 풀 디테일 + 양쪽 LOD-graded), 폴리카보네이트 천장, 천장 행잉 와이어 + 식물별 수직 string, 협동 로봇, UWB anchor
+- **분석 패널** (우): 선택 구역의 생육 지표·이미지·AI 분석 결과
+- **타임라인** (하): 120일 스크럽 + 이상 이벤트 + 촬영 세션 마커
+- **UWB 평면도** (우상단): 4-anchor 거리선 + 로봇 실시간 위치 (cm 단위)
+
+### 생육 엔진 (engine-agnostic, `@farmsim/tomato-engine`)
+
+`packages/tomato-engine/` — 식물 생장 알고리즘. Babylon/Three 의존 zero.
+
+```ts
+import { GrowthEngine } from '@farmsim/tomato-engine';
+const engine = new GrowthEngine();
+engine.setEnvironment({ temperatureC: 23, lightHoursPerDay: 14, ... });
+engine.addPlant({ seed: 42, genomeOverrides: { heightMaxCm: 220 } });
+const state = engine.computeState(42, 75);
+```
+
+- **62+ 게놈 파라미터** (heightMaxCm, leafSerrationDepth, internodeElongDelay, stemYoungsModulusMPa, …)
+- **6개 환경 변수** (temperatureC, humidity, lightHoursPerDay, co2ppm, nutrientEC, substrateWater) — 생장률·잎크기·과실크기·노드간격을 곱연산으로 스케일
+- **PlantState 출력**: 노드별 high-detail (heightCm, droopExtra, leafMassG, stemRadiusMm, deflectionRad, truss 화방/과실)
+- **JSON 왕복**: `serialize()` / `fromSerialized(data)`
+
+가운데 showcase 식물이 매 day-scrub에서 PlantState를 받아 mesh를 재생성. 잎 처짐(droopExtra)·줄기 굴곡(deflection)·잎/과실 익는 색 모두 모델 출력 그대로 반영.
+
+### 영상 참조
+
+`_ref/smartfarm.mp4` (gitignored) — frame_07 모니터링 화면이 본 운영 화면의 직접 참조:
+- 빨간 토마토 행잉베드 (양쪽 가득)
+- AGV + 협동로봇 가운데
+- 우측 2D 그리드 모니터 + 실시간 좌표 → 우리 미니맵
 
 ---
 
 ## 기술 스택
 
-| 구분 | 기술 |
-|------|------|
-| 언어 | TypeScript 5.9 (strict mode) |
-| 3D 엔진 | Three.js r183 (WebGL2 / Metal) |
-| 번들러 | Vite 8.0 |
-| 포스트프로세싱 | EffectComposer (Bloom + ACES Tone Mapping) |
-| 물리 | 자체 구현 (탄성 굽힘 모델) |
-| 생육 모델 | Apex-driven internode elongation (자체 구현) |
+| 레이어 | 기술 |
+|--------|------|
+| 3D 엔진 | Babylon.js 9.8 (WebGPU 우선, WebGL2 fallback) |
+| UI | React 19 + zustand + Vite 8 + TypeScript 5.9 strict |
+| 라이팅 | DirectionalLight + Hemispheric + HDRI IBL (Babylon CC0 .env 로컬) |
+| 포스트프로세싱 | ACES tonemap + Bloom + Sharpen + FXAA + Vignette; SSAO2 (WebGL2 한정) |
+| 머티리얼 | PBR + clearcoat (토마토) + subSurface translucency (잎 SSS) + HighlightLayer (분석 모드) |
+| 시뮬레이션 | apex-driven 생장 + 구조역학 (pipe model + 캔틸레버) |
 
 ---
 
-## 아키텍처 개요
+## 검증
 
-```
-┌─────────────────────────────────────────────────────┐
-│                    main.ts (Entry)                   │
-│  Engine 초기화 → 환경 구축 → 식물 배치 → 렌더 루프    │
-└──────────┬──────────┬──────────┬───────────┬────────┘
-           │          │          │           │
-     ┌─────▼────┐ ┌───▼────┐ ┌──▼──────┐ ┌──▼────────┐
-     │  core/   │ │environ-│ │simula-  │ │generators/│
-     │          │ │ment/   │ │tion/    │ │           │
-     │ Engine   │ │        │ │         │ │ Plant     │
-     │ Controls │ │Green-  │ │Growth-  │ │ Stem      │
-     │          │ │house   │ │Controller│ │ Leaf      │
-     │          │ │Hanging │ │Growth-  │ │ LeafTex   │
-     │          │ │Bed     │ │Engine   │ │ Fruit     │
-     │          │ │Lighting│ │Growth-  │ │ Truss     │
-     │          │ │SunPos  │ │Model    │ │           │
-     │          │ │        │ │Physics  │ │           │
-     │          │ │        │ │Genome   │ │           │
-     └──────────┘ └────────┘ └─────────┘ └───────────┘
-           │                      │              │
-           │              ┌───────▼──────┐       │
-           │              │  PlantState  │───────┘
-           │              │  (데이터 전달)│
-           │              └──────────────┘
-           │
-     ┌─────▼──────────────┐   ┌──────────────┐
-     │  interaction/      │   │  ui/         │
-     │  FruitPicker       │   │  Timeline    │
-     └────────────────────┘   │  InfoPanel   │
-                              └──────────────┘
+```bash
+npm install --no-save playwright@1.60.0
+node verify-farmsim.mjs
 ```
 
-### 데이터 흐름
-
-```
-PlantGenome (유전 파라미터)
-    ↓
-GrowthModel.computePlantState(day, genome)
-    ↓  [Apex-driven: 노드 생성 → 절간 신장 → 잎 전개 → 과실 발달]
-    ↓
-PhysicsModel.computePhysics(nodes, genome)
-    ↓  [질량 누적 → 줄기 반경 → 굽힘 모멘트 → 탄성 변형]
-    ↓
-PlantState (노드별 위치, 잎 크기, 과실 상태)
-    ↓
-PlantGenerator.generate(state) → THREE.Group
-    ↓  [줄기 메시 + 잎 메시 + 화방 메시 + 과실 메시]
-    ↓
-Scene → EffectComposer → Canvas
-```
+자동 측정:
+- 콘솔 / 페이지 / HTTP 오류 (목표 0)
+- WebGPU/WebGL2 백엔드
+- fps (목표 60, 실측 120 fps M-series)
+- 60초 재생 heap delta (목표 < +100MB)
+- 오프라인 reload (production build)
 
 ---
 
-## 디렉토리 구조
+## 문서
 
-```
-src/
-├── main.ts                    # 앱 진입점
-├── core/
-│   ├── Engine.ts              # WebGL 렌더러, 카메라, 포스트프로세싱
-│   └── Controls.ts            # 카메라 오빗 컨트롤
-├── environment/
-│   ├── Greenhouse.ts          # 온실 골조 (A-frame, 폴리카보네이트 지붕)
-│   ├── HangingBed.ts          # 네덜란드식 행잉거터 시스템
-│   ├── Lighting.ts            # 태양광 시뮬레이션 (시간대별)
-│   └── SunPosition.ts         # 태양 위치 계산 (35°N)
-├── simulation/
-│   ├── GrowthController.ts    # 생육 애니메이션 오케스트레이터
-│   ├── GrowthEngine.ts        # Three.js 비의존 데이터 레이어
-│   ├── GrowthModel.ts         # 핵심 생육 모델 (apex-driven)
-│   ├── PhysicsModel.ts        # 구조역학 (줄기 굽힘)
-│   └── PlantGenome.ts         # 유전 파라미터 62종
-├── generators/
-│   ├── PlantGenerator.ts      # 3D 식물 조립기
-│   ├── StemGenerator.ts       # 줄기 메시 생성
-│   ├── LeafGenerator.ts       # 복엽 잎 메시 생성
-│   ├── LeafTexture.ts         # 절차적 잎맥 텍스처
-│   ├── FruitGenerator.ts      # 토마토 과실 메시
-│   └── TrussGenerator.ts      # 화방(花房) 메시
-├── interaction/
-│   └── FruitPicker.ts         # 과실 클릭 수확 (레이캐스팅)
-├── ui/
-│   ├── Timeline.ts            # 재생/정지/슬라이더 UI
-│   └── InfoPanel.ts           # (예약)
-└── utils/
-    ├── SeededRandom.ts        # 결정론적 난수 생성기
-    └── LSystem.ts             # (예약: L-System 문법 엔진)
-```
+- [docs/stage-by-stage.md](docs/stage-by-stage.md) — **부위별 단계별 알고리즘** (떡잎/잎/꽃/과실/줄기/스트레스, 모델↔메시 매핑, 사용자 참조 자료와의 차이)
+- [docs/architecture.md](docs/architecture.md) — 레이어 구조, 생육 엔진, 씬 구성
+- [docs/development-guide.md](docs/development-guide.md) — 폴더 구조, 워크플로, WebGPU 호환성, 자주 마주칠 이슈
+- [packages/tomato-engine/README.md](packages/tomato-engine/README.md) — engine-agnostic 생육 패키지 API
+- [packages/tomato-geometry/README.md](packages/tomato-geometry/README.md) — engine-agnostic geometry generator API
 
 ---
 
-## 상세 문서
+## 의도적 누락 (Out-of-Scope)
 
-| 문서 | 설명 |
-|------|------|
-| [docs/architecture.md](docs/architecture.md) | 생육 엔진, 렌더링 파이프라인, 알고리즘 상세 |
-| [docs/development-guide.md](docs/development-guide.md) | 남은 과제, 엔진 전환 가이드, 개발 방법론 |
-
----
-
-## 주요 기능
-
-### 생육 시뮬레이션 (120일)
-- **Apex-driven 생장**: SAM(정단분열조직)에서 잎 원기 생성 → GA 매개 절간 신장
-- **6단계 생육 스테이지**: 육묘기 → 영양생장기 → 개화기 → 착과기 → 과실비대기 → 숙성기
-- **62개 유전 파라미터**: Seed 기반 결정론적 변이 (동일 seed = 동일 식물)
-- **구조역학**: 과실 하중에 의한 줄기 휨, 잎의 중력 처짐
-- **재배 관리**: 하엽 제거 (적엽), 화방 아래 잎 자동 제거
-
-### 온실 환경
-- 네덜란드식 행잉거터 (거터 + 코코배지 + 유인줄 + 튜브레일)
-- 폴리카보네이트 지붕 (A-frame)
-- 시간대별 태양광 시뮬레이션 (35°N 위도)
-- IBL 환경맵 (절차적 하늘)
-
-### 렌더링
-- PBR 머티리얼 (MeshStandardMaterial)
-- ACES Filmic 톤매핑 + UnrealBloom
-- PCF 소프트 그림자
-- 절차적 잎맥 텍스처 (Color + Normal map)
-- LOD 시스템 (카메라 거리 기반 3단계)
+- 온실/로봇 GLB 자산 (절차적 메시로 frame_07 분위기 매칭)
+- ThinInstance / 빌보드 impostor (현재 fps 여유 충분)
+- 실제 백엔드 (WebSocket/MQTT) — All Mock 시제품 단계
+- Unreal Pixel Streaming — 별도 전시 데모 옵션
+- 모바일/태블릿 반응형 — 데스크탑 1080p–1440p 우선
+- 다국어 — 한국어 단일
 
 ---
 
-## 라이선스
+## 라이센스 / 자산 출처
 
-Private — 내부 사용 전용
+- `public/hdri/environment.env` — Babylon.js 공식 환경맵 (CC0)
+- `public/favicon.svg` — 자체 작성
+- 외부 CDN 의존 zero (오프라인 데모 가능)

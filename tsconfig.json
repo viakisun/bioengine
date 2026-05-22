@@ -10,12 +10,17 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "jsx": "preserve",
+    "jsx": "react-jsx",
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "types": ["vite/client"],
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "@farmsim/tomato-engine": ["packages/tomato-engine/src"],
+      "@farmsim/tomato-engine/*": ["packages/tomato-engine/src/*"],
+      "@farmsim/tomato-geometry": ["packages/tomato-geometry/src"],
+      "@farmsim/tomato-geometry/*": ["packages/tomato-geometry/src/*"]
     }
   },
-  "include": ["src"]
+  "include": ["src", "packages/*/src"]
 }
