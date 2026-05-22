@@ -784,6 +784,22 @@ input[type="range"].slim::-moz-range-thumb {
   font-size: 11px;
 }
 
+/* ===== Render-quality hint + note (under the Lv slider) ===== */
+.quality-hint {
+  font-size: 11px;
+  color: var(--fg-mute);
+  font-weight: 600;
+  margin-top: -4px;
+}
+.quality-note {
+  font-size: 10.5px;
+  color: var(--fg-dim);
+  line-height: 1.4;
+  padding: 4px 0 4px;
+  border-bottom: 1px solid var(--bd);
+  margin-bottom: 4px;
+}
+
 /* ===== Color picker row (label + <input type=color> + hex readout) ===== */
 .color-row {
   display: flex;

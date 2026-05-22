@@ -20,6 +20,7 @@ import { createPlantLODManager } from './PlantLODManager';
 import { createCocopeatBags, SUBSTRATE_TOP_Y } from './CocopeatBags';
 import { createTubeRail } from './TubeRail';
 import { createBedStands } from './BedStands';
+import { activeBedsForCount } from './RenderQuality';
 import { getGroundAlbedoTexture, getGroundNormalTexture } from './GroundTexture';
 
 const TOMATO_RIPEN_COLORS = [
@@ -146,15 +147,15 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
     (_, i) => (BED_Z_POSITIONS[i] + BED_Z_POSITIONS[i + 1]) / 2,
   );
 
-  // ACTIVE_BED_INDICES — which beds actually carry tomato plants.
-  // The rest are visually present (bed box + cocopeat + stands +
-  // overhead wire) but kept empty, which matches the K-smartfarm "next
-  // planting cycle" look and keeps the procedural plant cost bounded.
-  //
-  // To turn this into a 13-bed full house (≈1,170 plants, heavy), set
-  //   const ACTIVE_BED_INDICES = BED_Z_POSITIONS.map((_, i) => i);
-  // To show only the central row, set [Math.floor(BED_COUNT / 2)].
-  const ACTIVE_BED_INDICES: number[] = [6, 7];  // center bed + one neighbor
+  // ACTIVE_BED_INDICES — read from store.renderFX.activeBedCount so the
+  // quality slider can scale the plant population (1..13). Read once
+  // here at scene-build time; later changes to activeBedCount require
+  // a page refresh to take effect.
+  const requestedActiveBedCount = useTwinStore.getState().renderFX.activeBedCount;
+  const ACTIVE_BED_INDICES: number[] = activeBedsForCount(
+    requestedActiveBedCount,
+    BED_COUNT,
+  );
 
   const bedMat = new PBRMaterial('bedMat', scene);
   bedMat.albedoColor = Color3.FromHexString('#c0c0b8');

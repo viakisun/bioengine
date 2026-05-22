@@ -28,6 +28,25 @@ const TONE_TABS: ReadonlyArray<TabItem<ToneMappingMode>> = [
   { id: 'none', label: 'OFF' },
 ];
 
+const QUALITY_LABELS: Record<number, string> = {
+  1: 'Minimum', 2: 'Very Low', 3: 'Low', 4: 'Medium-Low',
+  5: 'Medium', 6: 'High', 7: 'Very High', 8: 'Ultra',
+  9: 'Extreme', 10: 'Showpiece',
+};
+
+const QUALITY_HINTS: Record<number, string> = {
+  1: '저사양 / 모바일 친화',
+  2: '5년+ 기기',
+  3: '일반 노트북',
+  4: '미드 노트북',
+  5: '종전 셋팅 (baseline)',
+  6: 'M1/M2 / 게이밍 노트북',
+  7: '데스크탑 GPU',
+  8: 'RTX급 — DOF + SSR + PCSS',
+  9: '고사양 — God Rays + Lens Flare',
+  10: 'Babylon web 한계 — M2 Max+ 권장',
+};
+
 export function LightingTab() {
   const L = useTwinStore((s) => s.lighting);
   const set = useTwinStore((s) => s.setLighting);
@@ -38,8 +57,27 @@ export function LightingTab() {
   const backend = useTwinStore((s) => s.backend);
   const ssaoUnavailable = backend === 'webgpu';
 
+  const renderQuality = useTwinStore((s) => s.renderQuality);
+  const setRenderQuality = useTwinStore((s) => s.setRenderQuality);
+
   return (
     <div className="panel env-panel">
+      <Eyebrow>렌더링 품질</Eyebrow>
+      <SliderRow
+        label="품질 레벨"
+        value={renderQuality}
+        onChange={(v) => setRenderQuality(Math.round(v))}
+        valueText={`Lv ${renderQuality} · ${QUALITY_LABELS[renderQuality] ?? ''}`}
+        min={1}
+        max={10}
+        step={1}
+      />
+      <div className="quality-hint">{QUALITY_HINTS[renderQuality] ?? ''}</div>
+      <div className="quality-note">
+        Lv 슬라이더가 아래 lighting / post-FX 값을 일괄 세팅합니다.
+        활성 베드 수 변경은 다음 페이지 리로드부터 적용됩니다.
+      </div>
+
       <Eyebrow>프리셋</Eyebrow>
       <TabStrip<LightingPresetName>
         items={PRESET_TABS}

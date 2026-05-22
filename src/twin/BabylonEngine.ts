@@ -5,6 +5,7 @@ import { Color3, Color4 } from '@babylonjs/core/Maths/math.color';
 import { ImageProcessingConfiguration } from '@babylonjs/core/Materials/imageProcessingConfiguration';
 import type { Material } from '@babylonjs/core/Materials/material';
 import { setupScene, type SceneSetupHandle } from './SceneSetup';
+import { applyRenderQuality } from './RenderQuality';
 import { setupCamera, type CameraRig } from './CameraRig';
 import { buildGreenhouseScene, type GreenhouseSceneHandle } from './GreenhouseScene';
 import { useTwinStore, type LightingState } from '../store/twinStore';
@@ -161,6 +162,17 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
     console.error('[BabylonEngine] buildGreenhouseScene failed:', err);
   }
 
+  // Apply the quality preset (level 10 by default) AFTER greenhouse is
+  // built so the shadow generator's caster list — recreated when we
+  // upgrade the shadow resolution — picks up every plant/structure mesh.
+  if (sceneSetup) {
+    try {
+      applyRenderQuality(scene, sceneSetup, engine, useTwinStore.getState().renderFX);
+    } catch (err) {
+      console.error('[BabylonEngine] applyRenderQuality boot failed:', err);
+    }
+  }
+
   // Bridge zone picking → store
   greenhouse?.onZoneHover((zoneId) => {
     useTwinStore.getState().hoverZone(zoneId);
@@ -201,6 +213,13 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
     }
     if (s.lighting !== prev.lighting && sceneSetup) {
       applyLightingToScene(scene, sceneSetup, s.lighting);
+    }
+    if (s.renderFX !== prev.renderFX && sceneSetup) {
+      try {
+        applyRenderQuality(scene, sceneSetup, engine, s.renderFX);
+      } catch (err) {
+        console.error('[BabylonEngine] applyRenderQuality failed:', err);
+      }
     }
   });
 

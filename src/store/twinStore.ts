@@ -1,11 +1,48 @@
 import { create } from 'zustand';
 import type { PresetView } from '../twin/CameraRig';
 import { SCENARIO } from '../data/mockScenario';
+import { QUALITY_PRESETS, RENDER_FX_DEFAULTS } from '../twin/RenderQuality';
 
 export type CompareMode = 'off' | 'yesterday' | '7days';
 
 export type ToneMappingMode = 'aces' | 'standard' | 'none';
 export type LightingPresetName = 'default' | 'golden' | 'overcast' | 'noon-bright' | 'grow-light';
+
+/**
+ * Render-quality level (1..10). Drives the entire post-FX stack, shadow
+ * resolution, MSAA samples, hardware scale, plant density. Default = 10
+ * (Showpiece) — see plan a-drifting-wigderson.md.
+ */
+export type ShadowFilterKind =
+  | 'none' | 'hard' | 'pcf-lo' | 'pcf-med' | 'pcf-hi' | 'pcss' | 'pcss-contact';
+
+export interface RenderFXState {
+  shadowResolution: number;     // 0 = OFF, else 512/1024/2048/4096/8192
+  shadowFilter: ShadowFilterKind;
+  msaaSamples: number;          // 1/2/4/8
+  hardwareScale: number;        // 0.5..1.5 (display×; engine inverts internally)
+
+  // Advanced post-FX (instantiated when true)
+  taaEnabled: boolean;
+  ssrEnabled: boolean;
+  dofEnabled: boolean;
+  godRaysEnabled: boolean;
+  motionBlurEnabled: boolean;
+  colorLutEnabled: boolean;
+  chromaticAberrationEnabled: boolean;
+  grainEnabled: boolean;
+  glowLayerEnabled: boolean;
+  lensFlareEnabled: boolean;
+
+  // SSAO sample density (8/16/24/32)
+  ssaoSamples: number;
+
+  // Leaf subsurface translucency strength (0..1)
+  leafSSSIntensity: number;
+
+  // Number of beds to populate with tomato plants (1/2/3/4/6/8/13)
+  activeBedCount: number;
+}
 
 export interface LightingState {
   // Time
@@ -231,6 +268,14 @@ interface TwinState {
   resetLighting: () => void;
   applyLightingPreset: (name: LightingPresetName) => void;
 
+  // Render-quality slider. 1..10 — 10 is the Babylon-web ceiling
+  // (every post-FX on, 8192 PCSS shadows, 1.5× SSAA, full 13-bed
+  // plant fill). See RenderQuality.ts for the preset table.
+  renderQuality: number;
+  renderFX: RenderFXState;
+  setRenderQuality: (level: number) => void;
+  setRenderFX: (patch: Partial<RenderFXState>) => void;
+
   setDay: (day: number) => void;
   togglePlay: () => void;
   setPlaySpeed: (speed: number) => void;
@@ -249,7 +294,7 @@ interface TwinState {
 }
 
 export const useTwinStore = create<TwinState>((set) => ({
-  currentDay: 75,
+  currentDay: 100,
   playing: false,
   playSpeed: 1,
 
@@ -317,11 +362,28 @@ export const useTwinStore = create<TwinState>((set) => ({
   consoleExpanded: false,
   toggleConsole: () => set((s) => ({ consoleExpanded: !s.consoleExpanded })),
 
-  lighting: { ...LIGHTING_DEFAULTS },
+  lighting: { ...LIGHTING_DEFAULTS, ...QUALITY_PRESETS[10].lightingPatch },
   setLighting: (patch) => set((s) => ({ lighting: { ...s.lighting, ...patch } })),
   resetLighting: () => set({ lighting: { ...LIGHTING_DEFAULTS } }),
   applyLightingPreset: (name) =>
     set({ lighting: { ...LIGHTING_DEFAULTS, ...LIGHTING_PRESETS[name] } }),
+
+  // Render quality — default level 10 (Showpiece). The boot path in
+  // BabylonEngine reads this once on init; the subscribe handler picks
+  // up live changes.
+  renderQuality: 10,
+  renderFX: { ...QUALITY_PRESETS[10].fx },
+  setRenderQuality: (level) => {
+    const lv = Math.max(1, Math.min(10, Math.round(level)));
+    const preset = QUALITY_PRESETS[lv];
+    set((s) => ({
+      renderQuality: lv,
+      renderFX: { ...preset.fx },
+      lighting: { ...s.lighting, ...preset.lightingPatch },
+    }));
+  },
+  setRenderFX: (patch) =>
+    set((s) => ({ renderFX: { ...s.renderFX, ...patch } })),
 
   setDay: (day) =>
     set({
