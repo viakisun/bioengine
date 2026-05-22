@@ -43,18 +43,8 @@ export function AnalysisPanel() {
   const [tab, setTab] = useState<SidebarTab>('zones');
 
   return (
-    <div
-      className="scroll-y"
-      style={{
-        height: '100%',
-        overflowY: 'auto',
-        padding: '14px 14px 18px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 14,
-      }}
-    >
-      <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+    <div className="sidebar scroll-y">
+      <div className="row">
         <TabStrip<SidebarTab> items={TABS} active={tab} onSelect={setTab} />
       </div>
 
@@ -77,8 +67,8 @@ function ZonesTab() {
   const displayZoneId = hoveredZoneId ?? selectedZoneId;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+    <div className="col gap-lg">
+      <div className="zone-grid">
         {SCENARIO.zones.map((zone) => {
           const { dominant } = zoneHealthMix(zone, currentDay);
           const bad = dominant !== 'normal';
@@ -142,36 +132,22 @@ function ZoneDetail({ zoneId }: { zoneId: number }) {
     };
   }, [zone, currentDay]);
 
+  const stateColor =
+    dominant === 'normal'
+      ? 'var(--ok)'
+      : dominant === 'disease'
+      ? 'var(--bad)'
+      : 'var(--warn)';
+
   return (
-    <div
-      className="panel"
-      style={{
-        padding: '12px 14px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 10,
-      }}
-    >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg)' }}>
-          구역 {zone.zoneId + 1}
-        </span>
-        <span
-          style={{
-            fontSize: 11,
-            fontWeight: 600,
-            color:
-              dominant === 'normal'
-                ? 'var(--ok)'
-                : dominant === 'disease'
-                ? 'var(--bad)'
-                : 'var(--warn)',
-          }}
-        >
+    <div className="panel zone-detail">
+      <div className="zone-detail-header">
+        <span className="zone-detail-title">구역 {zone.zoneId + 1}</span>
+        <span className="zone-detail-state" style={{ color: stateColor }}>
           {HEALTH_LABELS_KO[dominant]}
         </span>
       </div>
-      <div className="mono" style={{ fontSize: 10.5, color: 'var(--fg-dim)' }}>
+      <div className="mono zone-detail-range">
         {zone.startX.toFixed(1)} ~ {zone.endX.toFixed(1)} m · {zone.plantIds.length}그루
       </div>
 
@@ -189,15 +165,7 @@ function ZoneDetail({ zoneId }: { zoneId: number }) {
         <span className="mono">{(totals.avgRipen * 100).toFixed(0)} %</span>
       </MetricRow>
 
-      <div
-        style={{
-          background: 'var(--bg-soft)',
-          border: '1px solid var(--bd)',
-          borderRadius: 8,
-          padding: '6px 8px',
-          marginTop: 4,
-        }}
-      >
+      <div className="sparkline-card">
         <Sparkline
           values={sparkValues}
           cursorIndex={sparkValues.length - 1}
@@ -210,10 +178,7 @@ function ZoneDetail({ zoneId }: { zoneId: number }) {
       {session && (
         <>
           <Eyebrow>최근 촬영 세션</Eyebrow>
-          <div
-            className="mono"
-            style={{ fontSize: 10.5, color: 'var(--fg-dim)', marginTop: -4 }}
-          >
+          <div className="mono session-meta">
             Day {session.day} · {session.hour}:00 · #{session.targetPlantId + 1}
           </div>
           <CaptureThumbs session={session} healthLabel={dominant} />
@@ -225,17 +190,8 @@ function ZoneDetail({ zoneId }: { zoneId: number }) {
 
 function MetricRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div
-      style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        padding: '4px 0',
-        borderBottom: '1px solid var(--bd)',
-        fontSize: 12,
-        color: 'var(--fg)',
-      }}
-    >
-      <span style={{ color: 'var(--fg-mute)' }}>{label}</span>
+    <div className="metric-row">
+      <span className="metric-row-label">{label}</span>
       {children}
     </div>
   );
@@ -256,21 +212,9 @@ function EventsTab() {
   }, [currentDay]);
 
   return (
-    <div
-      className="panel"
-      style={{ padding: '6px 6px', display: 'flex', flexDirection: 'column', gap: 2 }}
-    >
+    <div className="panel event-list">
       {events.length === 0 ? (
-        <div
-          style={{
-            padding: 16,
-            fontSize: 12,
-            color: 'var(--fg-mute)',
-            textAlign: 'center',
-          }}
-        >
-          아직 이벤트가 없습니다.
-        </div>
+        <div className="event-empty">아직 이벤트가 없습니다.</div>
       ) : (
         events.map((evt) => (
           <EventRow
@@ -303,10 +247,7 @@ function EnvTab() {
   const togglePathTrail = useTwinStore((s) => s.togglePathTrail);
 
   return (
-    <div
-      className="panel"
-      style={{ padding: '14px 14px', display: 'flex', flexDirection: 'column', gap: 14 }}
-    >
+    <div className="panel env-panel">
       <Eyebrow>환경 제어</Eyebrow>
       <SliderRow
         label="바람 세기"
@@ -322,7 +263,7 @@ function EnvTab() {
       />
 
       <Eyebrow>레이어</Eyebrow>
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+      <div className="row gap-sm" style={{ flexWrap: 'wrap' }}>
         <ToggleBtn on={heatmapVisible} onClick={toggleHeatmap}>
           히트맵
         </ToggleBtn>
@@ -349,14 +290,10 @@ function SliderRow({
   valueText: string;
 }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <div
-        style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}
-      >
-        <span style={{ color: 'var(--fg-mute)' }}>{label}</span>
-        <span className="mono" style={{ color: 'var(--ok)' }}>
-          {valueText}
-        </span>
+    <div className="slider-row">
+      <div className="slider-row-header">
+        <span className="tag-mute">{label}</span>
+        <span className="mono tag-ok">{valueText}</span>
       </div>
       <input
         type="range"
@@ -381,12 +318,7 @@ function ToggleBtn({
   children: React.ReactNode;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`btn${on ? ' is-active' : ''}`}
-      style={{ padding: '0 12px' }}
-    >
+    <button type="button" onClick={onClick} className={`btn${on ? ' is-active' : ''}`}>
       {children}
     </button>
   );

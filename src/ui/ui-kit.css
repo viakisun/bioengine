@@ -300,6 +300,104 @@ input[type="range"].slim::-moz-range-thumb {
   font-family: 'JetBrains Mono', ui-monospace, monospace;
 }
 
+/* ===== Sidebar — scrollable analysis panel root ===== */
+.sidebar {
+  height: 100%;
+  overflow-y: auto;
+  padding: 14px 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ===== Zone card grid (analysis "zones" tab) ===== */
+.zone-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--gap-md);
+}
+
+/* ===== Zone detail card ===== */
+.zone-detail {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.zone-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.zone-detail-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg);
+}
+.zone-detail-state {
+  font-size: 11px;
+  font-weight: 600;
+}
+.zone-detail-range {
+  font-size: 10.5px;
+  color: var(--fg-dim);
+}
+.metric-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--bd);
+  font-size: 12px;
+  color: var(--fg);
+}
+.metric-row-label { color: var(--fg-mute); }
+
+.sparkline-card {
+  background: var(--bg-soft);
+  border: 1px solid var(--bd);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  margin-top: 4px;
+}
+
+.session-meta {
+  font-size: 10.5px;
+  color: var(--fg-dim);
+  margin-top: -4px;
+}
+
+/* ===== Event list (analysis "events" tab) ===== */
+.event-list {
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.event-empty {
+  padding: var(--gap-xl);
+  font-size: 12px;
+  color: var(--fg-mute);
+  text-align: center;
+}
+
+/* ===== Env tab panel ===== */
+.env-panel {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.slider-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-xs);
+}
+.slider-row-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+}
+
 /* ===== TopBar — top floating toolbar ===== */
 .topbar {
   position: absolute;
