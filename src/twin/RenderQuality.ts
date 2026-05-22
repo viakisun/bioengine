@@ -335,6 +335,11 @@ export function applyRenderQuality(
   fx: RenderFXState,
 ): void {
   const handles = fxHandles(scene);
+  // Some Babylon features have strict WebGPU bind-group requirements
+  // that the WebGL2 backend silently tolerates (null textures on lens
+  // flares, texture_2d_array samplers on the color LUT). We skip those
+  // on WebGPU so the renderer doesn't panic every frame.
+  const isWebGPU = (engine as { isWebGPU?: boolean }).isWebGPU === true;
 
   // Hardware scale (SSAA at >1, downscale at <1). Babylon's setter takes
   // the inverse — scale=1.5 means render 50% larger → setHardwareScalingLevel(1/1.5).
@@ -449,15 +454,20 @@ export function applyRenderQuality(
     handles.godRays = null;
   }
 
-  // Lens flare on the sun direction
-  if (fx.lensFlareEnabled && !handles.lensFlare) {
+  // Lens flare on the sun direction.
+  // WebGPU rejects the empty-URL flare textures Babylon's LensFlare ctor
+  // sets up (createBindGroup panics on the null texture every frame);
+  // WebGL2 silently tolerates them, so we just skip on WebGPU. To fully
+  // enable on WebGPU, ship real flare PNG assets and pass their URLs as
+  // the 4th arg below.
+  if (fx.lensFlareEnabled && !handles.lensFlare && !isWebGPU) {
     const lf = new LensFlareSystem('fx_lensFlare', setup.sun, scene);
     new LensFlare(0.25, 0,   new Color3(1, 1, 1),     '', lf);
     new LensFlare(0.10, 0.4, new Color3(1, 0.8, 0.4), '', lf);
     new LensFlare(0.07, 0.7, new Color3(0.5, 0.4, 1), '', lf);
     new LensFlare(0.12, 1.0, new Color3(1, 0.6, 0.6), '', lf);
     handles.lensFlare = lf;
-  } else if (!fx.lensFlareEnabled && handles.lensFlare) {
+  } else if ((!fx.lensFlareEnabled || isWebGPU) && handles.lensFlare) {
     handles.lensFlare.dispose();
     handles.lensFlare = null;
   }
@@ -466,7 +476,6 @@ export function applyRenderQuality(
   // sampler-compat fix for ColorGradingTexture. Skip silently there;
   // WebGL2 keeps the full effect.
   const ip = setup.pipeline.imageProcessing;
-  const isWebGPU = (engine as { isWebGPU?: boolean }).isWebGPU === true;
   if (ip) {
     if (fx.colorLutEnabled && !isWebGPU) {
       if (!ip.colorGradingTexture) {
