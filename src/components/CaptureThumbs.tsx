@@ -24,8 +24,6 @@ function rgbStyle(health: HealthLabel, size: number): React.CSSProperties {
       radial-gradient(circle at 70% 65%, ${accent}33, transparent 30%),
       radial-gradient(circle at 50% 80%, ${baseHex}, ${baseHex}cc)
     `,
-    borderRadius: 4,
-    border: '1px solid var(--bd)',
   };
 }
 
@@ -34,9 +32,8 @@ function depthStyle(size: number): React.CSSProperties {
   return {
     width: size,
     height: size,
-    background: 'radial-gradient(circle at 50% 50%, #fbbf24 0%, #ef4444 20%, #a855f7 50%, #1e3a8a 100%)',
-    borderRadius: 4,
-    border: '1px solid var(--bd)',
+    background:
+      'radial-gradient(circle at 50% 50%, #fbbf24 0%, #ef4444 20%, #a855f7 50%, #1e3a8a 100%)',
   };
 }
 
@@ -53,35 +50,23 @@ function maskStyle(health: HealthLabel, size: number): React.CSSProperties {
       linear-gradient(60deg, transparent 45%, #60a5fa88 47%, #60a5fa88 53%, transparent 55%),
       radial-gradient(ellipse 60% 80% at 40% 50%, #6ee7b7aa, #6ee7b733 60%, transparent 80%)
     `,
-    borderRadius: 4,
-    border: '1px solid var(--bd)',
-  };
-}
-
-function labelStyle(): React.CSSProperties {
-  return {
-    fontSize: 9.5,
-    color: 'var(--fg-dim)',
-    marginTop: 3,
-    textAlign: 'center',
-    letterSpacing: 0.4,
   };
 }
 
 export function CaptureThumbs({ session, healthLabel, size = 70 }: Props) {
   return (
-    <div style={{ display: 'flex', gap: 6 }}>
+    <div className="row gap-sm">
       <div>
-        <div style={rgbStyle(healthLabel, size)} title="RGB 카메라" />
-        <div style={labelStyle()}>RGB</div>
+        <div className="capture-thumb" style={rgbStyle(healthLabel, size)} title="RGB 카메라" />
+        <div className="capture-thumb-label">RGB</div>
       </div>
       <div>
-        <div style={depthStyle(size)} title="Depth 카메라" />
-        <div style={labelStyle()}>Depth</div>
+        <div className="capture-thumb" style={depthStyle(size)} title="Depth 카메라" />
+        <div className="capture-thumb-label">Depth</div>
       </div>
       <div>
-        <div style={maskStyle(healthLabel, size)} title="AI 세그멘테이션" />
-        <div style={labelStyle()}>Mask</div>
+        <div className="capture-thumb" style={maskStyle(healthLabel, size)} title="AI 세그멘테이션" />
+        <div className="capture-thumb-label">Mask</div>
       </div>
     </div>
   );

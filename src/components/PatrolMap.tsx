@@ -152,34 +152,18 @@ export function PatrolMap() {
   const pastEndX = Math.max(trailStart.u, Math.min(trailEnd.u, robotS.u));
 
   return (
-    <div
-      className="panel"
-      style={{
-        padding: 12,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 10,
-      }}
-    >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-        <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--fg)' }}>
-          오늘의 patrol 경로
-        </span>
-        <span className="mono" style={{ fontSize: 10.5, color: 'var(--fg-dim)' }}>
+    <div className="panel patrol-map">
+      <div className="patrol-header">
+        <span className="patrol-title">오늘의 patrol 경로</span>
+        <span className="mono patrol-date">
           {recentDay >= 0 ? `Day ${recentDay}` : '대기 중'}
         </span>
       </div>
 
       <svg
+        className="patrol-svg"
         viewBox={`0 0 ${VB_W} ${VB_H}`}
         preserveAspectRatio="xMidYMid meet"
-        style={{
-          width: '100%',
-          height: 'auto',
-          background: '#efece2',
-          borderRadius: 8,
-          border: '1px solid var(--bd)',
-        }}
       >
         {/* Bed mat */}
         <rect
@@ -267,7 +251,7 @@ export function PatrolMap() {
           return (
             <g
               key={m.index}
-              style={{ cursor: 'pointer' }}
+              className="patrol-marker-group"
               onClick={() => {
                 if (recentDay >= 0) {
                   setDay(recentDay + m.hour / 24);
@@ -285,6 +269,7 @@ export function PatrolMap() {
               />
               <circle cx={u} cy={v} r={4.4} fill={TONE_FILL[m.tone]} />
               <text
+                className="patrol-marker-text"
                 x={u}
                 y={v}
                 textAnchor="middle"
@@ -292,7 +277,6 @@ export function PatrolMap() {
                 fontSize={4.6}
                 fontWeight={700}
                 fill="white"
-                style={{ pointerEvents: 'none', fontFamily: 'JetBrains Mono, ui-monospace, monospace' }}
               >
                 {m.index}
               </text>
@@ -328,65 +312,33 @@ export function PatrolMap() {
       </svg>
 
       {/* Marker legend list */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <div className="patrol-legend">
         {markers.length === 0 ? (
-          <span style={{ fontSize: 11.5, color: 'var(--fg-mute)' }}>
-            오늘 예정된 capture session 이 없습니다.
-          </span>
+          <span className="patrol-empty">오늘 예정된 capture session 이 없습니다.</span>
         ) : (
           markers.map((m) => (
             <button
               key={m.index}
               type="button"
+              className="patrol-legend-row"
               onClick={() => {
                 if (recentDay >= 0) {
                   setDay(recentDay + m.hour / 24);
                   selectZone(m.zoneId);
                 }
               }}
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '18px 1fr auto',
-                gap: 8,
-                alignItems: 'center',
-                padding: '4px 2px',
-                fontSize: 11.5,
-                background: 'transparent',
-                border: 'none',
-                font: 'inherit',
-                cursor: 'pointer',
-                textAlign: 'left',
-                borderRadius: 6,
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-soft)')}
-              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
             >
               <span
-                className="mono"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  width: 18,
-                  height: 18,
-                  borderRadius: 9,
-                  background: TONE_FILL[m.tone],
-                  color: 'white',
-                  fontSize: 10,
-                  fontWeight: 700,
-                }}
+                className="mono patrol-marker-chip"
+                style={{ background: TONE_FILL[m.tone] }}
               >
                 {m.index}
               </span>
-              <span style={{ color: 'var(--fg)' }}>
+              <span>
                 구역 {m.zoneId + 1}{' '}
-                <span style={{ color: 'var(--fg-mute)' }}>
-                  · {HEALTH_LABEL_KO[m.health]}
-                </span>
+                <span className="tag-mute">· {HEALTH_LABEL_KO[m.health]}</span>
               </span>
-              <span className="mono" style={{ fontSize: 10.5, color: 'var(--fg-dim)' }}>
-                {m.hour}:00
-              </span>
+              <span className="mono patrol-legend-hour">{m.hour}:00</span>
             </button>
           ))
         )}

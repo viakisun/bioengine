@@ -54,69 +54,23 @@ export function Sparkline({
   }, [values, cursorIndex]);
 
   return (
-    <div className="sparkline" style={{ position: 'relative', height }}>
-      {label && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 4,
-            left: 8,
-            fontSize: 11,
-            color: 'var(--fg-mute)',
-            pointerEvents: 'none',
-          }}
-        >
-          {label}
-        </div>
-      )}
+    <div className="sparkline" style={{ height }}>
+      {label && <div className="sparkline-label">{label}</div>}
       {valueText !== undefined && (
-        <div
-          className="mono"
-          style={{
-            position: 'absolute',
-            top: 4,
-            right: 8,
-            fontSize: 13,
-            fontWeight: 600,
-            color,
-            pointerEvents: 'none',
-          }}
-        >
+        <div className="mono sparkline-value" style={{ color }}>
           {valueText}
         </div>
       )}
       <svg
+        className="sparkline-svg"
         viewBox={`0 0 ${vbW} ${vbH}`}
         preserveAspectRatio="none"
-        style={{ width: '100%', height: '100%', display: 'block' }}
       >
         <path d={area} fill={color} opacity={fillOpacity} />
         <path d={path} fill="none" stroke={color} strokeWidth={1.4} vectorEffect="non-scaling-stroke" />
       </svg>
-      <div
-        style={{
-          position: 'absolute',
-          top: 0,
-          bottom: 0,
-          left: `${cursorXPct}%`,
-          width: 1,
-          background: 'var(--fg)',
-          pointerEvents: 'none',
-        }}
-      >
-        <span
-          style={{
-            position: 'absolute',
-            left: '50%',
-            top: '50%',
-            transform: 'translate(-50%, -50%)',
-            width: 8,
-            height: 8,
-            borderRadius: 4,
-            background: 'var(--fg)',
-            border: '2px solid white',
-          }}
-        />
+      <div className="sparkline-cursor" style={{ left: `${cursorXPct}%` }}>
+        <span className="sparkline-cursor-dot" />
       </div>
     </div>
   );

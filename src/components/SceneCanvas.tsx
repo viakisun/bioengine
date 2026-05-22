@@ -36,15 +36,6 @@ export function SceneCanvas() {
   }, []);
 
   return (
-    <canvas
-      ref={canvasRef}
-      style={{
-        width: '100%',
-        height: '100%',
-        display: 'block',
-        outline: 'none',
-        touchAction: 'none',
-      }}
-    />
+    <canvas ref={canvasRef} className="canvas-fill" />
   );
 }

@@ -300,6 +300,283 @@ input[type="range"].slim::-moz-range-thumb {
   font-family: 'JetBrains Mono', ui-monospace, monospace;
 }
 
+/* ===== Capture thumbnails (RGB/Depth/Mask trio in zone detail) ===== */
+.capture-thumb {
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--bd);
+}
+.capture-thumb-label {
+  font-size: 9.5px;
+  color: var(--fg-dim);
+  margin-top: 3px;
+  text-align: center;
+  letter-spacing: 0.4px;
+}
+
+/* ===== Generic small primitives ===== */
+.canvas-fill {
+  width: 100%;
+  height: 100%;
+  display: block;
+  outline: none;
+  touch-action: none;
+}
+.point-cloud-tile {
+  background: var(--bg-soft);
+  border-radius: var(--radius-xs);
+  display: block;
+  border: 1px solid var(--bd);
+}
+
+/* ===== Zone card (analysis "zones" tab — grid cell) ===== */
+.zone-card {
+  position: relative;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--bd);
+  background: white;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  transition: border-color 0.12s;
+}
+.zone-card.is-bad {
+  border-color: rgba(220, 38, 38, 0.30);
+  background: #fef7f6;
+}
+.zone-card.is-selected { border-color: var(--fg); }
+.zone-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg);
+}
+.zone-card-state {
+  font-size: 12px;
+  margin-top: 3px;
+  color: var(--fg-mute);
+}
+.zone-card.is-bad .zone-card-state { color: var(--bad); }
+.zone-card-num {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  font-size: 10.5px;
+  color: var(--fg-dim);
+}
+
+/* ===== Event row (analysis "events" tab) ===== */
+.evt-row {
+  display: grid;
+  grid-template-columns: 8px 1fr auto;
+  gap: 10px;
+  padding: 8px 10px;
+  align-items: center;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  font: inherit;
+  text-align: left;
+  width: 100%;
+  transition: background 0.12s;
+}
+.evt-row:hover { background: var(--bg-soft); }
+.evt-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 3px;
+  margin-left: 1px;
+}
+.evt-body { display: flex; flex-direction: column; }
+.evt-title { font-size: 12.5px; color: var(--fg); line-height: 1.35; }
+.evt-sub {
+  font-size: 11px;
+  color: var(--fg-mute);
+  margin-top: 1px;
+}
+.evt-meta {
+  font-size: 10.5px;
+  color: var(--fg-dim);
+}
+
+/* ===== Sparkline — small line chart with day cursor ===== */
+.sparkline { position: relative; }
+.sparkline-label {
+  position: absolute;
+  top: 4px;
+  left: 8px;
+  font-size: 11px;
+  color: var(--fg-mute);
+  pointer-events: none;
+}
+.sparkline-value {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  pointer-events: none;
+}
+.sparkline-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.sparkline-cursor {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--fg);
+  pointer-events: none;
+}
+.sparkline-cursor-dot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-xs);
+  background: var(--fg);
+  border: 2px solid white;
+}
+
+/* ===== App layout cells (consumed by App.tsx grid) ===== */
+.app-grid {
+  height: 100vh;
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  background: #e8e6df;
+  transition: grid-template-rows 0.25s cubic-bezier(.4, .0, .2, 1);
+}
+.app-scene-cell {
+  grid-column: 1;
+  grid-row: 1;
+  position: relative;
+  overflow: hidden;
+}
+.app-sidebar-aside {
+  grid-column: 2;
+  grid-row: 1 / 3;
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-left: 1px solid var(--bd);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.app-timeline-row {
+  grid-column: 1;
+  grid-row: 2;
+  display: flex;
+  align-items: stretch;
+}
+
+/* Visually-hidden but DOM-present (for id-bearing nodes the engine
+   still pokes via document.getElementById) */
+.offscreen {
+  position: absolute;
+  left: -9999px;
+  top: -9999px;
+}
+
+/* Branding stamp (bottom-right of scene area) */
+.app-brand {
+  position: absolute;
+  bottom: 8px;
+  right: 12px;
+  font-size: 10px;
+  color: var(--fg-dim);
+  pointer-events: none;
+  text-align: right;
+  line-height: 1.4;
+}
+.app-brand-heading {
+  color: var(--fg-mute);
+  font-weight: 600;
+  letter-spacing: 1px;
+  font-size: 10.5px;
+  margin-bottom: 1px;
+}
+
+/* ===== Patrol map (sidebar "경로" tab) ===== */
+.patrol-map {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.patrol-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.patrol-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--fg);
+}
+.patrol-date {
+  font-size: 10.5px;
+  color: var(--fg-dim);
+}
+.patrol-svg {
+  width: 100%;
+  height: auto;
+  background: #efece2;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--bd);
+}
+.patrol-marker-text {
+  pointer-events: none;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
+.patrol-marker-group { cursor: pointer; }
+
+.patrol-legend {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-xs);
+}
+.patrol-empty {
+  font-size: 11.5px;
+  color: var(--fg-mute);
+}
+.patrol-legend-row {
+  display: grid;
+  grid-template-columns: 18px 1fr auto;
+  gap: var(--gap-md);
+  align-items: center;
+  padding: 4px 2px;
+  font-size: 11.5px;
+  background: transparent;
+  border: none;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+  border-radius: 6px;
+  color: var(--fg);
+  transition: background 0.12s;
+}
+.patrol-legend-row:hover { background: var(--bg-soft); }
+.patrol-marker-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+}
+.patrol-legend-hour {
+  font-size: 10.5px;
+  color: var(--fg-dim);
+}
+
 /* ===== Timeline panel — bottom collapsible console ===== */
 .timeline-panel {
   margin: 0 12px 12px;
@@ -580,6 +857,15 @@ input[type="range"].slim::-moz-range-thumb {
   left: 0; right: 0; bottom: 0;
   height: 2px;
   background: var(--fg);
+}
+
+/* ===== Scene label positioning (data-driven left/top still inline) ===== */
+.scene-label-pos {
+  position: absolute;
+  transform: translate3d(-50%, -140%, 0);
+  pointer-events: none;
+  z-index: 7;
+  white-space: nowrap;
 }
 
 /* ===== Scene label — single focus plant tag ===== */

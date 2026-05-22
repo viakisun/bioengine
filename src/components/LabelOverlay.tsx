@@ -67,16 +67,8 @@ export function LabelOverlay() {
       {focus && (
         <div
           key={focus.id}
-          className="scene-label mono"
-          style={{
-            position: 'absolute',
-            left: focus.sx,
-            top: focus.sy,
-            transform: 'translate3d(-50%, -140%, 0)',
-            pointerEvents: 'none',
-            zIndex: 7,
-            whiteSpace: 'nowrap',
-          }}
+          className="scene-label scene-label-pos mono"
+          style={{ left: focus.sx, top: focus.sy }}
         >
           {focus.text}
         </div>

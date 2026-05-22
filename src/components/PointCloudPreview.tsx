@@ -45,19 +45,7 @@ export function PointCloudPreview({ session, width = 110, height = 110 }: Props)
   }
 
   return (
-    <svg
-      width={width}
-      height={height}
-      style={{
-        // Light-theme tile: pale background + dim border, lets the
-        // viridis point cloud stay readable without the punchy dark
-        // panel feel from the earlier #0a0d12.
-        background: 'var(--bg-soft)',
-        borderRadius: 4,
-        display: 'block',
-        border: '1px solid var(--bd)',
-      }}
-    >
+    <svg width={width} height={height} className="point-cloud-tile">
       {projected.map((p, i) => (
         <circle
           key={i}
