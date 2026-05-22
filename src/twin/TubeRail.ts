@@ -33,7 +33,8 @@ export interface TubeRailOptions {
   lengthM: number;
   /** Distance between the two pipes. Default 0.55m (real K-smartfarm spec). */
   gaugeM?: number;
-  /** Pipe diameter. Default 0.04m. */
+  /** Pipe outer diameter. Default 0.0483m (48.3mm / 48Ø) — the actual
+   *  spec used in Korean smart-farm greenhouses. */
   diameterM?: number;
   /** Add hairpin U-loops at both X ends. Default true. */
   withEndLoops?: boolean;
@@ -48,7 +49,7 @@ export interface TubeRailHandle {
 
 export function createTubeRail(scene: Scene, opts: TubeRailOptions): TubeRailHandle {
   const gauge = opts.gaugeM ?? 0.55;
-  const diameter = opts.diameterM ?? 0.04;
+  const diameter = opts.diameterM ?? 0.0483;
   const withLoops = opts.withEndLoops ?? true;
   const tag = opts.instanceTag ?? `aisle_${opts.centerZ.toFixed(1)}`;
   const railY = diameter / 2;

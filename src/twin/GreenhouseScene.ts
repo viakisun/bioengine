@@ -320,36 +320,46 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
   wireMat.metallic = 0.8;
   wireMat.roughness = 0.4;
 
+  // Overhead training wires + per-plant strings — replicated above
+  // every bed (the wire grid is the building-wide infrastructure that
+  // tomato vines are tied to). String offsets ±0.15m are relative to
+  // each bed's center Z.
   const wireY = 3.4;
-  for (const wireZ of [-0.15, 0.15]) {
-    const wire = MeshBuilder.CreateCylinder(
-      `wire_${wireZ}`,
-      { height: bedLen + 0.5, diameter: 0.004 },
-      scene
-    );
-    wire.position = new Vector3(0, wireY, wireZ);
-    wire.rotation.z = Math.PI / 2;
-    wire.material = wireMat;
+  for (const [bedIdx, bedZ] of BED_Z_POSITIONS.entries()) {
+    for (const wireOffset of [-0.15, 0.15]) {
+      const wire = MeshBuilder.CreateCylinder(
+        `wire_b${bedIdx}_${wireOffset}`,
+        { height: bedLen + 0.5, diameter: 0.004 },
+        scene
+      );
+      wire.position = new Vector3(0, wireY, bedZ + wireOffset);
+      wire.rotation.z = Math.PI / 2;
+      wire.material = wireMat;
+    }
   }
 
-  // Vertical training strings per plant (white twine)
+  // Vertical training strings per plant (white twine) — one string
+  // per plant slot per bed.
   const stringMat = new PBRMaterial('stringMat', scene);
   stringMat.albedoColor = Color3.FromHexString('#e0d8c8');
   stringMat.metallic = 0;
   stringMat.roughness = 0.9;
 
-  // Strings tie into the substrate mound (SUBSTRATE_TOP_Y) now, not
-  // the bed top, so they visually meet the plant stem base rather
-  // than disappearing into the bag.
-  for (const plant of SCENARIO.plants) {
-    for (const stringZ of [-0.15, 0.15]) {
-      const str = MeshBuilder.CreateCylinder(
-        `string_${plant.id}_${stringZ}`,
-        { height: wireY - SUBSTRATE_TOP_Y, diameter: 0.002 },
-        scene
-      );
-      str.position = new Vector3(plant.position[0], (wireY + SUBSTRATE_TOP_Y) / 2, stringZ);
-      str.material = stringMat;
+  for (const [bedIdx, bedZ] of BED_Z_POSITIONS.entries()) {
+    for (const plant of SCENARIO.plants) {
+      for (const stringOffset of [-0.15, 0.15]) {
+        const str = MeshBuilder.CreateCylinder(
+          `string_b${bedIdx}_${plant.id}_${stringOffset}`,
+          { height: wireY - SUBSTRATE_TOP_Y, diameter: 0.002 },
+          scene
+        );
+        str.position = new Vector3(
+          plant.position[0],
+          (wireY + SUBSTRATE_TOP_Y) / 2,
+          bedZ + stringOffset,
+        );
+        str.material = stringMat;
+      }
     }
   }
 
@@ -369,13 +379,25 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
   const showcasePlantIndex = Math.floor(SCENARIO.plantCount / 2);
   const showcasePlantSpec = SCENARIO.plants[showcasePlantIndex];
 
-  // Register all 30 plants — showcase gets the canonical seed,
-  // supporting plants get derivatives so they share the same scenario day
-  // schedule but otherwise look like individuals.
-  growthEngine.addPlant({ seed: SHOWCASE_SEED });
-  for (let i = 0; i < SCENARIO.plantCount; i++) {
-    if (i === showcasePlantIndex) continue;
-    growthEngine.addPlant({ seed: SHOWCASE_SEED + 1 + i });
+  // Per-bed seed namespace — each bed's plants get a stride-PLANT_COUNT
+  // block so seeds never collide and each plant remains uniquely
+  // procedural (genome, leaf shape, fruit count etc. all seed-driven).
+  // The middle bed (Z=0) keeps the canonical SHOWCASE_SEED at its
+  // center slot so the showcase plant doesn't drift between runs.
+  const MAIN_BED_IDX = BED_Z_POSITIONS.indexOf(0);
+  const PLANT_BLOCK = SCENARIO.plantCount;          // 90
+  const plantSeedFor = (bedIdx: number, slot: number): number => {
+    if (bedIdx === MAIN_BED_IDX && slot === showcasePlantIndex) return SHOWCASE_SEED;
+    return SHOWCASE_SEED + 1 + bedIdx * PLANT_BLOCK + slot;
+  };
+
+  // Register every plant across all five beds with the growth engine.
+  // No hardcoded shape data — engine.getGenome(seed) yields a fresh
+  // genome per seed (height curve, fruit ploidy, leaf turn etc.).
+  for (let bedIdx = 0; bedIdx < BED_Z_POSITIONS.length; bedIdx++) {
+    for (let slot = 0; slot < PLANT_BLOCK; slot++) {
+      growthEngine.addPlant({ seed: plantSeedFor(bedIdx, slot) });
+    }
   }
 
   // Cocopeat grow bags row + substrate mounds — bag top now occupies
@@ -414,6 +436,9 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
     });
   }
 
+  // Showcase plant — heavy-LOD, unique to the main bed (Z=0). Sits in
+  // the canonical slot (middle of the bed) so it picks up the same
+  // SCENARIO data that feeds the heatmap + capture sessions.
   const showcasePlant = createShowcasePlant(
     scene,
     growthEngine,
@@ -421,33 +446,49 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
     new Vector3(
       showcasePlantSpec.position[0],
       SUBSTRATE_TOP_Y,
-      showcasePlantSpec.position[2]
+      0  // main bed Z
     )
   );
 
-  // Supporting plants — 29 Light-LOD GrowthEngine-driven plants
-  // (replaces the old "scale static foliage by heightCm/220" path).
-  // Stagger rebuilds by spreading each plant's offset across the
-  // 2-day rebuild window, so dispose/create work is amortized across
-  // many frames instead of bunching every 2 sim-days.
+  // Supporting plants — Light-LOD, GrowthEngine-driven. We fill all
+  // five beds with the same 90-slot grid, skipping the showcase's slot
+  // on the main bed (one slot replaced by the heavy-LOD showcase).
+  //
+  // Each plant's seed is unique (see plantSeedFor) so leaf shapes,
+  // fruit counts, height curves etc. are all procedurally different —
+  // no preset / hardcoded values per stem.
+  //
+  // Rebuild staggering: each plant rebuilds its geometry every ~2
+  // sim-days. With ~449 supports, spreading them across the 2-day
+  // window keeps the per-frame GC bounded.
   const supportingPlants: SupportingPlantHandle[] = [];
-  const supportingPlantIds: number[] = []; // parallel array → SCENARIO.plants[id]
+  // Parallel to supportingPlants. For main-bed plants this is the
+  // SCENARIO.plants index (drives health label per day). For sister
+  // beds it's -1 — the plant runs on its own engine seed with default
+  // health (visual-only).
+  const supportingPlantSlotIds: number[] = [];
   let supportIdx = 0;
-  for (let i = 0; i < SCENARIO.plantCount; i++) {
-    if (i === showcasePlantIndex) continue;
-    const spec = SCENARIO.plants[i];
-    const rebuildOffset = (supportIdx / 29) * 2.0; // 0 → ~2 days
-    supportingPlants.push(
-      createSupportingPlant(
-        scene,
-        growthEngine,
-        SHOWCASE_SEED + 1 + i,
-        new Vector3(spec.position[0], SUBSTRATE_TOP_Y, spec.position[2]),
-        rebuildOffset
-      )
-    );
-    supportingPlantIds.push(i);
-    supportIdx++;
+  const totalSupports = BED_Z_POSITIONS.length * PLANT_BLOCK - 1; // minus showcase slot
+
+  for (let bedIdx = 0; bedIdx < BED_Z_POSITIONS.length; bedIdx++) {
+    const bedZ = BED_Z_POSITIONS[bedIdx];
+    const isMainBed = bedIdx === MAIN_BED_IDX;
+    for (let slot = 0; slot < PLANT_BLOCK; slot++) {
+      if (isMainBed && slot === showcasePlantIndex) continue;
+      const spec = SCENARIO.plants[slot];
+      const rebuildOffset = (supportIdx / totalSupports) * 2.0;
+      supportingPlants.push(
+        createSupportingPlant(
+          scene,
+          growthEngine,
+          plantSeedFor(bedIdx, slot),
+          new Vector3(spec.position[0], SUBSTRATE_TOP_Y, bedZ),
+          rebuildOffset
+        )
+      );
+      supportingPlantSlotIds.push(isMainBed ? slot : -1);
+      supportIdx++;
+    }
   }
 
   const heatmap = createHeatmap(scene);
@@ -487,7 +528,13 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
       const dayIdx = Math.max(0, Math.min(SCENARIO.durationDays, Math.floor(day)));
       const waterStressOverride = useTwinStore.getState().waterStressOverride;
       for (let i = 0; i < supportingPlants.length; i++) {
-        const plant = SCENARIO.plants[supportingPlantIds[i]];
+        const slotId = supportingPlantSlotIds[i];
+        if (slotId < 0) {
+          // Sister-bed plant — no scenario health track; use 'normal'.
+          supportingPlants[i].update(day, 'normal', waterStressOverride);
+          continue;
+        }
+        const plant = SCENARIO.plants[slotId];
         const snap = plant.daily[Math.min(plant.daily.length - 1, dayIdx)];
         supportingPlants[i].update(day, snap.health, waterStressOverride);
       }
