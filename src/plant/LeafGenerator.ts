@@ -223,12 +223,12 @@ export function getLeafMaterial(scene: Scene): PBRMaterial {
       customMat.AddUniform('windTime', 'float', 0);
       customMat.AddUniform('windStrength', 'float', 0.5);
       customMat.AddUniform('flutterStrength', 'float', 0.6);
-      customMat.AddUniform('windDir', 'vec3', new Color3(1, 0, 0.3) as any);
+      customMat.AddUniform('windDir', 'vec3', new Color3(1, 0, 0.3));
       // Phase C — interaction array. xyz = world-space push origin,
       // w = strength (already exponentially decayed CPU-side). Up to
       // 8 simultaneous interactions; robot + a couple of workers fits.
       customMat.AddUniform('interactionCount', 'int', 0);
-      customMat.AddUniform('interactionData', 'vec4[8]', null as any);
+      customMat.AddUniform('interactionData', 'vec4[8]', null);
       customMat.Vertex_Before_PositionUpdated(`
         float windV = clamp(uv.y, 0.0, 1.0);
         float windU = uv.x * 2.0 - 1.0;

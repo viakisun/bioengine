@@ -21,14 +21,12 @@
     "@babylonjs/materials": "^9.8.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
-    "three": "^0.183.2",
     "zustand": "^5.0.13"
   },
   "devDependencies": {
     "@babylonjs/inspector": "^9.8.0",
     "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.3",
-    "@types/three": "^0.183.1",
     "@vitejs/plugin-react": "^6.0.2",
     "typescript": "^5.9.3",
     "vite": "^8.0.0"

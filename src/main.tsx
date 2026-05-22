@@ -3,16 +3,17 @@ import { App } from './App';
 import { useTwinStore } from './store/twinStore';
 import './ui/ui-kit.css';
 
-if (import.meta.env.DEV) {
-  (window as unknown as { __twinStore: typeof useTwinStore }).__twinStore = useTwinStore;
-}
-
 declare global {
   // eslint-disable-next-line @typescript-eslint/consistent-type-definitions
   interface Window {
+    __twinStore?: typeof useTwinStore;
     __debugScene?: import('@babylonjs/core/scene').Scene;
     __debugEngine?: import('./twin/BabylonEngine').BabylonEngineHandle;
   }
+}
+
+if (import.meta.env.DEV) {
+  window.__twinStore = useTwinStore;
 }
 
 const root = document.getElementById('root');

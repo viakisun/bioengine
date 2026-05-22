@@ -2,6 +2,7 @@ import { Engine } from '@babylonjs/core/Engines/engine';
 import { WebGPUEngine } from '@babylonjs/core/Engines/webgpuEngine';
 import { Scene } from '@babylonjs/core/scene';
 import { Color3, Color4 } from '@babylonjs/core/Maths/math.color';
+import type { Material } from '@babylonjs/core/Materials/material';
 import { setupScene, type SceneSetupHandle } from './SceneSetup';
 import { setupCamera, type CameraRig } from './CameraRig';
 import { buildGreenhouseScene, type GreenhouseSceneHandle } from './GreenhouseScene';
@@ -148,8 +149,8 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
   const hudRobot = document.getElementById('hud-robot');
 
   // Resolve cached leaf material once for per-frame wind uniform update
-  let cachedLeafMatRef: any = null;
-  function getLeafMatForUniform() {
+  let cachedLeafMatRef: Material | null = null;
+  function getLeafMatForUniform(): Material | null {
     if (!cachedLeafMatRef && scene) {
       cachedLeafMatRef = scene.getMaterialByName('leafMat');
     }
@@ -157,8 +158,9 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
   }
 
   // Reusable interaction-uniform buffers — avoid per-frame allocations.
+  // Babylon's Effect.setArray4 requires number[] (not Float32Array).
   const INTERACTION_MAX = 8;
-  const interactionFloats = new Float32Array(INTERACTION_MAX * 4);
+  const interactionFloats: number[] = new Array(INTERACTION_MAX * 4).fill(0);
   let lastInteractionTick = performance.now();
 
   engine.runRenderLoop(() => {
@@ -220,7 +222,7 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
           }
           eff.setInt('interactionCount', active.length);
           if (active.length > 0) {
-            eff.setArray4('interactionData', interactionFloats as unknown as number[]);
+            eff.setArray4('interactionData', interactionFloats);
           }
         }
       }
