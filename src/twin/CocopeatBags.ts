@@ -71,7 +71,22 @@ export interface CocopeatBagsHandle {
   dispose(): void;
 }
 
-export function createCocopeatBags(scene: Scene): CocopeatBagsHandle {
+export interface CocopeatBagsOptions {
+  /** World-space Z of the bag row's center (default 0). Use to place
+   *  multiple beds in parallel rows along the Z axis. */
+  centerZ?: number;
+  /** Unique tag appended to mesh + material names so multiple instances
+   *  don't collide in scene.getMeshByName / getMaterialByName lookups. */
+  instanceTag?: string;
+}
+
+export function createCocopeatBags(
+  scene: Scene,
+  opts: CocopeatBagsOptions = {},
+): CocopeatBagsHandle {
+  const bedCenterZ = opts.centerZ ?? 0;
+  const tag = opts.instanceTag ?? 'main';
+
   // ---------- Bag row mesh ----------
   const bagPositions: number[] = [];
   const bagNormals: number[] = [];
@@ -92,7 +107,7 @@ export function createCocopeatBags(scene: Scene): CocopeatBagsHandle {
     );
   }
 
-  const bagRow = new Mesh('cocopeatBagRow', scene);
+  const bagRow = new Mesh(`cocopeatBagRow_${tag}`, scene);
   const bagVd = new VertexData();
   bagVd.positions = bagPositions;
   bagVd.normals = bagNormals;
@@ -100,17 +115,23 @@ export function createCocopeatBags(scene: Scene): CocopeatBagsHandle {
   bagVd.indices = bagIndices;
   bagVd.colors = bagColors;
   bagVd.applyToMesh(bagRow);
+  bagRow.position.z = bedCenterZ;
 
-  const bagMat = new PBRMaterial('cocopeatBagMat', scene);
-  bagMat.albedoColor = new Color3(1, 1, 1);
-  bagMat.albedoTexture = getCocopeatBagTexture(scene);
-  bagMat.metallic = 0;
-  bagMat.roughness = 0.55;
-  bagMat.clearCoat.isEnabled = true;
-  bagMat.clearCoat.intensity = 0.25;
-  bagMat.clearCoat.roughness = 0.4;
-  bagMat.environmentIntensity = 0.6;
-  bagMat.backFaceCulling = false; // hole inner walls have inward-facing normals
+  // Material is reused across instances — first call creates it, later
+  // ones look it up. Cheaper + lets all beds share texture state.
+  let bagMat = scene.getMaterialByName('cocopeatBagMat') as PBRMaterial | null;
+  if (!bagMat) {
+    bagMat = new PBRMaterial('cocopeatBagMat', scene);
+    bagMat.albedoColor = new Color3(1, 1, 1);
+    bagMat.albedoTexture = getCocopeatBagTexture(scene);
+    bagMat.metallic = 0;
+    bagMat.roughness = 0.55;
+    bagMat.clearCoat.isEnabled = true;
+    bagMat.clearCoat.intensity = 0.25;
+    bagMat.clearCoat.roughness = 0.4;
+    bagMat.environmentIntensity = 0.6;
+    bagMat.backFaceCulling = false; // hole inner walls have inward-facing normals
+  }
   bagRow.material = bagMat;
   bagRow.receiveShadows = true;
 
@@ -125,27 +146,32 @@ export function createCocopeatBags(scene: Scene): CocopeatBagsHandle {
     const moundRng = new SeededRandom(20260520 + b * 31 + 7);
     for (let h = 0; h < HOLE_OFFSETS_X.length; h++) {
       const cx = bagCenterX + HOLE_OFFSETS_X[h];
-      const cz = 0;
       const uvRotation = moundRng.next() * Math.PI * 2;
-      appendMound(subPositions, subNormals, subUvs, subIndices, cx, cz, uvRotation);
+      // Build mounds at Z=0 (mesh-relative); the bag row's own .position.z
+      // moves them all in lockstep to bedCenterZ.
+      appendMound(subPositions, subNormals, subUvs, subIndices, cx, 0, uvRotation);
     }
   }
 
-  const substrate = new Mesh('cocopeatSubstrate', scene);
+  const substrate = new Mesh(`cocopeatSubstrate_${tag}`, scene);
   const subVd = new VertexData();
   subVd.positions = subPositions;
   subVd.normals = subNormals;
   subVd.uvs = subUvs;
   subVd.indices = subIndices;
   subVd.applyToMesh(substrate);
+  substrate.position.z = bedCenterZ;
 
-  const subMat = new PBRMaterial('cocopeatSubstrateMat', scene);
-  subMat.albedoColor = new Color3(1, 1, 1);
-  subMat.albedoTexture = getCocopeatSubstrateTexture(scene);
-  subMat.bumpTexture = getCocopeatSubstrateNormal(scene);
-  subMat.metallic = 0;
-  subMat.roughness = 0.95;
-  subMat.environmentIntensity = 0.55;
+  let subMat = scene.getMaterialByName('cocopeatSubstrateMat') as PBRMaterial | null;
+  if (!subMat) {
+    subMat = new PBRMaterial('cocopeatSubstrateMat', scene);
+    subMat.albedoColor = new Color3(1, 1, 1);
+    subMat.albedoTexture = getCocopeatSubstrateTexture(scene);
+    subMat.bumpTexture = getCocopeatSubstrateNormal(scene);
+    subMat.metallic = 0;
+    subMat.roughness = 0.95;
+    subMat.environmentIntensity = 0.55;
+  }
   substrate.material = subMat;
   substrate.receiveShadows = true;
 
@@ -155,8 +181,7 @@ export function createCocopeatBags(scene: Scene): CocopeatBagsHandle {
     dispose() {
       bagRow.dispose(false, false);
       substrate.dispose(false, false);
-      bagMat.dispose();
-      subMat.dispose();
+      // Materials are shared, intentionally not disposed here.
     },
   };
 }

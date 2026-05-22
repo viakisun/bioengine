@@ -18,6 +18,8 @@ import { createShowcasePlant, type ShowcasePlantHandle } from './ShowcasePlant';
 import { createSupportingPlant, type SupportingPlantHandle } from './SupportingPlant';
 import { createPlantLODManager } from './PlantLODManager';
 import { createCocopeatBags, SUBSTRATE_TOP_Y } from './CocopeatBags';
+import { createTubeRail } from './TubeRail';
+import { createBedStands } from './BedStands';
 import { getGroundAlbedoTexture, getGroundNormalTexture } from './GroundTexture';
 
 const TOMATO_RIPEN_COLORS = [
@@ -122,32 +124,28 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
   ground.material = groundMat;
   ground.receiveShadows = true;
 
-  const path = MeshBuilder.CreateGround(
-    'path',
-    { width: bedLen, height: 1.2, subdivisions: 1 },
-    scene
-  );
-  path.position = new Vector3(0, 0.005, 1.5);
-  const pathMat = new PBRMaterial('pathMat', scene);
-  // Light walkway tint, matches the reference's pale concrete look.
-  pathMat.albedoColor = Color3.FromHexString('#b6b3a4');
-  pathMat.metallic = 0;
-  pathMat.roughness = 0.9;
-  path.material = pathMat;
-  path.receiveShadows = true;
+  // Multi-bed layout — five parallel hanging beds along Z.
+  // The center bed (Z=0) carries the simulation's 90 plants + heatmap;
+  // the four sister beds are visual-only (cocopeat-prepped, awaiting
+  // the next planting cycle), which matches the reference photos of
+  // empty K-smartfarm interiors.
+  const BED_Z_POSITIONS = [-6, -3, 0, 3, 6] as const;
 
-  const bed = MeshBuilder.CreateBox(
-    'bed',
-    { width: bedLen, height: 0.15, depth: 0.35 },
-    scene
-  );
-  bed.position = new Vector3(0, SCENARIO.bedY - 0.075, 0);
   const bedMat = new PBRMaterial('bedMat', scene);
   bedMat.albedoColor = Color3.FromHexString('#c0c0b8');
   bedMat.metallic = 0.75;
   bedMat.roughness = 0.3;
-  bed.material = bedMat;
-  bed.receiveShadows = true;
+
+  for (const [bedIdx, bedZ] of BED_Z_POSITIONS.entries()) {
+    const bed = MeshBuilder.CreateBox(
+      `bed_${bedIdx}`,
+      { width: bedLen, height: 0.15, depth: 0.35 },
+      scene
+    );
+    bed.position = new Vector3(0, SCENARIO.bedY - 0.075, bedZ);
+    bed.material = bedMat;
+    bed.receiveShadows = true;
+  }
 
   // Greenhouse frame (galvanized A-frames + ridge beam + side posts)
   const frameMat = new PBRMaterial('frameMat', scene);
@@ -384,7 +382,37 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
   // y ∈ [0.95, 1.05]. Plant root y is lifted from scenario's bedY
   // (0.95) up to SUBSTRATE_TOP_Y (1.062) so the stem appears to
   // emerge from the brown mound visible through each bag hole.
-  createCocopeatBags(scene);
+  //
+  // Replicated across all five beds (the four sister rows are visually
+  // identical but get no plants — see comment near BED_Z_POSITIONS).
+  for (const [bedIdx, bedZ] of BED_Z_POSITIONS.entries()) {
+    createCocopeatBags(scene, { centerZ: bedZ, instanceTag: `bed${bedIdx}` });
+  }
+
+  // Bed support legs — without these the cocopeat bag rows visibly
+  // float at Y=0.95 from any low or interior camera. One merged-mesh
+  // stand per bed (two posts every 2m along the length).
+  for (const [bedIdx, bedZ] of BED_Z_POSITIONS.entries()) {
+    createBedStands(scene, {
+      centerZ: bedZ,
+      lengthM: bedLen,
+      bedTopY: SCENARIO.bedY,
+      material: frameMat,
+      instanceTag: `bed${bedIdx}`,
+    });
+  }
+
+  // Tube rails — pair of pipes laid in each aisle for the robot/cart
+  // to roll on. Gauge 55cm per K-smartfarm spec; hairpin loops cap
+  // both X ends.
+  const AISLE_Z_POSITIONS = [-4.5, -1.5, 1.5, 4.5] as const;
+  for (const [aisleIdx, aisleZ] of AISLE_Z_POSITIONS.entries()) {
+    createTubeRail(scene, {
+      centerZ: aisleZ,
+      lengthM: bedLen,
+      instanceTag: `aisle${aisleIdx}`,
+    });
+  }
 
   const showcasePlant = createShowcasePlant(
     scene,
