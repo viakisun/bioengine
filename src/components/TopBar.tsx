@@ -60,89 +60,50 @@ export function TopBar() {
   const badCount = zoneStatuses.filter((z) => z.tone !== 'ok').length;
 
   return (
-    <div
-      style={{
-        position: 'absolute',
-        top: 12,
-        left: 12,
-        right: 12,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 12,
-        zIndex: 10,
-        pointerEvents: 'none',
-      }}
-    >
+    <div className="topbar">
       {/* Left: status pills */}
-      <div style={{ display: 'flex', gap: 8, pointerEvents: 'auto' }}>
+      <div className="topbar-section row gap-md">
         <Pill tone="ok">
           <span className="mono">
             Day <b>{dayInt}</b> / {total}
           </span>
           <PillSep />
-          <span style={{ color: 'var(--fg-mute)' }}>{stageName}</span>
+          <span className="tag-mute">{stageName}</span>
         </Pill>
         <Pill tone={taskTone}>
-          <span style={{ color: 'var(--fg-mute)' }}>로봇</span>
+          <span className="tag-mute">로봇</span>
           <span style={{ color: 'var(--fg)', fontWeight: 600 }}>{taskLabel}</span>
         </Pill>
       </div>
 
-      <div style={{ flex: 1 }} />
+      <div className="topbar-spacer" />
 
-      {/* Right: zone status chips + camera presets */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          pointerEvents: 'auto',
-        }}
-      >
-        <div
-          className="panel"
-          style={{
-            padding: '6px 10px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-          }}
-        >
-          <span style={{ fontSize: 11, color: 'var(--fg-mute)' }}>구역</span>
-          <div style={{ display: 'flex', gap: 4 }}>
+      {/* Right: zone status chips */}
+      <div className="topbar-section row gap-lg">
+        <div className="panel zone-panel">
+          <span className="zone-panel-label">구역</span>
+          <div className="row gap-xs">
             {zoneStatuses.map(({ zoneId, tone }) => (
               <button
                 key={zoneId}
                 type="button"
+                className="zone-chip"
                 onClick={() => selectZone(zoneId)}
                 title={`구역 ${zoneId + 1}`}
                 style={{
-                  width: 22,
-                  height: 22,
-                  borderRadius: 4,
-                  border: '1px solid var(--bd)',
                   background:
                     tone === 'ok'
                       ? 'var(--ok-soft)'
                       : tone === 'warn'
                       ? 'var(--warn-soft)'
                       : 'var(--bad-soft)',
-                  color: 'var(--fg)',
-                  cursor: 'pointer',
-                  font: 'inherit',
-                  fontSize: 10.5,
-                  fontWeight: 600,
                 }}
               >
                 {zoneId + 1}
               </button>
             ))}
           </div>
-          {badCount > 0 && (
-            <span style={{ fontSize: 11, color: 'var(--bad)', fontWeight: 600 }}>
-              {badCount} 이상
-            </span>
-          )}
+          {badCount > 0 && <span className="zone-bad-count">{badCount} 이상</span>}
         </div>
       </div>
     </div>
