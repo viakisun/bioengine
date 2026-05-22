@@ -286,6 +286,38 @@ input[type="range"].slim::-moz-range-thumb {
   font-family: 'JetBrains Mono', ui-monospace, monospace;
 }
 
+/* ===== Stage band — growth-stage timeline button ===== */
+.stage-band-row {
+  position: relative;
+  height: 26px;
+  display: flex;
+  gap: 2px;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.stage-band {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--fg-mute);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  transition: color 0.15s, filter 0.15s;
+}
+.stage-band:hover { filter: brightness(0.96); }
+.stage-band.is-current { color: var(--fg); font-weight: 600; }
+.stage-band-cursor {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 2px;
+  background: var(--fg);
+}
+
 /* ===== Scene label — single focus plant tag ===== */
 .scene-label {
   position: relative;

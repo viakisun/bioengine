@@ -24,16 +24,7 @@ export function StageBands({ currentDay, totalDays }: StageBandsProps) {
   const setDay = useTwinStore((s) => s.setDay);
 
   return (
-    <div
-      style={{
-        position: 'relative',
-        height: 26,
-        display: 'flex',
-        gap: 2,
-        borderRadius: 6,
-        overflow: 'hidden',
-      }}
-    >
+    <div className="stage-band-row">
       {GROWTH_STAGES.map((stage, i) => {
         const isCurrent = currentDay >= stage.dayStart && currentDay < stage.dayEnd;
         const widthPct = ((stage.dayEnd - stage.dayStart) / totalDays) * 100;
@@ -44,37 +35,14 @@ export function StageBands({ currentDay, totalDays }: StageBandsProps) {
             type="button"
             onClick={() => setDay(midDay)}
             title={`${STAGE_LABEL[i] ?? stage.name} (Day ${Math.round(midDay)})`}
+            className={`stage-band${isCurrent ? ' is-current' : ''}`}
             style={{
-              position: 'relative',
               width: `${widthPct}%`,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 11,
-              fontWeight: isCurrent ? 600 : 500,
-              color: isCurrent ? 'var(--fg)' : 'var(--fg-mute)',
               background: STAGE_BG[i] ?? 'var(--bg-softer)',
-              border: 'none',
-              cursor: 'pointer',
-              font: 'inherit',
-              transition: 'color 0.15s, filter 0.15s',
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.filter = 'brightness(0.96)')}
-            onMouseLeave={(e) => (e.currentTarget.style.filter = 'none')}
           >
             {STAGE_LABEL[i] ?? stage.name}
-            {isCurrent && (
-              <span
-                style={{
-                  position: 'absolute',
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  height: 2,
-                  background: 'var(--fg)',
-                }}
-              />
-            )}
+            {isCurrent && <span className="stage-band-cursor" />}
           </button>
         );
       })}
