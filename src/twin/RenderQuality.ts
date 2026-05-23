@@ -406,11 +406,14 @@ export function applyRenderQuality(
   // Default pipeline post-FX toggles built into Babylon
   setup.pipeline.chromaticAberrationEnabled = fx.chromaticAberrationEnabled;
   if (fx.chromaticAberrationEnabled) {
-    setup.pipeline.chromaticAberration.aberrationAmount = 30;
+    // 30 = Babylon glitch-art default. 시네마틱 렌즈 결함 톤은 1-2.
+    setup.pipeline.chromaticAberration.aberrationAmount = 1.5;
+    setup.pipeline.chromaticAberration.radialIntensity = 0.6;
   }
   setup.pipeline.grainEnabled = fx.grainEnabled;
   if (fx.grainEnabled) {
-    setup.pipeline.grain.intensity = 8;
+    // 8 = TV 노이즈. 35mm 필름 그레인 톤은 2-4.
+    setup.pipeline.grain.intensity = 3;
     setup.pipeline.grain.animated = true;
   }
   // DOF needs the depth+geometry PrePass. WebGPU's PrePassRenderer
