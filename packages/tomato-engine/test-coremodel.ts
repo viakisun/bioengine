@@ -48,17 +48,30 @@ console.log(`Live fruit count:          ${totalFruits}`);
 console.log(`Total fruit FW g:          ${totalFresh.toFixed(1)} (= ${(totalFresh/1000).toFixed(2)} kg)`);
 console.log(`Stage histogram (0..5):    ${stageHistogram.join(', ')}`);
 
-// Acropetal ripening: pick a mid-cycle truss (not too early — would be
-// all red; not too late — would be all green) to see the spread.
+// Acropetal ripening: find the truss with the largest basal-distal
+// stage spread (the one in mid-ripening, where the spread is visible).
 {
-  const midIdx = Math.min(state.trusses.length - 1, Math.max(0, Math.floor(state.trusses.length * 0.55)));
-  const tm = state.trusses[midIdx];
-  const active = tm.fruits.filter((f) => !f.aborted && f.fertilizationTT > 0);
-  if (active.length >= 2) {
+  let bestTruss = -1;
+  let bestSpread = -1;
+  let bestBasal = 0, bestDistal = 0;
+  let bestBasalF = 0, bestDistalF = 0;
+  for (let ti = 0; ti < state.trusses.length; ti++) {
+    const tt = state.trusses[ti];
+    const active = tt.fruits.filter((f) => !f.aborted && f.fertilizationTT > 0);
+    if (active.length < 2) continue;
     const basal = active[0];
     const distal = active[active.length - 1];
-    const stageSpread = basal.ripenStage - distal.ripenStage;
-    console.log(`Acropetal check (truss ${midIdx}, mid-cycle): basal stage=${basal.ripenStage} (frac ${basal.ripenFraction.toFixed(2)}) vs distal stage=${distal.ripenStage} (frac ${distal.ripenFraction.toFixed(2)})  spread=${stageSpread}`);
+    const spread = basal.ripenStage - distal.ripenStage
+      + (basal.ripenFraction - distal.ripenFraction);
+    if (spread > bestSpread) {
+      bestSpread = spread;
+      bestTruss = ti;
+      bestBasal = basal.ripenStage; bestBasalF = basal.ripenFraction;
+      bestDistal = distal.ripenStage; bestDistalF = distal.ripenFraction;
+    }
+  }
+  if (bestTruss >= 0) {
+    console.log(`Acropetal max-spread truss ${bestTruss}: basal stage=${bestBasal} (${bestBasalF.toFixed(2)}) vs distal stage=${bestDistal} (${bestDistalF.toFixed(2)})  spread=${bestSpread.toFixed(2)}`);
   }
 }
 // Also harvest index

@@ -26,6 +26,7 @@ import { sampleCultivarGenome } from './Cultivar';
 import { SeededRandom } from './SeededRandom';
 import { dailyNetDM } from './Photosynthesis';
 import { allocateDM } from './SinkAllocation';
+import { acropetalGDDOffset, potentialDailyGrowthFW, updateAbortionTracker } from './FruitGrowth';
 
 // ---------------------------------------------------------------------------
 // Environment input
@@ -89,6 +90,11 @@ export interface FruitCohort {
 
   /** True if this fruit was aborted (assimilate competition). */
   aborted: boolean;
+
+  /** Rolling count of days the fruit failed to meet 25% of potential
+   *  growth (Marcelis 1996 abortion threshold). Aborts when this hits
+   *  ABORTION_LAG_DAYS. */
+  starvedDays: number;
 }
 
 export interface TrussCohort {
@@ -212,6 +218,7 @@ function emergeTruss(
       ripenFraction: 0,
       genome: sampleCultivarGenome(cultivar, rng), // sampled per-fruit, deterministic by truss RNG
       aborted: false,
+      starvedDays: 0,
     });
   }
 
@@ -308,11 +315,16 @@ export function stepDaily(
       //     in the sink-allocation pass after this loop.
 
       // 3b. Ripening (USDA stage progression) — linear in GDD after
-      //     ripenStartTT, modulated by per-fruit ripeningSpeedFactor.
+      //     ripenStartTT, modulated by per-fruit ripeningSpeedFactor
+      //     and the basal-to-distal acropetal offset.
       if (fruit.ripenStartTT > 0) {
-        const gddRipening = (state.TT - fruit.ripenStartTT) * fruit.genome.ripeningSpeedFactor;
+        const acropetal = acropetalGDDOffset(fruit, truss, cultivar);
+        // basal (index 0) gets head-start (negative offset shifts
+        // the ripening clock forward).
+        const gddRipening =
+          (state.TT - fruit.ripenStartTT - acropetal) * fruit.genome.ripeningSpeedFactor;
         const stagesPerGDD = 5 / cultivar.ripeningDurationGDD;
-        const continuous = Math.min(5, gddRipening * stagesPerGDD);
+        const continuous = Math.max(0, Math.min(5, gddRipening * stagesPerGDD));
         fruit.ripenStage = Math.min(5, Math.floor(continuous)) as RipenStage;
         fruit.ripenFraction = continuous - Math.floor(continuous);
       }
@@ -330,13 +342,30 @@ export function stepDaily(
   if (newDM > 0) {
     const alloc = allocateDM(newDM, state, cultivar);
 
-    // Increment per-fruit dry weight, then derive fresh & diameter
+    // Increment per-fruit dry weight, then derive fresh & diameter +
+    // abortion tracker (Marcelis 1996, Frontiers 2015).
     for (let ti = 0; ti < state.trusses.length; ti++) {
       const truss = state.trusses[ti];
       for (let fi = 0; fi < truss.fruits.length; fi++) {
         const fruit = truss.fruits[fi];
         if (fruit.aborted || fruit.fertilizationTT < 0) continue;
-        fruit.W_fruit_dry += alloc.trussFruitsG[ti][fi];
+        const allocatedToday = alloc.trussFruitsG[ti][fi];
+
+        // Compute potential daily growth (Gompertz) for abortion check
+        const gddSinceFert = state.TT - fruit.fertilizationTT;
+        const potentialFW = potentialDailyGrowthFW(gddSinceFert, T_eff, fruit.genome, cultivar);
+        const potentialDM = potentialFW * 0.06;
+
+        // Update abortion tracker — abort if persistently starved
+        const tracker = updateAbortionTracker(allocatedToday, potentialDM, fruit.starvedDays);
+        fruit.starvedDays = tracker.starvedDays;
+        if (tracker.abort) {
+          fruit.aborted = true;
+          continue;
+        }
+
+        // Apply allocation
+        fruit.W_fruit_dry += allocatedToday;
         // Cap at potential mass
         const W_dry_cap = fruit.genome.potentialMassG * 0.06;
         if (fruit.W_fruit_dry > W_dry_cap) fruit.W_fruit_dry = W_dry_cap;

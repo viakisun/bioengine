@@ -74,6 +74,16 @@ export {
   allocateDM,
 } from './SinkAllocation';
 
+export {
+  potentialFreshWeight,
+  potentialDailyGrowthFW,
+  updateAbortionTracker,
+  acropetalGDDOffset,
+  ABORTION_THRESHOLD,
+  ABORTION_LAG_DAYS,
+} from './FruitGrowth';
+export type { AbortionState } from './FruitGrowth';
+
 export { computePhysics, computeTrussDroop } from './PhysicsModel';
 
 export { getSunState, dayToHour } from './SunPosition';
