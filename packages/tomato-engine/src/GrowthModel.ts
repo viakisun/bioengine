@@ -138,11 +138,38 @@ export function overlayPhysiologyFruits(
   // Locate every truss-bearing node in the base state, in order.
   const baseTrussNodes = base.nodes.filter((n) => n.truss !== null);
 
+  // --- Leaf size scaling (Phase 4 second half) ---
+  // The sigmoid PlantState's leaves at e.g. Day 105 look sparse compared
+  // to what the TOMGRO model says the canopy LAI should be (3.22 vs
+  // sigmoid's much smaller implicit area). Scale every leaf node's
+  // leafSizeFactor + leafAreaCm2 so the visible total matches
+  // physiology.LAI · plantFootprintM2.
+  let currentLeafAreaCm2 = 0;
+  for (const n of base.nodes) {
+    if (!n.truss) currentLeafAreaCm2 += n.leafAreaCm2 * (1 - n.yellowing);
+  }
+  // physiology.LAI is m²/m² over the plant's footprint (default 0.4 m²
+  // for K-smartfarm). Total leaf area target in cm²:
+  const targetLeafAreaCm2 = physiology.LAI * 0.4 * 10000;
+  const areaScale = currentLeafAreaCm2 > 1
+    ? targetLeafAreaCm2 / currentLeafAreaCm2
+    : 1;
+  // Linear (radius) scale = √(area scale). Cap at 3× to avoid
+  // pathological huge leaves if sigmoid is very sparse early on.
+  const linearScale = Math.min(3.0, Math.max(0.5, Math.sqrt(areaScale)));
+
   const newNodes = base.nodes.map((node) => {
-    if (!node.truss) return node;
+    // Scale leaves on ALL nodes (truss + non-truss alike — leaves
+    // grow on truss nodes too in tomato anatomy).
+    const scaledNode = {
+      ...node,
+      leafSizeFactor: node.leafSizeFactor * linearScale,
+      leafAreaCm2: node.leafAreaCm2 * (linearScale * linearScale),
+    };
+    if (!node.truss) return scaledNode;
     const baseTrussIdx = baseTrussNodes.indexOf(node);
     const physTruss = physiology.trusses[baseTrussIdx];
-    if (!physTruss) return node;
+    if (!physTruss) return scaledNode;
 
     // Map physiology fruits → FruitState. Filter out aborted fruits.
     const liveFruits = physTruss.fruits.filter((f) => !f.aborted && f.fertilizationTT > 0);
@@ -164,7 +191,7 @@ export function overlayPhysiologyFruits(
     });
 
     return {
-      ...node,
+      ...scaledNode,
       truss: {
         flowers: node.truss.flowers,   // keep sigmoid flowers (no physiology data)
         fruits: newFruitsState,
