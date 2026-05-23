@@ -740,89 +740,18 @@ export function computePlantState(
   };
   const allAxes: StemAxis[] = [mainAxis];
 
-  // ── Bud activation + pruning ──────────────────────────────────────
-  // cultivar.pruning.defoliationAggressiveness drives pruning rate.
-  const defAgg = cultivar.defoliationAggressiveness ?? 0.3;
-  const maxOrder = 2; // hardcoded for now — will move to JSON in Plan 3b
-  // We run the activation `day` times so over 120 days the expected
-  // count of activated buds is meaningful. Cheap: O(day × nodes) ≤ 6000.
-  for (let d = 0; d < Math.floor(day); d++) {
-    activateAndPruneBuds(allAxes, skeletonRng, defAgg, maxOrder);
-  }
-
-  // Populate side-shoot axes' nodes — each gets a single starter node
-  // anchored at the parent node's position with a branch direction.
-  // Full side-shoot growth (their own internodes) is Plan 3a-β extension;
-  // for now each activated bud has 1 starter node so the visualization
-  // shows the branching point with an apex marker.
-  for (let i = 0; i < mainAxis.nodes.length; i++) {
-    const node = mainAxis.nodes[i];
-    if (!node.sideShoot || node.budState !== 'growing') continue;
-    if (node.sideShoot.nodes.length > 0) continue;
-
-    // Parent's growthDir rotated outward by sideShootAngleDeg around
-    // the branch azimuth.
-    const angleRad = ((node.sideShootAngleDeg ?? 35) * Math.PI) / 180;
-    const az = node.sideShoot.branchAzimuth;
-    // start direction = tilted parent dir
-    const startDir = normalize3({
-      x: node.growthDir.x * Math.cos(angleRad) + Math.cos(az) * Math.sin(angleRad),
-      y: node.growthDir.y * Math.cos(angleRad) + Math.sin(angleRad) * 0.3,
-      z: node.growthDir.z * Math.cos(angleRad) + Math.sin(az) * Math.sin(angleRad),
-    });
-    // Side-shoot age = main node age - SHOOT_DELAY (rough)
-    const shootAge = Math.max(0, node.age - 5);
-    // Side shoot length proportional to age.
-    const shootInternodes = Math.min(8, Math.floor(shootAge / 4));
-    // place index in allAxes
-    node.sideShoot.parentAxisIdx = 0; // main
-    allAxes.push(node.sideShoot);
-
-    // Build side-shoot starter chain — short cheap chain. Same wandering.
-    let pos = { ...node.position };
-    let dir = startDir;
-    for (let k = 0; k < Math.max(1, shootInternodes); k++) {
-      const internodeM = 0.04 + skeletonRng.next() * 0.02; // 4-6cm shoots
-      pos = {
-        x: pos.x + dir.x * internodeM,
-        y: pos.y + dir.y * internodeM,
-        z: pos.z + dir.z * internodeM,
-      };
-      const nextDir = synthesizeGrowthDir(dir, shootAge, 0, skeletonRng);
-
-      const shootNode: NodeState = {
-        index: k,
-        heightCm: node.heightCm + (pos.y - node.position.y) * 100,
-        phyllotaxisAngle: (k * GOLDEN_ANGLE) % 360,
-        leafMaturity: 0,
-        leafSizeFactor: 0.4,
-        leafletCount: 5,
-        yellowing: 0,
-        droopExtra: 0,
-        truss: null,
-        age: Math.max(0, shootAge - k * 3),
-        emergence: 1,
-        leafAreaCm2: 100,
-        leafMassG: 3,
-        internodeLenCm: internodeM * 100,
-        massAboveKg: 0,
-        // side shoot radius = 60% of parent's at that node
-        stemRadiusMm: node.stemRadiusMm * 0.6 * (1 - k / 10),
-        bendingMomentNm: 0,
-        deflectionRad: 0,
-        deflectionAzimuth: 0,
-        waterStress,
-        diseaseLoad,
-        position: { ...pos },
-        growthDir: { ...nextDir },
-        budState: 'dormant',
-        sideShoot: null,
-        sideShootAngleDeg: null,
-      };
-      node.sideShoot.nodes.push(shootNode);
-      dir = nextDir;
-    }
-  }
+  // ── Bud activation + pruning + side shoot creation ───────────────
+  // 일시 비활성화 (사용자 환경 부팅 크래시 진단). 곁가지 데이터를
+  // 만들지 않으면 allAxes 는 mainAxis 만 — skeleton overlay 도 메인
+  // 줄기만 그려지지만 부팅이 안 되는 것보다 낫다. Plan 3a 재활성화
+  // 시점에 user 환경에서 부팅 OK 확인 후 단계적 복원.
+  void cultivar; // unused while branching is paused
+  // const defAgg = cultivar.defoliationAggressiveness ?? 0.3;
+  // const maxOrder = 2;
+  // for (let d = 0; d < Math.floor(day); d++) {
+  //   activateAndPruneBuds(allAxes, skeletonRng, defAgg, maxOrder);
+  // }
+  // ... side shoot starter chain ...
 
   return {
     seed: genome.seed,
