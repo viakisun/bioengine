@@ -24,6 +24,7 @@ import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
+import '@babylonjs/core/Meshes/instancedMesh';
 import { PBRMaterial } from '@babylonjs/core/Materials/PBR/pbrMaterial';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
@@ -297,6 +298,49 @@ function getStemMaterial(scene: Scene): PBRMaterial {
     cachedStemMaterial.set(scene, mat);
   }
   return mat;
+}
+
+// ---------------------------------------------------------------------------
+// Source meshes for InstancedMesh — calyx + stem stub
+//
+// SupportingPlant doesn't go through the full createFruitNode path (would
+// trigger 800+ shader compiles on SwiftShader). It builds simple spheres
+// for the bodies; for calyx + stem stub we instead build ONE source mesh
+// per scene and clone it as InstancedMesh per fruit. Babylon batches all
+// instances into a single draw call → adding ~870 calyx + ~870 stem
+// instances costs essentially nothing on the GPU.
+// ---------------------------------------------------------------------------
+
+const cachedCalyxSource: WeakMap<Scene, Mesh> = new WeakMap();
+const cachedStemSource: WeakMap<Scene, Mesh> = new WeakMap();
+
+/** Get the cached source calyx mesh for this scene; create if missing. */
+export function getCalyxSourceMesh(scene: Scene): Mesh {
+  let m = cachedCalyxSource.get(scene);
+  if (m) return m;
+  m = new Mesh('_calyxSource', scene);
+  buildCalyxVertexData().applyToMesh(m);
+  m.material = getCalyxMaterial(scene);
+  m.isVisible = false;       // the source itself is invisible; instances render
+  m.alwaysSelectAsActiveMesh = false;
+  cachedCalyxSource.set(scene, m);
+  return m;
+}
+
+/** Get the cached source stem-stub cylinder for this scene; create if missing. */
+export function getStemSourceMesh(scene: Scene): Mesh {
+  let m = cachedStemSource.get(scene);
+  if (m) return m;
+  // Standard cylinder, 1m tall × 1.5mm diameter, oriented along +Y so
+  // scaling Y gives the actual stem length per fruit.
+  m = MeshBuilder.CreateCylinder('_stemSource', {
+    height: 1, diameter: 0.0015, tessellation: 8,
+  }, scene);
+  m.material = getStemMaterial(scene);
+  m.isVisible = false;
+  m.alwaysSelectAsActiveMesh = false;
+  cachedStemSource.set(scene, m);
+  return m;
 }
 
 // ---------------------------------------------------------------------------
