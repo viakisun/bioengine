@@ -3,6 +3,9 @@
 
 import type { PlantGenome } from './PlantGenome';
 import { computePhysics } from './PhysicsModel';
+import type { Cultivar } from './Cultivar';
+import { sampleCultivarGenome, getCultivar } from './Cultivar';
+import { SeededRandom } from './SeededRandom';
 
 export const TOTAL_DAYS = 120;
 
@@ -37,6 +40,15 @@ export interface FruitState {
   ripenFraction: number;
   color: [number, number, number];
   age: number;
+  /** Per-fruit morphology + color variance sample, drawn from the
+   *  plant's cultivar distribution at first fruit appearance. Carries
+   *  locule count, H:W ratio, ribbing strength, asymmetry RNG seed,
+   *  surface-mottle RNG seed, ripeningSpeedFactor, and blossom-end
+   *  advance fraction. Used by the visual layer (FruitGenerator) to
+   *  individualize geometry and per-vertex color — different shape
+   *  and surface for every single fruit.
+   *  Optional for back-compat with code paths that pre-date Phase 4. */
+  cultivarGenome?: import('./Cultivar').CultivarSample;
 }
 
 export interface FlowerState {
@@ -116,7 +128,8 @@ const GOLDEN_ANGLE = 137.508; // degrees
 export function computePlantState(
   day: number,
   genome: PlantGenome,
-  stress: PlantStressInputs = {}
+  stress: PlantStressInputs = {},
+  cultivar: Cultivar = getCultivar('round-generic'),
 ): PlantState {
   const waterStress = Math.max(0, Math.min(1, stress.waterStress ?? 0));
   const diseaseLoad = Math.max(0, Math.min(1, stress.diseaseLoad ?? 0));
@@ -306,7 +319,25 @@ export function computePlantState(
               const c2 = STAGE_COLORS[Math.min(5, ripenStage + 1)];
               const color = lerpColor(c1, c2, ripenFraction);
 
-              fruits.push({ index: f, diameterMm, ripenStage, ripenFraction, color, age: fruitAge });
+              // Per-fruit cultivar sample (deterministic from genome.seed
+              // + truss node index + fruit index). This is what
+              // FruitGenerator reads to individualize geometry/color.
+              const fruitGenomeRng = new SeededRandom(
+                genome.seed * 7919 + i * 131 + f * 31 + 0x9e377,
+              );
+              // warm up
+              fruitGenomeRng.next(); fruitGenomeRng.next(); fruitGenomeRng.next();
+              const cultivarSample = sampleCultivarGenome(cultivar, () => fruitGenomeRng.next());
+
+              fruits.push({
+                index: f,
+                diameterMm,
+                ripenStage,
+                ripenFraction,
+                color,
+                age: fruitAge,
+                cultivarGenome: cultivarSample,
+              });
               totalFruits++;
               if (ripenStage > maxRipenStage) maxRipenStage = ripenStage;
 
