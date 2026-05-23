@@ -4,6 +4,10 @@ import { TimelinePanel } from './components/TimelinePanel';
 import { LabelOverlay } from './components/LabelOverlay';
 import { TopBar } from './components/TopBar';
 import { LayerDock } from './components/LayerDock';
+import { BootOverlay } from './ui/BootOverlay';
+import { NotificationCenter } from './ui/NotificationCenter';
+import { ErrorModal } from './ui/ErrorModal';
+import { ErrorBoundary } from './ui/ErrorBoundary';
 import { useTwinStore } from './store/twinStore';
 
 export function App() {
@@ -15,6 +19,12 @@ export function App() {
   const consoleH = consoleExpanded ? 296 : 88;
 
   return (
+    <ErrorBoundary>
+    {/* Boot/notify overlays — always mounted at the top so they render
+        immediately on first paint, and outlive any in-scene crash. */}
+    <BootOverlay />
+    <NotificationCenter />
+    <ErrorModal />
     <div
       className="app-grid"
       style={{
@@ -59,5 +69,6 @@ export function App() {
         <TimelinePanel />
       </footer>
     </div>
+    </ErrorBoundary>
   );
 }

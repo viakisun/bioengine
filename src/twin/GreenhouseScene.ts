@@ -14,6 +14,7 @@ import { attachZonePicker } from './ZonePicker';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { GrowthEngine } from '@farmsim/tomato-engine';
 import { useTwinStore } from '../store/twinStore';
+import { logBoot, updateStageDetail, setBootStage } from '../store/notify';
 import { createShowcasePlant, type ShowcasePlantHandle } from './ShowcasePlant';
 import { createSupportingPlant, type SupportingPlantHandle } from './SupportingPlant';
 import { createPlantLODManager } from './PlantLODManager';
@@ -102,8 +103,10 @@ export interface GreenhouseSceneHandle {
   onZoneClick: (cb: (zoneId: number | null) => void) => void;
 }
 
-export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
+export async function buildGreenhouseScene(scene: Scene): Promise<GreenhouseSceneHandle> {
   const bedLen = SCENARIO.bedLengthM;
+  updateStageDetail('바닥 + 측벽', 0.05);
+  logBoot('log', 'greenhouse: 바닥 + 측벽');
 
   // Greenhouse footprint floor — sized to match the structural envelope
   // so the floor visually fills the building.
@@ -172,6 +175,10 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
     bed.material = bedMat;
     bed.receiveShadows = true;
   }
+
+  updateStageDetail('프레임 + 지붕', 0.25);
+  logBoot('log', 'greenhouse: 프레임 + 지붕');
+  await new Promise((r) => setTimeout(r, 0));
 
   // Greenhouse frame (galvanized A-frames + ridge beam + side posts)
   const frameMat = new PBRMaterial('frameMat', scene);
@@ -398,6 +405,10 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
     }
   }
 
+  updateStageDetail('관개 시스템 + 와이어', 0.75);
+  logBoot('log', 'greenhouse: 관개 + 와이어');
+  await new Promise((r) => setTimeout(r, 0));
+
   // GrowthEngine — drives all 30 plants (showcase + 29 supporting).
   // Greenhouse environment params can be tweaked from this single seam.
   const growthEngine = new GrowthEngine();
@@ -444,14 +455,40 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
     if (bucket < 20) return 'round-generic';
     return 'tomimaru-muchoo';
   };
+  // ---- 'plants' stage begins ----
+  // GrowthEngine.addPlant only registers a genome — the heavier mesh
+  // build happens later via ShowcasePlant + SupportingPlant.update().
+  // So the addPlant pass advances progress 0→0.4; the mesh builds
+  // advance 0.4→1.0.
+  updateStageDetail('인프라 완료', 1.0);
+  logBoot('log', 'greenhouse: 인프라 완료');
+  await new Promise((r) => setTimeout(r, 0));
+
+  setBootStage('plants', '식물 등록 시작', 0);
+
+  const totalToAdd = ACTIVE_BED_INDICES.length * PLANT_BLOCK;
+  let addedSoFar = 0;
   for (const bedIdx of ACTIVE_BED_INDICES) {
     for (let slot = 0; slot < PLANT_BLOCK; slot++) {
       growthEngine.addPlant({
         seed: plantSeedFor(bedIdx, slot),
         cultivarName: pickCultivar(bedIdx, slot),
       });
+      addedSoFar++;
+      if (addedSoFar % 20 === 0) {
+        updateStageDetail(
+          `${addedSoFar}/${totalToAdd} 식물 등록`,
+          (addedSoFar / totalToAdd) * 0.4,
+          [{ label: 'GrowthEngine', value: `${addedSoFar}/${totalToAdd}` }],
+        );
+        logBoot('log', `plants: ${addedSoFar}/${totalToAdd} 등록`);
+        await new Promise((r) => setTimeout(r, 0));
+      }
     }
   }
+  updateStageDetail(`${totalToAdd}/${totalToAdd} 식물 등록 완료`, 0.4);
+  logBoot('log', `plants: 등록 완료 (${totalToAdd}개)`);
+  await new Promise((r) => setTimeout(r, 0));
 
   // Cocopeat grow bags row + substrate mounds — bag top now occupies
   // y ∈ [0.95, 1.05]. Plant root y is lifted from scenario's bedY
@@ -492,6 +529,9 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
   // Showcase plant — heavy-LOD, unique to the main bed (Z=0). Sits in
   // the canonical slot (middle of the bed) so it picks up the same
   // SCENARIO data that feeds the heatmap + capture sessions.
+  updateStageDetail('Showcase 식물 메쉬 빌드', 0.45);
+  logBoot('log', 'plants: Showcase 메쉬 빌드');
+  await new Promise((r) => setTimeout(r, 0));
   const showcasePlant = createShowcasePlant(
     scene,
     growthEngine,
@@ -523,6 +563,10 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
   let supportIdx = 0;
   const totalSupports = ACTIVE_BED_INDICES.length * PLANT_BLOCK - 1; // minus showcase slot
 
+  updateStageDetail('Supporting 식물 메쉬 빌드 시작', 0.5);
+  logBoot('log', `plants: Supporting ${totalSupports}개 빌드 시작`);
+  await new Promise((r) => setTimeout(r, 0));
+
   for (const bedIdx of ACTIVE_BED_INDICES) {
     const bedZ = BED_Z_POSITIONS[bedIdx];
     const isMainBed = bedIdx === MAIN_BED_IDX;
@@ -541,8 +585,21 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
       );
       supportingPlantSlotIds.push(isMainBed ? slot : -1);
       supportIdx++;
+      if (supportIdx % 20 === 0) {
+        // Plants 단계 진행도: 0.5 → 1.0 동안 supporting 빌드
+        const supportFrac = supportIdx / totalSupports;
+        updateStageDetail(
+          `Supporting ${supportIdx}/${totalSupports} 빌드`,
+          0.5 + supportFrac * 0.5,
+          [{ label: 'Supporting', value: `${supportIdx}/${totalSupports}` }],
+        );
+        logBoot('log', `plants: ${supportIdx}/${totalSupports} 빌드`);
+        await new Promise((r) => setTimeout(r, 0));
+      }
     }
   }
+  updateStageDetail(`식물 빌드 완료 (${totalSupports + 1}개)`, 1.0);
+  logBoot('log', `plants: 빌드 완료 (showcase + ${totalSupports} supporting)`);
 
   const heatmap = createHeatmap(scene);
   const robot = createRobot(scene);

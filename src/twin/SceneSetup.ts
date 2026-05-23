@@ -11,6 +11,7 @@ import { ImageProcessingConfiguration } from '@babylonjs/core/Materials/imagePro
 import { Camera } from '@babylonjs/core/Cameras/camera';
 import { GradientMaterial } from '@babylonjs/materials/gradient/gradientMaterial';
 import { CubeTexture } from '@babylonjs/core/Materials/Textures/cubeTexture';
+import { notify, logBoot, updateStageDetail } from '../store/notify';
 
 import '@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent';
 import '@babylonjs/core/Rendering/geometryBufferRendererSceneComponent';
@@ -101,6 +102,7 @@ export async function setupScene(
   pipeline.imageProcessing.vignetteStretch = 0.5;
   pipeline.imageProcessing.vignetteColor.set(0, 0, 0, 1);
 
+  updateStageDetail('SSAO 파이프라인', 0.7);
   let ssao: SSAO2RenderingPipeline | null = null;
   if (options.backend === 'webgl2' && SSAO2RenderingPipeline.IsSupported) {
     try {
@@ -114,13 +116,20 @@ export async function setupScene(
       ssao.bilateralSoften = 0.5;
       ssao.bilateralTolerance = 0.15;
       console.log('[SceneSetup] SSAO2 enabled (WebGL2)');
+      logBoot('log', 'setup: SSAO2 활성화 (WebGL2)');
     } catch (err) {
       console.warn('[SceneSetup] SSAO2 init failed:', err);
+      notify.warn('SSAO 초기화 실패', err instanceof Error ? err.message : String(err));
     }
   } else {
     console.log(`[SceneSetup] SSAO2 skipped (backend=${options.backend} or unsupported)`);
+    if (options.backend === 'webgpu') {
+      notify.warn('SSAO 비활성화', '현재 백엔드(WebGPU)에서 지원하지 않습니다');
+    }
   }
 
+  updateStageDetail('환경 텍스처 (IBL)', 0.9);
+  logBoot('log', 'setup: IBL 환경 텍스처');
   console.log('[SceneSetup] setup complete');
 
   return { sun, hemi, shadowGenerator, pipeline, ssao };

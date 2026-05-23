@@ -35,6 +35,8 @@ import { LensFlare } from '@babylonjs/core/LensFlares/lensFlare';
 import type { Mesh } from '@babylonjs/core/Meshes/mesh';
 import type { SceneSetupHandle } from './SceneSetup';
 import type { LightingState, RenderFXState, ShadowFilterKind } from '../store/twinStore';
+import { notify, logBoot, updateStageDetail } from '../store/notify';
+import { useTwinStore } from '../store/twinStore';
 
 // ===========================================================================
 // Defaults + preset table
@@ -349,7 +351,9 @@ export function applyRenderQuality(
   setup.pipeline.samples = fx.msaaSamples;
 
   // Shadow generator — recreate if resolution changed, otherwise just
-  // update filter + bias on the existing one.
+  // update filter + bias on the existing one. ShadowGen 8192 can take
+  // 5-15s on integrated GPUs, so report stage progress along the way.
+  const isBooting = useTwinStore.getState().boot.currentStage !== 'ready';
   const existingGen = setup.shadowGenerator;
   const wantsShadows = fx.shadowResolution > 0;
   if (!wantsShadows) {
@@ -358,6 +362,10 @@ export function applyRenderQuality(
     setup.sun.shadowEnabled = true;
     const currentRes = existingGen.getShadowMap()?.getSize().width ?? 0;
     if (currentRes !== fx.shadowResolution) {
+      if (isBooting) {
+        updateStageDetail(`그림자맵 ${currentRes}→${fx.shadowResolution} 업그레이드`, 0.2);
+        logBoot('log', `quality: 그림자맵 ${currentRes}→${fx.shadowResolution}`);
+      }
       // Try to (re)create; fall back to 4096 if 8192 fails (VRAM)
       let res = fx.shadowResolution;
       let gen: ShadowGenerator | null = null;
@@ -368,6 +376,7 @@ export function applyRenderQuality(
         console.warn(`[RenderQuality] Shadow ${res} failed, falling back`, err);
         if (res > 4096) {
           res = 4096;
+          notify.warn('그림자맵 다운그레이드', `${fx.shadowResolution} → ${res} (VRAM 부족)`);
           try { gen = new ShadowGenerator(res, setup.sun); } catch { gen = null; }
         }
       }
@@ -376,15 +385,18 @@ export function applyRenderQuality(
         gen.bias = 0.001;
         gen.normalBias = 0.02;
         // Re-arm casters
+        if (isBooting) updateStageDetail(`그림자 caster 등록 (${res}×${res})`, 0.5);
         for (const m of collectShadowCasters(scene)) gen.addShadowCaster(m, true);
         // Swap into the SceneSetupHandle so future calls see the new gen.
         (setup as { shadowGenerator: ShadowGenerator }).shadowGenerator = gen;
         handles.shadowGen = gen;
+        if (isBooting) logBoot('log', `quality: 그림자 caster ${res}×${res} 등록 완료`);
       }
     } else {
       applyShadowFilter(existingGen, fx.shadowFilter);
     }
   }
+  if (isBooting) updateStageDetail('post-FX 적용', 0.8);
 
   // SSAO sample density (only on WebGL2 — null on WebGPU)
   if (setup.ssao) {
@@ -439,6 +451,18 @@ export function applyRenderQuality(
   // bind the `diffuseSampler` slot it expects, so createBindGroup
   // throws every frame. WebGL2 tolerates the missing binding. Skip
   // on WebGPU until Babylon's VLS pipeline learns to skip the bind.
+  // Warn-once when user-enabled FX gets silently disabled on WebGPU.
+  // notify.warn dedups by title hash, so repeated calls collapse into one.
+  if (fx.godRaysEnabled && isWebGPU) {
+    notify.warn('God Rays 비활성화', '현재 백엔드(WebGPU)에서 지원하지 않습니다');
+  }
+  if (fx.lensFlareEnabled && isWebGPU) {
+    notify.warn('Lens Flare 비활성화', '현재 백엔드(WebGPU)에서 지원하지 않습니다');
+  }
+  if (fx.colorLutEnabled && isWebGPU) {
+    notify.warn('Color LUT 비활성화', '현재 백엔드(WebGPU)에서 지원하지 않습니다');
+  }
+
   if (fx.godRaysEnabled && !handles.godRays && scene.activeCamera && !isWebGPU) {
     // VLS constructor: (name, ratio, camera, mesh?, samples?, samplingMode?,
     //                   engine?, reusable?, scene?).

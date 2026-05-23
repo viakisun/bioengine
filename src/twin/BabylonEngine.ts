@@ -15,6 +15,7 @@ import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Matrix } from '@babylonjs/core/Maths/math.vector';
 import { setShaderWindEnabled, isShaderWindEnabled } from '../plant/LeafGenerator';
 import { getLabelOverlayHandle } from '../components/LabelOverlay';
+import { setBootStage, logBoot, setEnvInfo, setEnvCounters, notify } from '../store/notify';
 
 import '@babylonjs/core/Helpers/sceneHelpers';
 import '@babylonjs/core/Materials/Textures/Loaders';
@@ -29,7 +30,11 @@ export interface BabylonEngineHandle {
 }
 
 async function tryWebGPU(canvas: HTMLCanvasElement): Promise<WebGPUEngine | null> {
-  if (!(await WebGPUEngine.IsSupportedAsync)) return null;
+  logBoot('log', 'engine: WebGPU 시도');
+  if (!(await WebGPUEngine.IsSupportedAsync)) {
+    logBoot('warn', 'engine: WebGPU 미지원 (브라우저)');
+    return null;
+  }
   try {
     const engine = new WebGPUEngine(canvas, {
       antialias: true,
@@ -39,7 +44,35 @@ async function tryWebGPU(canvas: HTMLCanvasElement): Promise<WebGPUEngine | null
     return engine;
   } catch (err) {
     console.warn('[BabylonEngine] WebGPU init failed, falling back to WebGL2:', err);
+    logBoot('warn', `engine: WebGPU init 실패 — ${err instanceof Error ? err.message : 'unknown'}`);
     return null;
+  }
+}
+
+/**
+ * Extract a human-readable GPU device name from an Engine. WebGL2 reads
+ * the WEBGL_debug_renderer_info extension; WebGPU returns its adapter
+ * info if available.
+ */
+function readGpuDevice(engine: Engine | WebGPUEngine): string {
+  // WebGPU: adapter info is on the engine itself in Babylon's wrapper
+  if (engine instanceof WebGPUEngine) {
+    const info = (engine as unknown as { _adapterInfo?: { vendor?: string; architecture?: string } })._adapterInfo;
+    if (info?.architecture) return `${info.vendor ?? 'GPU'} (${info.architecture})`;
+    return 'WebGPU 어댑터';
+  }
+  // WebGL2 — UNMASKED_RENDERER_WEBGL via the debug extension
+  try {
+    const gl = (engine as { _gl?: WebGL2RenderingContext })._gl;
+    if (!gl) return '알 수 없음';
+    const ext = gl.getExtension('WEBGL_debug_renderer_info');
+    if (ext) {
+      const renderer = gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) as string;
+      return renderer || '알 수 없음';
+    }
+    return gl.getParameter(gl.RENDERER) as string;
+  } catch {
+    return '알 수 없음';
   }
 }
 
@@ -114,17 +147,29 @@ function applyLightingToScene(scene: Scene, setup: SceneSetupHandle, L: Lighting
 
 export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<BabylonEngineHandle> {
   console.log('[BabylonEngine] creating engine');
+  setBootStage('engine', 'WebGPU 시도', 0.1);
 
   let engine: Engine | WebGPUEngine | null = await tryWebGPU(canvas);
   let backend: 'webgpu' | 'webgl2' = 'webgpu';
 
   if (!engine) {
     console.log('[BabylonEngine] using WebGL2 fallback');
+    notify.info('WebGPU 미지원', 'WebGL2 로 시작합니다');
     engine = createWebGL2(canvas);
     backend = 'webgl2';
   } else {
     console.log('[BabylonEngine] using WebGPU');
   }
+  logBoot('log', `engine: ${backend} 컨텍스트 생성 완료`);
+
+  // Capture environment info for the BootOverlay env panel
+  const gpuDevice = readGpuDevice(engine);
+  setEnvInfo({
+    backend,
+    gpuDevice,
+    viewport: { w: canvas.width, h: canvas.height },
+  });
+  logBoot('log', `engine: ${gpuDevice}`);
 
   const hudBackend = document.getElementById('hud-backend');
   if (hudBackend) hudBackend.textContent = backend === 'webgpu' ? 'WebGPU' : 'WebGL2';
@@ -146,30 +191,39 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
   const cameraRig = setupCamera(scene, canvas);
   cameraRig.setPreset(useTwinStore.getState().cameraPreset);
   console.log('[BabylonEngine] camera ready');
+  logBoot('log', 'engine: 카메라 준비 완료');
 
+  setBootStage('setup', 'IBL · 그림자 · SSAO 셋업', 0);
   let sceneSetup: SceneSetupHandle | null = null;
   try {
     sceneSetup = await setupScene(scene, cameraRig.camera, { backend });
     applyLightingToScene(scene, sceneSetup, useTwinStore.getState().lighting);
+    logBoot('log', 'setup: 씬 셋업 완료');
   } catch (err) {
     console.error('[BabylonEngine] setupScene failed:', err);
+    notify.error('씬 셋업 실패', err instanceof Error ? err : String(err));
   }
 
+  setBootStage('greenhouse', '온실 인프라 빌드 시작', 0);
   let greenhouse: GreenhouseSceneHandle | null = null;
   try {
-    greenhouse = buildGreenhouseScene(scene);
+    greenhouse = await buildGreenhouseScene(scene);
   } catch (err) {
     console.error('[BabylonEngine] buildGreenhouseScene failed:', err);
+    notify.error('온실 빌드 실패', err instanceof Error ? err : String(err));
   }
 
   // Apply the quality preset (level 10 by default) AFTER greenhouse is
   // built so the shadow generator's caster list — recreated when we
   // upgrade the shadow resolution — picks up every plant/structure mesh.
   if (sceneSetup) {
+    setBootStage('quality', '렌더 품질 적용', 0);
     try {
       applyRenderQuality(scene, sceneSetup, engine, useTwinStore.getState().renderFX);
+      logBoot('log', 'quality: 렌더 품질 적용 완료');
     } catch (err) {
       console.error('[BabylonEngine] applyRenderQuality boot failed:', err);
+      notify.error('렌더 품질 적용 실패', err instanceof Error ? err : String(err));
     }
   }
 
@@ -225,6 +279,23 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
 
   console.log('[BabylonEngine] starting render loop');
 
+  // 'shaders' — first-frame shader compilation. Babylon doesn't expose
+  // an explicit progress signal here, so we just mark the stage as
+  // active with an indeterminate spinner ('progress' starts at 0.1 so
+  // the bar visibly moves). executeWhenReady fires once every async
+  // texture/mesh asset has finished loading AND the first frame's
+  // shader permutations have compiled.
+  setBootStage('shaders', '셰이더 컴파일 (Babylon executeWhenReady 대기)', 0.1);
+  scene.executeWhenReady(() => {
+    setBootStage('ready', '준비 완료', 1);
+    const total = (performance.now() - useTwinStore.getState().boot.startedAt) / 1000;
+    logBoot('log', `ready: 총 부팅 ${total.toFixed(2)}초`);
+  });
+
+  // Env counters refreshed every 500ms during boot, less often after
+  // ready (every 2s — for the dev panel if anyone keeps it open).
+  let lastCountersUpdate = 0;
+
   let lastFpsUpdate = 0;
   let lastDayUpdate = -999;
   let lastPlayTime = performance.now();
@@ -253,6 +324,32 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
     const now = performance.now();
     const dtInter = (now - lastInteractionTick) / 1000;
     lastInteractionTick = now;
+
+    // Env counter polling — 500ms during boot, 2s after ready.
+    const counterInterval = state.boot.currentStage === 'ready' ? 2000 : 500;
+    if (now - lastCountersUpdate > counterInterval) {
+      lastCountersUpdate = now;
+      try {
+        let triangles = 0;
+        for (const m of scene.meshes) {
+          if (m.isEnabled() && m.isVisible) {
+            triangles += m.getTotalIndices() / 3;
+          }
+        }
+        const perfMemory = (performance as unknown as {
+          memory?: { usedJSHeapSize: number };
+        }).memory;
+        setEnvCounters({
+          meshes: scene.meshes.length,
+          triangles: Math.round(triangles),
+          textures: scene.textures.length,
+          materials: scene.materials.length,
+          memoryMB: perfMemory ? Math.round(perfMemory.usedJSHeapSize / 1024 / 1024) : null,
+        });
+      } catch {
+        // ignore — non-fatal
+      }
+    }
 
     // Robot contributes a continuous interaction while capturing —
     // the camera head's world position pushes leaves immediately

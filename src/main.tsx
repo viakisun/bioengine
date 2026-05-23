@@ -1,6 +1,7 @@
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { useTwinStore } from './store/twinStore';
+import { notify } from './store/notify';
 import './ui/ui-kit.css';
 
 declare global {
@@ -21,9 +22,15 @@ if (!root) throw new Error('#root not found');
 
 window.addEventListener('error', (e) => {
   console.error('[window.error]', e.message, e.error);
+  notify.error(e.message || '예기치 못한 오류', e.error instanceof Error ? e.error : e.message);
 });
 window.addEventListener('unhandledrejection', (e) => {
   console.error('[unhandledrejection]', e.reason);
+  const reason = e.reason;
+  const title = reason instanceof Error
+    ? `Unhandled Promise: ${reason.message}`
+    : `Unhandled Promise: ${String(reason)}`;
+  notify.error(title, reason instanceof Error ? reason : String(reason));
 });
 
 createRoot(root).render(<App />);

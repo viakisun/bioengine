@@ -191,6 +191,100 @@ export interface InteractionPoint {
   lifetime: number;  // seconds
 }
 
+// -----------------------------------------------------------------------
+// Boot progress + alerts + live log + env (plan a-drifting-wigderson.md)
+// -----------------------------------------------------------------------
+
+export type BootStage =
+  | 'init'          // 처음 진입 (마운트 직후)
+  | 'engine'        // WebGPU/WebGL2 엔진 생성
+  | 'setup'         // SceneSetup — IBL, SSAO, 환경 텍스처
+  | 'greenhouse'    // 베드 + 인프라 메쉬
+  | 'plants'        // 식물 등록 + 메쉬 빌드 (가장 오래 걸림)
+  | 'quality'       // ShadowGen 8192 + 포스트프로세싱
+  | 'shaders'       // 첫 프레임 셰이더 컴파일
+  | 'ready';        // 첫 프레임 렌더 완료
+
+export const BOOT_STAGES: BootStage[] = [
+  'init', 'engine', 'setup', 'greenhouse', 'plants', 'quality', 'shaders', 'ready',
+];
+
+export interface StageInfo {
+  startedAt: number | null;   // performance.now(), null = 아직 진입 안 함
+  completedAt: number | null; // null = 진행중/대기중, number = 완료
+  detail: string;             // "230/720 메쉬 생성중"
+  progress: number;           // 0..1
+  subCounters?: Array<{ label: string; value: number | string }>;
+}
+
+export type LiveLogLevel = 'log' | 'info' | 'warn' | 'error';
+
+export interface LiveLogEntry {
+  id: number;        // 단조 증가 카운터 (React key + 중복 방지)
+  ts: number;        // performance.now()
+  level: LiveLogLevel;
+  stage: BootStage;
+  message: string;
+}
+
+export type NotificationLevel = 'info' | 'warn' | 'error';
+
+export interface Notification {
+  id: string;
+  level: NotificationLevel;
+  title: string;
+  body?: string;
+  stack?: string;       // error 만
+  createdAt: number;    // Date.now()
+  dismissed: boolean;
+}
+
+export interface EnvInfo {
+  backend: 'webgpu' | 'webgl2' | 'unknown';
+  gpuDevice: string;
+  viewport: { w: number; h: number };
+  dpr: number;
+  counters: {
+    meshes: number;
+    triangles: number;
+    textures: number;
+    materials: number;
+    memoryMB: number | null;
+  };
+}
+
+export interface BootSnapshot {
+  currentStage: BootStage;
+  startedAt: number;
+  stages: Record<BootStage, StageInfo>;
+  /** 시간순 라이브 로그 — 100줄 max, 오래된 것부터 잘림. */
+  liveLog: LiveLogEntry[];
+  env: EnvInfo;
+  /** 'shaders' 단계용 ETA 추정 (이전 stage 들 평균에서) — null = 미측정. */
+  etaSecondsMin: number | null;
+  etaSecondsMax: number | null;
+}
+
+const MAX_LIVE_LOG = 100;
+const MAX_NOTIFICATIONS = 16;
+
+function emptyStageInfo(): StageInfo {
+  return { startedAt: null, completedAt: null, detail: '', progress: 0 };
+}
+
+function emptyBootStages(): Record<BootStage, StageInfo> {
+  return {
+    init: emptyStageInfo(),
+    engine: emptyStageInfo(),
+    setup: emptyStageInfo(),
+    greenhouse: emptyStageInfo(),
+    plants: emptyStageInfo(),
+    quality: emptyStageInfo(),
+    shaders: emptyStageInfo(),
+    ready: emptyStageInfo(),
+  };
+}
+
 interface TwinState {
   currentDay: number;
   playing: boolean;
@@ -291,6 +385,32 @@ interface TwinState {
   toggleFov: () => void;
 
   setCameraPreset: (preset: PresetView) => void;
+
+  // -- Boot progress + notifications + live log + env --
+  boot: BootSnapshot;
+  notifications: Notification[];
+  /** 단계 진입. 이전 단계는 자동으로 completedAt 채움. */
+  setBootStage: (stage: BootStage, detail?: string, progress?: number) => void;
+  /** 현재 단계의 detail / progress / subCounters 갱신 (단계 변경 없음). */
+  updateStageDetail: (
+    detail: string,
+    progress?: number,
+    subCounters?: StageInfo['subCounters'],
+  ) => void;
+  /** 라이브 로그 push. */
+  logBoot: (level: LiveLogLevel, message: string) => void;
+  /** 환경 카운터 일괄 갱신 (메쉬/삼각형/텍스처/머티리얼/메모리). */
+  setEnvCounters: (counters: Partial<EnvInfo['counters']>) => void;
+  /** 환경 정보 (백엔드, GPU 장치, viewport) 갱신. */
+  setEnvInfo: (patch: Partial<Omit<EnvInfo, 'counters'>>) => void;
+  /** ETA 표시 갱신. */
+  setBootEta: (min: number | null, max: number | null) => void;
+  /** 알림 추가. id 가 이미 있으면 본문 갱신 + dismissed=false (중복 제거). */
+  pushNotification: (n: Omit<Notification, 'createdAt' | 'dismissed'>) => void;
+  /** 알림 닫기 (id 로). */
+  dismissNotification: (id: string) => void;
+  /** 모든 알림 닫기. */
+  clearNotifications: () => void;
 }
 
 /**
@@ -421,4 +541,138 @@ export const useTwinStore = create<TwinState>((set) => ({
   toggleFov: () => set((s) => ({ fovVisible: !s.fovVisible })),
 
   setCameraPreset: (preset) => set({ cameraPreset: preset }),
+
+  // -- Boot progress + notifications + live log + env --
+  boot: {
+    currentStage: 'init',
+    startedAt: typeof performance !== 'undefined' ? performance.now() : 0,
+    stages: (() => {
+      const s = emptyBootStages();
+      // 'init' 은 마운트 직후 진입 — startedAt 미리 채움
+      s.init.startedAt = typeof performance !== 'undefined' ? performance.now() : 0;
+      return s;
+    })(),
+    liveLog: [],
+    env: {
+      backend: 'unknown',
+      gpuDevice: '',
+      viewport: { w: 0, h: 0 },
+      dpr: typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1,
+      counters: { meshes: 0, triangles: 0, textures: 0, materials: 0, memoryMB: null },
+    },
+    etaSecondsMin: null,
+    etaSecondsMax: null,
+  },
+  notifications: [],
+
+  setBootStage: (stage, detail = '', progress = 0) =>
+    set((s) => {
+      const now = performance.now();
+      const stages = { ...s.boot.stages };
+      // 이전 단계 자동 완료 처리 — 같은 stage 가 두 번 호출돼도 startedAt 보존
+      const prevStage = s.boot.currentStage;
+      if (prevStage !== stage && stages[prevStage].startedAt && !stages[prevStage].completedAt) {
+        stages[prevStage] = {
+          ...stages[prevStage],
+          completedAt: now,
+          progress: 1,
+        };
+      }
+      // 새 단계 진입
+      stages[stage] = {
+        ...stages[stage],
+        startedAt: stages[stage].startedAt ?? now,
+        completedAt: stage === 'ready' ? now : null,
+        detail,
+        progress: stage === 'ready' ? 1 : progress,
+      };
+      const nextLog: LiveLogEntry = {
+        id: s.boot.liveLog.length > 0 ? s.boot.liveLog[s.boot.liveLog.length - 1].id + 1 : 1,
+        ts: now,
+        level: 'log',
+        stage,
+        message: detail ? `${stage}: ${detail}` : `${stage}: 진입`,
+      };
+      const liveLog = [...s.boot.liveLog, nextLog].slice(-MAX_LIVE_LOG);
+      return {
+        boot: { ...s.boot, currentStage: stage, stages, liveLog },
+      };
+    }),
+
+  updateStageDetail: (detail, progress, subCounters) =>
+    set((s) => {
+      const stages = { ...s.boot.stages };
+      const cur = s.boot.currentStage;
+      stages[cur] = {
+        ...stages[cur],
+        detail,
+        progress: progress != null ? progress : stages[cur].progress,
+        subCounters: subCounters ?? stages[cur].subCounters,
+      };
+      return { boot: { ...s.boot, stages } };
+    }),
+
+  logBoot: (level, message) =>
+    set((s) => {
+      const nextId = s.boot.liveLog.length > 0
+        ? s.boot.liveLog[s.boot.liveLog.length - 1].id + 1
+        : 1;
+      const entry: LiveLogEntry = {
+        id: nextId,
+        ts: performance.now(),
+        level,
+        stage: s.boot.currentStage,
+        message,
+      };
+      const liveLog = [...s.boot.liveLog, entry].slice(-MAX_LIVE_LOG);
+      return { boot: { ...s.boot, liveLog } };
+    }),
+
+  setEnvCounters: (counters) =>
+    set((s) => ({
+      boot: { ...s.boot, env: { ...s.boot.env, counters: { ...s.boot.env.counters, ...counters } } },
+    })),
+
+  setEnvInfo: (patch) =>
+    set((s) => ({
+      boot: { ...s.boot, env: { ...s.boot.env, ...patch } },
+    })),
+
+  setBootEta: (etaSecondsMin, etaSecondsMax) =>
+    set((s) => ({ boot: { ...s.boot, etaSecondsMin, etaSecondsMax } })),
+
+  pushNotification: (n) =>
+    set((s) => {
+      const now = Date.now();
+      // 중복 id 면 기존 알림 갱신 + dismissed 해제
+      const idx = s.notifications.findIndex((x) => x.id === n.id);
+      const next: Notification = { ...n, createdAt: now, dismissed: false };
+      let arr: Notification[];
+      if (idx >= 0) {
+        arr = [...s.notifications];
+        arr[idx] = next;
+      } else {
+        arr = [...s.notifications, next].slice(-MAX_NOTIFICATIONS);
+      }
+      // 알림은 라이브 로그에도 push (부팅 중일 때 사이드 패널에 보이도록)
+      const nextId = s.boot.liveLog.length > 0
+        ? s.boot.liveLog[s.boot.liveLog.length - 1].id + 1
+        : 1;
+      const logEntry: LiveLogEntry = {
+        id: nextId,
+        ts: performance.now(),
+        level: n.level,
+        stage: s.boot.currentStage,
+        message: n.body ? `${n.title} — ${n.body}` : n.title,
+      };
+      const liveLog = [...s.boot.liveLog, logEntry].slice(-MAX_LIVE_LOG);
+      return { notifications: arr, boot: { ...s.boot, liveLog } };
+    }),
+
+  dismissNotification: (id) =>
+    set((s) => ({
+      notifications: s.notifications.map((n) => (n.id === id ? { ...n, dismissed: true } : n)),
+    })),
+
+  clearNotifications: () => set({ notifications: [] }),
 }));
