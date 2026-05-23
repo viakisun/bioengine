@@ -125,11 +125,11 @@ export function createCocopeatBags(
     bagMat.albedoColor = new Color3(1, 1, 1);
     bagMat.albedoTexture = getCocopeatBagTexture(scene);
     bagMat.metallic = 0;
-    bagMat.roughness = 0.55;
+    bagMat.roughness = 0.75;            // 0.55 → 0.75 (less plastic gloss)
     bagMat.clearCoat.isEnabled = true;
-    bagMat.clearCoat.intensity = 0.25;
-    bagMat.clearCoat.roughness = 0.4;
-    bagMat.environmentIntensity = 0.6;
+    bagMat.clearCoat.intensity = 0.15;  // 0.25 → 0.15 (less wet shine)
+    bagMat.clearCoat.roughness = 0.6;
+    bagMat.environmentIntensity = 0.55;
     bagMat.backFaceCulling = false; // hole inner walls have inward-facing normals
   }
   bagRow.material = bagMat;

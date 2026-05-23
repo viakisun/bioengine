@@ -203,20 +203,27 @@ export function getLeafMaterial(scene: Scene): PBRMaterial {
       customMat.invertNormalMapY = false;
       customMat.invertNormalMapX = false;
       customMat.metallic = 0.0;
-      customMat.roughness = 0.6;
+      customMat.roughness = 0.48;          // 0.6 → 0.48 — leaves have soft sheen
       customMat.backFaceCulling = false;
       customMat.twoSidedLighting = true;
-      customMat.environmentIntensity = 0.6;
+      customMat.environmentIntensity = 0.85;  // 0.6 → 0.85 — IBL fills shaded leaves
       // Phase B — per-leaf smooth color blend via baked vertex colors.
       // LeafGenerator bakes RGB tint from getLeafBlendedColor(); PBR
       // material auto-detects vertex colors from the bound VertexBuffer
       // and multiplies them against the albedo texture (no flag needed).
 
+      // Cuticle wax — real tomato leaves have a thin waxy layer. clearcoat
+      // adds the subtle specular sheen visible on healthy leaves under
+      // greenhouse lighting.
+      customMat.clearCoat.isEnabled = true;
+      customMat.clearCoat.intensity = 0.35;
+      customMat.clearCoat.roughness = 0.25;
+
       customMat.subSurface.isTranslucencyEnabled = true;
-      customMat.subSurface.translucencyIntensity = 0.45;
-      customMat.subSurface.tintColor = Color3.FromHexString('#2a6818');
-      customMat.subSurface.minimumThickness = 0.1;
-      customMat.subSurface.maximumThickness = 0.4;
+      customMat.subSurface.translucencyIntensity = 0.75;  // 0.45 → 0.75 (more backlight)
+      customMat.subSurface.tintColor = Color3.FromHexString('#3d8a25');  // brighter green
+      customMat.subSurface.minimumThickness = 0.05;
+      customMat.subSurface.maximumThickness = 0.3;
 
       // 3-layer wind — guideline §10. windWeight biases the offset toward
       // leaflet tips & edges so the petiole base stays mostly anchored.
@@ -275,18 +282,22 @@ export function getLeafMaterial(scene: Scene): PBRMaterial {
       mat.invertNormalMapY = false;
       mat.invertNormalMapX = false;
       mat.metallic = 0.0;
-      mat.roughness = 0.6;
+      mat.roughness = 0.48;
       mat.backFaceCulling = false;
       mat.twoSidedLighting = true;
-      mat.environmentIntensity = 0.6;
+      mat.environmentIntensity = 0.85;
       // Same baked-color path as WebGL2 — vertex colors auto-detected
       // from the mesh's VertexBuffer.ColorKind data; no flag required.
 
+      mat.clearCoat.isEnabled = true;
+      mat.clearCoat.intensity = 0.35;
+      mat.clearCoat.roughness = 0.25;
+
       mat.subSurface.isTranslucencyEnabled = true;
-      mat.subSurface.translucencyIntensity = 0.45;
-      mat.subSurface.tintColor = Color3.FromHexString('#2a6818');
-      mat.subSurface.minimumThickness = 0.1;
-      mat.subSurface.maximumThickness = 0.4;
+      mat.subSurface.translucencyIntensity = 0.75;
+      mat.subSurface.tintColor = Color3.FromHexString('#3d8a25');
+      mat.subSurface.minimumThickness = 0.05;
+      mat.subSurface.maximumThickness = 0.3;
     }
 
     cachedLeafMaterial.set(scene, mat);

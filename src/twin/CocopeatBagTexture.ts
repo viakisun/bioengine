@@ -90,11 +90,13 @@ export function getCocopeatBagTexture(scene: Scene): RawTexture {
     const H = 256;
     const { ctx, toBytes } = makeCanvas(W, H);
 
-    // Base off-white fill
-    ctx.fillStyle = '#f8f5ed';
+    // Base mid-beige (was #f8f5ed off-white — too bright, looked like
+    // ceramic tile from above. Real cocopeat bags are slightly tinted by
+    // substrate stains + greenhouse dust.)
+    ctx.fillStyle = '#e0d8c3';
     ctx.fillRect(0, 0, W, H);
 
-    // FBM mottling — per-pixel blend between #f8f5ed and #ece6d4
+    // FBM mottling — per-pixel blend between #e0d8c3 and #c4b89a
     const img = ctx.getImageData(0, 0, W, H);
     const data = img.data;
     for (let y = 0; y < H; y++) {
@@ -102,10 +104,10 @@ export function getCocopeatBagTexture(scene: Scene): RawTexture {
         const n = fbm(x / 60, y / 60, 4);
         const t = (n - 0.4) * 0.6; // recenter, attenuate
         const k = Math.max(0, Math.min(1, 0.5 + t));
-        // f8f5ed → ece6d4
-        const r = 0xf8 + (0xec - 0xf8) * k;
-        const g = 0xf5 + (0xe6 - 0xf5) * k;
-        const b = 0xed + (0xd4 - 0xed) * k;
+        // e0d8c3 → c4b89a
+        const r = 0xe0 + (0xc4 - 0xe0) * k;
+        const g = 0xd8 + (0xb8 - 0xd8) * k;
+        const b = 0xc3 + (0x9a - 0xc3) * k;
         const idx = (y * W + x) * 4;
         data[idx] = r;
         data[idx + 1] = g;

@@ -31,10 +31,10 @@ import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { SeededRandom } from '@farmsim/tomato-engine';
 import type { FruitState, CultivarSample } from '@farmsim/tomato-engine';
 
-const SEGMENTS_HIGH = 20;     // hero (showcase) — longitudinal slices
-const RINGS_HIGH = 14;        // hero — latitudinal rings
-const SEGMENTS_LOW = 12;      // supporting — coarser but still lobed
-const RINGS_LOW = 9;          // supporting
+const SEGMENTS_HIGH = 36;     // hero (showcase) — smoother lobes, less faceted
+const RINGS_HIGH = 22;        // hero — latitudinal rings (smoother shoulder)
+const SEGMENTS_LOW = 14;      // supporting — coarser but still lobed
+const RINGS_LOW = 10;         // supporting
 const CROWN_RECESSION = 0.10; // depth of well at stem-end (× radius)
 
 // ---------------------------------------------------------------------------

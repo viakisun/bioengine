@@ -233,7 +233,7 @@ export const QUALITY_PRESETS: Record<number, QualityPreset> = {
       colorLutEnabled: true,
       chromaticAberrationEnabled: true, grainEnabled: true,
       glowLayerEnabled: true, lensFlareEnabled: true,
-      leafSSSIntensity: 0.75,
+      leafSSSIntensity: 0.95,
       activeBedCount: 13,
     },
   },

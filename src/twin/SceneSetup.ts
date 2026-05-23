@@ -51,18 +51,20 @@ export async function setupScene(
   scene.imageProcessingConfiguration.toneMappingEnabled = true;
   scene.imageProcessingConfiguration.toneMappingType =
     ImageProcessingConfiguration.TONEMAPPING_ACES;
-  scene.imageProcessingConfiguration.exposure = 1.0;
-  scene.imageProcessingConfiguration.contrast = 1.1;
+  scene.imageProcessingConfiguration.exposure = 1.05;
+  scene.imageProcessingConfiguration.contrast = 1.2;       // 1.1 → 1.2 (depth)
 
   const hemi = new HemisphericLight('hemi', new Vector3(0, 1, 0), scene);
-  hemi.intensity = 0.55;
+  hemi.intensity = 0.40;                                    // 0.55 → 0.40
   hemi.diffuse = Color3.FromHexString('#e8e4d8');
   hemi.groundColor = Color3.FromHexString('#3a3530');
   hemi.specular = new Color3(0.4, 0.4, 0.4);
 
-  const sunDir = new Vector3(-0.4, -1.0, -0.3).normalize();
+  // Sun direction more lateral — gives diagonal cast shadows instead of
+  // straight-down stamps; also creates proper rim highlights on fruits.
+  const sunDir = new Vector3(-0.55, -0.85, -0.45).normalize();
   const sun = new DirectionalLight('sun', sunDir, scene);
-  sun.intensity = 3.2;
+  sun.intensity = 4.0;                                      // 3.2 → 4.0
   sun.diffuse = Color3.FromHexString('#fff6d8');
   sun.specular = new Color3(1, 1, 1);
   sun.position = new Vector3(8, 12, 6);
