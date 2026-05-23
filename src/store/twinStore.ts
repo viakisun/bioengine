@@ -514,7 +514,9 @@ const BOOT_QUALITY = readQualityFromUrl() ?? 9;
 // debounce 로 slider drag 중 매 frame 쓰기 방지. parse 실패 시 default
 // fallback. v1 prefix 로 향후 schema 변경 시 마이그레이션 여지.
 
-const LS_KEY_LIGHTING = 'farmsim.lighting.v1';
+// v1 → v2: 이전 사용자가 저장한 Lv 10 heavy 설정이 메모리 초과 유발
+// 가능성. v2 부터는 신규 시작 (사용자가 다시 dial in).
+const LS_KEY_LIGHTING = 'farmsim.lighting.v2';
 
 interface PersistedLighting {
   lighting?: Partial<LightingState>;

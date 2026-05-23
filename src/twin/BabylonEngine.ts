@@ -293,19 +293,17 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
     // 깨뜨리므로 RenderQuality.ts 안에서 자동 스킵 + notify.warn. 나머지
     // FX (shadow 8192 / MSAA 8 / SSAO 32 / 모든 PBR / clearcoat / SSS /
     // grain / glow 등) 는 Lv 10 그대로 활성.
+    // 자동 Lv 10 boost 는 제거 — 사용자 환경 (M-series Mac Safari/Chrome)
+    // 에서 shadow 8192 + MSAA 8 + hardwareScale 1.5 가 GPU 메모리 한도
+    // 초과로 renderer crash / page reload 유발. 품질은 LightingDrawer 의
+    // 슬라이더로 사용자가 직접 선택. (localStorage 에 저장됨.)
     if (s.mode !== prev.mode && greenhouse) {
       if (s.mode === 'single-plant') {
         greenhouse.setSingleFocusMode(true);
         cameraRig.setPreset('single-plant');
-        if (savedRenderQuality === null) savedRenderQuality = prev.renderQuality;
-        useTwinStore.getState().setRenderQuality(10);
       } else if (s.mode === 'greenhouse') {
         greenhouse.setSingleFocusMode(false);
         cameraRig.setPreset('overview');
-        if (savedRenderQuality !== null) {
-          useTwinStore.getState().setRenderQuality(savedRenderQuality);
-          savedRenderQuality = null;
-        }
       }
     }
   });
@@ -318,10 +316,8 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
     if (initialState.mode === 'single-plant') {
       greenhouse.setSingleFocusMode(true);
       cameraRig.setPreset('single-plant');
-      // Phase 5: 자동 quality 10 boost (WebGPU 호환 partial — DOF/
-      // MotionBlur 만 RenderQuality 안에서 skip).
-      savedRenderQuality = initialState.renderQuality;
-      useTwinStore.getState().setRenderQuality(10);
+      // 자동 Lv 10 boost 제거 — 메모리 초과 크래시 방지. 사용자가
+      // LightingDrawer 의 품질 슬라이더로 직접 선택. (보존됨.)
     }
     // Initial skeleton overlay state (Plan 3a) — subscribe only fires
     // on change, so re-apply at boot if the store says true.

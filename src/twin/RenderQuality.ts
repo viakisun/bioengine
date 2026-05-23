@@ -224,9 +224,12 @@ export const QUALITY_PRESETS: Record<number, QualityPreset> = {
       exposure: 1.1,
     }),
     fx: { ...RENDER_FX_DEFAULTS,
-      shadowResolution: 8192, shadowFilter: 'pcss-contact',
-      msaaSamples: 8,
-      hardwareScale: 1.5,
+      // shadow 8192 (256MB texture) + MSAA 8 + hardwareScale 1.5 가
+      // 결합되면 M-series Mac 의 WebGPU 메모리 한도 초과 → renderer
+      // crash / Safari page reload. 절반 정도로 다운 (시각 손실 최소).
+      shadowResolution: 4096, shadowFilter: 'pcss-contact',
+      msaaSamples: 4,
+      hardwareScale: 1.25,
       ssaoSamples: 32,
       taaEnabled: true, ssrEnabled: true, dofEnabled: true,
       godRaysEnabled: true, motionBlurEnabled: true,
