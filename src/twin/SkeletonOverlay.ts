@@ -25,11 +25,14 @@ import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import '@babylonjs/core/Meshes/Builders/sphereBuilder';
 import { catmullRomPath } from '../plant/StemGenerator';
+import { layoutTruss, pedicelControlPoints } from '../plant/TrussGenerator';
 import type { PlantState, StemAxis, NodeState } from '@farmsim/tomato-engine';
 import type { SkeletonConfig } from '../store/twinStore';
 
 export interface SkeletonOverlayHandle {
-  update: (plant: PlantState) => void;
+  /** Plan 3c-3 — genome 추가. truss layout 의 droop 계산에 필요
+   *  (computeTrussDroop). lush mesh 와 *동일 layout* 보장. */
+  update: (plant: PlantState, genome: import('@farmsim/tomato-engine').PlantGenome) => void;
   setVisible: (v: boolean) => void;
   setConfig: (config: SkeletonConfig) => void;
   dispose: () => void;
@@ -110,6 +113,7 @@ export function createSkeletonOverlay(
   let visible = false;
   let cfg: SkeletonConfig = { ...DEFAULT_CONFIG };
   let lastPlantForRebuild: PlantState | null = null;
+  let lastGenome: import('@farmsim/tomato-engine').PlantGenome | null = null;
 
   function ensureInit() {
     if (root) return;
@@ -307,88 +311,77 @@ export function createSkeletonOverlay(
         meshes.push(leafDot);
       }
 
-      // ── Truss: rachis (cantilever droop curve) + per-fruit pedicels + calyx
-      if (cfg.showTruss && isTruss && node.truss && axis.order === 0) {
+      // ── Truss — Phase 3c-3: shared layoutTruss() = lush mesh 와 *동일*
+      //     fruit / pedicel / calyx 위치. truss 는 main axis only.
+      if (cfg.showTruss && isTruss && node.truss && axis.order === 0 && lastGenome) {
         const trussAz = (node.phyllotaxisAngle * Math.PI) / 180 + Math.PI;
         const cosAz = Math.cos(trussAz);
         const sinAz = Math.sin(trussAz);
-        const rachisLen = 0.10 + Math.min(0.10, node.truss.fruits.length * 0.012);
-        // Cantilever sag — parabolic. fruit count 와 stage 가 무게 proxy.
-        const totalDroop = rachisLen * (0.15 + Math.min(0.25, node.truss.fruits.length * 0.04));
-        const rachisTip = new Vector3(
-          nodePos.x + cosAz * rachisLen,
-          nodePos.y - totalDroop,
-          nodePos.z + sinAz * rachisLen,
+
+        // Truss-local → world transform: rotate around Y by trussAz, then
+        // translate to nodePos. trussRoot is at nodePos.y - 0.02 in lush;
+        // mirror that.
+        const trussWorldOrigin = new Vector3(nodePos.x, nodePos.y - 0.02, nodePos.z);
+        const toWorld = (p: { x: number; y: number; z: number }): Vector3 => new Vector3(
+          trussWorldOrigin.x + cosAz * p.x - sinAz * p.z,
+          trussWorldOrigin.y + p.y,
+          trussWorldOrigin.z + sinAz * p.x + cosAz * p.z,
         );
-        // 2 control points along rachis for parabolic curve.
-        // y(t) = -totalDroop * t² (parabola: linear sag accumulation).
-        const rc1 = new Vector3(
-          nodePos.x + cosAz * rachisLen * 0.33,
-          nodePos.y - totalDroop * 0.11,
-          nodePos.z + sinAz * rachisLen * 0.33,
+
+        const layout = layoutTruss(node.truss, lastGenome);
+
+        // Rachis curve (peduncle polyline).
+        const rachisCurveWorld = catmullRomPath(
+          layout.rachisControlPoints.map(toWorld),
+          4,
         );
-        const rc2 = new Vector3(
-          nodePos.x + cosAz * rachisLen * 0.67,
-          nodePos.y - totalDroop * 0.45,
-          nodePos.z + sinAz * rachisLen * 0.67,
-        );
-        const rachisCurve = catmullRomPath([nodePos, rc1, rc2, rachisTip], 4);
         meshes.push(thickLine(
-          `skel_rachis_a${axisIdx}_n${i}`, rachisCurve,
+          `skel_rachis_a${axisIdx}_n${i}`, rachisCurveWorld,
           Color3.FromHexString(cfg.rachisColor), cfg.rachisWidth,
         ));
 
-        const fruits = node.truss.fruits;
-        for (let f = 0; f < fruits.length; f++) {
-          const alongT = (f + 0.5) / Math.max(1, fruits.length);
-          // Parabolic 위치 — rachis curve 와 일치 (linear * t² droop)
-          const onRachis = new Vector3(
-            nodePos.x + cosAz * rachisLen * alongT,
-            nodePos.y - totalDroop * alongT * alongT,
-            nodePos.z + sinAz * rachisLen * alongT,
-          );
-          const sideJit = (f % 2 === 0 ? 0.012 : -0.012);
-          const pedLen = 0.038;
-          const dia = (fruits[f].diameterMm ?? 30);
-          const droopY = Math.min(0.018, 0.005 + dia / 60 * 0.013);
-          const p1 = new Vector3(
-            onRachis.x + sideJit * 0.35,
-            onRachis.y - droopY * 0.25,
-            onRachis.z,
-          );
-          const p2 = new Vector3(
-            onRachis.x + sideJit * 0.75,
-            onRachis.y - droopY * 0.65,
-            onRachis.z + sideJit * 0.2,
-          );
-          const fruitPos = new Vector3(
-            onRachis.x + sideJit,
-            onRachis.y - droopY - pedLen * 0.5,
-            onRachis.z,
-          );
-          // Pedicel — Catmull-Rom 으로 매끈한 droop curve.
-          const pedCurve = catmullRomPath([onRachis, p1, p2, fruitPos], 3);
+        // Truss base marker (where rachis meets stem).
+        const trMarker = MeshBuilder.CreateSphere(
+          `skel_truss_a${axisIdx}_n${i}`,
+          { diameter: 0.010, segments: 6 }, scene,
+        );
+        trMarker.position = trussWorldOrigin;
+        trMarker.material = mats.truss;
+        trMarker.parent = root;
+        meshes.push(trMarker);
+
+        // Per-item pedicel + fruit dot + calyx star.
+        for (let f = 0; f < layout.items.length; f++) {
+          const item = layout.items[f];
+          if (item.kind !== 'fruit') continue;          // skeleton 은 fruit 만
+          const pedPtsLocal = pedicelControlPoints(item);
+          const pedCurveWorld = catmullRomPath(pedPtsLocal.map(toWorld), 3);
+
           meshes.push(thickLine(
             `skel_ped_a${axisIdx}_n${i}_f${f}`,
-            pedCurve,
+            pedCurveWorld,
             Color3.FromHexString(cfg.pedicelColor), cfg.pedicelWidth,
           ));
 
-          // Abscission joint dot
+          // Abscission joint dot — 3rd control point of pedicel curve.
+          const abscissPos = toWorld(pedPtsLocal[2]);
           const absciss = MeshBuilder.CreateSphere(
             `skel_abs_a${axisIdx}_n${i}_f${f}`,
-            { diameter: 0.005, segments: 4 },
-            scene,
+            { diameter: 0.005, segments: 4 }, scene,
           );
-          absciss.position = p2;
+          absciss.position = abscissPos;
           absciss.material = mats.truss;
           absciss.parent = root;
           meshes.push(absciss);
 
-          // Calyx 5-ray star
+          const fruitPos = toWorld(item.attachPos);
+
+          // Calyx 5-ray star — pedicel last-segment direction.
           if (cfg.showCalyx) {
             const calyxLen = 0.012;
-            const downDir = fruitPos.subtract(p2).normalize();
+            const lastPed = toWorld(pedPtsLocal[3]);
+            const prevPed = toWorld(pedPtsLocal[2]);
+            const downDir = lastPed.subtract(prevPed).normalize();
             const perp = Math.abs(downDir.y) < 0.95
               ? Vector3.Cross(downDir, new Vector3(0, 1, 0)).normalize()
               : new Vector3(1, 0, 0);
@@ -410,11 +403,11 @@ export function createSkeletonOverlay(
           }
 
           if (cfg.showFruitDots) {
+            const dia = (node.truss.fruits[item.index].diameterMm ?? 30);
             const fruitDiam = (0.010 + 0.014 * Math.min(1, dia / 60)) * cfg.fruitMarkerScale;
             const fr = MeshBuilder.CreateSphere(
               `skel_fr_a${axisIdx}_n${i}_f${f}`,
-              { diameter: fruitDiam, segments: 6 },
-              scene,
+              { diameter: fruitDiam, segments: 6 }, scene,
             );
             fr.position = fruitPos;
             fr.material = mats.fruit;
@@ -422,16 +415,6 @@ export function createSkeletonOverlay(
             meshes.push(fr);
           }
         }
-
-        const trMarker = MeshBuilder.CreateSphere(
-          `skel_truss_a${axisIdx}_n${i}`,
-          { diameter: 0.010, segments: 6 },
-          scene,
-        );
-        trMarker.position = nodePos;
-        trMarker.material = mats.truss;
-        trMarker.parent = root;
-        meshes.push(trMarker);
       }
     }
   }
@@ -458,8 +441,9 @@ export function createSkeletonOverlay(
   }
 
   return {
-    update(plant: PlantState) {
+    update(plant: PlantState, genome: import('@farmsim/tomato-engine').PlantGenome) {
       lastPlantForRebuild = plant;
+      lastGenome = genome;
       rebuild();
     },
     setVisible(v: boolean) {

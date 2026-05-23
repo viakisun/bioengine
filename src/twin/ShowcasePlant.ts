@@ -358,8 +358,9 @@ export function createShowcasePlant(
         state = overlayPhysiologyFruits(state, physiology);
       }
       buildFromState(state);
-      // Keep skeleton overlay in sync with current plant data.
-      skeleton.update(state);
+      // Keep skeleton overlay in sync with current plant data + genome
+      // (for layoutTruss → computeTrussDroop).
+      skeleton.update(state, engine.getGenome(seed)!);
 
       if (diag()) {
         const apex = state.nodes[state.nodes.length - 1];
@@ -380,6 +381,11 @@ export function createShowcasePlant(
     setSkeletonMode(on) {
       if (skeletonOn === on) return;
       skeletonOn = on;
+      // Ensure skeleton has the latest genome reference (needed for layout
+      // computation during rebuild).
+      if (on && lastState) {
+        skeleton.update(lastState, engine.getGenome(seed)!);
+      }
       if (diag()) {
         console.log(`[diag:2] setSkeletonMode(${on})`);
         const p = root.position;
@@ -395,7 +401,8 @@ export function createShowcasePlant(
       // Hide lush mesh while skeleton is on so user can verify biology.
       root.setEnabled(!on);
       skeleton.setVisible(on);
-      if (on && lastState) skeleton.update(lastState);
+      // skeleton.update 호출은 위 setSkeletonMode 분기 (lastState + genome)
+      // 에서 이미 진행됨. setVisible(on) 직후 rebuild trigger 없음.
 
       if (diag()) {
         const lushStem = scene.meshes.filter(
