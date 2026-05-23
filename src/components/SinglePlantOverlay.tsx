@@ -35,10 +35,19 @@ export function SinglePlantOverlay() {
 
   // Drive the live simulation as the user scrubs the timeline.
   // engineRef 는 BabylonEngine 의 buildGreenhouseScene 직후 등록됨.
+  // 300ms+ 걸리는 작업만 corner spinner 표시 (debounce — 시작 시
+  // setTimeout 으로 예약, 300ms 안에 끝나면 cancel).
   useEffect(() => {
     const engine = getSinglePlantEngine();
     if (!engine) return;
-    engine.simulatePlantToMinute(SHOWCASE_SEED, minute);
+    const setBusy = useTwinStore.getState().setBusy;
+    const showAt = window.setTimeout(() => setBusy(true, 'Simulating...'), 300);
+    try {
+      engine.simulatePlantToMinute(SHOWCASE_SEED, minute);
+    } finally {
+      window.clearTimeout(showAt);
+      setBusy(false);
+    }
   }, [minute]);
 
   // Playback loop — rAF, scales minute by speed × elapsed

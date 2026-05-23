@@ -292,6 +292,11 @@ export interface BootSnapshot {
   /** 'shaders' 단계용 ETA 추정 (이전 stage 들 평균에서) — null = 미측정. */
   etaSecondsMin: number | null;
   etaSecondsMax: number | null;
+  /** 한 번이라도 'ready' 도달했는지. 첫 부팅 완료 후 영구 true.
+   *  BootOverlay 는 이 값이 false 일 때만 풀스크린 표시 — 이후의
+   *  모드 전환 / 카메라 조작 / 시뮬레이션 trigger 로 stage 가 바뀌어도
+   *  로딩창은 다시 안 뜸 (사용자 의도). */
+  hasEverReached: boolean;
 }
 
 const MAX_LIVE_LOG = 100;
@@ -451,6 +456,9 @@ interface TwinState {
   // -- Boot progress + notifications + live log + env --
   boot: BootSnapshot;
   notifications: Notification[];
+  /** 우하단 corner spinner — 300ms+ 걸리는 작업 (시뮬 점프 등) 표시 */
+  busy: { active: boolean; message?: string };
+  setBusy: (active: boolean, message?: string) => void;
   /** 단계 진입. 이전 단계는 자동으로 completedAt 채움. */
   setBootStage: (stage: BootStage, detail?: string, progress?: number) => void;
   /** 현재 단계의 detail / progress / subCounters 갱신 (단계 변경 없음). */
@@ -658,8 +666,11 @@ export const useTwinStore = create<TwinState>((set) => ({
     },
     etaSecondsMin: null,
     etaSecondsMax: null,
+    hasEverReached: false,
   },
   notifications: [],
+  busy: { active: false },
+  setBusy: (active, message) => set({ busy: { active, message } }),
 
   setBootStage: (stage, detail = '', progress = 0) =>
     set((s) => {
@@ -690,8 +701,10 @@ export const useTwinStore = create<TwinState>((set) => ({
         message: detail ? `${stage}: ${detail}` : `${stage}: 진입`,
       };
       const liveLog = [...s.boot.liveLog, nextLog].slice(-MAX_LIVE_LOG);
+      // Sticky 'ready' bit — once true, BootOverlay 풀스크린은 영구 숨김
+      const hasEverReached = s.boot.hasEverReached || stage === 'ready';
       return {
-        boot: { ...s.boot, currentStage: stage, stages, liveLog },
+        boot: { ...s.boot, currentStage: stage, stages, liveLog, hasEverReached },
       };
     }),
 

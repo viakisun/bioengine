@@ -14,6 +14,7 @@ import { SinglePlantOverlay } from './components/SinglePlantOverlay';
 import { ModeLobby } from './ui/ModeLobby';
 import { ComingSoonPanel } from './ui/ComingSoonPanel';
 import { BootOverlay } from './ui/BootOverlay';
+import { BusyIndicator } from './ui/BusyIndicator';
 import { NotificationCenter } from './ui/NotificationCenter';
 import { ErrorModal } from './ui/ErrorModal';
 import { ErrorBoundary } from './ui/ErrorBoundary';
@@ -56,6 +57,7 @@ export function App() {
       {(mode === 'greenhouse' || mode === 'single-plant') && <BootOverlay />}
       <NotificationCenter />
       <ErrorModal />
+      <BusyIndicator />
 
       {/* GreenhouseLayout — 첫 모드 진입 후 영구 마운트. lobby 일 때 hide. */}
       {greenhouseMounted && (
