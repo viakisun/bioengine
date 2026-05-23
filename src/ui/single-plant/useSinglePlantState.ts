@@ -10,7 +10,7 @@
 
 import { useEffect, useState } from 'react';
 import { useTwinStore } from '../../store/twinStore';
-import type { GrowthEngine, PlantPhysiologyState } from '@farmsim/tomato-engine';
+import type { GrowthEngine, PlantPhysiologyState, PlantState } from '@farmsim/tomato-engine';
 import type { ShowcasePlantHandle } from '../../twin/ShowcasePlant';
 import { SHOWCASE_SEED } from '../../twin/GreenhouseScene';
 
@@ -67,6 +67,32 @@ export function useSinglePlantState(): PlantPhysiologyState | null {
   // Re-pull when the engineRef is set/cleared by SinglePlantScene.
   useEffect(() => {
     const cb = () => setSnap(snapshot());
+    listeners.add(cb);
+    cb();
+    return () => { listeners.delete(cb); };
+  }, []);
+
+  return snap;
+}
+
+/** Live PlantState (sigmoid base + skeleton fields) from the showcase
+ *  plant. Used by InspectorPanel to report skeleton counts (Plan 3a):
+ *  side shoots, pruned buds, apex height. */
+export function useSinglePlantSkeleton(): PlantState | null {
+  const minute = useTwinStore((s) => s.singlePlantMinute);
+  const [snap, setSnap] = useState<PlantState | null>(
+    () => showcaseRef?.currentState() ?? null,
+  );
+
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => {
+      setSnap(showcaseRef?.currentState() ?? null);
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [minute]);
+
+  useEffect(() => {
+    const cb = () => setSnap(showcaseRef?.currentState() ?? null);
     listeners.add(cb);
     cb();
     return () => { listeners.delete(cb); };

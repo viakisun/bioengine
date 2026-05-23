@@ -61,6 +61,23 @@ export interface TrussState {
   fruits: FruitState[];
 }
 
+export type BudState = 'dormant' | 'growing' | 'pruned';
+
+/** Recursive stem axis — main stem + side shoots tree. Visual layer
+ *  iterates `allAxes` flat array; engine can walk via `parentAxisIdx`. */
+export interface StemAxis {
+  /** 0 = main stem, 1 = 1st-order side shoot, 2 = 2nd-order. */
+  order: number;
+  /** NodeState[] of this axis. main axis nodes === plant.nodes (alias). */
+  nodes: NodeState[];
+  /** Index of the parent axis's node that this branched from. null for main. */
+  parentNodeIdx: number | null;
+  /** Index of parent axis in plant.allAxes. null for main. */
+  parentAxisIdx: number | null;
+  /** Branch azimuth from parent's tangent frame (radians). */
+  branchAzimuth: number;
+}
+
 export interface NodeState {
   index: number;
   heightCm: number;
@@ -86,6 +103,23 @@ export interface NodeState {
   // Stress fields (plant-level, copied per node for convenient access)
   waterStress: number;       // 0-1, substrateWater 가 0.45 미만이면 증가
   diseaseLoad: number;       // 0-1, healthLabel 'disease' 일 때 증가
+
+  // ── Skeleton growth (Plan 3a) ────────────────────────────────────
+  // Accumulated 3D position (meters, world units) computed via direction
+  // synthesis (prevDir + up + light + noise - gravity). Never a straight
+  // line — every internode picks its own direction from the previous +
+  // small noise. heightCm above is just the Y-component-ish summary;
+  // position is the authoritative coordinate.
+  position: { x: number; y: number; z: number };
+  /** Unit vector — direction the next internode departs in (world). */
+  growthDir: { x: number; y: number; z: number };
+
+  // ── Axillary bud & side shoot (Plan 3a) ──────────────────────────
+  budState: BudState;
+  /** Recursive side shoot from this node's leaf axil, when activated. */
+  sideShoot: StemAxis | null;
+  /** Side shoot departure angle (degrees from stem tangent). */
+  sideShootAngleDeg: number | null;
 }
 
 export interface PlantState {
@@ -104,6 +138,12 @@ export interface PlantState {
   // Plant-level stress (mirrored per-node for convenience)
   waterStress: number;
   diseaseLoad: number;
+
+  // ── Skeleton (Plan 3a) ───────────────────────────────────────────
+  /** Main stem axis. main.nodes === plant.nodes (alias). */
+  mainAxis: StemAxis;
+  /** Flat list of every axis (main + all side shoots, recursive). */
+  allAxes: StemAxis[];
 }
 
 /** Per-plant stress inputs that the renderer / health-label system can pass in. */
@@ -210,6 +250,18 @@ export function overlayPhysiologyFruits(
     }
   }
 
+  // Rewire mainAxis.nodes to the new nodes array so skeleton walks the
+  // overlaid plant (preserves position / growthDir / sideShoot pointers
+  // — these are spread by ...node so still present on each newNode).
+  const newMainAxis: StemAxis = {
+    ...base.mainAxis,
+    nodes: newNodes,
+  };
+  // allAxes: main + every side shoot. Side shoots point at the OLD nodes
+  // (their own internal nodes are not duplicated by the overlay), which
+  // is fine — SkeletonOverlay only needs each axis's own positions.
+  const newAllAxes: StemAxis[] = [newMainAxis, ...base.allAxes.slice(1)];
+
   return {
     ...base,
     nodes: newNodes,
@@ -218,6 +270,8 @@ export function overlayPhysiologyFruits(
     trussCount: physiology.trusses.length,
     totalFruits,
     maxRipenStage,
+    mainAxis: newMainAxis,
+    allAxes: newAllAxes,
   };
 }
 
@@ -231,6 +285,97 @@ function lerpColor(c1: [number, number, number], c2: [number, number, number], t
 }
 
 const GOLDEN_ANGLE = 137.508; // degrees
+
+// ─────────────────────────────────────────────────────────────────────
+// Skeleton growth helpers (Plan 3a) — direction synthesis (no straight
+// internodes). prevDir × 0.65 + up × 0.25 + lightDir × 0.10 + noise × 0.12
+// - gravity × sagFactor, then normalize. Every internode wanders slightly
+// off-axis; same seed → same wandering. Matches FSPM reference §5.
+// ─────────────────────────────────────────────────────────────────────
+
+function normalize3(v: { x: number; y: number; z: number }) {
+  const len = Math.hypot(v.x, v.y, v.z) || 1;
+  return { x: v.x / len, y: v.y / len, z: v.z / len };
+}
+
+function synthesizeGrowthDir(
+  prevDir: { x: number; y: number; z: number },
+  age: number,
+  massAboveKg: number,
+  rng: SeededRandom,
+): { x: number; y: number; z: number } {
+  const noiseX = rng.gaussian(0, 0.12);
+  const noiseY = rng.gaussian(0, 0.04);
+  const noiseZ = rng.gaussian(0, 0.12);
+  const sagFactor = Math.min(0.3, age * 0.0005 + massAboveKg * 0.02);
+  // light = (0, 1, 0) approx noon sun direction (up). Phototropism weight 0.10.
+  return normalize3({
+    x: prevDir.x * 0.65 + noiseX,
+    y: prevDir.y * 0.65 + 0.25 + 0.10 + noiseY - sagFactor,
+    z: prevDir.z * 0.65 + noiseZ,
+  });
+}
+
+/**
+ * Activate axillary buds across all axes. Each bud picks a side-shoot
+ * direction (parent's growthDir rotated outward by branch angle) and
+ * adds itself to plant.allAxes for the next growth tick to populate.
+ *
+ * Apical dominance: nodes near apex stay dormant; distance from apex
+ * increases activation probability. Light exposure: upper nodes
+ * activate faster. Pruning: cultivar.defoliationAggressiveness moves
+ * activated buds to 'pruned' over time (real grower removes lateral
+ * shoots — Tomimaru aggressiveness 0.32 ~ casual pruning).
+ */
+function activateAndPruneBuds(
+  axes: StemAxis[],
+  rng: SeededRandom,
+  defoliationAggressiveness: number,
+  maxOrder: number,
+): void {
+  // baseline params — should live in branching JSON eventually.
+  const BASE_BUD_CHANCE = 0.04;
+  const APICAL_DOMINANCE = 0.5;
+  const SIDE_SHOOT_DELAY = 5;
+  const LIGHT_FACTOR = 0.4;
+  const PRUNE_DAILY = defoliationAggressiveness * 0.03;
+
+  for (const axis of axes) {
+    if (axis.order >= maxOrder) continue;
+    for (let i = 0; i < axis.nodes.length; i++) {
+      const node = axis.nodes[i];
+      // Pruning: removes growing buds over time. Pruned ones stay dead.
+      if (node.budState === 'growing' && rng.next() < PRUNE_DAILY) {
+        node.budState = 'pruned';
+        continue;
+      }
+      if (node.budState !== 'dormant') continue;
+      if (node.age < SIDE_SHOOT_DELAY) continue;
+      if (node.sideShoot) continue;
+
+      const distFromApex = axis.nodes.length - 1 - i;
+      const dominanceFactor =
+        distFromApex === 0 ? 0 : Math.max(0, 1 - APICAL_DOMINANCE / distFromApex);
+      const lightExp = i / Math.max(1, axis.nodes.length);
+      const activation =
+        BASE_BUD_CHANCE * dominanceFactor * (1 + lightExp * LIGHT_FACTOR);
+
+      if (rng.next() < activation) {
+        node.budState = 'growing';
+        const branchDeg = 35 + rng.gaussian(0, 8);
+        node.sideShootAngleDeg = branchDeg;
+        const branchAzimuth = (node.phyllotaxisAngle * Math.PI) / 180 + Math.PI / 2;
+        node.sideShoot = {
+          order: axis.order + 1,
+          nodes: [],
+          parentNodeIdx: i,
+          parentAxisIdx: null,
+          branchAzimuth,
+        };
+      }
+    }
+  }
+}
 
 export function computePlantState(
   day: number,
@@ -473,6 +618,12 @@ export function computePlantState(
       massAboveKg: 0, stemRadiusMm: 10, bendingMomentNm: 0,
       deflectionRad: 0, deflectionAzimuth: 0,
       waterStress, diseaseLoad,
+      // Skeleton fields populated below by walkSkeleton
+      position: { x: 0, y: 0, z: 0 },
+      growthDir: { x: 0, y: 1, z: 0 },
+      budState: 'dormant',
+      sideShoot: null,
+      sideShootAngleDeg: null,
     });
   }
 
@@ -544,11 +695,142 @@ export function computePlantState(
 
   const leafCount = nodes.filter(n => n.leafMaturity > 0.2).length;
 
+  // ── Skeleton walk (Plan 3a) ────────────────────────────────────────
+  // Compute each node's 3D position by synthesizing growth direction
+  // every step — never a straight line. RNG is per-plant deterministic
+  // (same seed → identical wandering pattern across calls).
+  const skeletonRng = new SeededRandom(genome.seed * 1009 + 0x515E1E);
+  // warm up — discard first few low-quality LCG values.
+  skeletonRng.next(); skeletonRng.next(); skeletonRng.next();
+
+  if (nodes.length > 0) {
+    // First node: at hypocotyl top, direction straight up + tiny noise.
+    nodes[0].position = { x: 0, y: hypocotylCm / 100, z: 0 };
+    nodes[0].growthDir = synthesizeGrowthDir(
+      { x: 0, y: 1, z: 0 },
+      nodes[0].age,
+      0,
+      skeletonRng,
+    );
+
+    for (let i = 1; i < nodes.length; i++) {
+      const prev = nodes[i - 1];
+      const internodeM = nodes[i].internodeLenCm / 100;
+      nodes[i].position = {
+        x: prev.position.x + prev.growthDir.x * internodeM,
+        y: prev.position.y + prev.growthDir.y * internodeM,
+        z: prev.position.z + prev.growthDir.z * internodeM,
+      };
+      nodes[i].growthDir = synthesizeGrowthDir(
+        prev.growthDir,
+        nodes[i].age,
+        nodes[i].massAboveKg,
+        skeletonRng,
+      );
+    }
+  }
+
+  // ── Axis wrapping ──────────────────────────────────────────────────
+  const mainAxis: StemAxis = {
+    order: 0,
+    nodes,
+    parentNodeIdx: null,
+    parentAxisIdx: null,
+    branchAzimuth: 0,
+  };
+  const allAxes: StemAxis[] = [mainAxis];
+
+  // ── Bud activation + pruning ──────────────────────────────────────
+  // cultivar.pruning.defoliationAggressiveness drives pruning rate.
+  const defAgg = cultivar.defoliationAggressiveness ?? 0.3;
+  const maxOrder = 2; // hardcoded for now — will move to JSON in Plan 3b
+  // We run the activation `day` times so over 120 days the expected
+  // count of activated buds is meaningful. Cheap: O(day × nodes) ≤ 6000.
+  for (let d = 0; d < Math.floor(day); d++) {
+    activateAndPruneBuds(allAxes, skeletonRng, defAgg, maxOrder);
+  }
+
+  // Populate side-shoot axes' nodes — each gets a single starter node
+  // anchored at the parent node's position with a branch direction.
+  // Full side-shoot growth (their own internodes) is Plan 3a-β extension;
+  // for now each activated bud has 1 starter node so the visualization
+  // shows the branching point with an apex marker.
+  for (let i = 0; i < mainAxis.nodes.length; i++) {
+    const node = mainAxis.nodes[i];
+    if (!node.sideShoot || node.budState !== 'growing') continue;
+    if (node.sideShoot.nodes.length > 0) continue;
+
+    // Parent's growthDir rotated outward by sideShootAngleDeg around
+    // the branch azimuth.
+    const angleRad = ((node.sideShootAngleDeg ?? 35) * Math.PI) / 180;
+    const az = node.sideShoot.branchAzimuth;
+    // start direction = tilted parent dir
+    const startDir = normalize3({
+      x: node.growthDir.x * Math.cos(angleRad) + Math.cos(az) * Math.sin(angleRad),
+      y: node.growthDir.y * Math.cos(angleRad) + Math.sin(angleRad) * 0.3,
+      z: node.growthDir.z * Math.cos(angleRad) + Math.sin(az) * Math.sin(angleRad),
+    });
+    // Side-shoot age = main node age - SHOOT_DELAY (rough)
+    const shootAge = Math.max(0, node.age - 5);
+    // Side shoot length proportional to age.
+    const shootInternodes = Math.min(8, Math.floor(shootAge / 4));
+    // place index in allAxes
+    node.sideShoot.parentAxisIdx = 0; // main
+    allAxes.push(node.sideShoot);
+
+    // Build side-shoot starter chain — short cheap chain. Same wandering.
+    let pos = { ...node.position };
+    let dir = startDir;
+    for (let k = 0; k < Math.max(1, shootInternodes); k++) {
+      const internodeM = 0.04 + skeletonRng.next() * 0.02; // 4-6cm shoots
+      pos = {
+        x: pos.x + dir.x * internodeM,
+        y: pos.y + dir.y * internodeM,
+        z: pos.z + dir.z * internodeM,
+      };
+      const nextDir = synthesizeGrowthDir(dir, shootAge, 0, skeletonRng);
+
+      const shootNode: NodeState = {
+        index: k,
+        heightCm: node.heightCm + (pos.y - node.position.y) * 100,
+        phyllotaxisAngle: (k * GOLDEN_ANGLE) % 360,
+        leafMaturity: 0,
+        leafSizeFactor: 0.4,
+        leafletCount: 5,
+        yellowing: 0,
+        droopExtra: 0,
+        truss: null,
+        age: Math.max(0, shootAge - k * 3),
+        emergence: 1,
+        leafAreaCm2: 100,
+        leafMassG: 3,
+        internodeLenCm: internodeM * 100,
+        massAboveKg: 0,
+        // side shoot radius = 60% of parent's at that node
+        stemRadiusMm: node.stemRadiusMm * 0.6 * (1 - k / 10),
+        bendingMomentNm: 0,
+        deflectionRad: 0,
+        deflectionAzimuth: 0,
+        waterStress,
+        diseaseLoad,
+        position: { ...pos },
+        growthDir: { ...nextDir },
+        budState: 'dormant',
+        sideShoot: null,
+        sideShootAngleDeg: null,
+      };
+      node.sideShoot.nodes.push(shootNode);
+      dir = nextDir;
+    }
+  }
+
   return {
     seed: genome.seed,
     day, heightCm, nodes, nodeCount: intNodeCount, leafCount, trussCount,
     totalFruits, maxRipenStage, currentStage,
     hasCotyledons, cotyledonSize: Math.max(0, Math.min(1, cotyledonSize)),
     waterStress, diseaseLoad,
+    mainAxis,
+    allAxes,
   };
 }

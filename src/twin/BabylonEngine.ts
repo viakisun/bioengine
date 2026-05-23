@@ -274,6 +274,9 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
     if (s.analysisMode !== prev.analysisMode && greenhouse) {
       greenhouse.showcasePlant.setSegmentationMode(s.analysisMode);
     }
+    if (s.showSkeleton !== prev.showSkeleton && greenhouse) {
+      greenhouse.showcasePlant.setSkeletonMode(s.showSkeleton);
+    }
     if (s.lighting !== prev.lighting && sceneSetup) {
       applyLightingToScene(scene, sceneSetup, s.lighting);
     }
@@ -319,6 +322,11 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
       // MotionBlur 만 RenderQuality 안에서 skip).
       savedRenderQuality = initialState.renderQuality;
       useTwinStore.getState().setRenderQuality(10);
+    }
+    // Initial skeleton overlay state (Plan 3a) — subscribe only fires
+    // on change, so re-apply at boot if the store says true.
+    if (initialState.showSkeleton) {
+      greenhouse.showcasePlant.setSkeletonMode(true);
     }
   }
 

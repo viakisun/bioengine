@@ -16,6 +16,8 @@ const CAMERAS: { id: Camera; label: string }[] = [
 export function ToolsPanel() {
   const camera = useTwinStore((s) => s.singlePlantCamera);
   const setCamera = useTwinStore((s) => s.setSinglePlantCamera);
+  const showSkeleton = useTwinStore((s) => s.showSkeleton);
+  const setShowSkeleton = useTwinStore((s) => s.setShowSkeleton);
 
   return (
     <div style={{
@@ -54,10 +56,18 @@ export function ToolsPanel() {
       <div>
         <div style={PANEL_HEADER_LABEL}>Display</div>
         <CheckboxRow label="Plant" checked disabled />
+        <CheckboxRow
+          label="Skeleton"
+          checked={showSkeleton}
+          onClick={() => setShowSkeleton(!showSkeleton)}
+        />
         <CheckboxRow label="Wireframe" checked={false} disabled />
         <CheckboxRow label="Heatmap" checked={false} disabled />
         <CheckboxRow label="Light field" checked={false} disabled />
-        <Hint>Wireframe / Heatmap / Light field — Phase E+.</Hint>
+        <Hint>
+          Skeleton ON 시 lush mesh hidden — 노드/곁가지/apex 만 표시.
+          Wireframe / Heatmap / Light field — Phase E+.
+        </Hint>
       </div>
     </div>
   );
@@ -87,18 +97,24 @@ function RadioRow({
   );
 }
 
-function CheckboxRow({ label, checked, disabled }: { label: string; checked: boolean; disabled?: boolean }) {
+function CheckboxRow({
+  label, checked, disabled, onClick,
+}: { label: string; checked: boolean; disabled?: boolean; onClick?: () => void }) {
   return (
-    <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      gap: 8,
-      padding: '3px 0',
-      fontFamily: FONT_MONO,
-      fontSize: 11,
-      opacity: disabled ? 0.5 : 1,
-      color: checked ? C_FG : C_FG_MUTE,
-    }}>
+    <div
+      onClick={!disabled && onClick ? onClick : undefined}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        padding: '3px 0',
+        fontFamily: FONT_MONO,
+        fontSize: 11,
+        opacity: disabled ? 0.5 : 1,
+        cursor: !disabled && onClick ? 'pointer' : 'default',
+        color: checked ? C_FG : C_FG_MUTE,
+      }}
+    >
       <span>{checked ? '☑' : '☐'}</span>
       <span>{label}</span>
     </div>

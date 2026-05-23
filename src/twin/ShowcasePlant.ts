@@ -17,6 +17,7 @@ import { createStemMesh, getStemMaterial } from '../plant/StemGenerator';
 import { createTrussNode } from '../plant/TrussGenerator';
 import { buildCotyledonChunk } from '@farmsim/tomato-geometry';
 import type { GrowthEngine, PlantState } from '@farmsim/tomato-engine';
+import { createSkeletonOverlay, type SkeletonOverlayHandle } from './SkeletonOverlay';
 
 /**
  * Live, GrowthEngine-driven plant that rebuilds on every day-scrub.
@@ -45,6 +46,10 @@ export interface ShowcasePlantHandle {
   update: (day: number, physiology?: import('@farmsim/tomato-engine').PlantPhysiologyState) => void;
   setVisible: (v: boolean) => void;
   setSegmentationMode: (on: boolean) => void;
+  /** Plan 3a — toggle wireframe + node-marker skeleton view. While ON,
+   *  the lush mesh is hidden so the user can verify the biology (apex,
+   *  node bulge, side shoots, pruning) without visual noise. */
+  setSkeletonMode: (on: boolean) => void;
   currentState: () => PlantState | null;
 }
 
@@ -112,6 +117,8 @@ export function createShowcasePlant(
   highlight.blurVerticalSize = 0.6;
 
   let segmentationOn = false;
+  let skeletonOn = false;
+  const skeleton: SkeletonOverlayHandle = createSkeletonOverlay(scene);
   function applySegmentationHighlights() {
     highlight.removeAllMeshes();
     if (!segmentationOn) return;
@@ -272,6 +279,8 @@ export function createShowcasePlant(
         state = overlayPhysiologyFruits(state, physiology);
       }
       buildFromState(state);
+      // Keep skeleton overlay in sync with current plant data.
+      skeleton.update(state);
     },
     setVisible(v) {
       root.setEnabled(v);
@@ -280,6 +289,14 @@ export function createShowcasePlant(
       if (segmentationOn === on) return;
       segmentationOn = on;
       applySegmentationHighlights();
+    },
+    setSkeletonMode(on) {
+      if (skeletonOn === on) return;
+      skeletonOn = on;
+      // Hide lush mesh while skeleton is on so user can verify biology.
+      root.setEnabled(!on);
+      skeleton.setVisible(on);
+      if (on && lastState) skeleton.update(lastState);
     },
     currentState: () => lastState,
   };

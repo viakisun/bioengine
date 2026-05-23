@@ -27,6 +27,8 @@ export type {
   TrussState,
   FruitState,
   FlowerState,
+  StemAxis,
+  BudState,
 } from './GrowthModel';
 export {
   TOTAL_DAYS,

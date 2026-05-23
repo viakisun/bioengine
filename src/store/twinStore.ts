@@ -445,6 +445,11 @@ interface TwinState {
     phenology: boolean;
     genome: boolean;
   };
+  /** Plan 3a — toggle skeleton-only view. While true the lush mesh hides
+   *  and a wireframe + node-marker overlay shows. Used to verify biology
+   *  (apex, node bulge, side shoots, pruning) without visual clutter. */
+  showSkeleton: boolean;
+  setShowSkeleton: (v: boolean) => void;
   setSinglePlantMinute: (m: number) => void;
   setSinglePlantPlaying: (p: boolean) => void;
   setSinglePlantSpeed: (s: 1 | 4 | 24) => void;
@@ -679,6 +684,8 @@ export const useTwinStore = create<TwinState>((set) => ({
   singlePlantChartWindow: '7d',
   singlePlantCamera: 'free',
   singlePlantInspectorOpen: { cultivar: true, state: true, truss: true, phenology: true, genome: false },
+  showSkeleton: false,
+  setShowSkeleton: (v) => set({ showSkeleton: v }),
   setSinglePlantMinute: (m) =>
     set({ singlePlantMinute: Math.max(0, Math.min(120 * 24 * 60 - 1, Math.round(m))) }),
   setSinglePlantPlaying: (p) => set({ singlePlantPlaying: p }),

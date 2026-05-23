@@ -7,9 +7,9 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useTwinStore } from '../../store/twinStore';
-import { getCultivar, type PlantPhysiologyState, type Cultivar, type RipenStage } from '@farmsim/tomato-engine';
+import { getCultivar, type PlantPhysiologyState, type PlantState, type Cultivar, type RipenStage } from '@farmsim/tomato-engine';
 import { FONT_MONO, FONT_SANS, C_BORDER, C_FG, C_FG_MUTE, C_FG_DIM, C_BAD, C_WARN, C_OK, PANEL_HEADER_LABEL } from './styles';
-import { useSinglePlantState } from './useSinglePlantState';
+import { useSinglePlantState, useSinglePlantSkeleton } from './useSinglePlantState';
 
 const CULTIVAR_NAME = 'tomimaru-muchoo';
 
@@ -17,6 +17,7 @@ export function InspectorPanel() {
   const open = useTwinStore((s) => s.singlePlantInspectorOpen);
   const toggle = useTwinStore((s) => s.toggleSinglePlantInspector);
   const state = useSinglePlantState();
+  const skeleton = useSinglePlantSkeleton();
   const cultivar = useMemo(() => getCultivar(CULTIVAR_NAME), []);
 
   return (
@@ -46,6 +47,7 @@ export function InspectorPanel() {
         onToggle={() => toggle('state')}
       >
         <PlantStateTable state={state} />
+        <SkeletonStats skeleton={skeleton} />
       </Section>
 
       <Section
@@ -162,6 +164,38 @@ function PlantStateTable({ state }: { state: PlantPhysiologyState | null }) {
       <Row label="HI" value={fmt(HI, 3)} />
       <Row label="height" value={fmt(state.heightCm, 0)} unit="cm" />
       <Row label="trusses" value={fmt(state.trusses.length, 0)} />
+    </div>
+  );
+}
+
+function SkeletonStats({ skeleton }: { skeleton: PlantState | null }) {
+  if (!skeleton || skeleton.allAxes.length === 0) return null;
+  const main = skeleton.mainAxis;
+  const sideShoots = skeleton.allAxes.length - 1;
+  const order1 = skeleton.allAxes.filter((a) => a.order === 1).length;
+  const order2 = skeleton.allAxes.filter((a) => a.order === 2).length;
+  let prunedBuds = 0;
+  let growingBuds = 0;
+  for (const ax of skeleton.allAxes) {
+    for (const n of ax.nodes) {
+      if (n.budState === 'pruned') prunedBuds++;
+      else if (n.budState === 'growing') growingBuds++;
+    }
+  }
+  const apex = main.nodes[main.nodes.length - 1];
+  const apexHeightCm = apex
+    ? Math.max(apex.position.y * 100, apex.heightCm)
+    : 0;
+  return (
+    <div style={{ marginTop: 8, paddingTop: 6, borderTop: `1px dashed ${C_BORDER}` }}>
+      <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: C_FG_DIM, marginBottom: 3 }}>
+        skeleton
+      </div>
+      <Row label="main nodes" value={main.nodes.length} />
+      <Row label="apex Y" value={fmt(apexHeightCm, 1)} unit="cm" />
+      <Row label="side shoots" value={sideShoots} unit={`O1=${order1} O2=${order2}`} />
+      <Row label="growing buds" value={growingBuds} />
+      <Row label="pruned buds" value={prunedBuds} />
     </div>
   );
 }
