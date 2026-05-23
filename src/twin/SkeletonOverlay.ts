@@ -73,11 +73,21 @@ function isFiniteVec(p: { x: number; y: number; z: number }): boolean {
 }
 
 export function createSkeletonOverlay(scene: Scene): SkeletonOverlayHandle {
-  const root = new TransformNode('skeletonOverlayRoot', scene);
+  // Lazy: don't allocate the root + materials until the user actually
+  // toggles skeleton mode ON. createShowcasePlant runs at scene build
+  // and we don't want to register 5 StandardMaterials + 1 TransformNode
+  // on every page load when skeleton view is rarely used.
+  let root: TransformNode | null = null;
+  let mats: MatBucket | null = null;
   const meshes: Mesh[] = [];
-  const mats = makeMaterials(scene);
   let visible = false;
-  root.setEnabled(false);
+
+  function ensureInit() {
+    if (root) return;
+    root = new TransformNode('skeletonOverlayRoot', scene);
+    mats = makeMaterials(scene);
+    root.setEnabled(false);
+  }
 
   function clearMeshes() {
     for (const m of meshes) m.dispose();
@@ -90,6 +100,7 @@ export function createSkeletonOverlay(scene: Scene): SkeletonOverlayHandle {
 
   function drawAxis(axis: StemAxis, axisIdx: number) {
     if (!axis || !axis.nodes || axis.nodes.length < 1) return;
+    if (!root || !mats) return;
 
     // Skeleton polyline (one LinesMesh per axis).
     const points: Vector3[] = [];
@@ -180,16 +191,23 @@ export function createSkeletonOverlay(scene: Scene): SkeletonOverlayHandle {
     },
     setVisible(v: boolean) {
       visible = v;
-      root.setEnabled(v);
+      if (v) ensureInit();
+      if (root) root.setEnabled(v);
     },
     dispose() {
       clearMeshes();
-      root.dispose();
-      mats.dotDormant.dispose();
-      mats.dotGrowing.dispose();
-      mats.dotPruned.dispose();
-      mats.apex.dispose();
-      mats.truss.dispose();
+      if (root) {
+        root.dispose();
+        root = null;
+      }
+      if (mats) {
+        mats.dotDormant.dispose();
+        mats.dotGrowing.dispose();
+        mats.dotPruned.dispose();
+        mats.apex.dispose();
+        mats.truss.dispose();
+        mats = null;
+      }
     },
   };
 }
