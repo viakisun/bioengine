@@ -4,6 +4,7 @@
 
 import { useEffect } from 'react';
 import { GreenhouseLayout } from './components/GreenhouseLayout';
+import { SinglePlantLayout } from './components/SinglePlantLayout';
 import { ModeLobby } from './ui/ModeLobby';
 import { ComingSoonPanel } from './ui/ComingSoonPanel';
 import { BootOverlay } from './ui/BootOverlay';
@@ -47,14 +48,9 @@ export function App() {
 
       {mode === 'lobby' && <ModeLobby />}
       {mode === 'greenhouse' && <GreenhouseLayout />}
-      {mode === 'single-plant' && <SinglePlantPlaceholder />}
+      {mode === 'single-plant' && <SinglePlantLayout />}
       {mode === 'robot' && <ComingSoonPanel mode="robot" />}
       {mode === 'sandbox' && <ComingSoonPanel mode="sandbox" />}
     </ErrorBoundary>
   );
-}
-
-/** Phase C 도착 전까지 임시 — 1그루 씬 자체는 다음 단계에서 추가. */
-function SinglePlantPlaceholder() {
-  return <ComingSoonPanel mode="single-plant" />;
 }

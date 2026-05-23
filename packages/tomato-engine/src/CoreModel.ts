@@ -259,40 +259,35 @@ function gaussian(rng: () => number): number {
  * curve calibrated to cultivar.potentialFruitMassG.
  */
 /**
- * Single-hour integration step — the building block of stepDaily.
+ * Single-minute integration step — the finest-grain building block.
  *
- * Splits the daily TOMSIM math into 24 sub-steps so the Single-Plant
- * Analysis mode can scrub through hours and see growth respond to the
- * diurnal cycle. Each hour:
- *   - GDD accumulates with the instantaneous T_now (per-hour share of
- *     the daily thermal time).
- *   - Photosynthesis uses PAR_now → instantaneous net DM (g/hr).
- *   - Sink allocation distributes the hour's DM across organs.
- *   - Event-based logic (truss emergence, fruit set, pruning,
- *     abortion check) fires at hour=0 to retain daily semantics.
- *   - Ripening stage progression updates every hour (continuous in TT).
+ * dtDays = 1/1440. Every time-proportional quantity (GDD, photo-
+ * synthesis, allocation, maintenance respiration, abortion-tracker
+ * decay) scales by dtDays. Event-based logic (truss emergence, fruit
+ * set decision, pruning, phase transitions, ripening stage) is
+ * TT-threshold driven and fires the moment the threshold is crossed,
+ * so the time resolution doesn't change the event sequence.
  *
- * Calling `stepHourly` 24× with `diurnalEnv(daily, h)` for h=0..23 is
- * mathematically equivalent to the original `stepDaily(daily)` to
- * within float rounding (the daily PAR integral is preserved by the
- * sin² envelope; the daily T_avg is preserved by the sinusoid).
+ * `env.hour` is the *fractional* hour of the day (e.g. 14.5 = 14:30),
+ * which is what `diurnalEnv` produces when given a non-integer hour.
  */
-export function stepHourly(
+export function stepMinutely(
   state: PlantPhysiologyState,
   cultivar: Cultivar,
   env: HourlyClimate,
 ): void {
-  // 0. Hour-of-day boundary (h=0) → advance the day counter and run
-  // the per-day event logic that doesn't fit into a per-hour loop.
-  const isDayStart = env.hour === 0;
+  const dtDays = 1 / 1440;
+  const HOURS_TO_MIN = 1 / 60;
+  // Advance the day counter only at the very first minute of the day
+  // (env.hour === 0 within a small epsilon to absorb fractional drift).
+  const isDayStart = env.hour < 1 / 60;
   if (isDayStart) state.day += 1;
 
-  // 1. Thermal time — per-hour share of the daily TT.
-  //    T_eff(hour) = max(0, min(32, T_now) - T_base) / 24
-  const T_eff_per_hour = (Math.max(0, Math.min(32, env.T_now) - cultivar.T_base)) / 24;
-  state.TT += T_eff_per_hour;
+  // 1. Thermal time — per-minute share.
+  const T_eff_per_min = (Math.max(0, Math.min(32, env.T_now) - cultivar.T_base)) / 1440;
+  state.TT += T_eff_per_min;
 
-  // 2. Truss emergence — TT-threshold based, fires the first hour TT
+  // 2. Truss emergence — TT-threshold based, fires the first minute TT
   // crosses the threshold (event semantics preserved).
   const expectedTrussCount = Math.floor(
     Math.max(0, (state.TT - cultivar.GDD_to_first_flower) / cultivar.GDD_per_truss) + 1,
@@ -361,31 +356,29 @@ export function stepHourly(
     truss.fruitCount = truss.fruits.filter((f) => !f.aborted && f.fertilizationTT > 0).length;
   }
 
-  // 4. Photosynthesis → net new DM for this hour
-  const newDM_hr = hourlyNetDM(env, state.LAI, state.W);
+  // 4. Photosynthesis → net new DM for this minute (= 1/60 of hourly).
+  const newDM_min = hourlyNetDM(env, state.LAI, state.W) * HOURS_TO_MIN;
 
-  // 5. Sink-driven allocation — distribute the hour's DM across organs
-  if (newDM_hr > 0) {
-    const alloc = allocateDM(newDM_hr, state, cultivar);
+  // 5. Sink-driven allocation — distribute the minute's DM across organs
+  if (newDM_min > 0) {
+    const alloc = allocateDM(newDM_min, state, cultivar);
 
     for (let ti = 0; ti < state.trusses.length; ti++) {
       const truss = state.trusses[ti];
       for (let fi = 0; fi < truss.fruits.length; fi++) {
         const fruit = truss.fruits[fi];
         if (fruit.aborted || fruit.fertilizationTT < 0) continue;
-        const allocatedHr = alloc.trussFruitsG[ti][fi];
+        const allocatedStep = alloc.trussFruitsG[ti][fi];
 
-        // Abortion tracker — only check at hour=23 (end of day) using
-        // accumulated daily allocation. To do this without a second
-        // accumulator we still tick the tracker hourly with the per-
-        // hour potential, so 24h of starvation == 1 starved day.
-        // (Equivalent in expectation; small variance OK for stochastic
-        //  cohort model.)
-        const T_eff_day_equiv = T_eff_per_hour * 24;
+        // Abortion tracker — time-resolution-invariant: starvedDays
+        // counter advances by dtDays each step where actual/potential
+        // ratio is below the threshold, decays at the same rate when
+        // feeding recovers. Abort fires when starvedDays >= 4.
+        const T_eff_day_equiv = T_eff_per_min * 1440;
         const gddSinceFert = state.TT - fruit.fertilizationTT;
         const potentialFW_day = potentialDailyGrowthFW(gddSinceFert, T_eff_day_equiv, fruit.genome, cultivar);
-        const potentialDM_hr = (potentialFW_day * 0.06) / 24;
-        const tracker = updateAbortionTracker(allocatedHr, potentialDM_hr, fruit.starvedDays);
+        const potentialDM_step = (potentialFW_day * 0.06) * dtDays;
+        const tracker = updateAbortionTracker(allocatedStep, potentialDM_step, fruit.starvedDays, dtDays);
         fruit.starvedDays = tracker.starvedDays;
         if (tracker.abort) {
           fruit.aborted = true;
@@ -393,7 +386,7 @@ export function stepHourly(
         }
 
         // Apply allocation
-        fruit.W_fruit_dry += allocatedHr;
+        fruit.W_fruit_dry += allocatedStep;
         const W_dry_cap = fruit.genome.potentialMassG * 0.06;
         if (fruit.W_fruit_dry > W_dry_cap) fruit.W_fruit_dry = W_dry_cap;
         fruit.W_fruit_fresh = fruit.W_fruit_dry / 0.06;
@@ -401,12 +394,12 @@ export function stepHourly(
       }
     }
 
-    state.W += newDM_hr;
+    state.W += newDM_min;
     const laiCap = 3.6 - cultivar.defoliationAggressiveness * 1.2;
     state.LAI = Math.min(laiCap, state.LAI + alloc.leafG * cultivar.SLA);
   }
 
-  // 6. Plant-level fruit DM roll-up — same as stepDaily
+  // 6. Plant-level fruit DM roll-up
   let totalFruitDry = 0;
   let matureFruitDry = 0;
   for (const truss of state.trusses) {
@@ -419,17 +412,38 @@ export function stepHourly(
   state.W_f = totalFruitDry;
   state.W_m = matureFruitDry;
 
-  // 7-8. Node count + height — only change when truss count changes,
-  // safe to compute every hour (idempotent given truss count)
+  // 7-8. Node count + height — derived from truss count
   state.N = 6 + state.trusses.length * 3;
   state.heightCm = 30 + state.trusses.length * 27;
 }
 
 /**
- * Daily integration step — now a thin wrapper over `stepHourly` × 24.
- * The diurnal env profile preserves the daily T_avg and PAR_integral_mol
- * exactly, so the cumulative output matches the old monolithic
- * `stepDaily` to within float rounding.
+ * Hourly integration step — 60× stepMinutely. Each minute samples its
+ * own (sub-hour) PAR + temperature via `diurnalEnv(env, hour + m/60)`.
+ * Kept as a public API for `stepDaily` and back-compat with the Phase
+ * B unit tests; new callers should prefer stepMinutely directly for
+ * the finest-grain control.
+ */
+export function stepHourly(
+  state: PlantPhysiologyState,
+  cultivar: Cultivar,
+  env: HourlyClimate,
+): void {
+  // env.hour might already be fractional; use it as the base.
+  const baseHour = env.hour;
+  // We need a daily-climate reference to re-derive sub-hour diurnal
+  // samples. The HourlyClimate is a strict superset, so we can pass it
+  // back through diurnalEnv with the desired fractional hour.
+  for (let m = 0; m < 60; m++) {
+    const fracHour = baseHour + m / 60;
+    stepMinutely(state, cultivar, diurnalEnv(env, fracHour));
+  }
+}
+
+/**
+ * Daily integration step — 24× stepHourly = 1440× stepMinutely.
+ * Equivalence verified by test-hourly-equivalence.ts to within float
+ * rounding (PAR + T integrals are preserved exactly).
  */
 export function stepDaily(
   state: PlantPhysiologyState,

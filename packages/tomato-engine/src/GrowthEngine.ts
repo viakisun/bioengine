@@ -15,6 +15,7 @@ import { computePlantState, type PlantState, type PlantStressInputs } from './Gr
 import { type Cultivar, getCultivar } from './Cultivar';
 import {
   createPlant,
+  stepMinutely,
   stepHourly,
   type PlantPhysiologyState,
   type DailyClimate,
@@ -135,11 +136,10 @@ export function applyEnvironmentToGenome(
 interface PlantEntry {
   genome: PlantGenome;
   cultivar: Cultivar;
-  /** Physiology state for stepHourly simulation — null until
-   *  simulatePlantToHour() is first called for this seed. */
+  /** Live physiology state — null until simulatePlantToMinute is called. */
   physiology: PlantPhysiologyState | null;
-  /** Day+hour the physiology state was last advanced to. */
-  simulatedToHour: number;     // total hours since transplant = day*24+hour
+  /** Total minutes since transplant the physiology state was advanced to. */
+  simulatedToMinute: number;
 }
 
 /**
@@ -181,7 +181,7 @@ export class GrowthEngine {
       genome,
       cultivar,
       physiology: null,
-      simulatedToHour: -1,
+      simulatedToMinute: -1,
     });
     return genome;
   }
@@ -265,42 +265,52 @@ export class GrowthEngine {
   // ---------------------------------------------------------------------
 
   /**
-   * Advance the plant's CoreModel state to the given (day, hour) and
-   * return the live PlantPhysiologyState. If the requested hour is in
-   * the past relative to current simulation state, the state is reset
-   * and re-simulated from day 0 (so any (day, hour) call is reproducible
-   * deterministically from the seed).
+   * Advance the plant's CoreModel state to the given total-minute count
+   * (minutes since transplant; 0 = day 0 00:00) and return the live
+   * PlantPhysiologyState. If the requested minute is earlier than the
+   * current simulation position the state resets and re-simulates from
+   * day 0, so any (seed, totalMinute) call is fully deterministic.
    *
-   * Used by Single-Plant Analysis mode — the engine carries a live
-   * physiology state per plant; the existing computeState() (sigmoid)
-   * is left untouched for Greenhouse mode.
+   * Used by Single-Plant Analysis mode. Existing `computeState()`
+   * (sigmoid) is untouched for Greenhouse mode.
    */
+  simulatePlantToMinute(
+    seed: number,
+    totalMinute: number,
+    dailyEnv: DailyClimate = DEFAULT_CLIMATE,
+  ): PlantPhysiologyState {
+    const entry = this.plants.get(seed);
+    if (!entry) throw new Error(`Plant with seed ${seed} not registered`);
+
+    const target = Math.max(0, Math.floor(totalMinute));
+
+    // Rewind path — earlier than current → reset and re-simulate.
+    if (entry.physiology == null || target < entry.simulatedToMinute) {
+      entry.physiology = createPlant(seed);
+      entry.simulatedToMinute = -1;
+    }
+
+    // Fast-forward minute-by-minute. Each step samples the diurnal env
+    // at the current fractional hour of day.
+    while (entry.simulatedToMinute < target) {
+      const next = entry.simulatedToMinute + 1;
+      const minuteOfDay = next - Math.floor(next / 1440) * 1440;
+      const fractionalHour = minuteOfDay / 60;
+      stepMinutely(entry.physiology, entry.cultivar, diurnalEnv(dailyEnv, fractionalHour));
+      entry.simulatedToMinute = next;
+    }
+
+    return entry.physiology;
+  }
+
+  /** Convenience for callers thinking in (day, hour). */
   simulatePlantToHour(
     seed: number,
     day: number,
     hour: number,
     dailyEnv: DailyClimate = DEFAULT_CLIMATE,
   ): PlantPhysiologyState {
-    const entry = this.plants.get(seed);
-    if (!entry) throw new Error(`Plant with seed ${seed} not registered`);
-
-    const targetHour = Math.max(0, day * 24 + hour);
-
-    // If asking for an earlier hour than we've already simulated, reset.
-    if (entry.physiology == null || targetHour < entry.simulatedToHour) {
-      entry.physiology = createPlant(seed);
-      entry.simulatedToHour = -1;
-    }
-
-    while (entry.simulatedToHour < targetHour) {
-      const nextHour = entry.simulatedToHour + 1;
-      const nextDay = Math.floor(nextHour / 24);
-      const hourOfDay = nextHour - nextDay * 24;
-      stepHourly(entry.physiology, entry.cultivar, diurnalEnv(dailyEnv, hourOfDay));
-      entry.simulatedToHour = nextHour;
-    }
-
-    return entry.physiology;
+    return this.simulatePlantToMinute(seed, (day * 24 + hour) * 60, dailyEnv);
   }
 
   /** Read the live physiology state for a plant — null if never simulated. */
@@ -314,7 +324,7 @@ export class GrowthEngine {
     const entry = this.plants.get(seed);
     if (!entry) return;
     entry.physiology = null;
-    entry.simulatedToHour = -1;
+    entry.simulatedToMinute = -1;
   }
 
   /** Compute states for every registered plant at a given day. */
@@ -360,7 +370,7 @@ export class GrowthEngine {
         genome: { ...p.genome },
         cultivar: getCultivar('round-generic'),
         physiology: null,
-        simulatedToHour: -1,
+        simulatedToMinute: -1,
       });
     }
     return engine;

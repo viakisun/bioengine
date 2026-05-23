@@ -56,7 +56,7 @@ export type {
   TrussCohort,
   PlantPhysiologyState,
 } from './CoreModel';
-export { DEFAULT_CLIMATE, createPlant, stepDaily, stepHourly, simulateToDay } from './CoreModel';
+export { DEFAULT_CLIMATE, createPlant, stepDaily, stepHourly, stepMinutely, simulateToDay } from './CoreModel';
 
 export type { HourlyClimate } from './DiurnalEnv';
 export { diurnalEnv, parAtHour, tempAtHour, DEFAULT_TEMP_AMPLITUDE_C } from './DiurnalEnv';

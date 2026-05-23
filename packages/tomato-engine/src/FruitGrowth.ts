@@ -86,22 +86,30 @@ export const ABORTION_THRESHOLD = 0.25;
 export const ABORTION_LAG_DAYS = 4;
 
 /** Decide whether a fruit should abort given its actual recent DM
- *  growth vs potential. Returns the new starved-day count. */
+ *  growth vs potential.
+ *
+ *  `dtDays` is the integration step size in days. Pass 1.0 for a daily
+ *  step, 1/24 for hourly, 1/1440 for minutely. The counter still has
+ *  units of days, so the abort threshold is time-resolution invariant.
+ */
 export function updateAbortionTracker(
-  actualDMToday: number,
-  potentialDMToday: number,
+  actualDM: number,
+  potentialDM: number,
   previousStarved: number,
+  dtDays = 1,
 ): { starvedDays: number; abort: boolean } {
-  if (potentialDMToday <= 0) {
+  if (potentialDM <= 0) {
     return { starvedDays: previousStarved, abort: false };
   }
-  const ratio = actualDMToday / potentialDMToday;
+  const ratio = actualDM / potentialDM;
   if (ratio < ABORTION_THRESHOLD) {
-    const next = previousStarved + 1;
+    const next = previousStarved + dtDays;
     return { starvedDays: next, abort: next >= ABORTION_LAG_DAYS };
   }
-  // Decay the starved counter when feeding is back to normal
-  return { starvedDays: Math.max(0, previousStarved - 1), abort: false };
+  // Decay the starved counter when feeding is back to normal.
+  // Decay rate matches the integration step so a single full day of
+  // healthy feeding cancels a full day of starvation.
+  return { starvedDays: Math.max(0, previousStarved - dtDays), abort: false };
 }
 
 /** Acropetal ripening offset on a truss (basal earlier than distal).

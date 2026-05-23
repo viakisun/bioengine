@@ -8,6 +8,24 @@ export type CompareMode = 'off' | 'yesterday' | '7days';
 /** Top-level app mode — drives which scene/layout is mounted. */
 export type AppMode = 'lobby' | 'greenhouse' | 'single-plant' | 'robot' | 'sandbox';
 
+/** Output variables the Single-Plant TimelineChart can plot. */
+export type SinglePlantChartVar =
+  | 'TT' | 'LAI' | 'W' | 'W_f' | 'W_m' | 'HI' | 'N' | 'heightCm'
+  | 'PAR_now' | 'T_now';
+
+export const SINGLE_PLANT_CHART_VARS: { id: SinglePlantChartVar; label: string; unit: string }[] = [
+  { id: 'TT', label: 'Thermal time', unit: '°C·d' },
+  { id: 'LAI', label: 'Leaf area index', unit: 'm²/m²' },
+  { id: 'W', label: 'Plant DM', unit: 'g DM' },
+  { id: 'W_f', label: 'Fruit DM', unit: 'g DM' },
+  { id: 'W_m', label: 'Mature fruit DM', unit: 'g DM' },
+  { id: 'HI', label: 'Harvest index', unit: '–' },
+  { id: 'N', label: 'Node count', unit: 'nodes' },
+  { id: 'heightCm', label: 'Height', unit: 'cm' },
+  { id: 'PAR_now', label: 'PAR (instant.)', unit: 'μmol/m²/s' },
+  { id: 'T_now', label: 'Air temp (instant.)', unit: '°C' },
+];
+
 const VALID_MODES: AppMode[] = ['lobby', 'greenhouse', 'single-plant', 'robot', 'sandbox'];
 
 function readModeFromHash(): AppMode {
@@ -401,6 +419,34 @@ interface TwinState {
   mode: AppMode;
   setMode: (mode: AppMode) => void;
 
+  // -- Single-Plant Analysis mode state --
+  /** Current scrub position in minutes since transplant (0 .. 120*24*60). */
+  singlePlantMinute: number;
+  /** Auto-playback toggle for the single-plant timeline. */
+  singlePlantPlaying: boolean;
+  /** Playback speed multiplier. */
+  singlePlantSpeed: 1 | 4 | 24;
+  /** Which output variable the TimelineChart graphs as the y-axis. */
+  singlePlantChartVar: SinglePlantChartVar;
+  /** History window for the TimelineChart. */
+  singlePlantChartWindow: '1d' | '7d' | '30d' | 'all';
+  /** Camera preset in the single-plant viewport. */
+  singlePlantCamera: 'free' | 'truss' | 'fruit' | 'top';
+  /** Which inspector sections are expanded. */
+  singlePlantInspectorOpen: {
+    cultivar: boolean;
+    state: boolean;
+    truss: boolean;
+    genome: boolean;
+  };
+  setSinglePlantMinute: (m: number) => void;
+  setSinglePlantPlaying: (p: boolean) => void;
+  setSinglePlantSpeed: (s: 1 | 4 | 24) => void;
+  setSinglePlantChartVar: (v: SinglePlantChartVar) => void;
+  setSinglePlantChartWindow: (w: '1d' | '7d' | '30d' | 'all') => void;
+  setSinglePlantCamera: (c: 'free' | 'truss' | 'fruit' | 'top') => void;
+  toggleSinglePlantInspector: (key: 'cultivar' | 'state' | 'truss' | 'genome') => void;
+
   // -- Boot progress + notifications + live log + env --
   boot: BootSnapshot;
   notifications: Notification[];
@@ -568,6 +614,28 @@ export const useTwinStore = create<TwinState>((set) => ({
       }
     }
   },
+
+  // -- Single-Plant mode --
+  // Default scrub: day 45 noon — mid-growth, multiple trusses active,
+  // good showcase for the timeline / inspector.
+  singlePlantMinute: 45 * 24 * 60 + 12 * 60,
+  singlePlantPlaying: false,
+  singlePlantSpeed: 4,
+  singlePlantChartVar: 'LAI',
+  singlePlantChartWindow: '7d',
+  singlePlantCamera: 'free',
+  singlePlantInspectorOpen: { cultivar: true, state: true, truss: true, genome: false },
+  setSinglePlantMinute: (m) =>
+    set({ singlePlantMinute: Math.max(0, Math.min(120 * 24 * 60 - 1, Math.round(m))) }),
+  setSinglePlantPlaying: (p) => set({ singlePlantPlaying: p }),
+  setSinglePlantSpeed: (s) => set({ singlePlantSpeed: s }),
+  setSinglePlantChartVar: (v) => set({ singlePlantChartVar: v }),
+  setSinglePlantChartWindow: (w) => set({ singlePlantChartWindow: w }),
+  setSinglePlantCamera: (c) => set({ singlePlantCamera: c }),
+  toggleSinglePlantInspector: (key) =>
+    set((s) => ({
+      singlePlantInspectorOpen: { ...s.singlePlantInspectorOpen, [key]: !s.singlePlantInspectorOpen[key] },
+    })),
 
   // -- Boot progress + notifications + live log + env --
   boot: {
