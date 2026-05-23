@@ -25,6 +25,11 @@ import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
+// Side-effect imports — register CreateTube / CreateSphere onto MeshBuilder.
+// Without these Babylon's tree-shaken bundle has no CreateTube and the
+// call throws at runtime (renderer crash, "오류 코드: 5").
+import '@babylonjs/core/Meshes/Builders/tubeBuilder';
+import '@babylonjs/core/Meshes/Builders/sphereBuilder';
 import type { PlantState, StemAxis, NodeState } from '@farmsim/tomato-engine';
 
 export interface SkeletonOverlayHandle {
