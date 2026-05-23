@@ -1,0 +1,60 @@
+// Cherry tomato — generic profile (literature-based).
+// Small ~18g, ~2 locules, near-spherical, smooth surface.
+
+{
+  "metadata": {
+    "name": "cherry-generic",
+    "type": "cherry",
+    "source": "literature",
+    "references": [
+      "PMC10482247 — locule QTL (fas, lc)",
+      "Heuvelink 1996 — yield calibration"
+    ]
+  },
+
+  "phenology": {
+    "GDD_to_first_flower": 250,
+    "GDD_per_truss": 120,
+    "GDD_flower_to_red": 800,
+    "cellDivisionDurationGDD": 150,
+    "cellExpansionDurationGDD": 500,
+    "ripeningDurationGDD": 200,
+    "trussRipeningSpreadGDD": 60
+  },
+
+  "flowersPerTruss": { "mu": 12, "sigma": 3 },
+  "fruitSetRate": 0.7,
+  "potentialFruitMassG": { "mu": 18, "sigma": 4 },
+
+  "morphology": {
+    "loculeCount": { "mu": 2.0, "sigma": 0.3 },
+    // Cherry tomatoes are near-spherical (H:W ~ 1.0)
+    "heightWidthRatio": { "mu": 0.96, "sigma": 0.04 },
+    // Very faint ribbing — cherries are smooth
+    "ribbingStrength": { "mu": 0.05, "sigma": 0.05 },
+    "asymmetryStrength": 0.05,
+    "blossomEndAdvanceFrac": { "mu": 0.35, "sigma": 0.1 }
+  },
+
+  "color": {
+    "fullRipeRGB": [195, 30, 22],
+    "greenStageRGB": [34, 120, 30],
+    "hueVariance": 0.04
+  },
+
+  "pruning": {
+    "defoliationAggressiveness": 0.4,
+    "trussTargetFruitCount": 10
+  },
+
+  "physiology": {
+    "SLA_m2_per_g": 0.028,
+    "sinkStrength": {
+      "leaf": 0.35,
+      "stem": 0.15,
+      "root": 0.07
+    },
+    "gompertzRateB": 0.06,
+    "gompertzInflectionC": 0.45
+  }
+}

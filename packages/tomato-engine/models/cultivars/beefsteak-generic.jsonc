@@ -1,0 +1,51 @@
+// Beefsteak tomato — generic profile (literature-based).
+// Large ~280g, ~7 locules, strongly oblate + deep ribbing.
+
+{
+  "metadata": {
+    "name": "beefsteak-generic",
+    "type": "beefsteak",
+    "source": "literature",
+    "references": ["PMC10482247 — beefsteak locule QTL"]
+  },
+
+  "phenology": {
+    "GDD_to_first_flower": 250,
+    "GDD_per_truss": 120,
+    "GDD_flower_to_red": 800,
+    "cellDivisionDurationGDD": 150,
+    "cellExpansionDurationGDD": 500,
+    "ripeningDurationGDD": 200,
+    "trussRipeningSpreadGDD": 110
+  },
+
+  "flowersPerTruss": { "mu": 5, "sigma": 1.2 },
+  "fruitSetRate": 0.55,
+  "potentialFruitMassG": { "mu": 280, "sigma": 50 },
+
+  "morphology": {
+    "loculeCount": { "mu": 7.0, "sigma": 1.5 },
+    "heightWidthRatio": { "mu": 0.7, "sigma": 0.06 },
+    "ribbingStrength": { "mu": 0.55, "sigma": 0.12 },
+    "asymmetryStrength": 0.12,
+    "blossomEndAdvanceFrac": { "mu": 0.5, "sigma": 0.1 }
+  },
+
+  "color": {
+    "fullRipeRGB": [200, 40, 30],
+    "greenStageRGB": [50, 115, 38],
+    "hueVariance": 0.06
+  },
+
+  "pruning": {
+    "defoliationAggressiveness": 0.3,
+    "trussTargetFruitCount": 3
+  },
+
+  "physiology": {
+    "SLA_m2_per_g": 0.028,
+    "sinkStrength": { "leaf": 0.35, "stem": 0.15, "root": 0.07 },
+    "gompertzRateB": 0.06,
+    "gompertzInflectionC": 0.45
+  }
+}

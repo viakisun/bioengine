@@ -14,13 +14,14 @@
 
 import type { DailyClimate } from './CoreModel';
 import type { HourlyClimate } from './DiurnalEnv';
+import { ACTIVE_MODEL } from './ModelRegistry';
 
 /** Beer-Lambert canopy light interception fraction.
  *  f_abs = 1 - exp(-k · LAI)
  *  k = 0.7 — standard extinction coefficient for tomato canopy with
  *  spherical leaf angle distribution.
  */
-export function canopyAbsorbedFraction(LAI: number, k = 0.7): number {
+export function canopyAbsorbedFraction(LAI: number, k = ACTIVE_MODEL.photosynthesis.beerLambert_k): number {
   if (LAI <= 0) return 0;
   return 1 - Math.exp(-k * LAI);
 }
@@ -47,7 +48,7 @@ export function canopyAbsorbedFraction(LAI: number, k = 0.7): number {
 export function dailyGrossAssimilation(
   env: DailyClimate,
   LAI: number,
-  LUE = 3.5,
+  LUE = ACTIVE_MODEL.photosynthesis.LUE_gDM_per_mol_PAR,
 ): number {
   if (LAI <= 0 || env.PAR_integral_mol <= 0) return 0;
   const f_abs = canopyAbsorbedFraction(LAI);
@@ -64,8 +65,8 @@ export function dailyGrossAssimilation(
 export function maintenanceRespiration(
   W_total_g: number,
   T_avg: number,
-  m_ref = 0.015,
-  Q10 = 2.0,
+  m_ref = ACTIVE_MODEL.photosynthesis.maintenance_m_ref_per_day,
+  Q10 = ACTIVE_MODEL.photosynthesis.Q10,
 ): number {
   return W_total_g * m_ref * Math.pow(Q10, (T_avg - 20) / 10);
 }
@@ -83,7 +84,7 @@ export function maintenanceRespiration(
 export function hourlyGrossAssimilation(
   PAR_now_umol: number,
   LAI: number,
-  LUE = 3.5,
+  LUE = ACTIVE_MODEL.photosynthesis.LUE_gDM_per_mol_PAR,
 ): number {
   if (LAI <= 0 || PAR_now_umol <= 0) return 0;
   const f_abs = canopyAbsorbedFraction(LAI);
@@ -102,8 +103,8 @@ export function hourlyNetDM(
   env: HourlyClimate,
   LAI: number,
   W_total_g: number,
-  plantFootprintM2 = 0.4,
-  Cf = 0.7,
+  plantFootprintM2 = ACTIVE_MODEL.photosynthesis.plantFootprintM2,
+  Cf = ACTIVE_MODEL.photosynthesis.Cf_conversion_efficiency,
 ): number {
   const P_gross_per_m2 = hourlyGrossAssimilation(env.PAR_now, LAI);
   const P_gross_per_plant = P_gross_per_m2 * plantFootprintM2;
@@ -127,8 +128,8 @@ export function dailyNetDM(
   env: DailyClimate,
   LAI: number,
   W_total_g: number,
-  plantFootprintM2 = 0.4,
-  Cf = 0.7,
+  plantFootprintM2 = ACTIVE_MODEL.photosynthesis.plantFootprintM2,
+  Cf = ACTIVE_MODEL.photosynthesis.Cf_conversion_efficiency,
 ): number {
   const P_gross_per_m2 = dailyGrossAssimilation(env, LAI);
   const P_gross_per_plant = P_gross_per_m2 * plantFootprintM2;

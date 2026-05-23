@@ -82,8 +82,12 @@ export interface AbortionState {
 /** Default abortion threshold and lag. Frontiers 2015 reports tomato
  *  fruit abortion triggered at ~25-30% of potential growth for ~3-5
  *  days under low-PAR / high-load conditions. */
-export const ABORTION_THRESHOLD = 0.25;
-export const ABORTION_LAG_DAYS = 4;
+// Now sourced from ACTIVE_MODEL.abortion — JSON model spec. Re-exported
+// as constants for back-compat with callers that import these names.
+import { ACTIVE_MODEL } from './ModelRegistry';
+
+export const ABORTION_THRESHOLD = ACTIVE_MODEL.abortion.threshold_ratio;
+export const ABORTION_LAG_DAYS = ACTIVE_MODEL.abortion.lag_days;
 
 /** Decide whether a fruit should abort given its actual recent DM
  *  growth vs potential.

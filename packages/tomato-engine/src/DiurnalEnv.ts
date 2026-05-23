@@ -25,6 +25,7 @@
 // All values are pure functions of (day, hour); no state.
 
 import type { DailyClimate } from './CoreModel';
+import { ACTIVE_MODEL } from './ModelRegistry';
 
 export interface HourlyClimate extends DailyClimate {
   /** Current hour of the day, 0..23. */
@@ -35,12 +36,13 @@ export interface HourlyClimate extends DailyClimate {
   T_now: number;
 }
 
-/** Default amplitude (°C) for the diurnal temperature swing. */
-export const DEFAULT_TEMP_AMPLITUDE_C = 6;
+/** Default amplitude (°C) for the diurnal temperature swing.
+ *  Sourced from ACTIVE_MODEL.diurnal.temp_amplitude_C — JSON spec. */
+export const DEFAULT_TEMP_AMPLITUDE_C = ACTIVE_MODEL.diurnal.temp_amplitude_C;
 
 /** Hour-of-day at which the temperature curve crosses through T_avg
- *  on the way up. Min at h=2, max at h=14 (defaults). */
-const PHASE_OFFSET_HOURS = 8;
+ *  on the way up. Sourced from ACTIVE_MODEL.diurnal.phase_offset_hours. */
+const PHASE_OFFSET_HOURS = ACTIVE_MODEL.diurnal.phase_offset_hours;
 
 /**
  * Compute the instantaneous PAR (μmol m⁻² s⁻¹) at the given hour, given

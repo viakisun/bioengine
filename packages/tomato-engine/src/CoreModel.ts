@@ -26,6 +26,7 @@ import { sampleCultivarGenome } from './Cultivar';
 import { SeededRandom } from './SeededRandom';
 import { dailyNetDM, hourlyNetDM } from './Photosynthesis';
 import { diurnalEnv, type HourlyClimate } from './DiurnalEnv';
+import { ACTIVE_MODEL } from './ModelRegistry';
 import { allocateDM } from './SinkAllocation';
 import { acropetalGDDOffset, potentialDailyGrowthFW, updateAbortionTracker } from './FruitGrowth';
 
@@ -284,7 +285,7 @@ export function stepMinutely(
   if (isDayStart) state.day += 1;
 
   // 1. Thermal time — per-minute share.
-  const T_eff_per_min = (Math.max(0, Math.min(32, env.T_now) - cultivar.T_base)) / 1440;
+  const T_eff_per_min = (Math.max(0, Math.min(ACTIVE_MODEL.thermalTime.T_max_dev_C, env.T_now) - cultivar.T_base)) / 1440;
   state.TT += T_eff_per_min;
 
   // 2. Truss emergence — TT-threshold based, fires the first minute TT
@@ -377,7 +378,7 @@ export function stepMinutely(
         const T_eff_day_equiv = T_eff_per_min * 1440;
         const gddSinceFert = state.TT - fruit.fertilizationTT;
         const potentialFW_day = potentialDailyGrowthFW(gddSinceFert, T_eff_day_equiv, fruit.genome, cultivar);
-        const potentialDM_step = (potentialFW_day * 0.06) * dtDays;
+        const potentialDM_step = (potentialFW_day * ACTIVE_MODEL.fruitGrowth.DM_percent) * dtDays;
         const tracker = updateAbortionTracker(allocatedStep, potentialDM_step, fruit.starvedDays, dtDays);
         fruit.starvedDays = tracker.starvedDays;
         if (tracker.abort) {
@@ -387,15 +388,16 @@ export function stepMinutely(
 
         // Apply allocation
         fruit.W_fruit_dry += allocatedStep;
-        const W_dry_cap = fruit.genome.potentialMassG * 0.06;
+        const W_dry_cap = fruit.genome.potentialMassG * ACTIVE_MODEL.fruitGrowth.DM_percent;
         if (fruit.W_fruit_dry > W_dry_cap) fruit.W_fruit_dry = W_dry_cap;
-        fruit.W_fruit_fresh = fruit.W_fruit_dry / 0.06;
+        fruit.W_fruit_fresh = fruit.W_fruit_dry / ACTIVE_MODEL.fruitGrowth.DM_percent;
         fruit.diameter = freshMassToDiameter(fruit.W_fruit_fresh, fruit.genome);
       }
     }
 
     state.W += newDM_min;
-    const laiCap = 3.6 - cultivar.defoliationAggressiveness * 1.2;
+    const laiCap = ACTIVE_MODEL.lai.defoliation_cap_base -
+      cultivar.defoliationAggressiveness * ACTIVE_MODEL.lai.defoliation_aggressiveness_factor;
     state.LAI = Math.min(laiCap, state.LAI + alloc.leafG * cultivar.SLA);
   }
 
@@ -470,7 +472,7 @@ function _legacyStepDaily(
 
   // 1. Thermal time (T_base capped, T_max ceiling 32°C — beyond this no
   // additional development per CROPGRO).
-  const T_eff = Math.max(0, Math.min(32, env.T_avg) - cultivar.T_base);
+  const T_eff = Math.max(0, Math.min(ACTIVE_MODEL.thermalTime.T_max_dev_C, env.T_avg) - cultivar.T_base);
   state.TT += T_eff;
 
   // 2. Truss emergence — every GDD_per_truss after the first
@@ -579,7 +581,7 @@ function _legacyStepDaily(
         // Compute potential daily growth (Gompertz) for abortion check
         const gddSinceFert = state.TT - fruit.fertilizationTT;
         const potentialFW = potentialDailyGrowthFW(gddSinceFert, T_eff, fruit.genome, cultivar);
-        const potentialDM = potentialFW * 0.06;
+        const potentialDM = potentialFW * ACTIVE_MODEL.fruitGrowth.DM_percent;
 
         // Update abortion tracker — abort if persistently starved
         const tracker = updateAbortionTracker(allocatedToday, potentialDM, fruit.starvedDays);
@@ -592,10 +594,10 @@ function _legacyStepDaily(
         // Apply allocation
         fruit.W_fruit_dry += allocatedToday;
         // Cap at potential mass
-        const W_dry_cap = fruit.genome.potentialMassG * 0.06;
+        const W_dry_cap = fruit.genome.potentialMassG * ACTIVE_MODEL.fruitGrowth.DM_percent;
         if (fruit.W_fruit_dry > W_dry_cap) fruit.W_fruit_dry = W_dry_cap;
         // Fresh = dry / DM%
-        fruit.W_fruit_fresh = fruit.W_fruit_dry / 0.06;
+        fruit.W_fruit_fresh = fruit.W_fruit_dry / ACTIVE_MODEL.fruitGrowth.DM_percent;
         fruit.diameter = freshMassToDiameter(fruit.W_fruit_fresh, fruit.genome);
       }
     }
@@ -607,7 +609,8 @@ function _legacyStepDaily(
     // aggressive defoliation → lower steady-state LAI. Commercial
     // greenhouse target is ~3 (Heuvelink 1996); cultivar.defoliation
     // -Aggressiveness 0..1 maps to a 3.6 → 2.4 ceiling.
-    const laiCap = 3.6 - cultivar.defoliationAggressiveness * 1.2;
+    const laiCap = ACTIVE_MODEL.lai.defoliation_cap_base -
+      cultivar.defoliationAggressiveness * ACTIVE_MODEL.lai.defoliation_aggressiveness_factor;
     state.LAI = Math.min(laiCap, state.LAI + alloc.leafG * cultivar.SLA);
   }
 
@@ -634,8 +637,9 @@ function _legacyStepDaily(
 /** Convert fresh mass (g) to equatorial diameter (mm) under H:W constraint. */
 function freshMassToDiameter(massG: number, genome: CultivarSample): number {
   // Approximate fruit as oblate spheroid with semi-axes (a, a, c) where
-  // c = a × heightWidthRatio. Volume = (4/3)π a²c. Density ~ 1.04 g/cm³.
-  const density = 1.04; // g/cm³ — water-rich fruit
+  // c = a × heightWidthRatio. Volume = (4/3)π a²c. Density sourced from
+  // ACTIVE_MODEL.fruitGrowth.density_g_per_cm3 (Gould 1992 default 1.04).
+  const density = ACTIVE_MODEL.fruitGrowth.density_g_per_cm3;
   const volumeCm3 = massG / density;
   // V = (4/3)π a² c, c = a · h, so V = (4/3)π a³ h → a = (3V / (4π h))^(1/3)
   const h = genome.heightWidthRatio;

@@ -98,154 +98,74 @@ export interface Cultivar {
 }
 
 // ---------------------------------------------------------------------------
-// Baseline cultivars — five entries covering the common K-smartfarm taxa.
+// Baseline cultivars — loaded from JSONC files in models/cultivars/.
+//
+// Phase 0 of plan a-drifting-wigderson.md: replace hardcoded 5-entry
+// registry with a JSON-driven loader. Coefficients are now editable in
+// the model spec sheet (models/<cultivar>.jsonc); this module just
+// adapts the nested JSON shape to the flat Cultivar interface that the
+// engine + visual layer already consume.
 // ---------------------------------------------------------------------------
 
-const COMMON: Pick<
-  Cultivar,
-  | 'T_base'
-  | 'GDD_to_first_flower'
-  | 'GDD_flower_to_red'
-  | 'GDD_per_truss'
-  | 'cellDivisionDurationGDD'
-  | 'cellExpansionDurationGDD'
-  | 'ripeningDurationGDD'
-  | 'gompertzRateB'
-  | 'gompertzInflectionC'
-  | 'sinkStrengthLeaf'
-  | 'sinkStrengthStem'
-  | 'sinkStrengthRoot'
-  | 'SLA'
-> = {
-  T_base: 10,
-  GDD_to_first_flower: 250,
-  GDD_flower_to_red: 800,
-  GDD_per_truss: 120,
-  cellDivisionDurationGDD: 150,
-  cellExpansionDurationGDD: 500,
-  ripeningDurationGDD: 200,
-  gompertzRateB: 0.06,
-  gompertzInflectionC: 0.45,
-  sinkStrengthLeaf: 0.35,
-  sinkStrengthStem: 0.15,
-  sinkStrengthRoot: 0.07,
-  SLA: 0.028,
-};
+import { CULTIVAR_JSONS, ACTIVE_MODEL, type CultivarJson } from './ModelRegistry';
 
-const CHERRY_GENERIC: Cultivar = {
-  name: 'cherry-generic',
-  type: 'cherry',
-  source: 'literature',
-  ...COMMON,
-  flowersPerTruss: { mu: 12, sigma: 3 },
-  fruitSetRate: 0.7,
-  potentialFruitMassG: { mu: 18, sigma: 4 },
-  loculeCount: { mu: 2.0, sigma: 0.3 },
-  heightWidthRatio: { mu: 0.96, sigma: 0.04 },
-  ribbingStrength: { mu: 0.05, sigma: 0.05 },
-  asymmetryStrength: 0.05,
-  fullRipeRGB: [195, 30, 22],
-  greenStageRGB: [34, 120, 30],
-  hueVariance: 0.04,
-  blossomEndAdvanceFrac: { mu: 0.35, sigma: 0.1 },
-  defoliationAggressiveness: 0.4,
-  trussTargetFruitCount: 10,
-  trussRipeningSpreadGDD: 60,
-};
+function adaptCultivar(j: CultivarJson): Cultivar {
+  return {
+    name: j.metadata.name,
+    type: j.metadata.type as CultivarType,
+    source: j.metadata.source as Cultivar['source'],
 
-const ROUND_GENERIC: Cultivar = {
-  name: 'round-generic',
-  type: 'round',
-  source: 'literature',
-  ...COMMON,
-  flowersPerTruss: { mu: 6, sigma: 1.5 },
-  fruitSetRate: 0.6,
-  potentialFruitMassG: { mu: 130, sigma: 25 },
-  loculeCount: { mu: 4.0, sigma: 0.8 },
-  heightWidthRatio: { mu: 0.9, sigma: 0.05 },
-  ribbingStrength: { mu: 0.18, sigma: 0.08 },
-  asymmetryStrength: 0.08,
-  fullRipeRGB: [205, 35, 28],
-  greenStageRGB: [40, 120, 35],
-  hueVariance: 0.05,
-  blossomEndAdvanceFrac: { mu: 0.45, sigma: 0.1 },
-  defoliationAggressiveness: 0.35,
-  trussTargetFruitCount: 5,
-  trussRipeningSpreadGDD: 90,
-};
+    // Phenology
+    T_base: ACTIVE_MODEL.thermalTime.T_base_C,
+    GDD_to_first_flower: j.phenology.GDD_to_first_flower,
+    GDD_flower_to_red: j.phenology.GDD_flower_to_red,
+    GDD_per_truss: j.phenology.GDD_per_truss,
+    cellDivisionDurationGDD: j.phenology.cellDivisionDurationGDD,
+    cellExpansionDurationGDD: j.phenology.cellExpansionDurationGDD,
+    ripeningDurationGDD: j.phenology.ripeningDurationGDD,
+    trussRipeningSpreadGDD: j.phenology.trussRipeningSpreadGDD,
 
-const BEEFSTEAK_GENERIC: Cultivar = {
-  name: 'beefsteak-generic',
-  type: 'beefsteak',
-  source: 'literature',
-  ...COMMON,
-  flowersPerTruss: { mu: 5, sigma: 1.2 },
-  fruitSetRate: 0.55,
-  potentialFruitMassG: { mu: 280, sigma: 50 },
-  loculeCount: { mu: 7.0, sigma: 1.5 },
-  heightWidthRatio: { mu: 0.7, sigma: 0.06 },
-  ribbingStrength: { mu: 0.55, sigma: 0.12 },
-  asymmetryStrength: 0.12,
-  fullRipeRGB: [200, 40, 30],
-  greenStageRGB: [50, 115, 38],
-  hueVariance: 0.06,
-  blossomEndAdvanceFrac: { mu: 0.5, sigma: 0.1 },
-  defoliationAggressiveness: 0.3,
-  trussTargetFruitCount: 3,
-  trussRipeningSpreadGDD: 110,
-};
+    // Reproductive
+    flowersPerTruss: j.flowersPerTruss,
+    fruitSetRate: j.fruitSetRate,
+    potentialFruitMassG: j.potentialFruitMassG,
 
-const ROMA_GENERIC: Cultivar = {
-  name: 'roma-generic',
-  type: 'roma',
-  source: 'literature',
-  ...COMMON,
-  flowersPerTruss: { mu: 7, sigma: 1.5 },
-  fruitSetRate: 0.7,
-  potentialFruitMassG: { mu: 80, sigma: 15 },
-  loculeCount: { mu: 2.0, sigma: 0.4 },
-  heightWidthRatio: { mu: 1.6, sigma: 0.1 },   // > 1 = elongated, not oblate
-  ribbingStrength: { mu: 0.08, sigma: 0.05 },
-  asymmetryStrength: 0.06,
-  fullRipeRGB: [195, 35, 25],
-  greenStageRGB: [45, 118, 32],
-  hueVariance: 0.04,
-  blossomEndAdvanceFrac: { mu: 0.4, sigma: 0.1 },
-  defoliationAggressiveness: 0.4,
-  trussTargetFruitCount: 6,
-  trussRipeningSpreadGDD: 75,
-};
+    // Gompertz (still on cultivar.physiology in JSON)
+    gompertzRateB: j.physiology.gompertzRateB,
+    gompertzInflectionC: j.physiology.gompertzInflectionC,
 
-// Tomimaru Muchoo (Sakata) — F1 pink beefsteak, 180-230g, popular Korean
-// smart-farm cultivar. Vendor spec from Johnny's Selected Seeds.
-const TOMIMARU_MUCHOO: Cultivar = {
-  name: 'tomimaru-muchoo',
-  type: 'beefsteak',
-  source: 'vendor',
-  ...COMMON,
-  flowersPerTruss: { mu: 5, sigma: 1.0 },
-  fruitSetRate: 0.6,
-  potentialFruitMassG: { mu: 200, sigma: 25 },
-  loculeCount: { mu: 6.0, sigma: 1.2 },
-  heightWidthRatio: { mu: 0.72, sigma: 0.09 },   // wider σ → visible H:W variance per plant
-  ribbingStrength: { mu: 0.55, sigma: 0.15 },    // deeper lobes — Tomimaru shows pronounced ridges
-  asymmetryStrength: 0.13,
-  fullRipeRGB: [220, 90, 95],          // pink beefsteak (lighter than standard red)
-  greenStageRGB: [60, 130, 50],
-  hueVariance: 0.05,
-  blossomEndAdvanceFrac: { mu: 0.45, sigma: 0.1 },
-  defoliationAggressiveness: 0.32,
-  trussTargetFruitCount: 4,
-  trussRipeningSpreadGDD: 100,
-};
+    // Morphology
+    loculeCount: j.morphology.loculeCount,
+    heightWidthRatio: j.morphology.heightWidthRatio,
+    ribbingStrength: j.morphology.ribbingStrength,
+    asymmetryStrength: j.morphology.asymmetryStrength,
+    blossomEndAdvanceFrac: j.morphology.blossomEndAdvanceFrac,
 
-export const CULTIVARS: Record<string, Cultivar> = {
-  'cherry-generic': CHERRY_GENERIC,
-  'round-generic': ROUND_GENERIC,
-  'beefsteak-generic': BEEFSTEAK_GENERIC,
-  'roma-generic': ROMA_GENERIC,
-  'tomimaru-muchoo': TOMIMARU_MUCHOO,
-};
+    // Color
+    fullRipeRGB: j.color.fullRipeRGB,
+    greenStageRGB: j.color.greenStageRGB,
+    hueVariance: j.color.hueVariance,
+
+    // Sink strength (Marcelis 1996; fruit=1.0 baseline)
+    sinkStrengthLeaf: j.physiology.sinkStrength.leaf,
+    sinkStrengthStem: j.physiology.sinkStrength.stem,
+    sinkStrengthRoot: j.physiology.sinkStrength.root,
+
+    // Pruning baseline
+    defoliationAggressiveness: j.pruning.defoliationAggressiveness,
+    trussTargetFruitCount: j.pruning.trussTargetFruitCount,
+
+    // Misc
+    SLA: j.physiology.SLA_m2_per_g,
+  };
+}
+
+// CULTIVARS map — derived from JSONC at module load.
+// Adapter converts the JSON shape to the flat Cultivar interface that
+// downstream code (CoreModel, FruitGenerator, GrowthEngine) consumes.
+export const CULTIVARS: Record<string, Cultivar> = Object.fromEntries(
+  Object.entries(CULTIVAR_JSONS).map(([name, json]) => [name, adaptCultivar(json)]),
+);
 
 export const DEFAULT_CULTIVAR_NAME = 'round-generic';
 

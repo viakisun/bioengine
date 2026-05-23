@@ -1,0 +1,75 @@
+// Tomimaru Muchoo — F1 pink beefsteak (Sakata Seeds)
+// 180-230g, popular Korean smart-farm cultivar.
+//
+// Tuning notes:
+//   - heightWidthRatio.sigma 0.06 → 0.09  (wider σ for visible H:W variance)
+//   - ribbingStrength.mu 0.35 → 0.55     (deeper lobes — pronounced ridges)
+//   - asymmetryStrength 0.10 → 0.13      (more per-fruit individuality)
+
+{
+  "metadata": {
+    "name": "tomimaru-muchoo",
+    "type": "beefsteak",
+    "source": "vendor",
+    "supplier": "Sakata Seeds",
+    "references": [
+      "Sakata Seeds product spec",
+      "K-smartfarm extension service",
+      "Johnny's Selected Seeds catalog"
+    ]
+  },
+
+  "phenology": {
+    // GDD thresholds (CROPGRO-Tomato standard at T_base=10°C)
+    "GDD_to_first_flower": 250,
+    "GDD_per_truss": 120,
+    "GDD_flower_to_red": 800,
+    "cellDivisionDurationGDD": 150,
+    "cellExpansionDurationGDD": 500,
+    "ripeningDurationGDD": 200,
+    "trussRipeningSpreadGDD": 100
+  },
+
+  "flowersPerTruss": { "mu": 5, "sigma": 1.0 },
+  "fruitSetRate": 0.6,
+  "potentialFruitMassG": { "mu": 200, "sigma": 25 },
+
+  "morphology": {
+    // Locule count — beefsteak ~6, range 4-10 (PMC10482247).
+    "loculeCount": { "mu": 6.0, "sigma": 1.2 },
+
+    // H:W ratio — Tomimaru is moderately oblate (< 1).
+    "heightWidthRatio": { "mu": 0.72, "sigma": 0.09 },
+
+    // Ribbing — Tomimaru shows pronounced lobes.
+    "ribbingStrength": { "mu": 0.55, "sigma": 0.15 },
+
+    "asymmetryStrength": 0.13,
+    "blossomEndAdvanceFrac": { "mu": 0.45, "sigma": 0.1 }
+  },
+
+  "color": {
+    // Pink beefsteak — lighter than standard red (Tomimaru breed character)
+    "fullRipeRGB": [220, 90, 95],
+    "greenStageRGB": [60, 130, 50],
+    "hueVariance": 0.05
+  },
+
+  "pruning": {
+    "defoliationAggressiveness": 0.32,
+    // After natural set + abortion, retain 4 fruits per truss (basal first)
+    "trussTargetFruitCount": 4
+  },
+
+  "physiology": {
+    "SLA_m2_per_g": 0.028,
+    // Per-organ sink strength (Marcelis 1996; fruit=1.0 baseline)
+    "sinkStrength": {
+      "leaf": 0.35,
+      "stem": 0.15,
+      "root": 0.07
+    },
+    "gompertzRateB": 0.06,
+    "gompertzInflectionC": 0.45
+  }
+}
