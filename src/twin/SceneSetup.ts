@@ -124,7 +124,7 @@ export async function setupScene(
   } else {
     console.log(`[SceneSetup] SSAO2 skipped (backend=${options.backend} or unsupported)`);
     if (options.backend === 'webgpu') {
-      notify.warn('SSAO 비활성화', '현재 백엔드(WebGPU)에서 지원하지 않습니다');
+      notify.warnWebGPUUnsupported('SSAO');
     }
   }
 

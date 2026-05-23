@@ -417,7 +417,7 @@ export function applyRenderQuality(
   // throws on createInternalTextures (TextureView descriptor undefined),
   // so disable on WebGPU. WebGL2 keeps the full effect.
   if (fx.dofEnabled && isWebGPU) {
-    notify.warn('DOF 비활성화', '현재 백엔드(WebGPU)에서 지원하지 않습니다');
+    notify.warnWebGPUUnsupported('DOF');
   }
   const dofEnabledEffective = fx.dofEnabled && !isWebGPU;
   setup.pipeline.depthOfFieldEnabled = dofEnabledEffective;
@@ -444,7 +444,7 @@ export function applyRenderQuality(
 
   // Motion blur — also needs PrePass (motion vector RT). WebGPU skip.
   if (fx.motionBlurEnabled && isWebGPU) {
-    notify.warn('Motion Blur 비활성화', '현재 백엔드(WebGPU)에서 지원하지 않습니다');
+    notify.warnWebGPUUnsupported('Motion Blur');
   }
   const motionBlurEnabledEffective = fx.motionBlurEnabled && !isWebGPU;
   if (motionBlurEnabledEffective && !handles.motionBlur && scene.activeCamera) {
@@ -465,13 +465,13 @@ export function applyRenderQuality(
   // Warn-once when user-enabled FX gets silently disabled on WebGPU.
   // notify.warn dedups by title hash, so repeated calls collapse into one.
   if (fx.godRaysEnabled && isWebGPU) {
-    notify.warn('God Rays 비활성화', '현재 백엔드(WebGPU)에서 지원하지 않습니다');
+    notify.warnWebGPUUnsupported('God Rays');
   }
   if (fx.lensFlareEnabled && isWebGPU) {
-    notify.warn('Lens Flare 비활성화', '현재 백엔드(WebGPU)에서 지원하지 않습니다');
+    notify.warnWebGPUUnsupported('Lens Flare');
   }
   if (fx.colorLutEnabled && isWebGPU) {
-    notify.warn('Color LUT 비활성화', '현재 백엔드(WebGPU)에서 지원하지 않습니다');
+    notify.warnWebGPUUnsupported('Color LUT');
   }
 
   if (fx.godRaysEnabled && !handles.godRays && scene.activeCamera && !isWebGPU) {

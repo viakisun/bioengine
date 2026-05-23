@@ -56,7 +56,25 @@ export const notify = {
       stack,
     });
   },
+  /**
+   * Consolidated WebGPU-incompat warning. Each call adds an effect name
+   * to the running list and republishes a single notification (fixed id)
+   * — prevents 6 stacked toasts when Lv 10 boost flips on multiple FX
+   * at once.
+   */
+  warnWebGPUUnsupported(effectName: string): void {
+    webgpuUnsupportedFx.add(effectName);
+    const list = Array.from(webgpuUnsupportedFx).join(', ');
+    useTwinStore.getState().pushNotification({
+      id: 'n_webgpu_fx_unsupported',
+      level: 'warn',
+      title: 'WebGPU 백엔드 호환 제한',
+      body: `${list} 비활성화 — Babylon WebGPU 가 PrePass / sampler-bind 등을 미지원`,
+    });
+  },
 };
+
+const webgpuUnsupportedFx = new Set<string>();
 
 export function logBoot(level: LiveLogLevel, message: string): void {
   useTwinStore.getState().logBoot(level, message);
