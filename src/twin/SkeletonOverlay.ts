@@ -104,13 +104,13 @@ export function createSkeletonOverlay(scene: Scene): SkeletonOverlayHandle {
     return new Vector3(node.position.x, node.position.y, node.position.z);
   }
 
-  // GreasedLine 헬퍼 — 두께 + 컬러 통일 인자. width 는 픽셀 단위 (Simple
-  // material default). 한 axis/부위마다 한 mesh.
-  function thickLine(name: string, points: Vector3[], color: Color3, width: number): Mesh {
+  // GreasedLine 헬퍼 — width 는 *월드 유닛 (m)* 단위. 토마토 plant
+  // (~3m tall) 기준 mm 단위로 설계.
+  function thickLine(name: string, points: Vector3[], color: Color3, widthM: number): Mesh {
     const m = CreateGreasedLine(
       name,
       { points },
-      { color, width, useDash: false },
+      { color, width: widthM, useDash: false },
       scene,
     ) as unknown as Mesh;
     if (root) m.parent = root;
@@ -129,7 +129,9 @@ export function createSkeletonOverlay(scene: Scene): SkeletonOverlayHandle {
       points.push(nodeWorld(n));
     }
     if (points.length >= 2) {
-      const axisWidth = axis.order === 0 ? 6 : axis.order === 1 ? 4 : 3;
+      // 메인 stem 6mm / 1차 곁가지 4mm / 2차 곁가지 3mm — 실제 토마토
+      // 줄기 굵기 범위와 비슷한 두께. 화면에서 충분히 두꺼워 보임.
+      const axisWidth = axis.order === 0 ? 0.006 : axis.order === 1 ? 0.004 : 0.003;
       meshes.push(thickLine(`skel_axis_a${axisIdx}`, points, axisColor(axis.order), axisWidth));
     }
 
@@ -176,7 +178,7 @@ export function createSkeletonOverlay(scene: Scene): SkeletonOverlayHandle {
           nodePos.z + Math.sin(leafAzimuth) * petLen * Math.cos(droopRad * 0.6),
         );
         meshes.push(thickLine(
-          `skel_pet_a${axisIdx}_n${i}`, [nodePos, tip], COLOR_PETIOLE, 3,
+          `skel_pet_a${axisIdx}_n${i}`, [nodePos, tip], COLOR_PETIOLE, 0.003,
         ));
         const leafDot = MeshBuilder.CreateSphere(
           `skel_leafdot_a${axisIdx}_n${i}`,
@@ -199,7 +201,7 @@ export function createSkeletonOverlay(scene: Scene): SkeletonOverlayHandle {
           nodePos.z + Math.sin(trussAz) * rachisLen,
         );
         meshes.push(thickLine(
-          `skel_rachis_a${axisIdx}_n${i}`, [nodePos, rachisTip], COLOR_RACHIS, 4,
+          `skel_rachis_a${axisIdx}_n${i}`, [nodePos, rachisTip], COLOR_RACHIS, 0.0045,
         ));
 
         const fruits = node.truss.fruits;
@@ -232,7 +234,7 @@ export function createSkeletonOverlay(scene: Scene): SkeletonOverlayHandle {
           meshes.push(thickLine(
             `skel_ped_a${axisIdx}_n${i}_f${f}`,
             [onRachis, p1, p2, fruitPos],
-            COLOR_PEDICEL, 3,
+            COLOR_PEDICEL, 0.0025,
           ));
 
           // Abscission joint dot
@@ -264,7 +266,7 @@ export function createSkeletonOverlay(scene: Scene): SkeletonOverlayHandle {
             meshes.push(thickLine(
               `skel_calyx_a${axisIdx}_n${i}_f${f}_s${s}`,
               [fruitPos, tip],
-              COLOR_CALYX, 2,
+              COLOR_CALYX, 0.0018,
             ));
           }
 
