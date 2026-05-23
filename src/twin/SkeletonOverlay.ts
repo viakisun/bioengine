@@ -99,10 +99,10 @@ const DEFAULT_CONFIG: SkeletonConfig = {
 
 export function createSkeletonOverlay(
   scene: Scene,
-  /** Parent TransformNode (showcase plant root). Skeleton overlay 가 그 위치
-   *  를 inherits 해서 lush mesh 와 *동일 world 좌표계* 에서 렌더됨.
-   *  null 이면 (0,0,0) — 호환성용 (테스트 등). */
-  parent: TransformNode | null = null,
+  /** Anchor TransformNode (showcase plant root). Skeleton overlay 가 *position
+   *  만 copy* (parent 관계 X) — anchor.setEnabled(false) 가 lush 숨길 때
+   *  skeleton 까지 같이 disable 되는 propagation 버그 회피. */
+  anchor: TransformNode | null = null,
 ): SkeletonOverlayHandle {
   let root: TransformNode | null = null;
   let mats: MatBucket | null = null;
@@ -114,7 +114,11 @@ export function createSkeletonOverlay(
   function ensureInit() {
     if (root) return;
     root = new TransformNode('skeletonOverlayRoot', scene);
-    if (parent) root.parent = parent;
+    // anchor 의 position 만 복사 — parent X. anchor 가 disabled 되어도
+    // skeleton 은 independent 하게 visible 유지.
+    if (anchor) {
+      root.position.copyFrom(anchor.position);
+    }
     mats = makeMaterials(scene);
     root.setEnabled(false);
   }
