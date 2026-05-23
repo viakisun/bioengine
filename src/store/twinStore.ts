@@ -501,6 +501,45 @@ function readQualityFromUrl(): number | null {
 
 const BOOT_QUALITY = readQualityFromUrl() ?? 9;
 
+// ===========================================================================
+// Lighting / renderQuality persistence — localStorage
+// ===========================================================================
+//
+// 사용자가 LightingDrawer 에서 dial 한 값을 새로고침 후에도 유지.
+// debounce 로 slider drag 중 매 frame 쓰기 방지. parse 실패 시 default
+// fallback. v1 prefix 로 향후 schema 변경 시 마이그레이션 여지.
+
+const LS_KEY_LIGHTING = 'farmsim.lighting.v1';
+
+interface PersistedLighting {
+  lighting?: Partial<LightingState>;
+  renderQuality?: number;
+}
+
+function loadPersistedLighting(): PersistedLighting {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem(LS_KEY_LIGHTING);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== 'object') return {};
+    const p = parsed as { lighting?: unknown; renderQuality?: unknown };
+    const out: PersistedLighting = {};
+    if (p.lighting && typeof p.lighting === 'object') {
+      out.lighting = p.lighting as Partial<LightingState>;
+    }
+    if (typeof p.renderQuality === 'number' && p.renderQuality >= 1 && p.renderQuality <= 10) {
+      out.renderQuality = Math.round(p.renderQuality);
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+const PERSISTED = loadPersistedLighting();
+const EFFECTIVE_QUALITY = PERSISTED.renderQuality ?? BOOT_QUALITY;
+
 export const useTwinStore = create<TwinState>((set) => ({
   currentDay: 100,
   playing: false,
@@ -570,17 +609,23 @@ export const useTwinStore = create<TwinState>((set) => ({
   consoleExpanded: false,
   toggleConsole: () => set((s) => ({ consoleExpanded: !s.consoleExpanded })),
 
-  lighting: { ...LIGHTING_DEFAULTS, ...QUALITY_PRESETS[BOOT_QUALITY].lightingPatch },
+  // 우선순위: defaults < 현재 quality preset < persisted lighting overrides.
+  // (persisted lighting 이 마지막에 와서 사용자의 미세조정이 quality
+  //  preset 의 일괄값을 override.)
+  lighting: {
+    ...LIGHTING_DEFAULTS,
+    ...QUALITY_PRESETS[EFFECTIVE_QUALITY].lightingPatch,
+    ...(PERSISTED.lighting ?? {}),
+  },
   setLighting: (patch) => set((s) => ({ lighting: { ...s.lighting, ...patch } })),
   resetLighting: () => set({ lighting: { ...LIGHTING_DEFAULTS } }),
   applyLightingPreset: (name) =>
     set({ lighting: { ...LIGHTING_DEFAULTS, ...LIGHTING_PRESETS[name] } }),
 
-  // Render quality — default Lv 9 (Extreme). Override at boot via
-  // ?quality=N (1..10) in the URL — useful for headless-test screenshots
-  // and verifying lower-cost paths without touching the source.
-  renderQuality: BOOT_QUALITY,
-  renderFX: { ...QUALITY_PRESETS[BOOT_QUALITY].fx },
+  // Render quality — default Lv 9 (Extreme). Override priority:
+  //   ?quality=N URL param > persisted localStorage > 9 (default)
+  renderQuality: EFFECTIVE_QUALITY,
+  renderFX: { ...QUALITY_PRESETS[EFFECTIVE_QUALITY].fx },
   setRenderQuality: (level) => {
     const lv = Math.max(1, Math.min(10, Math.round(level)));
     const preset = QUALITY_PRESETS[lv];
@@ -785,3 +830,26 @@ export const useTwinStore = create<TwinState>((set) => ({
 
   clearNotifications: () => set({ notifications: [] }),
 }));
+
+// ===========================================================================
+// Auto-persist lighting + renderQuality to localStorage
+// ===========================================================================
+// debounce 300ms so slider drag (수십 frame) 이 1회 쓰기로 collapse.
+// parse / quota 에러는 swallow — persistence 실패가 앱 동작에 영향 X.
+
+let _lightingSaveTimer: ReturnType<typeof setTimeout> | null = null;
+if (typeof window !== 'undefined') {
+  useTwinStore.subscribe((s, prev) => {
+    if (s.lighting === prev.lighting && s.renderQuality === prev.renderQuality) return;
+    if (_lightingSaveTimer) clearTimeout(_lightingSaveTimer);
+    _lightingSaveTimer = setTimeout(() => {
+      try {
+        window.localStorage.setItem(
+          LS_KEY_LIGHTING,
+          JSON.stringify({ lighting: s.lighting, renderQuality: s.renderQuality }),
+        );
+      } catch { /* quota / private mode 등 무시 */ }
+      _lightingSaveTimer = null;
+    }, 300);
+  });
+}

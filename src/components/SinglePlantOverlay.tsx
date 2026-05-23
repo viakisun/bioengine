@@ -18,6 +18,7 @@ import { TimelineChart } from '../ui/single-plant/TimelineChart';
 import { TimelineSlider } from '../ui/single-plant/TimelineSlider';
 import { StatusBar } from '../ui/single-plant/StatusBar';
 import { PARGauge } from '../ui/single-plant/PARGauge';
+import { LightingDrawer } from './LightingDrawer';
 import { FONT_SERIF, FONT_MONO, C_FG, C_FG_MUTE, C_BORDER } from '../ui/single-plant/styles';
 import { SHOWCASE_SEED } from '../twin/GreenhouseScene';
 import { getSinglePlantEngine, getSinglePlantShowcase } from '../ui/single-plant/useSinglePlantState';
@@ -187,6 +188,10 @@ export function SinglePlantOverlay() {
       <div style={{ gridArea: 'status', pointerEvents: 'auto' }}>
         <StatusBar />
       </div>
+
+      {/* Lighting drawer — right-edge slide-in. Toggle button lives on the
+          right edge (vertical center) when closed. Sits above all panels. */}
+      <LightingDrawer />
     </div>
   );
 }
