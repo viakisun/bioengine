@@ -1,7 +1,7 @@
 {
   "name": "farmsim-root",
-  "version": "1.0.0",
-  "description": "스마트온실 디지털 트윈 (Babylon.js + React)",
+  "version": "0.1.0",
+  "description": "스마트온실 디지털 트윈 + 토마토 학술 모델 튜닝 실험실 (Babylon.js + React)",
   "private": true,
   "type": "module",
   "workspaces": [
