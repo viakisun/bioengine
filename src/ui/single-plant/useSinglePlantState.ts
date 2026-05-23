@@ -11,6 +11,7 @@
 import { useEffect, useState } from 'react';
 import { useTwinStore } from '../../store/twinStore';
 import type { GrowthEngine, PlantPhysiologyState } from '@farmsim/tomato-engine';
+import { SHOWCASE_SEED } from '../../twin/GreenhouseScene';
 
 let engineRef: GrowthEngine | null = null;
 const listeners = new Set<() => void>();
@@ -20,7 +21,13 @@ export function setSinglePlantEngineRef(engine: GrowthEngine | null): void {
   listeners.forEach((l) => l());
 }
 
-const PLANT_SEED = 1001;
+/** Module-level access to the live GrowthEngine for non-React callers
+ *  (e.g. SinglePlantOverlay's useEffect to advance the simulation). */
+export function getSinglePlantEngine(): GrowthEngine | null {
+  return engineRef;
+}
+
+const PLANT_SEED = SHOWCASE_SEED;
 
 /** Shallow-copy the live state so React sees a new reference each call.
  *  The engine mutates the same object in place; without a fresh wrapper

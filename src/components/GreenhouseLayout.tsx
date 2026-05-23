@@ -13,11 +13,13 @@ import { useTwinStore } from '../store/twinStore';
 
 export function GreenhouseLayout() {
   const consoleExpanded = useTwinStore((s) => s.consoleExpanded);
-  // Two heights for the bottom row: collapsed 88px (72 panel + 16
-  // breathing room) vs expanded 296px. Exposed as a CSS var so the
-  // LayerDock floating pill can position itself just above whichever
-  // height is current and slide in lockstep with the panel.
-  const consoleH = consoleExpanded ? 296 : 88;
+  const mode = useTwinStore((s) => s.mode);
+  // Single-plant 모드에서는 우측 sidebar + 하단 timeline 을 SinglePlant
+  // Overlay 의 패널이 대체. 따라서 hide.
+  const isSinglePlant = mode === 'single-plant';
+  // Two heights for the bottom row: collapsed 88px vs expanded 296px.
+  // Single-plant 모드에서는 timeline 자체가 hide 이므로 0.
+  const consoleH = isSinglePlant ? 0 : (consoleExpanded ? 296 : 88);
   const setMode = useTwinStore((s) => s.setMode);
 
   return (
@@ -77,14 +79,18 @@ export function GreenhouseLayout() {
       </div>
 
       {/* Right sidebar — tabs (구역 / 이벤트 / 환경) */}
-      <aside className="app-sidebar-aside">
-        <AnalysisPanel />
-      </aside>
+      {!isSinglePlant && (
+        <aside className="app-sidebar-aside">
+          <AnalysisPanel />
+        </aside>
+      )}
 
-      {/* Bottom timeline panel */}
-      <footer className="app-timeline-row">
-        <TimelinePanel />
-      </footer>
+      {/* Bottom timeline panel — single-plant 모드는 자체 TimelineSlider 사용 */}
+      {!isSinglePlant && (
+        <footer className="app-timeline-row">
+          <TimelinePanel />
+        </footer>
+      )}
     </div>
   );
 }

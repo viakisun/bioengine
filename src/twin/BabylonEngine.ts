@@ -16,6 +16,7 @@ import { Matrix } from '@babylonjs/core/Maths/math.vector';
 import { setShaderWindEnabled, isShaderWindEnabled } from '../plant/LeafGenerator';
 import { getLabelOverlayHandle } from '../components/LabelOverlay';
 import { setBootStage, logBoot, setEnvInfo, setEnvCounters, notify } from '../store/notify';
+import { setSinglePlantEngineRef } from '../ui/single-plant/useSinglePlantState';
 
 import '@babylonjs/core/Helpers/sceneHelpers';
 import '@babylonjs/core/Materials/Textures/Loaders';
@@ -208,6 +209,9 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
   let greenhouse: GreenhouseSceneHandle | null = null;
   try {
     greenhouse = await buildGreenhouseScene(scene);
+    // Expose this GrowthEngine to the SinglePlant analysis panels —
+    // they all read PhysiologyState from a shared singleton ref.
+    setSinglePlantEngineRef(greenhouse.growthEngine);
   } catch (err) {
     console.error('[BabylonEngine] buildGreenhouseScene failed:', err);
     notify.error('온실 빌드 실패', err instanceof Error ? err : String(err));
@@ -275,6 +279,20 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
         console.error('[BabylonEngine] applyRenderQuality failed:', err);
       }
     }
+
+    // App-mode handler — Phase 1 (Overlay 통합).
+    // Lobby 모드에서는 render tick 이 early-return 으로 idle (아래
+    // runRenderLoop 콜백 내부). single-plant 진입 시 supporting plants
+    // 일괄 hide + 카메라 closeup. greenhouse 복귀 시 모두 visible.
+    if (s.mode !== prev.mode && greenhouse) {
+      if (s.mode === 'single-plant') {
+        greenhouse.setSingleFocusMode(true);
+        cameraRig.setPreset('closeup');
+      } else if (s.mode === 'greenhouse') {
+        greenhouse.setSingleFocusMode(false);
+        cameraRig.setPreset('overview');
+      }
+    }
   });
 
   console.log('[BabylonEngine] starting render loop');
@@ -320,6 +338,11 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
 
   engine.runRenderLoop(() => {
     const state = useTwinStore.getState();
+
+    // App-mode idle — lobby 일 때는 render tick 전부 skip.
+    // 메쉬는 그대로 보존 + render 작업만 정지 → 다시 모드 진입 시
+    // 재부팅 없이 즉시 활성.
+    if (state.mode === 'lobby') return;
 
     const now = performance.now();
     const dtInter = (now - lastInteractionTick) / 1000;

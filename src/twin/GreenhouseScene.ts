@@ -90,6 +90,11 @@ function addFruitCluster(scene: Scene, parent: TransformNode, detail: 'full' | '
   }
 }
 
+/** Seed of the heavy-LOD showcase plant — also the analysis target for
+ *  Single-Plant Analysis mode. Exported so other modules (notably the
+ *  single-plant inspector panel) refer to the same seed deterministically. */
+export const SHOWCASE_SEED = 20260520;
+
 export interface GreenhouseSceneHandle {
   heatmap: HeatmapHandle;
   robot: RobotHandle;
@@ -101,6 +106,12 @@ export interface GreenhouseSceneHandle {
   update: (day: number) => void;
   onZoneHover: (cb: (zoneId: number | null) => void) => void;
   onZoneClick: (cb: (zoneId: number | null) => void) => void;
+  /**
+   * Single-Plant Analysis 모드용 — supporting plants 만 일괄 hide/show.
+   * ShowcasePlant + 인프라 (베드 / cocopeat / wire / 프레임 / 지붕) 는
+   * 그대로 보임. 사용자 의도: "환경 그대로 + 1 plant".
+   */
+  setSingleFocusMode: (focusOnly: boolean) => void;
 }
 
 export async function buildGreenhouseScene(scene: Scene): Promise<GreenhouseSceneHandle> {
@@ -421,7 +432,6 @@ export async function buildGreenhouseScene(scene: Scene): Promise<GreenhouseScen
     nutrientEC: 3.0,
   });
 
-  const SHOWCASE_SEED = 20260520;
   const showcasePlantIndex = Math.floor(SCENARIO.plantCount / 2);
   const showcasePlantSpec = SCENARIO.plants[showcasePlantIndex];
 
@@ -628,6 +638,13 @@ export async function buildGreenhouseScene(scene: Scene): Promise<GreenhouseScen
     showcasePlant,
     supportingPlants,
     plantLOD,
+    setSingleFocusMode(focusOnly) {
+      // Toggle visibility of every supporting plant. Showcase + all
+      // infrastructure (beds, cocopeat bags, training wires, frames,
+      // roof) stay visible regardless — user explicitly wanted the
+      // environment preserved in single-plant mode.
+      for (const sp of supportingPlants) sp.setVisible(!focusOnly);
+    },
     update(day) {
       heatmap.update(day);
       robot.update(day);
