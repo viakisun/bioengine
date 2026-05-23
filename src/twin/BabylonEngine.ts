@@ -295,6 +295,17 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
     }
   });
 
+  // store.subscribe 는 *변경* 만 감지하므로 directURL (예: #single-plant)
+  // 으로 진입했을 때 initial mode 에 대한 핸들러는 fire 안 함. 따라서
+  // 부팅 직후 한 번 현재 mode 를 평가해서 setSingleFocusMode 적용.
+  if (greenhouse) {
+    const initialMode = useTwinStore.getState().mode;
+    if (initialMode === 'single-plant') {
+      greenhouse.setSingleFocusMode(true);
+      cameraRig.setPreset('closeup');
+    }
+  }
+
   console.log('[BabylonEngine] starting render loop');
 
   // 'shaders' — first-frame shader compilation. Babylon doesn't expose
