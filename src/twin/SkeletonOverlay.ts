@@ -208,7 +208,9 @@ export function createSkeletonOverlay(scene: Scene): SkeletonOverlayHandle {
         rachis.parent = root;
         meshes.push(rachis);
 
-        // Per-fruit pedicel — short line from rachis to fruit dot.
+        // Per-fruit pedicel — curved (3 sub-points, cantilever droop) +
+        // calyx 5-ray star at the fruit attachment. *직선 금지 invariant*
+        // applies to pedicels too — fruit weight droops them parabolic.
         const fruits = node.truss.fruits;
         for (let f = 0; f < fruits.length; f++) {
           const alongT = (f + 0.5) / Math.max(1, fruits.length);
@@ -217,20 +219,84 @@ export function createSkeletonOverlay(scene: Scene): SkeletonOverlayHandle {
             nodePos.y - rachisLen * 0.18 * alongT,
             nodePos.z + Math.sin(trussAz) * rachisLen * alongT,
           );
+          // Pedicel length & X-jitter (alternate sides for visual spread)
+          const sideJit = (f % 2 === 0 ? 0.012 : -0.012);
+          const pedLen = 0.038;  // 38mm pedicel — real tomato spec range
+          // Fruit weight (proxy: diameter) → more droop
+          const dia = (fruits[f].diameterMm ?? 30);
+          const droopY = Math.min(0.018, 0.005 + dia / 60 * 0.013);
+          // Two intermediate points along the pedicel — parabolic cantilever.
+          //   p0 = rachis attach (no droop)
+          //   p1 = abscission joint (slight droop, slight lateral)
+          //   p2 = calyx (full droop, full lateral)
+          //   p3 = fruit center (calyx → fruit transition)
+          const p1 = new Vector3(
+            onRachis.x + sideJit * 0.35,
+            onRachis.y - droopY * 0.25,
+            onRachis.z,
+          );
+          const p2 = new Vector3(
+            onRachis.x + sideJit * 0.75,
+            onRachis.y - droopY * 0.65,
+            onRachis.z + sideJit * 0.2,
+          );
           const fruitPos = new Vector3(
-            onRachis.x + (f % 2 === 0 ? 0.012 : -0.012),
-            onRachis.y - 0.028,
+            onRachis.x + sideJit,
+            onRachis.y - droopY - pedLen * 0.5,
             onRachis.z,
           );
           const ped = MeshBuilder.CreateLines(
             `skel_ped_a${axisIdx}_n${i}_f${f}`,
-            { points: [onRachis, fruitPos], colors: [PEDICEL_COLOR, PEDICEL_COLOR] },
+            {
+              points: [onRachis, p1, p2, fruitPos],
+              colors: [PEDICEL_COLOR, PEDICEL_COLOR, PEDICEL_COLOR, PEDICEL_COLOR],
+            },
             scene,
           );
           ped.parent = root;
           meshes.push(ped);
-          // Fruit dot — color hints at ripeness
-          const fruitDiam = 0.010 + 0.014 * Math.min(1, (fruits[f].diameterMm ?? 30) / 60);
+
+          // Abscission joint (꼭지 마디) — small dot at p2
+          const absciss = MeshBuilder.CreateSphere(
+            `skel_abs_a${axisIdx}_n${i}_f${f}`,
+            { diameter: 0.005, segments: 4 },
+            scene,
+          );
+          absciss.position = p2;
+          absciss.material = mats.truss;
+          absciss.parent = root;
+          meshes.push(absciss);
+
+          // Calyx star — 5 small radial lines at fruit attachment.
+          //   Real tomato has 5 sepals fanning ~25° out from pedicel.
+          const calyxLen = 0.012;
+          // Direction from p2 (calyx base) → fruitPos (fruit center).
+          const downDir = fruitPos.subtract(p2).normalize();
+          // Pick a perpendicular basis for the 5 rays around the pedicel.
+          const perp = Math.abs(downDir.y) < 0.95
+            ? Vector3.Cross(downDir, new Vector3(0, 1, 0)).normalize()
+            : new Vector3(1, 0, 0);
+          const perp2 = Vector3.Cross(downDir, perp).normalize();
+          for (let s = 0; s < 5; s++) {
+            const theta = (s / 5) * Math.PI * 2;
+            // 25° outward tilt + 8° random jitter per sepal
+            const outward = Math.sin((25 * Math.PI) / 180);
+            const dir = downDir.scale(-Math.cos((25 * Math.PI) / 180))
+              .add(perp.scale(Math.cos(theta) * outward))
+              .add(perp2.scale(Math.sin(theta) * outward))
+              .normalize();
+            const tip = fruitPos.add(dir.scale(calyxLen));
+            const sepal = MeshBuilder.CreateLines(
+              `skel_calyx_a${axisIdx}_n${i}_f${f}_s${s}`,
+              { points: [fruitPos, tip], colors: [LEAF_COLOR, LEAF_COLOR] },
+              scene,
+            );
+            sepal.parent = root;
+            meshes.push(sepal);
+          }
+
+          // Fruit body dot
+          const fruitDiam = 0.010 + 0.014 * Math.min(1, dia / 60);
           const fr = MeshBuilder.CreateSphere(
             `skel_fr_a${axisIdx}_n${i}_f${f}`,
             { diameter: fruitDiam, segments: 6 },
