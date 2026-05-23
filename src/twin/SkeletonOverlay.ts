@@ -24,6 +24,7 @@ import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import '@babylonjs/core/Meshes/Builders/sphereBuilder';
+import { catmullRomPath } from '../plant/StemGenerator';
 import type { PlantState, StemAxis, NodeState } from '@farmsim/tomato-engine';
 
 export interface SkeletonOverlayHandle {
@@ -117,22 +118,83 @@ export function createSkeletonOverlay(scene: Scene): SkeletonOverlayHandle {
     return m;
   }
 
+  // Per-vertex width 버전 — taper + node bulge. widths 배열은 points 와
+  // 같은 길이. GreasedLine 내부 distribution 알고리즘이 mesh 의 양 side
+  // width 를 자동 적용.
+  function thickLineVar(name: string, points: Vector3[], color: Color3, widths: number[]): Mesh {
+    const m = CreateGreasedLine(
+      name,
+      { points, widths },
+      { color, useDash: false },
+      scene,
+    ) as unknown as Mesh;
+    if (root) m.parent = root;
+    return m;
+  }
+
+  /**
+   * Catmull-Rom subsample + per-vertex width 계산.
+   *
+   * controlRadii: 각 control point 의 base radius (m). 곡선 sample 점은
+   * 인접 control radius 간 선형 보간하되, control point 근방에서 bulge
+   * 증가 (마디감 표현). 결과 widths.length === curve.length.
+   */
+  function curveWithWidths(
+    controlPoints: Vector3[],
+    controlRadii: number[],
+    divisions: number,
+    bulge = 0.18,
+  ): { curve: Vector3[]; widths: number[] } {
+    if (controlPoints.length < 2) {
+      return { curve: controlPoints.slice(), widths: controlRadii.slice() };
+    }
+    const curve = catmullRomPath(controlPoints, divisions);
+    // Map each curve point's index → fractional control-point index.
+    // catmullRomPath: for segments 0..N-2 each produces `divisions` points,
+    // last segment also pushes the final point (divisions+1 entries).
+    const widths: number[] = [];
+    const N = controlRadii.length;
+    for (let k = 0; k < curve.length; k++) {
+      const f = k / divisions;                 // 0..N-1 (final point = N-1)
+      const lo = Math.min(N - 1, Math.floor(f));
+      const hi = Math.min(N - 1, lo + 1);
+      const frac = Math.max(0, Math.min(1, f - lo));
+      const rBase = controlRadii[lo] * (1 - frac) + controlRadii[hi] * frac;
+      // Bulge — peaks at frac=0 (control point), zero at midpoint.
+      const distFromCtrl = Math.min(frac, 1 - frac);   // 0..0.5
+      const bulgeAmt = (1 - distFromCtrl * 2) * bulge; // 1 at ctrl, 0 at mid
+      widths.push(rBase * (1 + bulgeAmt));
+    }
+    return { curve, widths };
+  }
+
   function drawAxis(axis: StemAxis, axisIdx: number) {
     if (!axis || !axis.nodes || axis.nodes.length < 1) return;
     if (!root || !mats) return;
 
-    // Skeleton polyline (one thick line per axis).
-    const points: Vector3[] = [];
-    if (axis.order === 0) points.push(new Vector3(0, 0, 0));
+    // Catmull-Rom subsample 로 wandering curve. control points 는 nodes
+    // 의 position. 메인 stem 은 ground (0,0,0) 도 prepend.
+    const controlPoints: Vector3[] = [];
+    const controlRadii: number[] = [];
+    if (axis.order === 0) {
+      controlPoints.push(new Vector3(0, 0, 0));
+      // base radius = 첫 노드의 1.1× (root flare 시각 hint)
+      const baseR = (axis.nodes[0]?.stemRadiusMm ?? 5) / 1000;
+      controlRadii.push(baseR * 1.1);
+    }
     for (const n of axis.nodes) {
       if (!n.position || !isFiniteVec(n.position)) continue;
-      points.push(nodeWorld(n));
+      controlPoints.push(nodeWorld(n));
+      // 실제 stemRadiusMm 사용. side shoot 은 이미 0.6× 줄어든 값.
+      controlRadii.push((n.stemRadiusMm ?? 3) / 1000);
     }
-    if (points.length >= 2) {
-      // 메인 stem 6mm / 1차 곁가지 4mm / 2차 곁가지 3mm — 실제 토마토
-      // 줄기 굵기 범위와 비슷한 두께. 화면에서 충분히 두꺼워 보임.
-      const axisWidth = axis.order === 0 ? 0.006 : axis.order === 1 ? 0.004 : 0.003;
-      meshes.push(thickLine(`skel_axis_a${axisIdx}`, points, axisColor(axis.order), axisWidth));
+    if (controlPoints.length >= 2) {
+      // 5 subsamples per internode → 30 node 면 145 점. 부드러운 wandering
+      // curve. node 위치마다 ±0.18 bulge — 마디감 시각화.
+      const { curve, widths } = curveWithWidths(controlPoints, controlRadii, 5, 0.18);
+      meshes.push(thickLineVar(
+        `skel_axis_a${axisIdx}`, curve, axisColor(axis.order), widths,
+      ));
     }
 
     // Per-node markers + leaf petiole + truss anatomy
@@ -167,18 +229,38 @@ export function createSkeletonOverlay(scene: Scene): SkeletonOverlayHandle {
       sphere.parent = root;
       meshes.push(sphere);
 
-      // ── Petiole — line from node in leaf's azimuth.
+      // ── Petiole — arching curve in leaf's azimuth.
+      //   nodePos → arch up slightly → curve down to drooped tip.
+      //   Catmull-Rom 으로 매끈한 droop. *직선 금지*.
       if (node.leafMaturity > 0.05 && axis.order === 0) {
         const leafAzimuth = (node.phyllotaxisAngle * Math.PI) / 180;
         const droopRad = (node.droopExtra * Math.PI) / 180;
         const petLen = 0.12 * Math.max(0.3, node.leafSizeFactor);
+        const cos = Math.cos(leafAzimuth);
+        const sin = Math.sin(leafAzimuth);
+        // Arch: tip 이 droopRad 만큼 아래로 처지되, 중간은 약간 위로
+        // 솟구치는 cantilever shape.
+        const tipY = -petLen * Math.sin(droopRad * 0.6);
+        const tipR = petLen * Math.cos(droopRad * 0.6);
         const tip = new Vector3(
-          nodePos.x + Math.cos(leafAzimuth) * petLen * Math.cos(droopRad * 0.6),
-          nodePos.y - petLen * Math.sin(droopRad * 0.6),
-          nodePos.z + Math.sin(leafAzimuth) * petLen * Math.cos(droopRad * 0.6),
+          nodePos.x + cos * tipR,
+          nodePos.y + tipY,
+          nodePos.z + sin * tipR,
         );
+        // 2 intermediate control points — slight up-arch at 35%, level at 70%
+        const c1 = new Vector3(
+          nodePos.x + cos * tipR * 0.35,
+          nodePos.y + Math.max(0, -tipY * 0.15) + 0.005,
+          nodePos.z + sin * tipR * 0.35,
+        );
+        const c2 = new Vector3(
+          nodePos.x + cos * tipR * 0.70,
+          nodePos.y + tipY * 0.55,
+          nodePos.z + sin * tipR * 0.70,
+        );
+        const petCurve = catmullRomPath([nodePos, c1, c2, tip], 4);
         meshes.push(thickLine(
-          `skel_pet_a${axisIdx}_n${i}`, [nodePos, tip], COLOR_PETIOLE, 0.003,
+          `skel_pet_a${axisIdx}_n${i}`, petCurve, COLOR_PETIOLE, 0.003,
         ));
         const leafDot = MeshBuilder.CreateSphere(
           `skel_leafdot_a${axisIdx}_n${i}`,
@@ -191,26 +273,44 @@ export function createSkeletonOverlay(scene: Scene): SkeletonOverlayHandle {
         meshes.push(leafDot);
       }
 
-      // ── Truss: rachis + per-fruit pedicels + calyx
+      // ── Truss: rachis (cantilever droop curve) + per-fruit pedicels + calyx
       if (isTruss && node.truss && axis.order === 0) {
         const trussAz = (node.phyllotaxisAngle * Math.PI) / 180 + Math.PI;
+        const cosAz = Math.cos(trussAz);
+        const sinAz = Math.sin(trussAz);
         const rachisLen = 0.10 + Math.min(0.10, node.truss.fruits.length * 0.012);
+        // Cantilever sag — parabolic. fruit count 와 stage 가 무게 proxy.
+        const totalDroop = rachisLen * (0.15 + Math.min(0.25, node.truss.fruits.length * 0.04));
         const rachisTip = new Vector3(
-          nodePos.x + Math.cos(trussAz) * rachisLen,
-          nodePos.y - rachisLen * 0.18,
-          nodePos.z + Math.sin(trussAz) * rachisLen,
+          nodePos.x + cosAz * rachisLen,
+          nodePos.y - totalDroop,
+          nodePos.z + sinAz * rachisLen,
         );
+        // 2 control points along rachis for parabolic curve.
+        // y(t) = -totalDroop * t² (parabola: linear sag accumulation).
+        const rc1 = new Vector3(
+          nodePos.x + cosAz * rachisLen * 0.33,
+          nodePos.y - totalDroop * 0.11,
+          nodePos.z + sinAz * rachisLen * 0.33,
+        );
+        const rc2 = new Vector3(
+          nodePos.x + cosAz * rachisLen * 0.67,
+          nodePos.y - totalDroop * 0.45,
+          nodePos.z + sinAz * rachisLen * 0.67,
+        );
+        const rachisCurve = catmullRomPath([nodePos, rc1, rc2, rachisTip], 4);
         meshes.push(thickLine(
-          `skel_rachis_a${axisIdx}_n${i}`, [nodePos, rachisTip], COLOR_RACHIS, 0.0045,
+          `skel_rachis_a${axisIdx}_n${i}`, rachisCurve, COLOR_RACHIS, 0.0045,
         ));
 
         const fruits = node.truss.fruits;
         for (let f = 0; f < fruits.length; f++) {
           const alongT = (f + 0.5) / Math.max(1, fruits.length);
+          // Parabolic 위치 — rachis curve 와 일치 (linear * t² droop)
           const onRachis = new Vector3(
-            nodePos.x + Math.cos(trussAz) * rachisLen * alongT,
-            nodePos.y - rachisLen * 0.18 * alongT,
-            nodePos.z + Math.sin(trussAz) * rachisLen * alongT,
+            nodePos.x + cosAz * rachisLen * alongT,
+            nodePos.y - totalDroop * alongT * alongT,
+            nodePos.z + sinAz * rachisLen * alongT,
           );
           const sideJit = (f % 2 === 0 ? 0.012 : -0.012);
           const pedLen = 0.038;
@@ -231,9 +331,11 @@ export function createSkeletonOverlay(scene: Scene): SkeletonOverlayHandle {
             onRachis.y - droopY - pedLen * 0.5,
             onRachis.z,
           );
+          // Pedicel — Catmull-Rom 으로 매끈한 droop curve.
+          const pedCurve = catmullRomPath([onRachis, p1, p2, fruitPos], 3);
           meshes.push(thickLine(
             `skel_ped_a${axisIdx}_n${i}_f${f}`,
-            [onRachis, p1, p2, fruitPos],
+            pedCurve,
             COLOR_PEDICEL, 0.0025,
           ));
 

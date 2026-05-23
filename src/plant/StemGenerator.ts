@@ -13,7 +13,7 @@ const DIVISIONS_PER_NODE = 4;
 /**
  * Catmull-Rom interpolation between p1 and p2 (p0/p3 are tangent anchors).
  */
-function catmullRom(
+export function catmullRom(
   p0: Vector3, p1: Vector3, p2: Vector3, p3: Vector3, t: number
 ): Vector3 {
   const t2 = t * t;
@@ -25,7 +25,17 @@ function catmullRom(
   );
 }
 
-function catmullRomPath(points: Vector3[], divisionsPerSeg: number): Vector3[] {
+/**
+ * Generate a smooth polyline through control points using Catmull-Rom
+ * interpolation. Each adjacent control-point pair produces
+ * `divisionsPerSeg` interior sample points. The last segment also emits
+ * the final endpoint so the curve actually reaches the last control
+ * point.
+ *
+ * Reused by SkeletonOverlay to make stem segments visibly curved
+ * (Plan 3a Phase ε — *직선 금지* invariant on the rendered polyline).
+ */
+export function catmullRomPath(points: Vector3[], divisionsPerSeg: number): Vector3[] {
   if (points.length < 2) return points.slice();
   const out: Vector3[] = [];
   for (let i = 0; i < points.length - 1; i++) {
