@@ -300,7 +300,12 @@ export function createSupportingPlant(
           // draw call each). Cheaper than per-fruit custom geometry.
           const calyxSrc = getCalyxSourceMesh(scene);
           const stemSrc = getStemSourceMesh(scene);
-          for (let f = 0; f < ripeFruits.length; f++) {
+          const fruitN = ripeFruits.length;
+          // Pre-compute the largest fruit radius — clustering distance
+          // scales with it so big beefsteaks don't overlap.
+          let maxR = 0;
+          for (const fr of ripeFruits) maxR = Math.max(maxR, fr.diameterMm / 2 / 1000);
+          for (let f = 0; f < fruitN; f++) {
             const fruit = ripeFruits[f];
             const fruitMat = fruitMats[Math.min(5, fruit.ripenStage)];
             const dia = fruit.diameterMm / 1000;
@@ -314,11 +319,17 @@ export function createSupportingPlant(
             fruitMesh.parent = root;
             // Oblate: scale Y by H:W ratio (beefsteak ~0.72, cherry ~0.96)
             fruitMesh.scaling = new Vector3(1, hw, 1);
-            // Random direction in horizontal plane + slight vertical hang.
-            const localAngle = fruitRng.next() * Math.PI * 2;
-            const localR = dia * (0.5 + fruitRng.next() * 0.6);
+            // Evenly distributed angle (i / N · 2π) + small jitter for
+            // organic feel; radial distance scales with the largest
+            // fruit's radius so spacing is guaranteed even for big ones.
+            const baseAngle = fruitN > 1 ? (f / fruitN) * Math.PI * 2 : 0;
+            const localAngle = baseAngle + (fruitRng.next() - 0.5) * 0.6;
+            // Bring single-fruit + low-count clusters in toward the tip
+            // so they don't fly off into empty space.
+            const baseDistance = fruitN <= 1 ? 0 : Math.max(maxR * 1.15, dia * 0.5);
+            const localR = baseDistance + (fruitRng.next() - 0.5) * radius * 0.4;
             const fx = cx + Math.cos(localAngle) * localR;
-            const fy = cy - fruitRng.next() * dia * 0.5;
+            const fy = cy - fruitRng.next() * radius * 0.6;
             const fz = cz + Math.sin(localAngle) * localR;
             fruitMesh.position = new Vector3(fx, fy, fz);
             fruitMesh.material = fruitMat;

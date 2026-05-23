@@ -22,28 +22,38 @@ export function setSinglePlantEngineRef(engine: GrowthEngine | null): void {
 
 const PLANT_SEED = 1001;
 
+/** Shallow-copy the live state so React sees a new reference each call.
+ *  The engine mutates the same object in place; without a fresh wrapper
+ *  useState's Object.is check would skip the re-render. */
+function snapshot(): PlantPhysiologyState | null {
+  if (!engineRef) return null;
+  const ps = engineRef.getPhysiologyState(PLANT_SEED);
+  if (!ps) return null;
+  return { ...ps, trusses: ps.trusses.slice() };
+}
+
 /** Read the live plant physiology state — re-reads on every scrub
  *  AND when the engine reference becomes available (after
  *  SinglePlantScene's mount useEffect runs). */
 export function useSinglePlantState(): PlantPhysiologyState | null {
   const minute = useTwinStore((s) => s.singlePlantMinute);
-  const [snapshot, setSnapshot] = useState<PlantPhysiologyState | null>(
-    () => engineRef?.getPhysiologyState(PLANT_SEED) ?? null,
-  );
+  const [snap, setSnap] = useState<PlantPhysiologyState | null>(snapshot);
 
-  // Re-pull whenever the user scrubs the timeline.
+  // Re-pull whenever the user scrubs the timeline. We run via
+  // requestAnimationFrame so SinglePlantScene's useEffect (which
+  // advances the simulation) runs first.
   useEffect(() => {
-    setSnapshot(engineRef?.getPhysiologyState(PLANT_SEED) ?? null);
+    const raf = requestAnimationFrame(() => setSnap(snapshot()));
+    return () => cancelAnimationFrame(raf);
   }, [minute]);
 
   // Re-pull when the engineRef is set/cleared by SinglePlantScene.
   useEffect(() => {
-    const cb = () => setSnapshot(engineRef?.getPhysiologyState(PLANT_SEED) ?? null);
+    const cb = () => setSnap(snapshot());
     listeners.add(cb);
-    // Initial pull in case engineRef arrived before this effect mounted.
     cb();
     return () => { listeners.delete(cb); };
   }, []);
 
-  return snapshot;
+  return snap;
 }

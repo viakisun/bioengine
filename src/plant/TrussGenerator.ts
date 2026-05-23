@@ -117,11 +117,43 @@ export function createTrussNode(
     ...truss.flowers.map((_, i) => ({ kind: 'flower' as const, index: i })),
   ];
 
+  // Cumulative-spacing layout — each fruit/flower must clear the
+  // previous one's radius + a small gap. Tomimaru Muchoo at 80mm × 4
+  // fruits needs ≥ 320mm of peduncle (we cap at peduncleLen * 0.95).
+  // Z-jitter alternates left/right so adjacent fruits are visually
+  // separated even when their X positions are close.
+  const ITEM_GAP_M = 0.008;       // 8mm minimum air gap between items
+  let prevX = 0;
+  let prevR = 0;
+
   items.forEach((it, slot) => {
-    const t = items.length === 1 ? 0.6 : 0.3 + 0.7 * (slot / (items.length - 1));
-    const xAlong = peduncleLen * t;
-    // Approximate sag at this t
-    const sagAtT = droopM * t * t;
+    // Per-item radius — fruits use their actual diameter; flowers use
+    // a small fixed size (~6mm) because their meshes are tiny anyway.
+    const fruitR = it.kind === 'fruit'
+      ? truss.fruits[it.index].diameterMm / 2 / 1000
+      : 0.006;
+
+    // Desired position from equal distribution along the peduncle.
+    const tDesired = items.length === 1 ? 0.6 : 0.3 + 0.7 * (slot / (items.length - 1));
+    let xAlong = peduncleLen * tDesired;
+    // Enforce minimum gap from previous item.
+    if (slot > 0) {
+      const minX = prevX + prevR + fruitR + ITEM_GAP_M;
+      if (xAlong < minX) xAlong = minX;
+    }
+    // Clamp to peduncle range — anything past the tip just hangs at the
+    // tip (the model already prunes excess fruits before we get here).
+    if (xAlong > peduncleLen * 0.95) xAlong = peduncleLen * 0.95;
+
+    // Z-jitter — alternate left/right by ~40% of the item's radius so
+    // adjacent fruits never overlap even when their X positions sit
+    // tight.
+    const zJitter = (slot % 2 === 0 ? 1 : -1) * fruitR * 0.5;
+
+    // Sag follows the actual xAlong (not the desired t), so a clamped
+    // item still droops the right amount.
+    const tActual = xAlong / peduncleLen;
+    const sagAtT = droopM * tActual * tActual;
     const baseY = -sagAtT;
 
     // Pedicel: thin branch from peduncle down to item
@@ -132,12 +164,11 @@ export function createTrussNode(
       scene
     );
     pedicel.parent = root;
-    pedicel.position = new Vector3(xAlong, baseY - pedicelLen / 2, 0);
+    pedicel.position = new Vector3(xAlong, baseY - pedicelLen / 2, zJitter);
     pedicel.material = getPedicelMat(scene);
 
     if (it.kind === 'fruit') {
       const fruit = truss.fruits[it.index];
-      const fruitR = fruit.diameterMm / 2 / 1000;
       const fruitNode = createFruitNode(
         `${name}_fruit_${it.index}`,
         scene,
@@ -145,14 +176,12 @@ export function createTrussNode(
         rng.fork(it.index + 1)
       );
       fruitNode.parent = root;
-      fruitNode.position = new Vector3(xAlong, baseY - pedicelLen - fruitR * 0.5, 0);
+      fruitNode.position = new Vector3(xAlong, baseY - pedicelLen - fruitR * 0.5, zJitter);
     } else {
       const flower = truss.flowers[it.index];
-      // Petal-fall ramps from 0 to 1 once bloomProgress passes 0.7
       const petalDrop = flower.bloomProgress > 0.7
         ? Math.min(1, (flower.bloomProgress - 0.7) / 0.3)
         : 0;
-      // Ovary swell mirrors petal drop (ovary visible as petals fade)
       const ovarySwell = petalDrop * 0.8;
       const flowerNode = createFlowerNode(
         `${name}_flower_${it.index}`,
@@ -162,8 +191,11 @@ export function createTrussNode(
         ovarySwell
       );
       flowerNode.parent = root;
-      flowerNode.position = new Vector3(xAlong, baseY - pedicelLen - 0.005, 0);
+      flowerNode.position = new Vector3(xAlong, baseY - pedicelLen - 0.005, zJitter);
     }
+
+    prevX = xAlong;
+    prevR = fruitR;
   });
 
   return root;
