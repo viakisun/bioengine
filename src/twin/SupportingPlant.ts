@@ -38,6 +38,7 @@ import {
 } from '@farmsim/tomato-geometry';
 import { getLeafMaterial, getYellowLeafMaterial, getDiseasedLeafMaterial } from '../plant/LeafGenerator';
 import { createStemMesh, getStemMaterial } from '../plant/StemGenerator';
+import { createFruitNode } from '../plant/FruitGenerator';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
 
 export interface SupportingPlantHandle {
@@ -289,26 +290,36 @@ export function createSupportingPlant(
           const cx = Math.cos(trussAz) * pedLen;
           const cz = Math.sin(trussAz) * pedLen;
           const cy = heightM - 0.05 - pedLen * 0.15;
+          // Supporting plants use a lightweight sphere — 870 fruits
+          // total wedges SwiftShader with the full FruitGenerator path.
+          // We still apply the cultivar genome's H:W ratio (Y-scale)
+          // so beefsteak-vs-cherry shape diversity is visible at
+          // distance: flat beefsteaks vs round cherries.
           for (let f = 0; f < ripeFruits.length; f++) {
             const fruit = ripeFruits[f];
             const fruitMat = fruitMats[Math.min(5, fruit.ripenStage)];
+            const dia = fruit.diameterMm / 1000;
+            const hw = fruit.cultivarGenome?.heightWidthRatio ?? 0.9;
             const fruitMesh = MeshBuilder.CreateSphere(
               `support_fruit_${seed}_${i}_${f}`,
-              { diameter: fruit.diameterMm / 1000, segments: 8 },
+              { diameter: dia, segments: 10 },
               scene
             );
             fruitMesh.parent = root;
+            // Oblate: scale Y by H:W ratio (beefsteak ~0.72, cherry ~0.96)
+            fruitMesh.scaling = new Vector3(1, hw, 1);
             // Random direction in horizontal plane + slight vertical hang.
             const localAngle = fruitRng.next() * Math.PI * 2;
-            const localR = (fruit.diameterMm / 1000) * (0.5 + fruitRng.next() * 0.6);
+            const localR = dia * (0.5 + fruitRng.next() * 0.6);
             fruitMesh.position = new Vector3(
               cx + Math.cos(localAngle) * localR,
-              cy - fruitRng.next() * (fruit.diameterMm / 1000) * 0.5,
+              cy - fruitRng.next() * dia * 0.5,
               cz + Math.sin(localAngle) * localR
             );
             fruitMesh.material = fruitMat;
             currentMeshes.push(fruitMesh);
           }
+          void createFruitNode; // (reserved for future LOD-near use)
         }
       }
     }

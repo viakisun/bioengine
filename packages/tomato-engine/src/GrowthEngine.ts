@@ -12,6 +12,7 @@
 
 import { type PlantGenome, generateGenome } from './PlantGenome';
 import { computePlantState, type PlantState, type PlantStressInputs } from './GrowthModel';
+import { type Cultivar, getCultivar } from './Cultivar';
 
 /**
  * Greenhouse environment parameters that modulate growth and physics.
@@ -53,6 +54,8 @@ export interface PlantInput {
   seed: number;
   /** Subset of PlantGenome to override after seeded generation. */
   genomeOverrides?: Partial<PlantGenome>;
+  /** Cultivar name (registered in CULTIVARS). Default 'round-generic'. */
+  cultivarName?: string;
 }
 
 export interface SimulationSnapshot {
@@ -123,6 +126,7 @@ export function applyEnvironmentToGenome(
 
 interface PlantEntry {
   genome: PlantGenome;
+  cultivar: Cultivar;
 }
 
 /**
@@ -159,7 +163,8 @@ export class GrowthEngine {
     const genome: PlantGenome = input.genomeOverrides
       ? { ...base, ...input.genomeOverrides, seed: input.seed }
       : base;
-    this.plants.set(input.seed, { genome });
+    const cultivar = getCultivar(input.cultivarName ?? 'round-generic');
+    this.plants.set(input.seed, { genome, cultivar });
     return genome;
   }
 
@@ -229,7 +234,12 @@ export class GrowthEngine {
 
     const effectiveGenome = applyEnvironmentToGenome(entry.genome, env);
     const effectiveDay = Math.max(0, day - effectiveGenome.plantingDayOffset);
-    return computePlantState(effectiveDay, effectiveGenome, autoStress);
+    return computePlantState(effectiveDay, effectiveGenome, autoStress, entry.cultivar);
+  }
+
+  /** Public read of a plant's cultivar (for callers that need its name). */
+  getCultivarFor(seed: number): Cultivar | undefined {
+    return this.plants.get(seed)?.cultivar;
   }
 
   /** Compute states for every registered plant at a given day. */
@@ -270,7 +280,11 @@ export class GrowthEngine {
     const engine = new GrowthEngine();
     engine.setEnvironment(data.environment);
     for (const p of data.plants) {
-      engine.plants.set(p.seed, { genome: { ...p.genome } });
+      // Cultivar isn't persisted in v1 SerializedEngine — fall back to default.
+      engine.plants.set(p.seed, {
+        genome: { ...p.genome },
+        cultivar: getCultivar('round-generic'),
+      });
     }
     return engine;
   }

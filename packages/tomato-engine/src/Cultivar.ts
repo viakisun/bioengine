@@ -227,9 +227,9 @@ const TOMIMARU_MUCHOO: Cultivar = {
   fruitSetRate: 0.6,
   potentialFruitMassG: { mu: 200, sigma: 25 },
   loculeCount: { mu: 6.0, sigma: 1.2 },
-  heightWidthRatio: { mu: 0.78, sigma: 0.06 },
-  ribbingStrength: { mu: 0.35, sigma: 0.10 },
-  asymmetryStrength: 0.10,
+  heightWidthRatio: { mu: 0.72, sigma: 0.09 },   // wider σ → visible H:W variance per plant
+  ribbingStrength: { mu: 0.55, sigma: 0.15 },    // deeper lobes — Tomimaru shows pronounced ridges
+  asymmetryStrength: 0.13,
   fullRipeRGB: [220, 90, 95],          // pink beefsteak (lighter than standard red)
   greenStageRGB: [60, 130, 50],
   hueVariance: 0.05,
@@ -276,6 +276,8 @@ export interface CultivarSample {
   ripeningSpeedFactor: number;
   /** Blossom-end advance strength for this individual. */
   blossomEndAdvanceFrac: number;
+  /** Per-fruit asymmetry amplitude — Gaussian σ on vertex displacement (0..0.2). */
+  asymmetryAmp: number;
 }
 
 /** Deterministic Gaussian draw using the linear-congruential SeededRandom. */
@@ -302,6 +304,13 @@ export function sampleCultivarGenome(
   const blossom = Math.max(0, Math.min(0.7, gaussian(rngNext, cultivar.blossomEndAdvanceFrac.mu, cultivar.blossomEndAdvanceFrac.sigma)));
   const ripeFactor = Math.max(0.7, Math.min(1.3, 1 + (rngNext() - 0.5) * 0.3));
 
+  // Per-fruit asymmetry amplitude — half the cultivar's baseline plus
+  // a Gaussian jitter (so fruits inside the same cultivar still vary).
+  const asymAmp = Math.max(
+    0.01,
+    Math.min(0.2, cultivar.asymmetryStrength * (0.6 + 0.8 * rngNext())),
+  );
+
   return {
     potentialMassG: mass,
     loculeCount: locule,
@@ -311,5 +320,6 @@ export function sampleCultivarGenome(
     mottleSeed: Math.floor(rngNext() * 2 ** 30),
     ripeningSpeedFactor: ripeFactor,
     blossomEndAdvanceFrac: blossom,
+    asymmetryAmp: asymAmp,
   };
 }

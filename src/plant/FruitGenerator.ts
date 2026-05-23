@@ -30,8 +30,10 @@ import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { SeededRandom } from '@farmsim/tomato-engine';
 import type { FruitState, CultivarSample } from '@farmsim/tomato-engine';
 
-const SEGMENTS = 20;          // longitudinal slices (azimuth)
-const RINGS = 14;             // latitudinal rings (between poles)
+const SEGMENTS_HIGH = 20;     // hero (showcase) — longitudinal slices
+const RINGS_HIGH = 14;        // hero — latitudinal rings
+const SEGMENTS_LOW = 12;      // supporting — coarser but still lobed
+const RINGS_LOW = 9;          // supporting
 const CROWN_RECESSION = 0.10; // depth of well at stem-end (× radius)
 
 // ---------------------------------------------------------------------------
@@ -41,10 +43,14 @@ const CROWN_RECESSION = 0.10; // depth of well at stem-end (× radius)
 function buildFruitBodyVertexData(
   fruit: FruitState,
   genome: CultivarSample,
+  lod: 'high' | 'low' = 'high',
 ): VertexData {
   const positions: number[] = [];
   const colors: number[] = [];
   const indices: number[] = [];
+
+  const RINGS = lod === 'high' ? RINGS_HIGH : RINGS_LOW;
+  const SEGMENTS = lod === 'high' ? SEGMENTS_HIGH : SEGMENTS_LOW;
 
   // Vertex grid (RINGS+1 rings × SEGMENTS+1 columns)
   // The pole rings collapse to a single point; the top pole has the
@@ -74,14 +80,29 @@ function buildFruitBodyVertexData(
       let y = cosP * h;
       let z = sinP * Math.sin(theta);
 
-      // Locule ribbing: cos(lc·θ) bumps, strongest at the bottom pole
-      // and fading toward the equator. Beefsteak's classic 6-8 lobed
-      // base; cherry's lc=2 produces no visible ribbing.
-      if (rib > 0 && cosP < 0) {
-        // sweep weight: 1 at bottom pole, 0 at equator
-        const sweep = Math.pow(-cosP, 1.3);
-        const ribAmp = rib * 0.10 * sweep;
-        const ribFactor = 1 + ribAmp * Math.cos(lc * theta);
+      // Locule ribbing: cos(lc·θ) bumps that follow the locule walls
+      // from the bottom (blossom-end) up past the equator. Beefsteak's
+      // characteristic 6-8 deep lobes (PMC10482247) are visible from
+      // most viewing angles; cherry's lc=2 stays smooth because its
+      // ribbingStrength is near zero in the cultivar registry.
+      if (rib > 0) {
+        // Sweep weight: peaks slightly below the equator (cosP=-0.3),
+        // fades to ~0.15 at the stem-end and ~0.8 at the bottom pole.
+        // This matches real beefsteak — the lobes run nearly to the
+        // calyx, not just under the fruit.
+        let sweep: number;
+        if (cosP > 0.3) {
+          // Upper third — small residual ribbing near shoulder
+          sweep = 0.15 * Math.max(0, 1 - cosP * 1.2);
+        } else if (cosP < -0.7) {
+          // Bottom pole — taper to zero exactly at the pole
+          sweep = Math.pow(1 + cosP, 0.4) * 0.9;
+        } else {
+          // Mid-body — strongest, peaks around cosP=-0.3
+          sweep = 0.9 - Math.abs(cosP + 0.3) * 0.4;
+        }
+        const ribAmp = rib * 0.28 * sweep;
+        const ribFactor = 1 - ribAmp * (0.5 + 0.5 * Math.cos(lc * theta));
         x *= ribFactor;
         z *= ribFactor;
       }
@@ -93,18 +114,16 @@ function buildFruitBodyVertexData(
         y -= CROWN_RECESSION * recessSweep;
       }
 
-      // Per-vertex asymmetry — small Gaussian noise on each axis. Same
-      // sign+magnitude every call because RNG is seeded by genome.
-      const a = genome.ribbingStrength * 0 + 1; // placeholder for clarity
-      const noise = genome.asymmetrySeed > 0 ? 0 : 0;
-      const ax = asymRng.gaussian(0, 0.03);
-      const ay = asymRng.gaussian(0, 0.025);
-      const az = asymRng.gaussian(0, 0.03);
+      // Per-vertex asymmetry — Gaussian noise scaled by the cultivar's
+      // (per-fruit-sampled) asymmetryAmp. Beefsteak ≈ 0.13, cherry ≈
+      // 0.05. Same seed → same shape every rebuild (deterministic).
+      const asymAmp = (genome.asymmetryAmp ?? 0.05);
+      const ax = asymRng.gaussian(0, asymAmp);
+      const ay = asymRng.gaussian(0, asymAmp * 0.8);
+      const az = asymRng.gaussian(0, asymAmp);
       x *= 1 + ax;
       y *= 1 + ay;
       z *= 1 + az;
-      // Mark unused variables explicit to avoid lint warnings
-      void a; void noise;
 
       positions.push(x, y, z);
 
@@ -225,6 +244,34 @@ function buildCalyxVertexData(): VertexData {
   return vd;
 }
 
+/** Per-scene cache of fruit body materials, keyed by ripening stage (0-5). */
+const cachedBodyMaterials: WeakMap<Scene, PBRMaterial[]> = new WeakMap();
+function getBodyMaterial(scene: Scene, stage: number): PBRMaterial {
+  let bucket = cachedBodyMaterials.get(scene);
+  if (!bucket) {
+    bucket = new Array<PBRMaterial>(6);
+    cachedBodyMaterials.set(scene, bucket);
+  }
+  if (bucket[stage]) return bucket[stage];
+  const mat = new PBRMaterial(`fruitBodyMat_stage${stage}`, scene);
+  // White albedo → vertex color fully drives surface color.
+  mat.albedoColor = new Color3(1, 1, 1);
+  mat.metallic = 0;
+  mat.roughness = 0.42 - stage * 0.025;
+  mat.clearCoat.isEnabled = stage >= 2;
+  mat.clearCoat.intensity = stage < 2 ? 0 : 0.30 + (stage - 2) * 0.12;
+  mat.clearCoat.roughness = 0.18 - stage * 0.012;
+  if (stage >= 3) {
+    mat.subSurface.isTranslucencyEnabled = true;
+    mat.subSurface.translucencyIntensity = 0.15;
+    mat.subSurface.tintColor = Color3.FromHexString('#8b1a14');
+    mat.subSurface.minimumThickness = 0.5;
+    mat.subSurface.maximumThickness = 1.5;
+  }
+  bucket[stage] = mat;
+  return mat;
+}
+
 const cachedCalyxMaterial: WeakMap<Scene, PBRMaterial> = new WeakMap();
 function getCalyxMaterial(scene: Scene): PBRMaterial {
   let mat = cachedCalyxMaterial.get(scene);
@@ -269,8 +316,10 @@ export function createFruitNode(
   scene: Scene,
   fruit: FruitState,
   rng: SeededRandom,        // legacy parameter — kept for compatibility
+  opts?: { lod?: 'high' | 'low' },
 ): TransformNode {
   void rng; // no longer used; per-fruit determinism comes from genome seeds
+  const lod = opts?.lod ?? 'high';
 
   const root = new TransformNode(name, scene);
   const radiusM = fruit.diameterMm / 2 / 1000;
@@ -285,36 +334,30 @@ export function createFruitNode(
     mottleSeed: fruit.index * 131 + 5678,
     ripeningSpeedFactor: 1,
     blossomEndAdvanceFrac: 0.4,
+    asymmetryAmp: 0.06,
   };
 
   // ---------- Body ----------
   const body = new Mesh(`${name}_body`, scene);
-  buildFruitBodyVertexData(fruit, genome).applyToMesh(body);
+  buildFruitBodyVertexData(fruit, genome, lod).applyToMesh(body);
   body.scaling = new Vector3(radiusM, radiusM, radiusM);
   body.parent = root;
   body.useVertexColors = true;
 
   const stage = Math.max(0, Math.min(5, fruit.ripenStage));
-  const bodyMat = new PBRMaterial(`${name}_mat`, scene);
-  // White albedo → vertex color fully drives surface color.
-  bodyMat.albedoColor = new Color3(1, 1, 1);
-  bodyMat.metallic = 0;
-  bodyMat.roughness = 0.42 - stage * 0.025;        // 0.42 → 0.295
-  bodyMat.clearCoat.isEnabled = stage >= 2;
-  bodyMat.clearCoat.intensity = stage < 2 ? 0 : 0.30 + (stage - 2) * 0.12;
-  bodyMat.clearCoat.roughness = 0.18 - stage * 0.012;
-  // Light SSS for ripe fruits — picks up the subdermal red glow
-  if (stage >= 3) {
-    bodyMat.subSurface.isTranslucencyEnabled = true;
-    bodyMat.subSurface.translucencyIntensity = 0.15;
-    bodyMat.subSurface.tintColor = Color3.FromHexString('#8b1a14');
-    bodyMat.subSurface.minimumThickness = 0.5;
-    bodyMat.subSurface.maximumThickness = 1.5;
-  }
-  body.material = bodyMat;
+  // PBRMaterial creation is dominated by shader-permutation compile
+  // (~10ms each on SwiftShader). With 800+ fruits visible in the
+  // supporting-canopy view, allocating per-fruit materials would
+  // wedge the renderer for tens of seconds. Cache one material per
+  // (scene, stage) — per-fruit color variation already lives in the
+  // vertex-color buffer.
+  body.material = getBodyMaterial(scene, stage);
 
   // ---------- Calyx + stem stub (visible-size fruits only) ----------
-  if (radiusM > 0.003) {
+  // Skip on `low` LOD to keep the supporting-canopy mesh count
+  // manageable — 29 plants × 6 trusses × 5 fruits with full calyx +
+  // stem stubs (~2600 extra meshes) wedges SwiftShader.
+  if (radiusM > 0.003 && lod === 'high') {
     const calyx = new Mesh(`${name}_calyx`, scene);
     buildCalyxVertexData().applyToMesh(calyx);
     calyx.scaling = new Vector3(radiusM, radiusM, radiusM);

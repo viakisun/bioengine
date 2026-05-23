@@ -429,9 +429,27 @@ export function buildGreenhouseScene(scene: Scene): GreenhouseSceneHandle {
   // Register plants in the growth engine only for ACTIVE_BED_INDICES.
   // The empty beds still own the visual infrastructure (bed/cocopeat/
   // stands/wires) but don't pay the procedural plant cost.
+  //
+  // Cultivar distribution (per plan a-drifting-wigderson.md):
+  //   80% Tomimaru Muchoo (pink beefsteak — the K-smartfarm reference)
+  //   10% round-generic
+  //   10% cherry-generic
+  // Deterministic per (bedIdx, slot) so the same plant always gets the
+  // same cultivar across reloads.
+  const pickCultivar = (bedIdx: number, slot: number): string => {
+    // Mix bedIdx + slot into a 0..99 bucket
+    const h = ((bedIdx * 73856093) ^ (slot * 19349663)) >>> 0;
+    const bucket = h % 100;
+    if (bucket < 10) return 'cherry-generic';
+    if (bucket < 20) return 'round-generic';
+    return 'tomimaru-muchoo';
+  };
   for (const bedIdx of ACTIVE_BED_INDICES) {
     for (let slot = 0; slot < PLANT_BLOCK; slot++) {
-      growthEngine.addPlant({ seed: plantSeedFor(bedIdx, slot) });
+      growthEngine.addPlant({
+        seed: plantSeedFor(bedIdx, slot),
+        cultivarName: pickCultivar(bedIdx, slot),
+      });
     }
   }
 
