@@ -84,6 +84,36 @@ export interface StemMeshOptions {
 }
 
 /**
+ * Generic curved-tube builder. Used by peduncle / pedicel / etc. Same
+ * sweep + per-vertex color machinery as the main stem, but takes
+ * pre-computed controlPoints + controlRadii directly (no NodeState
+ * plumbing). Useful for shorter anatomical structures.
+ */
+export function createCurvedTube(
+  name: string,
+  scene: Scene,
+  controlPoints: Vector3[],
+  controlRadii: number[],
+  options: {
+    radialSegments?: number;
+    divisionsPerSeg?: number;
+    /** Uniform color (overrides woodiness gradient). If omitted, falls
+     *  back to woodiness gradient. */
+    color?: { r: number; g: number; b: number };
+  } = {},
+): Mesh | null {
+  if (controlPoints.length < 2 || controlPoints.length !== controlRadii.length) return null;
+  const radialSegments = Math.max(3, options.radialSegments ?? DEFAULT_RADIAL_SEGMENTS);
+  const divisions = Math.max(1, options.divisionsPerSeg ?? DIVISIONS_PER_NODE);
+  const curve = catmullRomPath(controlPoints, divisions);
+  const curveRadii = sampleRadiiBetween(curve.length, controlRadii, divisions);
+  const vd = sweepTube(curve, curveRadii, radialSegments, 0, 0, options.color);
+  const mesh = new Mesh(name, scene);
+  vd.applyToMesh(mesh);
+  return mesh;
+}
+
+/**
  * Build a tube mesh through `nodes` using each node's authoritative
  * 3D position (Plan 3b — single source of truth). Per-node `stemRadiusMm`
  * controls the cross-section radius for natural taper; per-node
@@ -122,7 +152,7 @@ export function createStemMesh(
 
   // Per-curve-sample radius — linear blend between control radii, plus
   // node bulge swelling at the integer indices.
-  const curveRadii = sampleRadiiAlongCurve(curvePoints.length, controlRadii, nodeBulge);
+  const curveRadii = sampleRadiiBetween(curvePoints.length, controlRadii, DIVISIONS_PER_NODE, nodeBulge);
 
   const vd = sweepTube(curvePoints, curveRadii, radialSegments, stripeCount, stripeDepth);
 
@@ -174,32 +204,30 @@ function buildControlSpine(
 }
 
 /**
- * Interpolate radius for every curve sample (catmullRom output index)
- * from the per-control values. With `nodeBulge > 0`, samples near a
- * control point get an additional radial swell — produces visible
- * mass at each plant node ("마디감").
+ * Interpolate per-curve-sample radius from per-control values. With
+ * `nodeBulge > 0`, samples near a control point get an additional radial
+ * swell — produces visible mass at each plant node ("마디감").
  *
- * catmullRomPath maps sample index k → fractional control-point index
- * `k / DIVISIONS_PER_NODE`. The integer part is the lower control,
- * the fraction is the lerp factor.
+ * `catmullRomPath(controls, divisions)` outputs `divisions·(N-1) + 1`
+ * samples; sample index k maps to fractional control-point index
+ * `k / divisions`. The integer part is the lower control, the fraction
+ * is the lerp factor.
  */
-function sampleRadiiAlongCurve(
+function sampleRadiiBetween(
   ringCount: number,
   controlRadii: number[],
-  nodeBulge: number,
+  divisionsPerSeg: number,
+  nodeBulge = 0,
 ): number[] {
   const out = new Array<number>(ringCount);
   const N = controlRadii.length;
   for (let i = 0; i < ringCount; i++) {
-    const f = i / DIVISIONS_PER_NODE;
+    const f = i / divisionsPerSeg;
     const lo = Math.min(N - 1, Math.floor(f));
     const hi = Math.min(N - 1, lo + 1);
     const frac = Math.max(0, Math.min(1, f - lo));
     let r = controlRadii[lo] * (1 - frac) + controlRadii[hi] * frac;
     if (nodeBulge > 0) {
-      // Distance from nearest control point as a fraction of [0, 0.5].
-      // Bulge peaks at 0 (on control point), 0 at midpoint between
-      // controls.
       const distFromCtrl = Math.min(frac, 1 - frac);
       const bulge = (1 - distFromCtrl * 2) * nodeBulge;
       r *= 1 + bulge;
@@ -212,7 +240,9 @@ function sampleRadiiAlongCurve(
 /**
  * Sweep a tapered tube along the supplied curve. radialSegments determines
  * the cross-section polygon count. `stripeCount > 0` modulates per-vertex
- * color with longitudinal grooves (vascular bundle hint).
+ * color with longitudinal grooves (vascular bundle hint). `uniformColor`
+ * if supplied overrides the woodiness gradient — used by peduncle / pedicel
+ * where a flat hue is more appropriate than a brown↦green axis gradient.
  */
 function sweepTube(
   curvePoints: Vector3[],
@@ -220,6 +250,7 @@ function sweepTube(
   radialSegments: number,
   stripeCount: number,
   stripeDepth: number,
+  uniformColor?: { r: number; g: number; b: number },
 ): VertexData {
   const ringCount = curvePoints.length;
   const totalSegments = ringCount - 1;
@@ -261,11 +292,18 @@ function sweepTube(
 
     // Woodiness — nonlinear gradient toward base. The transformation is
     // chosen so basal nodes read brown (lignified) and apical nodes read
-    // green (herbaceous).
-    const woodiness = Math.pow(1 - t, 0.6);
-    const r0 = 0.35 * woodiness + 0.28 * (1 - woodiness);
-    const g0 = 0.22 * woodiness + 0.55 * (1 - woodiness);
-    const b0 = 0.12 * woodiness + 0.22 * (1 - woodiness);
+    // green (herbaceous). uniformColor overrides for peduncle / pedicel.
+    let r0: number, g0: number, b0: number;
+    if (uniformColor) {
+      r0 = uniformColor.r;
+      g0 = uniformColor.g;
+      b0 = uniformColor.b;
+    } else {
+      const woodiness = Math.pow(1 - t, 0.6);
+      r0 = 0.35 * woodiness + 0.28 * (1 - woodiness);
+      g0 = 0.22 * woodiness + 0.55 * (1 - woodiness);
+      b0 = 0.12 * woodiness + 0.22 * (1 - woodiness);
+    }
 
     for (let j = 0; j < colCount; j++) {
       const angle = (j / radialSegments) * Math.PI * 2;
