@@ -1,0 +1,315 @@
+// Cultivar genome registry — calibration constants per tomato cultivar.
+//
+// Each Cultivar bundles TOMSIM / Reduced-TOMGRO calibration parameters
+// (T_base, GDD thresholds, sink-strength ratios), 3-phase fruit growth
+// constants (Gompertz a/b/c), morphology distributions (locule count,
+// height-to-width ratio, ribbing, asymmetry), and the per-fruit color
+// distributions used by the visual layer.
+//
+// All references are cited in plan a-drifting-wigderson.md. Key sources:
+//   - Heuvelink 1996, 1995 (TOMSIM, sink strength)
+//   - Jones, Kenig, Vallejos 1999 (Reduced TOMGRO 5-state)
+//   - Gillaspy, Ben-David, Gruissem 1993 (3-phase fruit growth)
+//   - Marcelis 1996 (sink strength)
+//   - PMC10482247 (locule QTL fas/lc)
+//
+// Cultivar values without a peer-reviewed source are marked
+// `source: 'vendor'` and may be recalibrated when real measurements are
+// available. The point of the registry is calibration, not invention —
+// each parameter should be replaceable from a measurement.
+
+export type CultivarType = 'cherry' | 'round' | 'beefsteak' | 'roma';
+
+/** Mean ± SD distribution sampler input. */
+export interface GaussianDist {
+  mu: number;
+  sigma: number;
+}
+
+export interface Cultivar {
+  name: string;
+  type: CultivarType;
+  /** Free-form note on data provenance — 'literature' | 'vendor' | 'estimated'. */
+  source: 'literature' | 'vendor' | 'estimated';
+
+  // --- Phenology (GDD-driven, CROPGRO-Tomato basis) ---
+  /** Lower temperature threshold for GDD. Default 10°C. */
+  T_base: number;
+  /** GDD from transplant to first open flower. ~250 default. */
+  GDD_to_first_flower: number;
+  /** GDD from flower opening to red-ripe fruit. ~700-900. */
+  GDD_flower_to_red: number;
+  /** GDD between successive truss appearances. ~120 (about 1 truss/week at 20°C). */
+  GDD_per_truss: number;
+
+  // --- Reproductive output ---
+  flowersPerTruss: GaussianDist;
+  /** Fraction of flowers that set fruit. 0.5-0.7 typical. */
+  fruitSetRate: number;
+  /** Adult fruit mass distribution (g, fresh weight). Drives sink strength. */
+  potentialFruitMassG: GaussianDist;
+
+  // --- 3-phase fruit growth (Gillaspy 1993, Gompertz fit) ---
+  /** GDD for the cell-division phase post-fertilization. ~150. */
+  cellDivisionDurationGDD: number;
+  /** GDD for the cell-expansion phase. ~500. */
+  cellExpansionDurationGDD: number;
+  /** GDD from color break to red. ~200. */
+  ripeningDurationGDD: number;
+  /** Gompertz growth rate parameter (per GDD). ~0.06. */
+  gompertzRateB: number;
+  /** Gompertz inflection ratio (0..1, fraction of expansion at max-rate). ~0.5. */
+  gompertzInflectionC: number;
+
+  // --- Morphology (cultivar mean; per-fruit sampled from this) ---
+  /** Locule count distribution (discrete). cherry≈2, round≈4, beefsteak≈7. */
+  loculeCount: GaussianDist;
+  /** Height-to-width ratio. cherry≈1.0, round≈0.9, beefsteak≈0.7. */
+  heightWidthRatio: GaussianDist;
+  /** Ribbing intensity (0=smooth, 1=strongly grooved). */
+  ribbingStrength: GaussianDist;
+  /** Vertex-level asymmetry noise amplitude (0..0.15·radius). */
+  asymmetryStrength: number;
+
+  // --- Color (USDA-stage RGB + per-fruit variance) ---
+  fullRipeRGB: [number, number, number];
+  greenStageRGB: [number, number, number];
+  /** Per-fruit chromaticity scatter at full ripe (0..0.1). */
+  hueVariance: number;
+  /** Blossom-end advance fraction (acropetal within-fruit ripening). */
+  blossomEndAdvanceFrac: GaussianDist;
+
+  // --- Sink-strength ratios (relative; fruit truss = 1.0) ---
+  sinkStrengthLeaf: number;   // ~0.35 (Heuvelink 1995)
+  sinkStrengthStem: number;   // ~0.15
+  sinkStrengthRoot: number;   // ~0.07
+
+  // --- Pruning baseline (한국 농가 권장 관행) ---
+  /** 0..1 — how aggressively leaves below ripening trusses senesce. */
+  defoliationAggressiveness: number;
+  /** After natural set + abortion, retain this many fruits per truss. */
+  trussTargetFruitCount: number;
+
+  // --- Misc physiology ---
+  /** Specific Leaf Area (m²/g DM). ~0.025-0.030 for tomato. */
+  SLA: number;
+  /** Time within a truss (in GDD) between basal and distal fruit ripening. */
+  trussRipeningSpreadGDD: number;
+}
+
+// ---------------------------------------------------------------------------
+// Baseline cultivars — five entries covering the common K-smartfarm taxa.
+// ---------------------------------------------------------------------------
+
+const COMMON: Pick<
+  Cultivar,
+  | 'T_base'
+  | 'GDD_to_first_flower'
+  | 'GDD_flower_to_red'
+  | 'GDD_per_truss'
+  | 'cellDivisionDurationGDD'
+  | 'cellExpansionDurationGDD'
+  | 'ripeningDurationGDD'
+  | 'gompertzRateB'
+  | 'gompertzInflectionC'
+  | 'sinkStrengthLeaf'
+  | 'sinkStrengthStem'
+  | 'sinkStrengthRoot'
+  | 'SLA'
+> = {
+  T_base: 10,
+  GDD_to_first_flower: 250,
+  GDD_flower_to_red: 800,
+  GDD_per_truss: 120,
+  cellDivisionDurationGDD: 150,
+  cellExpansionDurationGDD: 500,
+  ripeningDurationGDD: 200,
+  gompertzRateB: 0.06,
+  gompertzInflectionC: 0.45,
+  sinkStrengthLeaf: 0.35,
+  sinkStrengthStem: 0.15,
+  sinkStrengthRoot: 0.07,
+  SLA: 0.028,
+};
+
+const CHERRY_GENERIC: Cultivar = {
+  name: 'cherry-generic',
+  type: 'cherry',
+  source: 'literature',
+  ...COMMON,
+  flowersPerTruss: { mu: 12, sigma: 3 },
+  fruitSetRate: 0.7,
+  potentialFruitMassG: { mu: 18, sigma: 4 },
+  loculeCount: { mu: 2.0, sigma: 0.3 },
+  heightWidthRatio: { mu: 0.96, sigma: 0.04 },
+  ribbingStrength: { mu: 0.05, sigma: 0.05 },
+  asymmetryStrength: 0.05,
+  fullRipeRGB: [195, 30, 22],
+  greenStageRGB: [34, 120, 30],
+  hueVariance: 0.04,
+  blossomEndAdvanceFrac: { mu: 0.35, sigma: 0.1 },
+  defoliationAggressiveness: 0.4,
+  trussTargetFruitCount: 10,
+  trussRipeningSpreadGDD: 60,
+};
+
+const ROUND_GENERIC: Cultivar = {
+  name: 'round-generic',
+  type: 'round',
+  source: 'literature',
+  ...COMMON,
+  flowersPerTruss: { mu: 6, sigma: 1.5 },
+  fruitSetRate: 0.6,
+  potentialFruitMassG: { mu: 130, sigma: 25 },
+  loculeCount: { mu: 4.0, sigma: 0.8 },
+  heightWidthRatio: { mu: 0.9, sigma: 0.05 },
+  ribbingStrength: { mu: 0.18, sigma: 0.08 },
+  asymmetryStrength: 0.08,
+  fullRipeRGB: [205, 35, 28],
+  greenStageRGB: [40, 120, 35],
+  hueVariance: 0.05,
+  blossomEndAdvanceFrac: { mu: 0.45, sigma: 0.1 },
+  defoliationAggressiveness: 0.35,
+  trussTargetFruitCount: 5,
+  trussRipeningSpreadGDD: 90,
+};
+
+const BEEFSTEAK_GENERIC: Cultivar = {
+  name: 'beefsteak-generic',
+  type: 'beefsteak',
+  source: 'literature',
+  ...COMMON,
+  flowersPerTruss: { mu: 5, sigma: 1.2 },
+  fruitSetRate: 0.55,
+  potentialFruitMassG: { mu: 280, sigma: 50 },
+  loculeCount: { mu: 7.0, sigma: 1.5 },
+  heightWidthRatio: { mu: 0.7, sigma: 0.06 },
+  ribbingStrength: { mu: 0.55, sigma: 0.12 },
+  asymmetryStrength: 0.12,
+  fullRipeRGB: [200, 40, 30],
+  greenStageRGB: [50, 115, 38],
+  hueVariance: 0.06,
+  blossomEndAdvanceFrac: { mu: 0.5, sigma: 0.1 },
+  defoliationAggressiveness: 0.3,
+  trussTargetFruitCount: 3,
+  trussRipeningSpreadGDD: 110,
+};
+
+const ROMA_GENERIC: Cultivar = {
+  name: 'roma-generic',
+  type: 'roma',
+  source: 'literature',
+  ...COMMON,
+  flowersPerTruss: { mu: 7, sigma: 1.5 },
+  fruitSetRate: 0.7,
+  potentialFruitMassG: { mu: 80, sigma: 15 },
+  loculeCount: { mu: 2.0, sigma: 0.4 },
+  heightWidthRatio: { mu: 1.6, sigma: 0.1 },   // > 1 = elongated, not oblate
+  ribbingStrength: { mu: 0.08, sigma: 0.05 },
+  asymmetryStrength: 0.06,
+  fullRipeRGB: [195, 35, 25],
+  greenStageRGB: [45, 118, 32],
+  hueVariance: 0.04,
+  blossomEndAdvanceFrac: { mu: 0.4, sigma: 0.1 },
+  defoliationAggressiveness: 0.4,
+  trussTargetFruitCount: 6,
+  trussRipeningSpreadGDD: 75,
+};
+
+// Tomimaru Muchoo (Sakata) — F1 pink beefsteak, 180-230g, popular Korean
+// smart-farm cultivar. Vendor spec from Johnny's Selected Seeds.
+const TOMIMARU_MUCHOO: Cultivar = {
+  name: 'tomimaru-muchoo',
+  type: 'beefsteak',
+  source: 'vendor',
+  ...COMMON,
+  flowersPerTruss: { mu: 5, sigma: 1.0 },
+  fruitSetRate: 0.6,
+  potentialFruitMassG: { mu: 200, sigma: 25 },
+  loculeCount: { mu: 6.0, sigma: 1.2 },
+  heightWidthRatio: { mu: 0.78, sigma: 0.06 },
+  ribbingStrength: { mu: 0.35, sigma: 0.10 },
+  asymmetryStrength: 0.10,
+  fullRipeRGB: [220, 90, 95],          // pink beefsteak (lighter than standard red)
+  greenStageRGB: [60, 130, 50],
+  hueVariance: 0.05,
+  blossomEndAdvanceFrac: { mu: 0.45, sigma: 0.1 },
+  defoliationAggressiveness: 0.32,
+  trussTargetFruitCount: 4,
+  trussRipeningSpreadGDD: 100,
+};
+
+export const CULTIVARS: Record<string, Cultivar> = {
+  'cherry-generic': CHERRY_GENERIC,
+  'round-generic': ROUND_GENERIC,
+  'beefsteak-generic': BEEFSTEAK_GENERIC,
+  'roma-generic': ROMA_GENERIC,
+  'tomimaru-muchoo': TOMIMARU_MUCHOO,
+};
+
+export const DEFAULT_CULTIVAR_NAME = 'round-generic';
+
+export function getCultivar(name: string): Cultivar {
+  const c = CULTIVARS[name];
+  if (c) return c;
+  return CULTIVARS[DEFAULT_CULTIVAR_NAME];
+}
+
+// ---------------------------------------------------------------------------
+// Per-fruit genome sample (drawn from Cultivar at fruit-set time)
+// ---------------------------------------------------------------------------
+
+export interface CultivarSample {
+  /** Per-fruit potential mass (g, fresh weight) — drives sink strength. */
+  potentialMassG: number;
+  /** Discrete locule count. 2..10. */
+  loculeCount: number;
+  /** H:W ratio. */
+  heightWidthRatio: number;
+  /** Ribbing strength (0..1). */
+  ribbingStrength: number;
+  /** Per-fruit vertex-noise RNG seed (deterministic asymmetry). */
+  asymmetrySeed: number;
+  /** Per-fruit surface-color RNG seed (mottling/streaks). */
+  mottleSeed: number;
+  /** Per-fruit timescale multiplier on Gompertz expansion. */
+  ripeningSpeedFactor: number;
+  /** Blossom-end advance strength for this individual. */
+  blossomEndAdvanceFrac: number;
+}
+
+/** Deterministic Gaussian draw using the linear-congruential SeededRandom. */
+function gaussian(rng: () => number, mu: number, sigma: number): number {
+  // Box-Muller. Two uniform draws → standard normal → shift+scale.
+  const u1 = Math.max(1e-9, rng());
+  const u2 = rng();
+  const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+  return mu + sigma * z;
+}
+
+/**
+ * Sample a per-fruit genome from the cultivar distribution.
+ * `rngNext` should be a function returning a uniform 0..1 (e.g. SeededRandom.next).
+ */
+export function sampleCultivarGenome(
+  cultivar: Cultivar,
+  rngNext: () => number,
+): CultivarSample {
+  const mass = Math.max(5, gaussian(rngNext, cultivar.potentialFruitMassG.mu, cultivar.potentialFruitMassG.sigma));
+  const locule = Math.max(2, Math.min(12, Math.round(gaussian(rngNext, cultivar.loculeCount.mu, cultivar.loculeCount.sigma))));
+  const hw = Math.max(0.4, Math.min(2.0, gaussian(rngNext, cultivar.heightWidthRatio.mu, cultivar.heightWidthRatio.sigma)));
+  const rib = Math.max(0, Math.min(1, gaussian(rngNext, cultivar.ribbingStrength.mu, cultivar.ribbingStrength.sigma)));
+  const blossom = Math.max(0, Math.min(0.7, gaussian(rngNext, cultivar.blossomEndAdvanceFrac.mu, cultivar.blossomEndAdvanceFrac.sigma)));
+  const ripeFactor = Math.max(0.7, Math.min(1.3, 1 + (rngNext() - 0.5) * 0.3));
+
+  return {
+    potentialMassG: mass,
+    loculeCount: locule,
+    heightWidthRatio: hw,
+    ribbingStrength: rib,
+    asymmetrySeed: Math.floor(rngNext() * 2 ** 30),
+    mottleSeed: Math.floor(rngNext() * 2 ** 30),
+    ripeningSpeedFactor: ripeFactor,
+    blossomEndAdvanceFrac: blossom,
+  };
+}

@@ -293,6 +293,24 @@ interface TwinState {
   setCameraPreset: (preset: PresetView) => void;
 }
 
+/**
+ * Read `?quality=N` from the URL (1..10) so a test/demo run can boot at
+ * a different level than the default (e.g. ?quality=1 for a quick low-
+ * cost smoke check that doesn't melt SwiftShader in headless Playwright).
+ * Returns null when the param is missing or invalid — caller falls back
+ * to the regular default.
+ */
+function readQualityFromUrl(): number | null {
+  if (typeof window === 'undefined') return null;
+  const raw = new URLSearchParams(window.location.search).get('quality');
+  if (raw == null) return null;
+  const n = parseInt(raw, 10);
+  if (!Number.isFinite(n)) return null;
+  return Math.max(1, Math.min(10, n));
+}
+
+const BOOT_QUALITY = readQualityFromUrl() ?? 9;
+
 export const useTwinStore = create<TwinState>((set) => ({
   currentDay: 100,
   playing: false,
@@ -362,18 +380,17 @@ export const useTwinStore = create<TwinState>((set) => ({
   consoleExpanded: false,
   toggleConsole: () => set((s) => ({ consoleExpanded: !s.consoleExpanded })),
 
-  lighting: { ...LIGHTING_DEFAULTS, ...QUALITY_PRESETS[9].lightingPatch },
+  lighting: { ...LIGHTING_DEFAULTS, ...QUALITY_PRESETS[BOOT_QUALITY].lightingPatch },
   setLighting: (patch) => set((s) => ({ lighting: { ...s.lighting, ...patch } })),
   resetLighting: () => set({ lighting: { ...LIGHTING_DEFAULTS } }),
   applyLightingPreset: (name) =>
     set({ lighting: { ...LIGHTING_DEFAULTS, ...LIGHTING_PRESETS[name] } }),
 
-  // Render quality — default Lv 9 (Extreme). Lv 10 (Showpiece) is
-  // intentionally heavier than most laptops can sustain; the user can
-  // bump up via the slider when verifying on a beefier box. Lv 9 still
-  // ships TAA + SSR + DOF + God Rays + Lens Flare + Glow + 720 plants.
-  renderQuality: 9,
-  renderFX: { ...QUALITY_PRESETS[9].fx },
+  // Render quality — default Lv 9 (Extreme). Override at boot via
+  // ?quality=N (1..10) in the URL — useful for headless-test screenshots
+  // and verifying lower-cost paths without touching the source.
+  renderQuality: BOOT_QUALITY,
+  renderFX: { ...QUALITY_PRESETS[BOOT_QUALITY].fx },
   setRenderQuality: (level) => {
     const lv = Math.max(1, Math.min(10, Math.round(level)));
     const preset = QUALITY_PRESETS[lv];

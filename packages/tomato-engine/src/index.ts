@@ -39,6 +39,25 @@ export {
 export type { PlantGenome } from './PlantGenome';
 export { generateGenome } from './PlantGenome';
 
+// Scientific tomato model (Phase 1 of plan a-drifting-wigderson.md)
+// Reduced TOMGRO 5-state + Cultivar registry + 3-phase fruit growth.
+export type {
+  Cultivar,
+  CultivarType,
+  CultivarSample,
+  GaussianDist,
+} from './Cultivar';
+export { CULTIVARS, DEFAULT_CULTIVAR_NAME, getCultivar, sampleCultivarGenome } from './Cultivar';
+
+export type {
+  DailyClimate,
+  RipenStage,
+  FruitCohort,
+  TrussCohort,
+  PlantPhysiologyState,
+} from './CoreModel';
+export { DEFAULT_CLIMATE, createPlant, stepDaily, simulateToDay } from './CoreModel';
+
 export { computePhysics, computeTrussDroop } from './PhysicsModel';
 
 export { getSunState, dayToHour } from './SunPosition';
