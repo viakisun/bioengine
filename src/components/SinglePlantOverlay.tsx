@@ -32,6 +32,8 @@ export function SinglePlantOverlay() {
   const playing = useTwinStore((s) => s.singlePlantPlaying);
   const speed = useTwinStore((s) => s.singlePlantSpeed);
   const setMinute = useTwinStore((s) => s.setSinglePlantMinute);
+  const showSkeleton = useTwinStore((s) => s.showSkeleton);
+  const setShowSkeleton = useTwinStore((s) => s.setShowSkeleton);
 
   // Drive the live simulation as the user scrubs the timeline.
   // engineRef 는 BabylonEngine 의 buildGreenhouseScene 직후 등록됨.
@@ -147,6 +149,30 @@ export function SinglePlantOverlay() {
         <span style={{ fontFamily: FONT_SERIF, fontSize: 16, fontWeight: 600 }}>
           Single-Plant Analysis
         </span>
+
+        {/* Skeleton 모드 상태 — 드로어 닫혀 있어도 보임. 클릭 → 즉시 Plant 보기 복귀. */}
+        {showSkeleton && (
+          <button
+            type="button"
+            onClick={() => setShowSkeleton(false)}
+            style={{
+              background: '#e90b2c',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 3,
+              padding: '5px 12px',
+              fontSize: 11,
+              fontFamily: FONT_MONO,
+              fontWeight: 600,
+              cursor: 'pointer',
+              letterSpacing: '0.04em',
+            }}
+            title="Skeleton 보기 끄고 lush plant mesh 로 복귀"
+          >
+            ◂ Skeleton 끄기 (Plant 보기)
+          </button>
+        )}
+
         <span style={{
           marginLeft: 'auto',
           fontFamily: FONT_MONO,
