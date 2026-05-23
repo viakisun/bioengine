@@ -1,0 +1,51 @@
+// Roma (paste) tomato — generic profile (literature-based).
+// ~80g, 2 locules, *elongated* (H:W > 1) — unique among the 5 baselines.
+
+{
+  "metadata": {
+    "name": "roma-generic",
+    "type": "roma",
+    "source": "literature"
+  },
+
+  "phenology": {
+    "GDD_to_first_flower": 250,
+    "GDD_per_truss": 120,
+    "GDD_flower_to_red": 800,
+    "cellDivisionDurationGDD": 150,
+    "cellExpansionDurationGDD": 500,
+    "ripeningDurationGDD": 200,
+    "trussRipeningSpreadGDD": 75
+  },
+
+  "flowersPerTruss": { "mu": 7, "sigma": 1.5 },
+  "fruitSetRate": 0.7,
+  "potentialFruitMassG": { "mu": 80, "sigma": 15 },
+
+  "morphology": {
+    "loculeCount": { "mu": 2.0, "sigma": 0.4 },
+    // > 1 = elongated (paste-tomato character), NOT oblate
+    "heightWidthRatio": { "mu": 1.6, "sigma": 0.1 },
+    "ribbingStrength": { "mu": 0.08, "sigma": 0.05 },
+    "asymmetryStrength": 0.06,
+    "blossomEndAdvanceFrac": { "mu": 0.4, "sigma": 0.1 }
+  },
+
+  "color": {
+    "fullRipeRGB": [195, 35, 25],
+    "greenStageRGB": [45, 118, 32],
+    "hueVariance": 0.04
+  },
+
+  "pruning": {
+    "defoliationAggressiveness": 0.4,
+    "trussTargetFruitCount": 6
+  },
+
+  "physiology": {
+    "SLA_m2_per_g": 0.028,
+    "sinkStrength": { "leaf": 0.35, "stem": 0.15, "root": 0.07 },
+    "gompertzRateB": 0.06,
+    "gompertzInflectionC": 0.45
+  }
+}

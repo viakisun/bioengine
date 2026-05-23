@@ -21,6 +21,7 @@ import {
 } from '../data/mockScenario';
 import { CaptureThumbs } from './CaptureThumbs';
 import { PatrolMap } from './PatrolMap';
+import { LightingTab } from './LightingTab';
 import {
   Eyebrow,
   TabStrip,
@@ -29,14 +30,16 @@ import {
   EventRow,
   Sparkline,
 } from '../ui';
+import { SliderRow, ToggleBtn } from '../ui/Controls';
 
-type SidebarTab = 'zones' | 'events' | 'patrol' | 'env';
+type SidebarTab = 'zones' | 'events' | 'patrol' | 'env' | 'lighting';
 
 const TABS: ReadonlyArray<TabItem<SidebarTab>> = [
   { id: 'zones', label: '구역' },
   { id: 'events', label: '이벤트' },
   { id: 'patrol', label: '경로' },
   { id: 'env', label: '환경' },
+  { id: 'lighting', label: '조명' },
 ];
 
 export function AnalysisPanel() {
@@ -52,6 +55,7 @@ export function AnalysisPanel() {
       {tab === 'events' && <EventsTab />}
       {tab === 'patrol' && <PatrolMap />}
       {tab === 'env' && <EnvTab />}
+      {tab === 'lighting' && <LightingTab />}
     </div>
   );
 }
@@ -278,48 +282,3 @@ function EnvTab() {
   );
 }
 
-function SliderRow({
-  label,
-  value,
-  onChange,
-  valueText,
-}: {
-  label: string;
-  value: number;
-  onChange: (v: number) => void;
-  valueText: string;
-}) {
-  return (
-    <div className="slider-row">
-      <div className="slider-row-header">
-        <span className="tag-mute">{label}</span>
-        <span className="mono tag-ok">{valueText}</span>
-      </div>
-      <input
-        type="range"
-        className="slim"
-        min={0}
-        max={1}
-        step={0.05}
-        value={value}
-        onChange={(e) => onChange(parseFloat(e.target.value))}
-      />
-    </div>
-  );
-}
-
-function ToggleBtn({
-  on,
-  onClick,
-  children,
-}: {
-  on: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button type="button" onClick={onClick} className={`btn${on ? ' is-active' : ''}`}>
-      {children}
-    </button>
-  );
-}

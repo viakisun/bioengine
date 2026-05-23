@@ -1,0 +1,131 @@
+// ============================================================
+// FarmSim Tomato Growth Model — TOMGRO v1
+// ============================================================
+//
+// Global scientific parameters for the Reduced TOMGRO 5-state model
+// (Jones, Kenig, Vallejos 1999) + TOMSIM photosynthesis (Heuvelink 1996)
+// + Gillaspy 3-phase fruit growth + Marcelis abortion.
+//
+// Edit any value below to tune the engine. Vite HMR will reload the
+// model immediately — open Single-Plant Analysis mode and observe the
+// change in real time. Each parameter cites its primary source.
+//
+// Per-cultivar overrides (Tomimaru Muchoo, cherry, beefsteak, …) live
+// in cultivars/*.jsonc. Those override-not-merge from this baseline.
+
+{
+  "metadata": {
+    "id": "tomgro-v1",
+    "version": "1.0.0",
+    "description": "Reduced TOMGRO 5-state + TOMSIM photosynthesis + Gillaspy 3-phase fruit growth + Marcelis abortion + Korean smart-farm 적과 pruning",
+    "references": [
+      "Heuvelink E. 1996. Ann. Bot. 77:71-80 (TOMSIM)",
+      "Jones J.W., Kenig A., Vallejos C.E. 1999. Trans. ASAE 42:255-265 (Reduced TOMGRO)",
+      "Gillaspy G., Ben-David H., Gruissem W. 1993. Plant Cell 5:1439-1451 (3-phase fruit growth)",
+      "Marcelis L.F.M. 1996. Physiol. Plant. 94:447 (sink strength + abortion)",
+      "Goudriaan J., van Laar H.H. 1994. Modelling Potential Crop Growth Processes",
+      "Spitters C.J.T. 1986. Agric. For. Meteorol. 38:217-229 (PAR sin² envelope)"
+    ]
+  },
+
+  // ----------------------------------------------------------------
+  // Photosynthesis — TOMSIM canopy gross assimilation (Heuvelink 1996)
+  // ----------------------------------------------------------------
+  "photosynthesis": {
+    // Light-Use Efficiency — Heuvelink 1996 Eq. 4 corrected for CO2
+    // enrichment (~800 ppm protected culture). Heuvelink reports
+    // 2.8 g DM/MJ PAR; conversion: 1 MJ PAR ≈ 4.6 mol → 2.8 × 4.6 = ~13
+    // g/mol. We use 3.5 as a *practical* tomato LUE that matches K-
+    // smart-farm yields. Range 2.8-4.2 in literature.
+    "LUE_gDM_per_mol_PAR": 3.5,
+
+    // Beer-Lambert canopy extinction coefficient. Spherical leaf angle
+    // distribution → k = 0.7 (Goudriaan 1986).
+    "beerLambert_k": 0.7,
+
+    // Q10 maintenance respiration multiplier (Goudriaan & van Laar 1994).
+    "Q10": 2.0,
+
+    // Reference maintenance respiration rate at 20 °C
+    // (g DM / g DM / day). Heuvelink 1996.
+    "maintenance_m_ref_per_day": 0.015,
+
+    // Conversion efficiency — glucose → biomass. Heuvelink 1996.
+    "Cf_conversion_efficiency": 0.7,
+
+    // Effective ground area per plant (m²). Korean smart-farm density
+    // 2.5 plants/m² → 0.4 m² per plant.
+    "plantFootprintM2": 0.4
+  },
+
+  // ----------------------------------------------------------------
+  // Thermal time (GDD) — CROPGRO-Tomato standard
+  // ----------------------------------------------------------------
+  "thermalTime": {
+    // Base temperature — below this, development stops.
+    // CROPGRO-Tomato uses 10 °C.
+    "T_base_C": 10,
+
+    // Above 32 °C development no longer accelerates (CROPGRO upper limit).
+    "T_max_dev_C": 32
+  },
+
+  // ----------------------------------------------------------------
+  // Fruit abortion — Marcelis 1996 / Frontiers 2015
+  // ----------------------------------------------------------------
+  "abortion": {
+    // Actual/potential growth ratio below which fruit is considered
+    // starving. Marcelis 1996: 0.25-0.30.
+    "threshold_ratio": 0.25,
+
+    // Consecutive starved-day count after which the fruit aborts.
+    // Frontiers 2015: 3-5 days under low-PAR / high-load conditions.
+    "lag_days": 4
+  },
+
+  // ----------------------------------------------------------------
+  // Fruit growth (Gillaspy 3-phase)
+  // ----------------------------------------------------------------
+  "fruitGrowth": {
+    // Water-rich tomato fruit density (Gould 1992).
+    "density_g_per_cm3": 1.04,
+
+    // Dry-matter fraction of fresh fruit weight. Heuvelink 1996 reports
+    // 5-7% typical for protected-culture tomato.
+    "DM_percent": 0.06
+  },
+
+  // ----------------------------------------------------------------
+  // Diurnal environment — sinusoidal envelopes
+  // ----------------------------------------------------------------
+  "diurnal": {
+    // Temperature swing amplitude (°C). Greenhouse typical: 5-7 °C.
+    "temp_amplitude_C": 6,
+
+    // Phase offset (hours). With offset=8: min temp at 02:00,
+    // max at 14:00 (greenhouse standard).
+    "phase_offset_hours": 8
+  },
+
+  // ----------------------------------------------------------------
+  // LAI cap — Heuvelink 1996 commercial canopy
+  // ----------------------------------------------------------------
+  "lai": {
+    // Base ceiling (no defoliation) — Heuvelink 1996 reports mature
+    // commercial canopies converge near LAI 3.
+    "defoliation_cap_base": 3.6,
+
+    // Cultivar.defoliationAggressiveness (0..1) reduces the cap by
+    // this factor: cap = base − aggressiveness × factor.
+    "defoliation_aggressiveness_factor": 1.2
+  },
+
+  // ----------------------------------------------------------------
+  // RNG warmup — Lehmer LCG quirk
+  // ----------------------------------------------------------------
+  "rngWarmup": {
+    // SeededRandom clusters early outputs for nearby seeds. Discard
+    // the first N to make per-truss/fruit RNGs well-separated.
+    "discard_first_n": 3
+  }
+}

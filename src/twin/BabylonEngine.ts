@@ -2,17 +2,21 @@ import { Engine } from '@babylonjs/core/Engines/engine';
 import { WebGPUEngine } from '@babylonjs/core/Engines/webgpuEngine';
 import { Scene } from '@babylonjs/core/scene';
 import { Color3, Color4 } from '@babylonjs/core/Maths/math.color';
+import { ImageProcessingConfiguration } from '@babylonjs/core/Materials/imageProcessingConfiguration';
 import type { Material } from '@babylonjs/core/Materials/material';
 import { setupScene, type SceneSetupHandle } from './SceneSetup';
+import { applyRenderQuality } from './RenderQuality';
 import { setupCamera, type CameraRig } from './CameraRig';
 import { buildGreenhouseScene, type GreenhouseSceneHandle } from './GreenhouseScene';
-import { useTwinStore } from '../store/twinStore';
+import { useTwinStore, type LightingState } from '../store/twinStore';
 import { SCENARIO } from '../data/mockScenario';
-import { getSunState, dayToHour } from '@farmsim/tomato-engine';
+import { getSunState } from '@farmsim/tomato-engine';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Matrix } from '@babylonjs/core/Maths/math.vector';
 import { setShaderWindEnabled, isShaderWindEnabled } from '../plant/LeafGenerator';
 import { getLabelOverlayHandle } from '../components/LabelOverlay';
+import { setBootStage, logBoot, setEnvInfo, setEnvCounters, notify } from '../store/notify';
+import { setSinglePlantEngineRef, setSinglePlantShowcaseRef } from '../ui/single-plant/useSinglePlantState';
 
 import '@babylonjs/core/Helpers/sceneHelpers';
 import '@babylonjs/core/Materials/Textures/Loaders';
@@ -27,7 +31,11 @@ export interface BabylonEngineHandle {
 }
 
 async function tryWebGPU(canvas: HTMLCanvasElement): Promise<WebGPUEngine | null> {
-  if (!(await WebGPUEngine.IsSupportedAsync)) return null;
+  logBoot('log', 'engine: WebGPU 시도');
+  if (!(await WebGPUEngine.IsSupportedAsync)) {
+    logBoot('warn', 'engine: WebGPU 미지원 (브라우저)');
+    return null;
+  }
   try {
     const engine = new WebGPUEngine(canvas, {
       antialias: true,
@@ -37,7 +45,35 @@ async function tryWebGPU(canvas: HTMLCanvasElement): Promise<WebGPUEngine | null
     return engine;
   } catch (err) {
     console.warn('[BabylonEngine] WebGPU init failed, falling back to WebGL2:', err);
+    logBoot('warn', `engine: WebGPU init 실패 — ${err instanceof Error ? err.message : 'unknown'}`);
     return null;
+  }
+}
+
+/**
+ * Extract a human-readable GPU device name from an Engine. WebGL2 reads
+ * the WEBGL_debug_renderer_info extension; WebGPU returns its adapter
+ * info if available.
+ */
+function readGpuDevice(engine: Engine | WebGPUEngine): string {
+  // WebGPU: adapter info is on the engine itself in Babylon's wrapper
+  if (engine instanceof WebGPUEngine) {
+    const info = (engine as unknown as { _adapterInfo?: { vendor?: string; architecture?: string } })._adapterInfo;
+    if (info?.architecture) return `${info.vendor ?? 'GPU'} (${info.architecture})`;
+    return 'WebGPU 어댑터';
+  }
+  // WebGL2 — UNMASKED_RENDERER_WEBGL via the debug extension
+  try {
+    const gl = (engine as { _gl?: WebGL2RenderingContext })._gl;
+    if (!gl) return '알 수 없음';
+    const ext = gl.getExtension('WEBGL_debug_renderer_info');
+    if (ext) {
+      const renderer = gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) as string;
+      return renderer || '알 수 없음';
+    }
+    return gl.getParameter(gl.RENDERER) as string;
+  } catch {
+    return '알 수 없음';
   }
 }
 
@@ -50,19 +86,91 @@ function createWebGL2(canvas: HTMLCanvasElement): Engine {
   });
 }
 
+function toneMappingTypeFor(mode: LightingState['toneMapping']): number | null {
+  if (mode === 'aces') return ImageProcessingConfiguration.TONEMAPPING_ACES;
+  if (mode === 'standard') return ImageProcessingConfiguration.TONEMAPPING_STANDARD;
+  return null;
+}
+
+/** Push a LightingState snapshot to all relevant scene objects. Idempotent. */
+function applyLightingToScene(scene: Scene, setup: SceneSetupHandle, L: LightingState) {
+  // Sun direction follows manualHour; intensity + color from store.
+  const sunState = getSunState(L.manualHour);
+  setup.sun.direction = new Vector3(-sunState.dir.x, -sunState.dir.y, -sunState.dir.z);
+  setup.sun.position = new Vector3(sunState.dir.x * 12, sunState.dir.y * 12, sunState.dir.z * 12);
+  setup.sun.intensity = L.sunIntensity;
+  setup.sun.diffuse = Color3.FromHexString(L.sunColorHex);
+
+  // Hemi + ambient
+  setup.hemi.intensity = L.hemiIntensity;
+  setup.hemi.diffuse = Color3.FromHexString(L.hemiColorHex);
+  setup.hemi.groundColor = Color3.FromHexString(L.hemiGroundColorHex);
+  scene.environmentIntensity = L.hdriIntensity;
+  scene.ambientColor = new Color3(L.ambientGray, L.ambientGray, L.ambientGray);
+
+  // Shadows (sun.shadowEnabled gates whether any shadow map renders)
+  setup.sun.shadowEnabled = L.shadowsEnabled;
+  setup.shadowGenerator.darkness = L.shadowDarkness;
+  setup.shadowGenerator.bias = L.shadowBias;
+  setup.shadowGenerator.normalBias = L.shadowNormalBias;
+
+  // Tone mapping — apply to both scene's config and pipeline's config to
+  // avoid the two diverging.
+  const tmType = toneMappingTypeFor(L.toneMapping);
+  scene.imageProcessingConfiguration.toneMappingEnabled = tmType !== null;
+  if (tmType !== null) scene.imageProcessingConfiguration.toneMappingType = tmType;
+  scene.imageProcessingConfiguration.exposure = L.exposure;
+  scene.imageProcessingConfiguration.contrast = L.contrast;
+
+  const pipeImg = setup.pipeline.imageProcessing;
+  if (pipeImg) {
+    pipeImg.toneMappingEnabled = tmType !== null;
+    if (tmType !== null) pipeImg.toneMappingType = tmType;
+    pipeImg.exposure = L.exposure;
+    pipeImg.contrast = L.contrast;
+    pipeImg.vignetteEnabled = L.vignetteEnabled;
+    pipeImg.vignetteWeight = L.vignetteWeight;
+  }
+
+  // Bloom / Sharpen
+  setup.pipeline.bloomEnabled = L.bloomEnabled;
+  setup.pipeline.bloomThreshold = L.bloomThreshold;
+  setup.pipeline.bloomWeight = L.bloomWeight;
+  setup.pipeline.sharpenEnabled = L.sharpenEnabled;
+  setup.pipeline.sharpen.edgeAmount = L.sharpenEdge;
+
+  // SSAO (null on WebGPU — silently skipped)
+  if (setup.ssao) {
+    setup.ssao.totalStrength = L.ssaoEnabled ? L.ssaoStrength : 0;
+    setup.ssao.radius = L.ssaoRadius;
+  }
+}
+
 export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<BabylonEngineHandle> {
   console.log('[BabylonEngine] creating engine');
+  setBootStage('engine', 'WebGPU 시도', 0.1);
 
   let engine: Engine | WebGPUEngine | null = await tryWebGPU(canvas);
   let backend: 'webgpu' | 'webgl2' = 'webgpu';
 
   if (!engine) {
     console.log('[BabylonEngine] using WebGL2 fallback');
+    notify.info('WebGPU 미지원', 'WebGL2 로 시작합니다');
     engine = createWebGL2(canvas);
     backend = 'webgl2';
   } else {
     console.log('[BabylonEngine] using WebGPU');
   }
+  logBoot('log', `engine: ${backend} 컨텍스트 생성 완료`);
+
+  // Capture environment info for the BootOverlay env panel
+  const gpuDevice = readGpuDevice(engine);
+  setEnvInfo({
+    backend,
+    gpuDevice,
+    viewport: { w: canvas.width, h: canvas.height },
+  });
+  logBoot('log', `engine: ${gpuDevice}`);
 
   const hudBackend = document.getElementById('hud-backend');
   if (hudBackend) hudBackend.textContent = backend === 'webgpu' ? 'WebGPU' : 'WebGL2';
@@ -84,19 +192,44 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
   const cameraRig = setupCamera(scene, canvas);
   cameraRig.setPreset(useTwinStore.getState().cameraPreset);
   console.log('[BabylonEngine] camera ready');
+  logBoot('log', 'engine: 카메라 준비 완료');
 
+  setBootStage('setup', 'IBL · 그림자 · SSAO 셋업', 0);
   let sceneSetup: SceneSetupHandle | null = null;
   try {
     sceneSetup = await setupScene(scene, cameraRig.camera, { backend });
+    applyLightingToScene(scene, sceneSetup, useTwinStore.getState().lighting);
+    logBoot('log', 'setup: 씬 셋업 완료');
   } catch (err) {
     console.error('[BabylonEngine] setupScene failed:', err);
+    notify.error('씬 셋업 실패', err instanceof Error ? err : String(err));
   }
 
+  setBootStage('greenhouse', '온실 인프라 빌드 시작', 0);
   let greenhouse: GreenhouseSceneHandle | null = null;
   try {
-    greenhouse = buildGreenhouseScene(scene);
+    greenhouse = await buildGreenhouseScene(scene);
+    // Expose this GrowthEngine + ShowcasePlant to the SinglePlant
+    // analysis panels — they read both from shared singleton refs.
+    setSinglePlantEngineRef(greenhouse.growthEngine);
+    setSinglePlantShowcaseRef(greenhouse.showcasePlant);
   } catch (err) {
     console.error('[BabylonEngine] buildGreenhouseScene failed:', err);
+    notify.error('온실 빌드 실패', err instanceof Error ? err : String(err));
+  }
+
+  // Apply the quality preset (level 10 by default) AFTER greenhouse is
+  // built so the shadow generator's caster list — recreated when we
+  // upgrade the shadow resolution — picks up every plant/structure mesh.
+  if (sceneSetup) {
+    setBootStage('quality', '렌더 품질 적용', 0);
+    try {
+      applyRenderQuality(scene, sceneSetup, engine, useTwinStore.getState().renderFX);
+      logBoot('log', 'quality: 렌더 품질 적용 완료');
+    } catch (err) {
+      console.error('[BabylonEngine] applyRenderQuality boot failed:', err);
+      notify.error('렌더 품질 적용 실패', err instanceof Error ? err : String(err));
+    }
   }
 
   // Bridge zone picking → store
@@ -110,6 +243,10 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
       if (greenhouse) greenhouse.heatmap.setSelectedZone(zoneId);
     }
   });
+
+  // Phase 5 — savedRenderQuality holds the user's pre-boost quality
+  // so greenhouse-mode 복귀 시 복원할 수 있음. null = 아직 boost 안 됨.
+  let savedRenderQuality: number | null = null;
 
   // Store subscription — react to changes
   const unsubStore = useTwinStore.subscribe((s, prev) => {
@@ -137,9 +274,72 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
     if (s.analysisMode !== prev.analysisMode && greenhouse) {
       greenhouse.showcasePlant.setSegmentationMode(s.analysisMode);
     }
+    if (s.lighting !== prev.lighting && sceneSetup) {
+      applyLightingToScene(scene, sceneSetup, s.lighting);
+    }
+    if (s.renderFX !== prev.renderFX && sceneSetup) {
+      try {
+        applyRenderQuality(scene, sceneSetup, engine, s.renderFX);
+      } catch (err) {
+        console.error('[BabylonEngine] applyRenderQuality failed:', err);
+      }
+    }
+
+    // App-mode handler — Phase 1 (Overlay) + Phase 5 (render boost).
+    // WebGPU 호환 partial-boost: DOF / MotionBlur 가 WebGPU PrePass
+    // 깨뜨리므로 RenderQuality.ts 안에서 자동 스킵 + notify.warn. 나머지
+    // FX (shadow 8192 / MSAA 8 / SSAO 32 / 모든 PBR / clearcoat / SSS /
+    // grain / glow 등) 는 Lv 10 그대로 활성.
+    if (s.mode !== prev.mode && greenhouse) {
+      if (s.mode === 'single-plant') {
+        greenhouse.setSingleFocusMode(true);
+        cameraRig.setPreset('single-plant');
+        if (savedRenderQuality === null) savedRenderQuality = prev.renderQuality;
+        useTwinStore.getState().setRenderQuality(10);
+      } else if (s.mode === 'greenhouse') {
+        greenhouse.setSingleFocusMode(false);
+        cameraRig.setPreset('overview');
+        if (savedRenderQuality !== null) {
+          useTwinStore.getState().setRenderQuality(savedRenderQuality);
+          savedRenderQuality = null;
+        }
+      }
+    }
   });
 
+  // store.subscribe 는 *변경* 만 감지하므로 directURL (예: #single-plant)
+  // 으로 진입했을 때 initial mode 에 대한 핸들러는 fire 안 함. 따라서
+  // 부팅 직후 한 번 현재 mode 를 평가해서 setSingleFocusMode 적용.
+  if (greenhouse) {
+    const initialState = useTwinStore.getState();
+    if (initialState.mode === 'single-plant') {
+      greenhouse.setSingleFocusMode(true);
+      cameraRig.setPreset('single-plant');
+      // Phase 5: 자동 quality 10 boost (WebGPU 호환 partial — DOF/
+      // MotionBlur 만 RenderQuality 안에서 skip).
+      savedRenderQuality = initialState.renderQuality;
+      useTwinStore.getState().setRenderQuality(10);
+    }
+  }
+
   console.log('[BabylonEngine] starting render loop');
+
+  // 'shaders' — first-frame shader compilation. Babylon doesn't expose
+  // an explicit progress signal here, so we just mark the stage as
+  // active with an indeterminate spinner ('progress' starts at 0.1 so
+  // the bar visibly moves). executeWhenReady fires once every async
+  // texture/mesh asset has finished loading AND the first frame's
+  // shader permutations have compiled.
+  setBootStage('shaders', '셰이더 컴파일 (Babylon executeWhenReady 대기)', 0.1);
+  scene.executeWhenReady(() => {
+    setBootStage('ready', '준비 완료', 1);
+    const total = (performance.now() - useTwinStore.getState().boot.startedAt) / 1000;
+    logBoot('log', `ready: 총 부팅 ${total.toFixed(2)}초`);
+  });
+
+  // Env counters refreshed every 500ms during boot, less often after
+  // ready (every 2s — for the dev panel if anyone keeps it open).
+  let lastCountersUpdate = 0;
 
   let lastFpsUpdate = 0;
   let lastDayUpdate = -999;
@@ -166,9 +366,40 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
   engine.runRenderLoop(() => {
     const state = useTwinStore.getState();
 
+    // App-mode idle — lobby 일 때는 render tick 전부 skip.
+    // 메쉬는 그대로 보존 + render 작업만 정지 → 다시 모드 진입 시
+    // 재부팅 없이 즉시 활성.
+    if (state.mode === 'lobby') return;
+
     const now = performance.now();
     const dtInter = (now - lastInteractionTick) / 1000;
     lastInteractionTick = now;
+
+    // Env counter polling — 500ms during boot, 2s after ready.
+    const counterInterval = state.boot.currentStage === 'ready' ? 2000 : 500;
+    if (now - lastCountersUpdate > counterInterval) {
+      lastCountersUpdate = now;
+      try {
+        let triangles = 0;
+        for (const m of scene.meshes) {
+          if (m.isEnabled() && m.isVisible) {
+            triangles += m.getTotalIndices() / 3;
+          }
+        }
+        const perfMemory = (performance as unknown as {
+          memory?: { usedJSHeapSize: number };
+        }).memory;
+        setEnvCounters({
+          meshes: scene.meshes.length,
+          triangles: Math.round(triangles),
+          textures: scene.textures.length,
+          materials: scene.materials.length,
+          memoryMB: perfMemory ? Math.round(perfMemory.usedJSHeapSize / 1024 / 1024) : null,
+        });
+      } catch {
+        // ignore — non-fatal
+      }
+    }
 
     // Robot contributes a continuous interaction while capturing —
     // the camera head's world position pushes leaves immediately
@@ -294,29 +525,8 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
         labelHandleSet.setLabels(labels);
       }
 
-
-      // Drive sun + ambient by the day fraction (one sim-day = one sunlight cycle)
-      const sun = sceneSetup?.sun;
-      const hemi = sceneSetup?.hemi;
-      if (sun && hemi) {
-        const hour = dayToHour(state.currentDay);
-        const sunState = getSunState(hour);
-        sun.direction = new Vector3(-sunState.dir.x, -sunState.dir.y, -sunState.dir.z);
-        sun.position = new Vector3(
-          sunState.dir.x * 12,
-          sunState.dir.y * 12,
-          sunState.dir.z * 12
-        );
-        sun.intensity = 0.8 + sunState.intensity * 3.0;
-        sun.diffuse = new Color3(sunState.color.r, sunState.color.g, sunState.color.b);
-        // Hemisphere/ambient gets a warmer tint at low sun
-        hemi.intensity = 0.25 + sunState.intensity * 0.45;
-        hemi.diffuse = new Color3(
-          0.85 + sunState.color.r * 0.15,
-          0.82 + sunState.color.g * 0.18,
-          0.78 + sunState.color.b * 0.22
-        );
-      }
+      // Sun + ambient are driven by store.lighting (see applyLightingToScene
+      // in the subscribe handler) — they no longer follow currentDay here.
 
       lastDayUpdate = state.currentDay;
     }

@@ -6,7 +6,7 @@ import { Vector3, Quaternion } from '@babylonjs/core/Maths/math.vector';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { PBRMaterial } from '@babylonjs/core/Materials/PBR/pbrMaterial';
 import { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData';
-import { SeededRandom } from '@farmsim/tomato-engine';
+import { SeededRandom, overlayPhysiologyFruits } from '@farmsim/tomato-engine';
 import {
   createLeafMeshFromNode,
   getLeafMaterial,
@@ -36,7 +36,13 @@ import type { GrowthEngine, PlantState } from '@farmsim/tomato-engine';
  */
 export interface ShowcasePlantHandle {
   root: TransformNode;
-  update: (day: number) => void;
+  /**
+   * Rebuild the visual. If `physiology` is provided (Single-Plant
+   * Analysis mode), the truss/fruit data is overlaid from the TOMGRO
+   * PhysiologyState so the visual matches the academic model. Without
+   * it, the legacy sigmoid path is used (Greenhouse mode).
+   */
+  update: (day: number, physiology?: import('@farmsim/tomato-engine').PlantPhysiologyState) => void;
   setVisible: (v: boolean) => void;
   setSegmentationMode: (on: boolean) => void;
   currentState: () => PlantState | null;
@@ -253,10 +259,18 @@ export function createShowcasePlant(
 
   return {
     root,
-    update(day) {
-      if (Math.abs(day - lastBuildDay) < REBUILD_THRESHOLD_DAYS) return;
+    update(day, physiology) {
+      // Single-plant mode (physiology supplied): always rebuild —
+      // ignore the day-threshold throttle so 1-minute scrubs visibly
+      // update fruit color/size. The mesh rebuild is light enough at
+      // 1 plant.
+      if (!physiology && Math.abs(day - lastBuildDay) < REBUILD_THRESHOLD_DAYS) return;
       lastBuildDay = day;
-      const state = engine.computeState(seed, day);
+      let state = engine.computeState(seed, day);
+      if (physiology) {
+        // Overlay TOMGRO truss/fruit data onto the sigmoid base state.
+        state = overlayPhysiologyFruits(state, physiology);
+      }
       buildFromState(state);
     },
     setVisible(v) {

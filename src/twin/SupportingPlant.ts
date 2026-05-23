@@ -38,6 +38,7 @@ import {
 } from '@farmsim/tomato-geometry';
 import { getLeafMaterial, getYellowLeafMaterial, getDiseasedLeafMaterial } from '../plant/LeafGenerator';
 import { createStemMesh, getStemMaterial } from '../plant/StemGenerator';
+import { getCalyxSourceMesh, getStemSourceMesh } from '../plant/FruitGenerator';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
 
 export interface SupportingPlantHandle {
@@ -289,25 +290,74 @@ export function createSupportingPlant(
           const cx = Math.cos(trussAz) * pedLen;
           const cz = Math.sin(trussAz) * pedLen;
           const cy = heightM - 0.05 - pedLen * 0.15;
-          for (let f = 0; f < ripeFruits.length; f++) {
+          // Supporting plants use a lightweight sphere — 870 fruits
+          // total wedges SwiftShader with the full FruitGenerator path.
+          // We still apply the cultivar genome's H:W ratio (Y-scale)
+          // so beefsteak-vs-cherry shape diversity is visible at
+          // distance: flat beefsteaks vs round cherries.
+          // Source meshes for calyx + stem (shared across all fruits in
+          // the scene — they render as InstancedMesh, batched into one
+          // draw call each). Cheaper than per-fruit custom geometry.
+          const calyxSrc = getCalyxSourceMesh(scene);
+          const stemSrc = getStemSourceMesh(scene);
+          const fruitN = ripeFruits.length;
+          // Pre-compute the largest fruit radius — clustering distance
+          // scales with it so big beefsteaks don't overlap.
+          let maxR = 0;
+          for (const fr of ripeFruits) maxR = Math.max(maxR, fr.diameterMm / 2 / 1000);
+          for (let f = 0; f < fruitN; f++) {
             const fruit = ripeFruits[f];
             const fruitMat = fruitMats[Math.min(5, fruit.ripenStage)];
+            const dia = fruit.diameterMm / 1000;
+            const radius = dia / 2;
+            const hw = fruit.cultivarGenome?.heightWidthRatio ?? 0.9;
             const fruitMesh = MeshBuilder.CreateSphere(
               `support_fruit_${seed}_${i}_${f}`,
-              { diameter: fruit.diameterMm / 1000, segments: 8 },
+              { diameter: dia, segments: 10 },
               scene
             );
             fruitMesh.parent = root;
-            // Random direction in horizontal plane + slight vertical hang.
-            const localAngle = fruitRng.next() * Math.PI * 2;
-            const localR = (fruit.diameterMm / 1000) * (0.5 + fruitRng.next() * 0.6);
-            fruitMesh.position = new Vector3(
-              cx + Math.cos(localAngle) * localR,
-              cy - fruitRng.next() * (fruit.diameterMm / 1000) * 0.5,
-              cz + Math.sin(localAngle) * localR
-            );
+            // Oblate: scale Y by H:W ratio (beefsteak ~0.72, cherry ~0.96)
+            fruitMesh.scaling = new Vector3(1, hw, 1);
+            // Evenly distributed angle (i / N · 2π) + small jitter for
+            // organic feel; radial distance scales with the largest
+            // fruit's radius so spacing is guaranteed even for big ones.
+            const baseAngle = fruitN > 1 ? (f / fruitN) * Math.PI * 2 : 0;
+            const localAngle = baseAngle + (fruitRng.next() - 0.5) * 0.6;
+            // Bring single-fruit + low-count clusters in toward the tip
+            // so they don't fly off into empty space.
+            const baseDistance = fruitN <= 1 ? 0 : Math.max(maxR * 1.15, dia * 0.5);
+            const localR = baseDistance + (fruitRng.next() - 0.5) * radius * 0.4;
+            const fx = cx + Math.cos(localAngle) * localR;
+            const fy = cy - fruitRng.next() * radius * 0.6;
+            const fz = cz + Math.sin(localAngle) * localR;
+            fruitMesh.position = new Vector3(fx, fy, fz);
             fruitMesh.material = fruitMat;
             currentMeshes.push(fruitMesh);
+
+            // Calyx instance — sits on top pole of the oblate fruit body.
+            // calyxSrc geometry is normalised; scale to per-fruit radius.
+            if (radius > 0.003) {
+              const calyxInst = calyxSrc.createInstance(`support_calyx_${seed}_${i}_${f}`);
+              calyxInst.parent = root;
+              calyxInst.scaling = new Vector3(radius, radius, radius);
+              // Calyx base sits at baseY=0.78 in source units; place at
+              // top pole of the oblate body (Y offset = hw * radius - radius * 0.22)
+              calyxInst.position = new Vector3(fx, fy, fz);
+              currentMeshes.push(calyxInst as unknown as Mesh);
+
+              // Stem stub instance — short cylinder above calyx
+              const stemLenM = Math.min(0.018, Math.max(0.006, radius * 0.4));
+              const stemInst = stemSrc.createInstance(`support_stem_${seed}_${i}_${f}`);
+              stemInst.parent = root;
+              stemInst.scaling = new Vector3(1, stemLenM, 1);
+              stemInst.position = new Vector3(
+                fx,
+                fy + radius * hw * 0.95 + stemLenM / 2,
+                fz,
+              );
+              currentMeshes.push(stemInst as unknown as Mesh);
+            }
           }
         }
       }

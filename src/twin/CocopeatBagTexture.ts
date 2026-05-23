@@ -59,9 +59,12 @@ function makeCanvas(w: number, h: number): {
   ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
   toBytes: () => Uint8Array;
 } {
+  // willReadFrequently=true hints the browser to keep the canvas backing
+  // store CPU-side, so the subsequent getImageData() doesn't trigger a
+  // GPU↔CPU readback every call (we draw + immediately read).
   if (typeof OffscreenCanvas !== 'undefined') {
     const can = new OffscreenCanvas(w, h);
-    const ctx = can.getContext('2d');
+    const ctx = can.getContext('2d', { willReadFrequently: true } as CanvasRenderingContext2DSettings);
     if (!ctx) throw new Error('No 2D context on OffscreenCanvas');
     return {
       ctx,
@@ -71,7 +74,7 @@ function makeCanvas(w: number, h: number): {
   const can = document.createElement('canvas');
   can.width = w;
   can.height = h;
-  const ctx = can.getContext('2d');
+  const ctx = can.getContext('2d', { willReadFrequently: true });
   if (!ctx) throw new Error('No 2D context on HTMLCanvasElement');
   return {
     ctx,

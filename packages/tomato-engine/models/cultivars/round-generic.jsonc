@@ -1,0 +1,51 @@
+// Round tomato — generic profile (literature-based).
+// Mid-size ~130g, ~4 locules, mildly oblate.
+
+{
+  "metadata": {
+    "name": "round-generic",
+    "type": "round",
+    "source": "literature",
+    "references": ["Heuvelink 1996", "PMC10482247"]
+  },
+
+  "phenology": {
+    "GDD_to_first_flower": 250,
+    "GDD_per_truss": 120,
+    "GDD_flower_to_red": 800,
+    "cellDivisionDurationGDD": 150,
+    "cellExpansionDurationGDD": 500,
+    "ripeningDurationGDD": 200,
+    "trussRipeningSpreadGDD": 90
+  },
+
+  "flowersPerTruss": { "mu": 6, "sigma": 1.5 },
+  "fruitSetRate": 0.6,
+  "potentialFruitMassG": { "mu": 130, "sigma": 25 },
+
+  "morphology": {
+    "loculeCount": { "mu": 4.0, "sigma": 0.8 },
+    "heightWidthRatio": { "mu": 0.9, "sigma": 0.05 },
+    "ribbingStrength": { "mu": 0.18, "sigma": 0.08 },
+    "asymmetryStrength": 0.08,
+    "blossomEndAdvanceFrac": { "mu": 0.45, "sigma": 0.1 }
+  },
+
+  "color": {
+    "fullRipeRGB": [205, 35, 28],
+    "greenStageRGB": [40, 120, 35],
+    "hueVariance": 0.05
+  },
+
+  "pruning": {
+    "defoliationAggressiveness": 0.35,
+    "trussTargetFruitCount": 5
+  },
+
+  "physiology": {
+    "SLA_m2_per_g": 0.028,
+    "sinkStrength": { "leaf": 0.35, "stem": 0.15, "root": 0.07 },
+    "gompertzRateB": 0.06,
+    "gompertzInflectionC": 0.45
+  }
+}

@@ -1,8 +1,216 @@
 import { create } from 'zustand';
 import type { PresetView } from '../twin/CameraRig';
 import { SCENARIO } from '../data/mockScenario';
+import { QUALITY_PRESETS, RENDER_FX_DEFAULTS } from '../twin/RenderQuality';
 
 export type CompareMode = 'off' | 'yesterday' | '7days';
+
+/** Top-level app mode — drives which scene/layout is mounted. */
+export type AppMode = 'lobby' | 'greenhouse' | 'single-plant' | 'robot' | 'sandbox';
+
+/** Output variables the Single-Plant TimelineChart can plot. */
+export type SinglePlantChartVar =
+  | 'TT' | 'LAI' | 'W' | 'W_f' | 'W_m' | 'HI' | 'N' | 'heightCm'
+  | 'PAR_now' | 'T_now';
+
+export const SINGLE_PLANT_CHART_VARS: { id: SinglePlantChartVar; label: string; unit: string }[] = [
+  { id: 'TT', label: 'Thermal time', unit: '°C·d' },
+  { id: 'LAI', label: 'Leaf area index', unit: 'm²/m²' },
+  { id: 'W', label: 'Plant DM', unit: 'g DM' },
+  { id: 'W_f', label: 'Fruit DM', unit: 'g DM' },
+  { id: 'W_m', label: 'Mature fruit DM', unit: 'g DM' },
+  { id: 'HI', label: 'Harvest index', unit: '–' },
+  { id: 'N', label: 'Node count', unit: 'nodes' },
+  { id: 'heightCm', label: 'Height', unit: 'cm' },
+  { id: 'PAR_now', label: 'PAR (instant.)', unit: 'μmol/m²/s' },
+  { id: 'T_now', label: 'Air temp (instant.)', unit: '°C' },
+];
+
+const VALID_MODES: AppMode[] = ['lobby', 'greenhouse', 'single-plant', 'robot', 'sandbox'];
+
+function readModeFromHash(): AppMode {
+  if (typeof window === 'undefined') return 'lobby';
+  const h = window.location.hash.replace(/^#/, '');
+  return (VALID_MODES as string[]).includes(h) ? (h as AppMode) : 'lobby';
+}
+
+export type ToneMappingMode = 'aces' | 'standard' | 'none';
+export type LightingPresetName = 'default' | 'golden' | 'overcast' | 'noon-bright' | 'grow-light';
+
+/**
+ * Render-quality level (1..10). Drives the entire post-FX stack, shadow
+ * resolution, MSAA samples, hardware scale, plant density. Default = 10
+ * (Showpiece) — see plan a-drifting-wigderson.md.
+ */
+export type ShadowFilterKind =
+  | 'none' | 'hard' | 'pcf-lo' | 'pcf-med' | 'pcf-hi' | 'pcss' | 'pcss-contact';
+
+export interface RenderFXState {
+  shadowResolution: number;     // 0 = OFF, else 512/1024/2048/4096/8192
+  shadowFilter: ShadowFilterKind;
+  msaaSamples: number;          // 1/2/4/8
+  hardwareScale: number;        // 0.5..1.5 (display×; engine inverts internally)
+
+  // Advanced post-FX (instantiated when true)
+  taaEnabled: boolean;
+  ssrEnabled: boolean;
+  dofEnabled: boolean;
+  godRaysEnabled: boolean;
+  motionBlurEnabled: boolean;
+  colorLutEnabled: boolean;
+  chromaticAberrationEnabled: boolean;
+  grainEnabled: boolean;
+  glowLayerEnabled: boolean;
+  lensFlareEnabled: boolean;
+
+  // SSAO sample density (8/16/24/32)
+  ssaoSamples: number;
+
+  // Leaf subsurface translucency strength (0..1)
+  leafSSSIntensity: number;
+
+  // Number of beds to populate with tomato plants (1/2/3/4/6/8/13)
+  activeBedCount: number;
+}
+
+export interface LightingState {
+  // Time
+  manualHour: number;
+
+  // Sun
+  sunIntensity: number;
+  sunColorHex: string;
+
+  // Ambient
+  hemiIntensity: number;
+  hemiColorHex: string;
+  hemiGroundColorHex: string;
+  hdriIntensity: number;
+  ambientGray: number;
+
+  // Shadows
+  shadowsEnabled: boolean;
+  shadowDarkness: number;
+  shadowBias: number;
+  shadowNormalBias: number;
+
+  // Tone mapping
+  exposure: number;
+  contrast: number;
+  toneMapping: ToneMappingMode;
+
+  // Post-FX
+  bloomEnabled: boolean;
+  bloomThreshold: number;
+  bloomWeight: number;
+  vignetteEnabled: boolean;
+  vignetteWeight: number;
+  sharpenEnabled: boolean;
+  sharpenEdge: number;
+  ssaoEnabled: boolean;
+  ssaoStrength: number;
+  ssaoRadius: number;
+}
+
+// Defaults mirror SceneSetup.ts hardcoded values so toggling between
+// "default" preset and the boot state is a no-op.
+export const LIGHTING_DEFAULTS: LightingState = {
+  manualHour: 12,
+
+  sunIntensity: 3.2,
+  sunColorHex: '#fff6d8',
+
+  hemiIntensity: 0.55,
+  hemiColorHex: '#e8e4d8',
+  hemiGroundColorHex: '#3a3530',
+  hdriIntensity: 0.6,
+  ambientGray: 0.22,
+
+  shadowsEnabled: true,
+  shadowDarkness: 0,
+  shadowBias: 0.002,
+  shadowNormalBias: 0.02,
+
+  exposure: 1.0,
+  contrast: 1.1,
+  toneMapping: 'aces',
+
+  bloomEnabled: true,
+  bloomThreshold: 0.85,
+  bloomWeight: 0.3,
+  vignetteEnabled: true,
+  vignetteWeight: 1.6,
+  sharpenEnabled: true,
+  sharpenEdge: 0.2,
+  ssaoEnabled: true,
+  ssaoStrength: 1.1,
+  ssaoRadius: 0.6,
+};
+
+const LIGHTING_PRESETS: Record<LightingPresetName, Partial<LightingState>> = {
+  default: LIGHTING_DEFAULTS,
+  golden: {
+    manualHour: 17,
+    sunIntensity: 2.8,
+    sunColorHex: '#ffb87a',
+    hemiIntensity: 0.4,
+    hemiColorHex: '#ffd9a8',
+    hemiGroundColorHex: '#3a2a20',
+    hdriIntensity: 0.55,
+    exposure: 1.1,
+    contrast: 1.15,
+    bloomEnabled: true,
+    bloomThreshold: 0.7,
+    bloomWeight: 0.5,
+    vignetteEnabled: true,
+    vignetteWeight: 2.4,
+  },
+  overcast: {
+    manualHour: 12,
+    sunIntensity: 1.2,
+    sunColorHex: '#dde6ee',
+    hemiIntensity: 0.95,
+    hemiColorHex: '#dde6ee',
+    hemiGroundColorHex: '#3a3a3a',
+    hdriIntensity: 0.85,
+    exposure: 1.0,
+    contrast: 0.95,
+    bloomEnabled: false,
+    vignetteEnabled: true,
+    vignetteWeight: 0.8,
+  },
+  'noon-bright': {
+    manualHour: 12,
+    sunIntensity: 4.2,
+    sunColorHex: '#fffbe8',
+    hemiIntensity: 0.65,
+    hemiColorHex: '#eee8d8',
+    hemiGroundColorHex: '#3a3530',
+    hdriIntensity: 0.7,
+    exposure: 1.05,
+    contrast: 1.15,
+    bloomEnabled: true,
+    bloomThreshold: 0.88,
+    bloomWeight: 0.35,
+  },
+  'grow-light': {
+    manualHour: 22,
+    sunIntensity: 0.1,
+    sunColorHex: '#1a2030',
+    hemiIntensity: 1.4,
+    hemiColorHex: '#ff64b4',
+    hemiGroundColorHex: '#180920',
+    hdriIntensity: 0.05,
+    ambientGray: 0.05,
+    exposure: 1.1,
+    contrast: 1.3,
+    bloomEnabled: true,
+    bloomThreshold: 0.5,
+    bloomWeight: 0.7,
+    vignetteEnabled: true,
+    vignetteWeight: 2.6,
+  },
+};
 
 export interface InteractionPoint {
   position: [number, number, number];
@@ -10,6 +218,105 @@ export interface InteractionPoint {
   strength: number;
   age: number;       // seconds since spawn; expires when age > lifetime
   lifetime: number;  // seconds
+}
+
+// -----------------------------------------------------------------------
+// Boot progress + alerts + live log + env (plan a-drifting-wigderson.md)
+// -----------------------------------------------------------------------
+
+export type BootStage =
+  | 'init'          // 처음 진입 (마운트 직후)
+  | 'engine'        // WebGPU/WebGL2 엔진 생성
+  | 'setup'         // SceneSetup — IBL, SSAO, 환경 텍스처
+  | 'greenhouse'    // 베드 + 인프라 메쉬
+  | 'plants'        // 식물 등록 + 메쉬 빌드 (가장 오래 걸림)
+  | 'quality'       // ShadowGen 8192 + 포스트프로세싱
+  | 'shaders'       // 첫 프레임 셰이더 컴파일
+  | 'ready';        // 첫 프레임 렌더 완료
+
+export const BOOT_STAGES: BootStage[] = [
+  'init', 'engine', 'setup', 'greenhouse', 'plants', 'quality', 'shaders', 'ready',
+];
+
+export interface StageInfo {
+  startedAt: number | null;   // performance.now(), null = 아직 진입 안 함
+  completedAt: number | null; // null = 진행중/대기중, number = 완료
+  detail: string;             // "230/720 메쉬 생성중"
+  progress: number;           // 0..1
+  subCounters?: Array<{ label: string; value: number | string }>;
+}
+
+export type LiveLogLevel = 'log' | 'info' | 'warn' | 'error';
+
+export interface LiveLogEntry {
+  id: number;        // 단조 증가 카운터 (React key + 중복 방지)
+  ts: number;        // performance.now()
+  level: LiveLogLevel;
+  stage: BootStage;
+  message: string;
+}
+
+export type NotificationLevel = 'info' | 'warn' | 'error';
+
+export interface Notification {
+  id: string;
+  level: NotificationLevel;
+  title: string;
+  body?: string;
+  stack?: string;       // error 만
+  createdAt: number;    // Date.now()
+  dismissed: boolean;
+}
+
+export interface EnvInfo {
+  backend: 'webgpu' | 'webgl2' | 'unknown';
+  gpuDevice: string;
+  viewport: { w: number; h: number };
+  dpr: number;
+  counters: {
+    meshes: number;
+    triangles: number;
+    textures: number;
+    materials: number;
+    memoryMB: number | null;
+  };
+}
+
+export interface BootSnapshot {
+  currentStage: BootStage;
+  startedAt: number;
+  stages: Record<BootStage, StageInfo>;
+  /** 시간순 라이브 로그 — 100줄 max, 오래된 것부터 잘림. */
+  liveLog: LiveLogEntry[];
+  env: EnvInfo;
+  /** 'shaders' 단계용 ETA 추정 (이전 stage 들 평균에서) — null = 미측정. */
+  etaSecondsMin: number | null;
+  etaSecondsMax: number | null;
+  /** 한 번이라도 'ready' 도달했는지. 첫 부팅 완료 후 영구 true.
+   *  BootOverlay 는 이 값이 false 일 때만 풀스크린 표시 — 이후의
+   *  모드 전환 / 카메라 조작 / 시뮬레이션 trigger 로 stage 가 바뀌어도
+   *  로딩창은 다시 안 뜸 (사용자 의도). */
+  hasEverReached: boolean;
+}
+
+const MAX_LIVE_LOG = 100;
+const MAX_NOTIFICATIONS = 16;
+
+function emptyStageInfo(): StageInfo {
+  return { startedAt: null, completedAt: null, detail: '', progress: 0 };
+}
+
+function emptyBootStages(): Record<BootStage, StageInfo> {
+  return {
+    init: emptyStageInfo(),
+    engine: emptyStageInfo(),
+    setup: emptyStageInfo(),
+    greenhouse: emptyStageInfo(),
+    plants: emptyStageInfo(),
+    quality: emptyStageInfo(),
+    shaders: emptyStageInfo(),
+    ready: emptyStageInfo(),
+  };
 }
 
 interface TwinState {
@@ -81,6 +388,22 @@ interface TwinState {
   consoleExpanded: boolean;
   toggleConsole: () => void;
 
+  // Lighting — every value above the "current scene's" hardcoded default
+  // is exposed for the 조명 sidebar tab. BabylonEngine.subscribe applies
+  // changes immediately on each frame's render setup.
+  lighting: LightingState;
+  setLighting: (patch: Partial<LightingState>) => void;
+  resetLighting: () => void;
+  applyLightingPreset: (name: LightingPresetName) => void;
+
+  // Render-quality slider. 1..10 — 10 is the Babylon-web ceiling
+  // (every post-FX on, 8192 PCSS shadows, 1.5× SSAA, full 13-bed
+  // plant fill). See RenderQuality.ts for the preset table.
+  renderQuality: number;
+  renderFX: RenderFXState;
+  setRenderQuality: (level: number) => void;
+  setRenderFX: (patch: Partial<RenderFXState>) => void;
+
   setDay: (day: number) => void;
   togglePlay: () => void;
   setPlaySpeed: (speed: number) => void;
@@ -96,10 +419,90 @@ interface TwinState {
   toggleFov: () => void;
 
   setCameraPreset: (preset: PresetView) => void;
+
+  // -- App mode (top-level routing) --
+  mode: AppMode;
+  setMode: (mode: AppMode) => void;
+
+  // -- Single-Plant Analysis mode state --
+  /** Current scrub position in minutes since transplant (0 .. 120*24*60). */
+  singlePlantMinute: number;
+  /** Auto-playback toggle for the single-plant timeline. */
+  singlePlantPlaying: boolean;
+  /** Playback speed multiplier. */
+  singlePlantSpeed: 1 | 4 | 24;
+  /** Which output variable the TimelineChart graphs as the y-axis. */
+  singlePlantChartVar: SinglePlantChartVar;
+  /** History window for the TimelineChart. */
+  singlePlantChartWindow: '1d' | '7d' | '30d' | 'all';
+  /** Camera preset in the single-plant viewport. */
+  singlePlantCamera: 'free' | 'truss' | 'fruit' | 'top';
+  /** Which inspector sections are expanded. */
+  singlePlantInspectorOpen: {
+    cultivar: boolean;
+    state: boolean;
+    truss: boolean;
+    phenology: boolean;
+    genome: boolean;
+  };
+  setSinglePlantMinute: (m: number) => void;
+  setSinglePlantPlaying: (p: boolean) => void;
+  setSinglePlantSpeed: (s: 1 | 4 | 24) => void;
+  setSinglePlantChartVar: (v: SinglePlantChartVar) => void;
+  setSinglePlantChartWindow: (w: '1d' | '7d' | '30d' | 'all') => void;
+  setSinglePlantCamera: (c: 'free' | 'truss' | 'fruit' | 'top') => void;
+  toggleSinglePlantInspector: (key: 'cultivar' | 'state' | 'truss' | 'phenology' | 'genome') => void;
+
+  // -- Boot progress + notifications + live log + env --
+  boot: BootSnapshot;
+  notifications: Notification[];
+  /** 우하단 corner spinner — 300ms+ 걸리는 작업 (시뮬 점프 등) 표시 */
+  busy: { active: boolean; message?: string };
+  setBusy: (active: boolean, message?: string) => void;
+  /** 단계 진입. 이전 단계는 자동으로 completedAt 채움. */
+  setBootStage: (stage: BootStage, detail?: string, progress?: number) => void;
+  /** 현재 단계의 detail / progress / subCounters 갱신 (단계 변경 없음). */
+  updateStageDetail: (
+    detail: string,
+    progress?: number,
+    subCounters?: StageInfo['subCounters'],
+  ) => void;
+  /** 라이브 로그 push. */
+  logBoot: (level: LiveLogLevel, message: string) => void;
+  /** 환경 카운터 일괄 갱신 (메쉬/삼각형/텍스처/머티리얼/메모리). */
+  setEnvCounters: (counters: Partial<EnvInfo['counters']>) => void;
+  /** 환경 정보 (백엔드, GPU 장치, viewport) 갱신. */
+  setEnvInfo: (patch: Partial<Omit<EnvInfo, 'counters'>>) => void;
+  /** ETA 표시 갱신. */
+  setBootEta: (min: number | null, max: number | null) => void;
+  /** 알림 추가. id 가 이미 있으면 본문 갱신 + dismissed=false (중복 제거). */
+  pushNotification: (n: Omit<Notification, 'createdAt' | 'dismissed'>) => void;
+  /** 알림 닫기 (id 로). */
+  dismissNotification: (id: string) => void;
+  /** 모든 알림 닫기. */
+  clearNotifications: () => void;
 }
 
+/**
+ * Read `?quality=N` from the URL (1..10) so a test/demo run can boot at
+ * a different level than the default (e.g. ?quality=1 for a quick low-
+ * cost smoke check that doesn't melt SwiftShader in headless Playwright).
+ * Returns null when the param is missing or invalid — caller falls back
+ * to the regular default.
+ */
+function readQualityFromUrl(): number | null {
+  if (typeof window === 'undefined') return null;
+  const raw = new URLSearchParams(window.location.search).get('quality');
+  if (raw == null) return null;
+  const n = parseInt(raw, 10);
+  if (!Number.isFinite(n)) return null;
+  return Math.max(1, Math.min(10, n));
+}
+
+const BOOT_QUALITY = readQualityFromUrl() ?? 9;
+
 export const useTwinStore = create<TwinState>((set) => ({
-  currentDay: 75,
+  currentDay: 100,
   playing: false,
   playSpeed: 1,
 
@@ -167,6 +570,29 @@ export const useTwinStore = create<TwinState>((set) => ({
   consoleExpanded: false,
   toggleConsole: () => set((s) => ({ consoleExpanded: !s.consoleExpanded })),
 
+  lighting: { ...LIGHTING_DEFAULTS, ...QUALITY_PRESETS[BOOT_QUALITY].lightingPatch },
+  setLighting: (patch) => set((s) => ({ lighting: { ...s.lighting, ...patch } })),
+  resetLighting: () => set({ lighting: { ...LIGHTING_DEFAULTS } }),
+  applyLightingPreset: (name) =>
+    set({ lighting: { ...LIGHTING_DEFAULTS, ...LIGHTING_PRESETS[name] } }),
+
+  // Render quality — default Lv 9 (Extreme). Override at boot via
+  // ?quality=N (1..10) in the URL — useful for headless-test screenshots
+  // and verifying lower-cost paths without touching the source.
+  renderQuality: BOOT_QUALITY,
+  renderFX: { ...QUALITY_PRESETS[BOOT_QUALITY].fx },
+  setRenderQuality: (level) => {
+    const lv = Math.max(1, Math.min(10, Math.round(level)));
+    const preset = QUALITY_PRESETS[lv];
+    set((s) => ({
+      renderQuality: lv,
+      renderFX: { ...preset.fx },
+      lighting: { ...s.lighting, ...preset.lightingPatch },
+    }));
+  },
+  setRenderFX: (patch) =>
+    set((s) => ({ renderFX: { ...s.renderFX, ...patch } })),
+
   setDay: (day) =>
     set({
       currentDay: Math.max(0, Math.min(SCENARIO.durationDays, day)),
@@ -185,4 +611,177 @@ export const useTwinStore = create<TwinState>((set) => ({
   toggleFov: () => set((s) => ({ fovVisible: !s.fovVisible })),
 
   setCameraPreset: (preset) => set({ cameraPreset: preset }),
+
+  // -- App mode --
+  mode: readModeFromHash(),
+  setMode: (mode) => {
+    set({ mode });
+    if (typeof window !== 'undefined') {
+      const newHash = `#${mode}`;
+      if (window.location.hash !== newHash) {
+        window.location.hash = newHash;
+      }
+    }
+  },
+
+  // -- Single-Plant mode --
+  // Default scrub: day 45 noon — mid-growth, multiple trusses active,
+  // good showcase for the timeline / inspector.
+  singlePlantMinute: 45 * 24 * 60 + 12 * 60,
+  singlePlantPlaying: false,
+  singlePlantSpeed: 4,
+  singlePlantChartVar: 'LAI',
+  singlePlantChartWindow: '7d',
+  singlePlantCamera: 'free',
+  singlePlantInspectorOpen: { cultivar: true, state: true, truss: true, phenology: true, genome: false },
+  setSinglePlantMinute: (m) =>
+    set({ singlePlantMinute: Math.max(0, Math.min(120 * 24 * 60 - 1, Math.round(m))) }),
+  setSinglePlantPlaying: (p) => set({ singlePlantPlaying: p }),
+  setSinglePlantSpeed: (s) => set({ singlePlantSpeed: s }),
+  setSinglePlantChartVar: (v) => set({ singlePlantChartVar: v }),
+  setSinglePlantChartWindow: (w) => set({ singlePlantChartWindow: w }),
+  setSinglePlantCamera: (c) => set({ singlePlantCamera: c }),
+  toggleSinglePlantInspector: (key) =>
+    set((s) => ({
+      singlePlantInspectorOpen: { ...s.singlePlantInspectorOpen, [key]: !s.singlePlantInspectorOpen[key] },
+    })),
+
+  // -- Boot progress + notifications + live log + env --
+  boot: {
+    currentStage: 'init',
+    startedAt: typeof performance !== 'undefined' ? performance.now() : 0,
+    stages: (() => {
+      const s = emptyBootStages();
+      // 'init' 은 마운트 직후 진입 — startedAt 미리 채움
+      s.init.startedAt = typeof performance !== 'undefined' ? performance.now() : 0;
+      return s;
+    })(),
+    liveLog: [],
+    env: {
+      backend: 'unknown',
+      gpuDevice: '',
+      viewport: { w: 0, h: 0 },
+      dpr: typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1,
+      counters: { meshes: 0, triangles: 0, textures: 0, materials: 0, memoryMB: null },
+    },
+    etaSecondsMin: null,
+    etaSecondsMax: null,
+    hasEverReached: false,
+  },
+  notifications: [],
+  busy: { active: false },
+  setBusy: (active, message) => set({ busy: { active, message } }),
+
+  setBootStage: (stage, detail = '', progress = 0) =>
+    set((s) => {
+      const now = performance.now();
+      const stages = { ...s.boot.stages };
+      // 이전 단계 자동 완료 처리 — 같은 stage 가 두 번 호출돼도 startedAt 보존
+      const prevStage = s.boot.currentStage;
+      if (prevStage !== stage && stages[prevStage].startedAt && !stages[prevStage].completedAt) {
+        stages[prevStage] = {
+          ...stages[prevStage],
+          completedAt: now,
+          progress: 1,
+        };
+      }
+      // 새 단계 진입
+      stages[stage] = {
+        ...stages[stage],
+        startedAt: stages[stage].startedAt ?? now,
+        completedAt: stage === 'ready' ? now : null,
+        detail,
+        progress: stage === 'ready' ? 1 : progress,
+      };
+      const nextLog: LiveLogEntry = {
+        id: s.boot.liveLog.length > 0 ? s.boot.liveLog[s.boot.liveLog.length - 1].id + 1 : 1,
+        ts: now,
+        level: 'log',
+        stage,
+        message: detail ? `${stage}: ${detail}` : `${stage}: 진입`,
+      };
+      const liveLog = [...s.boot.liveLog, nextLog].slice(-MAX_LIVE_LOG);
+      // Sticky 'ready' bit — once true, BootOverlay 풀스크린은 영구 숨김
+      const hasEverReached = s.boot.hasEverReached || stage === 'ready';
+      return {
+        boot: { ...s.boot, currentStage: stage, stages, liveLog, hasEverReached },
+      };
+    }),
+
+  updateStageDetail: (detail, progress, subCounters) =>
+    set((s) => {
+      const stages = { ...s.boot.stages };
+      const cur = s.boot.currentStage;
+      stages[cur] = {
+        ...stages[cur],
+        detail,
+        progress: progress != null ? progress : stages[cur].progress,
+        subCounters: subCounters ?? stages[cur].subCounters,
+      };
+      return { boot: { ...s.boot, stages } };
+    }),
+
+  logBoot: (level, message) =>
+    set((s) => {
+      const nextId = s.boot.liveLog.length > 0
+        ? s.boot.liveLog[s.boot.liveLog.length - 1].id + 1
+        : 1;
+      const entry: LiveLogEntry = {
+        id: nextId,
+        ts: performance.now(),
+        level,
+        stage: s.boot.currentStage,
+        message,
+      };
+      const liveLog = [...s.boot.liveLog, entry].slice(-MAX_LIVE_LOG);
+      return { boot: { ...s.boot, liveLog } };
+    }),
+
+  setEnvCounters: (counters) =>
+    set((s) => ({
+      boot: { ...s.boot, env: { ...s.boot.env, counters: { ...s.boot.env.counters, ...counters } } },
+    })),
+
+  setEnvInfo: (patch) =>
+    set((s) => ({
+      boot: { ...s.boot, env: { ...s.boot.env, ...patch } },
+    })),
+
+  setBootEta: (etaSecondsMin, etaSecondsMax) =>
+    set((s) => ({ boot: { ...s.boot, etaSecondsMin, etaSecondsMax } })),
+
+  pushNotification: (n) =>
+    set((s) => {
+      const now = Date.now();
+      // 중복 id 면 기존 알림 갱신 + dismissed 해제
+      const idx = s.notifications.findIndex((x) => x.id === n.id);
+      const next: Notification = { ...n, createdAt: now, dismissed: false };
+      let arr: Notification[];
+      if (idx >= 0) {
+        arr = [...s.notifications];
+        arr[idx] = next;
+      } else {
+        arr = [...s.notifications, next].slice(-MAX_NOTIFICATIONS);
+      }
+      // 알림은 라이브 로그에도 push (부팅 중일 때 사이드 패널에 보이도록)
+      const nextId = s.boot.liveLog.length > 0
+        ? s.boot.liveLog[s.boot.liveLog.length - 1].id + 1
+        : 1;
+      const logEntry: LiveLogEntry = {
+        id: nextId,
+        ts: performance.now(),
+        level: n.level,
+        stage: s.boot.currentStage,
+        message: n.body ? `${n.title} — ${n.body}` : n.title,
+      };
+      const liveLog = [...s.boot.liveLog, logEntry].slice(-MAX_LIVE_LOG);
+      return { notifications: arr, boot: { ...s.boot, liveLog } };
+    }),
+
+  dismissNotification: (id) =>
+    set((s) => ({
+      notifications: s.notifications.map((n) => (n.id === id ? { ...n, dismissed: true } : n)),
+    })),
+
+  clearNotifications: () => set({ notifications: [] }),
 }));

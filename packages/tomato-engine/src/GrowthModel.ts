@@ -3,6 +3,9 @@
 
 import type { PlantGenome } from './PlantGenome';
 import { computePhysics } from './PhysicsModel';
+import type { Cultivar } from './Cultivar';
+import { sampleCultivarGenome, getCultivar } from './Cultivar';
+import { SeededRandom } from './SeededRandom';
 
 export const TOTAL_DAYS = 120;
 
@@ -37,6 +40,15 @@ export interface FruitState {
   ripenFraction: number;
   color: [number, number, number];
   age: number;
+  /** Per-fruit morphology + color variance sample, drawn from the
+   *  plant's cultivar distribution at first fruit appearance. Carries
+   *  locule count, H:W ratio, ribbing strength, asymmetry RNG seed,
+   *  surface-mottle RNG seed, ripeningSpeedFactor, and blossom-end
+   *  advance fraction. Used by the visual layer (FruitGenerator) to
+   *  individualize geometry and per-vertex color — different shape
+   *  and surface for every single fruit.
+   *  Optional for back-compat with code paths that pre-date Phase 4. */
+  cultivarGenome?: import('./Cultivar').CultivarSample;
 }
 
 export interface FlowerState {
@@ -102,6 +114,113 @@ export interface PlantStressInputs {
   diseaseLoad?: number;
 }
 
+/**
+ * Overlay a TOMGRO physiology-derived fruit set onto a sigmoid PlantState.
+ *
+ * The sigmoid PlantState already carries the full plant structure
+ * (nodes / leaves / stem / truss attachment positions). What we replace
+ * is the *fruit content* of each truss — TOMGRO's per-fruit diameter,
+ * ripening stage, color, and cultivarGenome — so the visual matches
+ * the academic model. Result: fruit ripening transitions visibly in
+ * 1-minute steps in single-plant mode.
+ *
+ * Trusses are matched by index (truss 0 of physiology → first non-null
+ * truss of base PlantState). Bases without a matching physiology truss
+ * keep their sigmoid fruits.
+ *
+ * Used by Single-Plant Analysis mode (ShowcasePlant.update receives
+ * the optional physiology parameter).
+ */
+export function overlayPhysiologyFruits(
+  base: PlantState,
+  physiology: import('./CoreModel').PlantPhysiologyState,
+): PlantState {
+  // Locate every truss-bearing node in the base state, in order.
+  const baseTrussNodes = base.nodes.filter((n) => n.truss !== null);
+
+  // --- Leaf size scaling (Phase 4 second half) ---
+  // The sigmoid PlantState's leaves at e.g. Day 105 look sparse compared
+  // to what the TOMGRO model says the canopy LAI should be (3.22 vs
+  // sigmoid's much smaller implicit area). Scale every leaf node's
+  // leafSizeFactor + leafAreaCm2 so the visible total matches
+  // physiology.LAI · plantFootprintM2.
+  let currentLeafAreaCm2 = 0;
+  for (const n of base.nodes) {
+    if (!n.truss) currentLeafAreaCm2 += n.leafAreaCm2 * (1 - n.yellowing);
+  }
+  // physiology.LAI is m²/m² over the plant's footprint (default 0.4 m²
+  // for K-smartfarm). Total leaf area target in cm²:
+  const targetLeafAreaCm2 = physiology.LAI * 0.4 * 10000;
+  const areaScale = currentLeafAreaCm2 > 1
+    ? targetLeafAreaCm2 / currentLeafAreaCm2
+    : 1;
+  // Linear (radius) scale = √(area scale). Cap at 3× to avoid
+  // pathological huge leaves if sigmoid is very sparse early on.
+  const linearScale = Math.min(3.0, Math.max(0.5, Math.sqrt(areaScale)));
+
+  const newNodes = base.nodes.map((node) => {
+    // Scale leaves on ALL nodes (truss + non-truss alike — leaves
+    // grow on truss nodes too in tomato anatomy).
+    const scaledNode = {
+      ...node,
+      leafSizeFactor: node.leafSizeFactor * linearScale,
+      leafAreaCm2: node.leafAreaCm2 * (linearScale * linearScale),
+    };
+    if (!node.truss) return scaledNode;
+    const baseTrussIdx = baseTrussNodes.indexOf(node);
+    const physTruss = physiology.trusses[baseTrussIdx];
+    if (!physTruss) return scaledNode;
+
+    // Map physiology fruits → FruitState. Filter out aborted fruits.
+    const liveFruits = physTruss.fruits.filter((f) => !f.aborted && f.fertilizationTT > 0);
+    const newFruitsState: FruitState[] = liveFruits.map((f, i) => {
+      // Interpolate stage color from base palette (STAGE_COLORS).
+      const stageIdx = Math.max(0, Math.min(5, f.ripenStage));
+      const c1 = STAGE_COLORS[stageIdx];
+      const c2 = STAGE_COLORS[Math.min(5, stageIdx + 1)];
+      const color = lerpColor(c1, c2, f.ripenFraction);
+      return {
+        index: i,
+        diameterMm: f.diameter,
+        ripenStage: f.ripenStage,
+        ripenFraction: f.ripenFraction,
+        color,
+        age: 0,
+        cultivarGenome: f.genome,
+      };
+    });
+
+    return {
+      ...scaledNode,
+      truss: {
+        flowers: node.truss.flowers,   // keep sigmoid flowers (no physiology data)
+        fruits: newFruitsState,
+      },
+    };
+  });
+
+  // Roll-up plant-level counts from the overlaid trusses.
+  let totalFruits = 0;
+  let maxRipenStage = 0;
+  for (const n of newNodes) {
+    if (!n.truss) continue;
+    for (const f of n.truss.fruits) {
+      totalFruits++;
+      if (f.ripenStage > maxRipenStage) maxRipenStage = f.ripenStage;
+    }
+  }
+
+  return {
+    ...base,
+    nodes: newNodes,
+    heightCm: physiology.heightCm,    // height from TOMGRO
+    nodeCount: physiology.N,
+    trussCount: physiology.trusses.length,
+    totalFruits,
+    maxRipenStage,
+  };
+}
+
 function lerpColor(c1: [number, number, number], c2: [number, number, number], t: number): [number, number, number] {
   t = Math.max(0, Math.min(1, t));
   return [
@@ -116,7 +235,8 @@ const GOLDEN_ANGLE = 137.508; // degrees
 export function computePlantState(
   day: number,
   genome: PlantGenome,
-  stress: PlantStressInputs = {}
+  stress: PlantStressInputs = {},
+  cultivar: Cultivar = getCultivar('round-generic'),
 ): PlantState {
   const waterStress = Math.max(0, Math.min(1, stress.waterStress ?? 0));
   const diseaseLoad = Math.max(0, Math.min(1, stress.diseaseLoad ?? 0));
@@ -306,7 +426,25 @@ export function computePlantState(
               const c2 = STAGE_COLORS[Math.min(5, ripenStage + 1)];
               const color = lerpColor(c1, c2, ripenFraction);
 
-              fruits.push({ index: f, diameterMm, ripenStage, ripenFraction, color, age: fruitAge });
+              // Per-fruit cultivar sample (deterministic from genome.seed
+              // + truss node index + fruit index). This is what
+              // FruitGenerator reads to individualize geometry/color.
+              const fruitGenomeRng = new SeededRandom(
+                genome.seed * 7919 + i * 131 + f * 31 + 0x9e377,
+              );
+              // warm up
+              fruitGenomeRng.next(); fruitGenomeRng.next(); fruitGenomeRng.next();
+              const cultivarSample = sampleCultivarGenome(cultivar, () => fruitGenomeRng.next());
+
+              fruits.push({
+                index: f,
+                diameterMm,
+                ripenStage,
+                ripenFraction,
+                color,
+                age: fruitAge,
+                cultivarGenome: cultivarSample,
+              });
               totalFruits++;
               if (ripenStage > maxRipenStage) maxRipenStage = ripenStage;
 

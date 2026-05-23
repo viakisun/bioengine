@@ -13,6 +13,7 @@ export default defineConfig({
   },
   server: {
     port: 8090,
+    strictPort: true,  // fail loudly if 8090 is taken instead of silently bumping to 8091+
     open: false,
   },
   build: {

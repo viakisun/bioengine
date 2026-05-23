@@ -7,7 +7,7 @@ export interface TabItem<T extends string = string> {
 
 interface TabStripProps<T extends string> {
   items: ReadonlyArray<TabItem<T>>;
-  active: T;
+  active: T | null;
   onSelect: (id: T) => void;
   className?: string;
 }
