@@ -340,12 +340,12 @@ export function createFruitNode(
 }
 
 // ---------------------------------------------------------------------------
-// Harvest pose anchors (Phase 6 — 4-keypoint anchor API per Wageningen
-// ScienceDirect 2023 standard). Exposed for downstream harvest-robot
-// simulation. The fruit center sits at the TransformNode origin; calyx
-// at radius·0.95 above it; AZ ~10 mm above that (mid stem stub);
-// branching point is the parent peduncle's attachment point (caller
-// resolves via parent transforms).
+// Harvest pose anchors — 4-keypoint API (Wageningen ScienceDirect 2023).
+// Downstream harvest-robot simulators read these to plan grasp + cut.
+//   - fruitCenter: body geometric center
+//   - calyxCenter: where the green sepals sit (just above body top pole)
+//   - abscissionZone: mid-pedicel joint (the AZ — robot's cut target)
+//   - branchingPoint: where this fruit's pedicel meets the truss rachis
 // ---------------------------------------------------------------------------
 
 export interface HarvestPoseAnchors {
@@ -353,32 +353,38 @@ export interface HarvestPoseAnchors {
   fruitCenter: Vector3;
   /** Calyx center (where the green star sits). */
   calyxCenter: Vector3;
-  /** Abscission zone (mid-pedicel joint). */
+  /** Abscission zone (mid-pedicel joint — the cut target). */
   abscissionZone: Vector3;
   /** Caller-supplied branching point on the truss peduncle. */
   branchingPoint: Vector3;
 }
 
+/**
+ * Compute the 4 keypoints for a fruit's harvest pose. Offsets are
+ * derived from the fruit's actual radius (so cherry/beefsteak both
+ * resolve correctly). The caller provides the branching point on the
+ * truss rachis since the fruit node has no reference to its sibling
+ * peduncle root.
+ */
 export function computeHarvestPoseAnchors(
   fruitNode: TransformNode,
+  fruit: FruitState,
   branchingPoint: Vector3,
 ): HarvestPoseAnchors {
   const center = fruitNode.getAbsolutePosition().clone();
-  const radiusM = ((fruitNode.scaling?.x) ?? 1) * 0; // scaling lives on body child, not root
-  // We approximate calyx + AZ offsets along the local +Y axis. The
-  // fruit's TransformNode preserves its parent's rotation, so we can
-  // sample via the world matrix.
+  const radiusM = fruit.diameterMm / 2 / 1000;
+  // Local +Y of the fruit node lives in the first column of its world
+  // matrix's upper-left 3×3. We sample that to project offsets along
+  // the actual orientation of the hanging fruit (which may droop).
   const m = fruitNode.getWorldMatrix();
   const upWorld = new Vector3(m.m[4], m.m[5], m.m[6]).normalize();
-  // For exact values the caller can read .scaling from the body child
-  // and pass the per-fruit radius; here we use an internal default.
-  // Caller can override by inspecting the body mesh.
+  const stemLenM = Math.min(0.018, Math.max(0.006, radiusM * 0.4));
   return {
     fruitCenter: center,
-    calyxCenter: center.add(upWorld.scale(0.02)),     // 2cm above center
-    abscissionZone: center.add(upWorld.scale(0.04)),  // 4cm above center (mid stem)
+    // Calyx sits at the top pole of the body
+    calyxCenter: center.add(upWorld.scale(radiusM * 0.95)),
+    // AZ is mid-stem — halfway up the stem stub
+    abscissionZone: center.add(upWorld.scale(radiusM * 0.95 + stemLenM * 0.5)),
     branchingPoint: branchingPoint.clone(),
   };
-  // Note: radiusM unused; kept for future precision.
-  void radiusM;
 }

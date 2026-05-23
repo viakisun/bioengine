@@ -330,6 +330,27 @@ export function stepDaily(
       }
     }
 
+    // Pruning baseline — fruit thinning (적과).
+    //
+    // Commercial practice: once natural set + abortion are complete
+    // (signalled here by all flowers having a fertilization decision),
+    // distal fruits are removed to leave `trussTargetFruitCount` basal
+    // ones. Basal-first survival is consistent with Heuvelink 1996
+    // (TOMSIM) and Korean greenhouse extension guidance.
+    const allDecided = truss.fruits.every(
+      (f) => f.aborted || f.fertilizationTT > 0,
+    );
+    if (allDecided && cultivar.trussTargetFruitCount > 0) {
+      const live = truss.fruits.filter((f) => !f.aborted);
+      if (live.length > cultivar.trussTargetFruitCount) {
+        // sort by basal-first (lowest index wins)
+        live.sort((a, b) => a.index - b.index);
+        for (let k = cultivar.trussTargetFruitCount; k < live.length; k++) {
+          live[k].aborted = true;
+        }
+      }
+    }
+
     // Update live fruit count
     truss.fruitCount = truss.fruits.filter((f) => !f.aborted && f.fertilizationTT > 0).length;
   }
@@ -377,8 +398,13 @@ export function stepDaily(
 
     // Update plant compartments
     state.W += newDM;
-    // LAI grows from leaf DM via cultivar.SLA (m²/g DM)
-    state.LAI = Math.min(3.5, state.LAI + alloc.leafG * cultivar.SLA);
+    // LAI grows from leaf DM via cultivar.SLA (m²/g DM).
+    // Pruning baseline (적엽) caps mature canopy density: more
+    // aggressive defoliation → lower steady-state LAI. Commercial
+    // greenhouse target is ~3 (Heuvelink 1996); cultivar.defoliation
+    // -Aggressiveness 0..1 maps to a 3.6 → 2.4 ceiling.
+    const laiCap = 3.6 - cultivar.defoliationAggressiveness * 1.2;
+    state.LAI = Math.min(laiCap, state.LAI + alloc.leafG * cultivar.SLA);
   }
 
   // 6. Plant-level fruit DM roll-up
