@@ -433,8 +433,13 @@ export function applyRenderQuality(
     handles.motionBlur = null;
   }
 
-  // Volumetric god rays from the sun
-  if (fx.godRaysEnabled && !handles.godRays && scene.activeCamera) {
+  // Volumetric god rays from the sun.
+  // WebGPU panics on VLS the same way it does on LensFlare: the
+  // post-process's internal RTT renders meshes whose materials never
+  // bind the `diffuseSampler` slot it expects, so createBindGroup
+  // throws every frame. WebGL2 tolerates the missing binding. Skip
+  // on WebGPU until Babylon's VLS pipeline learns to skip the bind.
+  if (fx.godRaysEnabled && !handles.godRays && scene.activeCamera && !isWebGPU) {
     // VLS constructor: (name, ratio, camera, mesh?, samples?, samplingMode?,
     //                   engine?, reusable?, scene?).
     const godRays = new VolumetricLightScatteringPostProcess(
@@ -449,7 +454,7 @@ export function applyRenderQuality(
       godRays.mesh.position = new Vector3(dir.x, dir.y, dir.z);
     }
     handles.godRays = godRays;
-  } else if (!fx.godRaysEnabled && handles.godRays && scene.activeCamera) {
+  } else if ((!fx.godRaysEnabled || isWebGPU) && handles.godRays && scene.activeCamera) {
     handles.godRays.dispose(scene.activeCamera);
     handles.godRays = null;
   }
