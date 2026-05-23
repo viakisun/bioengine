@@ -37,6 +37,31 @@ export function SceneCanvas() {
     };
   }, []);
 
+  // Capture wheel + macOS trackpad pinch gestures over the canvas so they
+  // drive the Babylon camera dolly only, never the browser's page zoom.
+  // Babylon's own wheel handler still receives the event — preventDefault
+  // blocks the browser default action, not propagation.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+    };
+    const onGesture = (e: Event) => {
+      e.preventDefault();
+    };
+    canvas.addEventListener('wheel', onWheel, { passive: false });
+    canvas.addEventListener('gesturestart', onGesture, { passive: false });
+    canvas.addEventListener('gesturechange', onGesture, { passive: false });
+    canvas.addEventListener('gestureend', onGesture, { passive: false });
+    return () => {
+      canvas.removeEventListener('wheel', onWheel);
+      canvas.removeEventListener('gesturestart', onGesture);
+      canvas.removeEventListener('gesturechange', onGesture);
+      canvas.removeEventListener('gestureend', onGesture);
+    };
+  }, []);
+
   return (
     <canvas ref={canvasRef} className="canvas-fill" />
   );
