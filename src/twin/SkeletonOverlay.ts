@@ -175,25 +175,21 @@ export function createSkeletonOverlay(scene: Scene): SkeletonOverlayHandle {
     // Catmull-Rom subsample 로 wandering curve. control points 는 nodes
     // 의 position. 메인 stem 은 ground (0,0,0) 도 prepend.
     const controlPoints: Vector3[] = [];
-    const controlRadii: number[] = [];
     if (axis.order === 0) {
       controlPoints.push(new Vector3(0, 0, 0));
-      // base radius = 첫 노드의 1.1× (root flare 시각 hint)
-      const baseR = (axis.nodes[0]?.stemRadiusMm ?? 5) / 1000;
-      controlRadii.push(baseR * 1.1);
     }
     for (const n of axis.nodes) {
       if (!n.position || !isFiniteVec(n.position)) continue;
       controlPoints.push(nodeWorld(n));
-      // 실제 stemRadiusMm 사용. side shoot 은 이미 0.6× 줄어든 값.
-      controlRadii.push((n.stemRadiusMm ?? 3) / 1000);
     }
     if (controlPoints.length >= 2) {
       // 5 subsamples per internode → 30 node 면 145 점. 부드러운 wandering
-      // curve. node 위치마다 ±0.18 bulge — 마디감 시각화.
-      const { curve, widths } = curveWithWidths(controlPoints, controlRadii, 5, 0.18);
-      meshes.push(thickLineVar(
-        `skel_axis_a${axisIdx}`, curve, axisColor(axis.order), widths,
+      // curve. 두께는 axis order 별 단일값 — GreasedLine widths array 가
+      // pair-based 해석으로 거대 블럭이 되는 문제 회피.
+      const curve = catmullRomPath(controlPoints, 5);
+      const axisWidth = axis.order === 0 ? 0.006 : axis.order === 1 ? 0.004 : 0.003;
+      meshes.push(thickLine(
+        `skel_axis_a${axisIdx}`, curve, axisColor(axis.order), axisWidth,
       ));
     }
 
