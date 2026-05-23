@@ -41,6 +41,8 @@ interface MatBucket {
   dotPruned: StandardMaterial;
   apex: StandardMaterial;
   truss: StandardMaterial;
+  leaf: StandardMaterial;
+  fruit: StandardMaterial;
 }
 
 function makeMaterials(scene: Scene): MatBucket {
@@ -59,8 +61,14 @@ function makeMaterials(scene: Scene): MatBucket {
     dotPruned: m('skel_dot_pruned', '#888888', 0.5),
     apex: m('skel_apex', '#f5d63a', 1.0),
     truss: m('skel_truss', '#cc2b2b'),
+    leaf: m('skel_leaf', '#5fa050'),
+    fruit: m('skel_fruit', '#e08070'),
   };
 }
+
+const LEAF_COLOR = new Color4(0.35, 0.65, 0.30, 1);    // green stub
+const PEDUNCLE_COLOR = new Color4(0.5, 0.7, 0.35, 1);  // light green
+const PEDICEL_COLOR = new Color4(0.8, 0.4, 0.4, 1);    // pink-red
 
 function axisColor(order: number): Color4 {
   if (order === 0) return new Color4(0.45, 0.30, 0.18, 1);     // brown
@@ -119,7 +127,7 @@ export function createSkeletonOverlay(scene: Scene): SkeletonOverlayHandle {
       meshes.push(lines);
     }
 
-    // Per-node markers
+    // Per-node markers + leaf petiole + truss anatomy
     const lastIdx = axis.nodes.length - 1;
     for (let i = 0; i < axis.nodes.length; i++) {
       const node = axis.nodes[i];
@@ -131,7 +139,6 @@ export function createSkeletonOverlay(scene: Scene): SkeletonOverlayHandle {
       let radius: number;
       if (isApex) {
         dotMat = mats.apex;
-        // Bigger to spot the apex easily.
         radius = 0.014;
       } else {
         switch (node.budState) {
@@ -146,24 +153,105 @@ export function createSkeletonOverlay(scene: Scene): SkeletonOverlayHandle {
         { diameter: radius * 2, segments: 6 },
         scene,
       );
-      sphere.position = nodeWorld(node);
+      const nodePos = nodeWorld(node);
+      sphere.position = nodePos;
       sphere.material = dotMat;
       sphere.parent = root;
       meshes.push(sphere);
 
-      // Truss marker
-      if (isTruss && !isApex) {
-        const t = MeshBuilder.CreateSphere(
-          `skel_truss_a${axisIdx}_n${i}`,
-          { diameter: 0.013, segments: 6 },
+      // ── Petiole stub — a short line from node in leaf's azimuth.
+      //    Length scales with leafSizeFactor (mature leaves stick out).
+      if (node.leafMaturity > 0.05 && axis.order === 0) {
+        const leafAzimuth = (node.phyllotaxisAngle * Math.PI) / 180;
+        // Petiole droops with droopExtra (degrees → radians).
+        const droopRad = (node.droopExtra * Math.PI) / 180;
+        const petLen = 0.12 * Math.max(0.3, node.leafSizeFactor);
+        const tip = new Vector3(
+          nodePos.x + Math.cos(leafAzimuth) * petLen * Math.cos(droopRad * 0.6),
+          nodePos.y - petLen * Math.sin(droopRad * 0.6),
+          nodePos.z + Math.sin(leafAzimuth) * petLen * Math.cos(droopRad * 0.6),
+        );
+        const pet = MeshBuilder.CreateLines(
+          `skel_pet_a${axisIdx}_n${i}`,
+          { points: [nodePos, tip], colors: [LEAF_COLOR, LEAF_COLOR] },
           scene,
         );
-        const off = nodeWorld(node);
-        off.x += 0.020;
-        t.position = off;
-        t.material = mats.truss;
-        t.parent = root;
-        meshes.push(t);
+        pet.parent = root;
+        meshes.push(pet);
+        // Small green dot at petiole tip = leaf blade center
+        const leafDot = MeshBuilder.CreateSphere(
+          `skel_leafdot_a${axisIdx}_n${i}`,
+          { diameter: 0.012, segments: 6 },
+          scene,
+        );
+        leafDot.position = tip;
+        leafDot.material = mats.leaf;
+        leafDot.parent = root;
+        meshes.push(leafDot);
+      }
+
+      // ── Truss skeleton: rachis (peduncle) + per-fruit pedicels.
+      if (isTruss && node.truss && axis.order === 0) {
+        // Truss emerges opposite to leaf (180° off phyllotaxis).
+        const trussAz = (node.phyllotaxisAngle * Math.PI) / 180 + Math.PI;
+        const rachisLen = 0.10 + Math.min(0.10, node.truss.fruits.length * 0.012);
+        const rachisTip = new Vector3(
+          nodePos.x + Math.cos(trussAz) * rachisLen,
+          nodePos.y - rachisLen * 0.18,  // slight droop
+          nodePos.z + Math.sin(trussAz) * rachisLen,
+        );
+        const rachis = MeshBuilder.CreateLines(
+          `skel_rachis_a${axisIdx}_n${i}`,
+          { points: [nodePos, rachisTip], colors: [PEDUNCLE_COLOR, PEDUNCLE_COLOR] },
+          scene,
+        );
+        rachis.parent = root;
+        meshes.push(rachis);
+
+        // Per-fruit pedicel — short line from rachis to fruit dot.
+        const fruits = node.truss.fruits;
+        for (let f = 0; f < fruits.length; f++) {
+          const alongT = (f + 0.5) / Math.max(1, fruits.length);
+          const onRachis = new Vector3(
+            nodePos.x + Math.cos(trussAz) * rachisLen * alongT,
+            nodePos.y - rachisLen * 0.18 * alongT,
+            nodePos.z + Math.sin(trussAz) * rachisLen * alongT,
+          );
+          const fruitPos = new Vector3(
+            onRachis.x + (f % 2 === 0 ? 0.012 : -0.012),
+            onRachis.y - 0.028,
+            onRachis.z,
+          );
+          const ped = MeshBuilder.CreateLines(
+            `skel_ped_a${axisIdx}_n${i}_f${f}`,
+            { points: [onRachis, fruitPos], colors: [PEDICEL_COLOR, PEDICEL_COLOR] },
+            scene,
+          );
+          ped.parent = root;
+          meshes.push(ped);
+          // Fruit dot — color hints at ripeness
+          const fruitDiam = 0.010 + 0.014 * Math.min(1, (fruits[f].diameterMm ?? 30) / 60);
+          const fr = MeshBuilder.CreateSphere(
+            `skel_fr_a${axisIdx}_n${i}_f${f}`,
+            { diameter: fruitDiam, segments: 6 },
+            scene,
+          );
+          fr.position = fruitPos;
+          fr.material = mats.fruit;
+          fr.parent = root;
+          meshes.push(fr);
+        }
+
+        // Truss marker dot at rachis base
+        const trMarker = MeshBuilder.CreateSphere(
+          `skel_truss_a${axisIdx}_n${i}`,
+          { diameter: 0.010, segments: 6 },
+          scene,
+        );
+        trMarker.position = nodePos;
+        trMarker.material = mats.truss;
+        trMarker.parent = root;
+        meshes.push(trMarker);
       }
     }
   }
@@ -206,6 +294,8 @@ export function createSkeletonOverlay(scene: Scene): SkeletonOverlayHandle {
         mats.dotPruned.dispose();
         mats.apex.dispose();
         mats.truss.dispose();
+        mats.leaf.dispose();
+        mats.fruit.dispose();
         mats = null;
       }
     },
