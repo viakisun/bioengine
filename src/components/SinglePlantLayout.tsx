@@ -14,6 +14,7 @@ import { InspectorPanel } from '../ui/single-plant/InspectorPanel';
 import { TimelineChart } from '../ui/single-plant/TimelineChart';
 import { TimelineSlider } from '../ui/single-plant/TimelineSlider';
 import { StatusBar } from '../ui/single-plant/StatusBar';
+import { PARGauge } from '../ui/single-plant/PARGauge';
 import { FONT_SERIF, FONT_MONO, C_BG, C_FG, C_FG_MUTE, C_BORDER } from '../ui/single-plant/styles';
 
 const PLANT_SEED = 1001;
@@ -91,6 +92,7 @@ export function SinglePlantLayout() {
       {/* Viewport */}
       <div style={{ gridArea: 'viewport', position: 'relative', overflow: 'hidden' }}>
         <SinglePlantScene />
+        <PARGauge />
       </div>
 
       {/* Inspector */}

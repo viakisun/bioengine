@@ -15,6 +15,7 @@ import {
   SINGLE_PLANT_CHART_VARS,
   type SinglePlantChartVar,
 } from '../../store/twinStore';
+import { useSinglePlantState } from './useSinglePlantState';
 import {
   GrowthEngine,
   type PlantPhysiologyState,
@@ -43,7 +44,8 @@ const WINDOWS = [
 
 const SAMPLE_COUNT = 80;  // chart resolution — 80 horizontal points
 
-function readVar(s: PlantPhysiologyState, v: SinglePlantChartVar, fracHour: number): number {
+function readVar(s: PlantPhysiologyState, v: string, fracHour: number): number {
+  // Standard top-level variables
   switch (v) {
     case 'TT': return s.TT;
     case 'LAI': return s.LAI;
@@ -56,6 +58,20 @@ function readVar(s: PlantPhysiologyState, v: SinglePlantChartVar, fracHour: numb
     case 'PAR_now': return parAtHour(14, 20, fracHour);
     case 'T_now': return tempAtHour(22, fracHour);
   }
+  // Truss-N fruit DM — pattern "truss_<n>_dm"
+  const trussMatch = v.match(/^truss_(\d+)_dm$/);
+  if (trussMatch) {
+    const idx = parseInt(trussMatch[1], 10) - 1;
+    const truss = s.trusses[idx];
+    if (!truss) return 0;
+    let dm = 0;
+    for (const f of truss.fruits) {
+      if (f.aborted) continue;
+      dm += f.W_fruit_dry;
+    }
+    return dm;
+  }
+  return 0;
 }
 
 export function TimelineChart() {
@@ -64,6 +80,7 @@ export function TimelineChart() {
   const window = useTwinStore((s) => s.singlePlantChartWindow);
   const setWindow = useTwinStore((s) => s.setSinglePlantChartWindow);
   const currentMinute = useTwinStore((s) => s.singlePlantMinute);
+  const liveState = useSinglePlantState();
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [size, setSize] = useState<{ w: number; h: number }>({ w: 800, h: 130 });
@@ -127,9 +144,60 @@ export function TimelineChart() {
   const x = (m: number) => padL + ((m - xMin) / xRange) * plotW;
   const y = (v: number) => padT + plotH - ((v - yMin) / (yMax - yMin)) * plotH;
 
+  // Phenology event markers — convert TT to approximate minute at the
+  // current cultivar's T_eff (12 °C·d/day at 22 °C constant → 1 TT per
+  // 120 minutes). Filter to events within the visible window.
+  const TT_TO_MINUTE = 120;  // minutes per °C·d at T_eff = 12
+  const eventMarkers: Array<{ minute: number; label: string; color: string }> = [];
+  if (liveState) {
+    for (let ti = 0; ti < liveState.trusses.length; ti++) {
+      const truss = liveState.trusses[ti];
+      const emergeMin = truss.emergenceTT * TT_TO_MINUTE;
+      if (emergeMin >= xMin && emergeMin <= xMax) {
+        eventMarkers.push({
+          minute: emergeMin,
+          label: `T${ti + 1}`,
+          color: '#0ea5e9',
+        });
+      }
+    }
+    // First fruit set event
+    let firstSetTT = Infinity;
+    for (const t of liveState.trusses) {
+      for (const f of t.fruits) {
+        if (f.fertilizationTT > 0 && f.fertilizationTT < firstSetTT) firstSetTT = f.fertilizationTT;
+      }
+    }
+    if (firstSetTT < Infinity) {
+      const setMin = firstSetTT * TT_TO_MINUTE;
+      if (setMin >= xMin && setMin <= xMax) {
+        eventMarkers.push({ minute: setMin, label: 'set', color: '#16a34a' });
+      }
+    }
+    // First red fruit
+    let firstRedTT = Infinity;
+    for (const t of liveState.trusses) {
+      for (const f of t.fruits) {
+        if (f.ripenStage === 5 && f.ripenStartTT > 0 && f.ripenStartTT < firstRedTT) {
+          firstRedTT = f.ripenStartTT;
+        }
+      }
+    }
+    if (firstRedTT < Infinity) {
+      const redMin = firstRedTT * TT_TO_MINUTE;
+      if (redMin >= xMin && redMin <= xMax) {
+        eventMarkers.push({ minute: redMin, label: 'R', color: '#dc2626' });
+      }
+    }
+  }
+
   const path = samples.map((s, i) => `${i === 0 ? 'M' : 'L'} ${x(s.minute).toFixed(1)} ${y(s.value).toFixed(1)}`).join(' ');
-  const color = CHART_COLORS[variable] ?? '#1a1d1a';
-  const meta = SINGLE_PLANT_CHART_VARS.find((v) => v.id === variable);
+  const color = CHART_COLORS[variable] ?? '#984ea3';  // truss DM → purple
+  const standardMeta = SINGLE_PLANT_CHART_VARS.find((v) => v.id === variable);
+  const trussMatch = (variable as string).match(/^truss_(\d+)_dm$/);
+  const meta = standardMeta ?? (trussMatch
+    ? { label: `Truss ${trussMatch[1]} fruit DM`, unit: 'g' }
+    : { label: variable, unit: '' });
   const currentValue = samples[samples.length - 1]?.value ?? 0;
 
   return (
@@ -162,9 +230,20 @@ export function TimelineChart() {
               color: C_FG,
             }}
           >
-            {SINGLE_PLANT_CHART_VARS.map((v) => (
-              <option key={v.id} value={v.id}>{v.label} [{v.unit}]</option>
-            ))}
+            <optgroup label="Plant">
+              {SINGLE_PLANT_CHART_VARS.map((v) => (
+                <option key={v.id} value={v.id}>{v.label} [{v.unit}]</option>
+              ))}
+            </optgroup>
+            {liveState && liveState.trusses.length > 0 && (
+              <optgroup label="Per truss">
+                {liveState.trusses.map((_, i) => (
+                  <option key={`truss_${i + 1}_dm`} value={`truss_${i + 1}_dm`}>
+                    Truss {i + 1} fruit DM [g]
+                  </option>
+                ))}
+              </optgroup>
+            )}
           </select>
         </label>
 
@@ -188,7 +267,7 @@ export function TimelineChart() {
         </label>
 
         <div style={{ marginLeft: 'auto', fontFamily: FONT_MONO, color: color, fontSize: 12 }}>
-          {meta?.label} {currentValue.toFixed(2)} <span style={{ color: C_FG_DIM, fontSize: 10 }}>{meta?.unit}</span>
+          {meta.label} {currentValue.toFixed(2)} <span style={{ color: C_FG_DIM, fontSize: 10 }}>{meta.unit}</span>
         </div>
       </div>
 
@@ -218,6 +297,33 @@ export function TimelineChart() {
               <text key={i} x={xPos} y={padT + plotH + 14} fontFamily="ui-monospace" fontSize={9} fill={C_FG_DIM} textAnchor="middle">
                 D{day} {String(hour).padStart(2, '0')}:00
               </text>
+            );
+          })}
+
+          {/* Phenology event markers — vertical lines + small labels */}
+          {eventMarkers.map((ev, i) => {
+            const xPos = x(ev.minute);
+            return (
+              <g key={i}>
+                <line
+                  x1={xPos} x2={xPos}
+                  y1={padT} y2={padT + plotH}
+                  stroke={ev.color}
+                  strokeWidth={0.8}
+                  strokeDasharray="3 3"
+                  opacity={0.55}
+                />
+                <text
+                  x={xPos + 2}
+                  y={padT + 8}
+                  fontFamily="ui-monospace"
+                  fontSize={8.5}
+                  fill={ev.color}
+                  opacity={0.85}
+                >
+                  {ev.label}
+                </text>
+              </g>
             );
           })}
 

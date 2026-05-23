@@ -57,6 +57,14 @@ export function InspectorPanel() {
       </Section>
 
       <Section
+        title="Phenology"
+        isOpen={open.phenology}
+        onToggle={() => toggle('phenology')}
+      >
+        <PhenologyTable state={state} cultivar={cultivar} />
+      </Section>
+
+      <Section
         title="Genome"
         isOpen={open.genome}
         onToggle={() => toggle('genome')}
@@ -218,6 +226,74 @@ function TrussTable({
       <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: C_FG_DIM, marginTop: 6, lineHeight: 1.5 }}>
         G green · B breaker · T turning · P pink · L light-red · R red<br />
         ○ flower bud · × aborted · * pruned to target
+      </div>
+    </div>
+  );
+}
+
+function PhenologyTable({
+  state, cultivar,
+}: { state: PlantPhysiologyState | null; cultivar: Cultivar }) {
+  if (!state || state.trusses.length === 0) {
+    return <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: C_FG_DIM }}>no events yet</div>;
+  }
+
+  // Convert TT (°C·d) to an approximate day at the cultivar's T_base.
+  // At constant 22 °C this is TT / 12; the inspector value is for
+  // orientation, not precise event reconstruction.
+  const T_eff_per_day = Math.max(1, 22 - cultivar.T_base);
+  const ttToDay = (tt: number) => tt / T_eff_per_day;
+
+  const allFruits = state.trusses.flatMap((t) => t.fruits);
+  const firstTruss = state.trusses[0];
+
+  // First fruit set across the entire plant
+  const setFruits = allFruits.filter((f) => f.fertilizationTT > 0);
+  const firstSetTT = setFruits.length > 0
+    ? Math.min(...setFruits.map((f) => f.fertilizationTT))
+    : -1;
+
+  // First ripe (red, stage 5) fruit
+  const ripeFruits = allFruits.filter((f) => f.ripenStage === 5 && f.ripenStartTT > 0);
+  const firstRipeTT = ripeFruits.length > 0
+    ? Math.min(...ripeFruits.map((f) => f.ripenStartTT))
+    : -1;
+
+  // First abortion
+  const abortedFruits = allFruits.filter((f) => f.aborted);
+  const firstAbortFruit = abortedFruits[0]; // index order = creation order
+  const abortCount = abortedFruits.length;
+
+  // Pruning (적과) events — trusses where live count == target AND
+  // truss.fruits.length > target. We can detect but don't know when.
+  let prunedTrussCount = 0;
+  for (const t of state.trusses) {
+    const live = t.fruits.filter((f) => !f.aborted).length;
+    if (t.fruits.length > cultivar.trussTargetFruitCount && live === cultivar.trussTargetFruitCount) {
+      prunedTrussCount++;
+    }
+  }
+
+  const row = (label: string, tt: number, hint?: string) => (
+    <Row
+      label={label}
+      value={tt > 0 ? `D${ttToDay(tt).toFixed(1)}` : '—'}
+      unit={hint}
+    />
+  );
+
+  return (
+    <div>
+      {row('truss 1 emerge', firstTruss?.emergenceTT ?? -1)}
+      {row('truss 1 anthesis', firstTruss?.anthesisTT ?? -1)}
+      {row('first fruit set', firstSetTT)}
+      {row('first ripe (R)', firstRipeTT)}
+      <Row label="aborted" value={abortCount} unit="fruits" />
+      <Row label="pruned trusses" value={prunedTrussCount} unit={`/ ${state.trusses.length}`} />
+      <Row label="live trusses" value={state.trusses.length} />
+      <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: C_FG_DIM, marginTop: 6, lineHeight: 1.5 }}>
+        Day estimate at constant T_avg = 22°C. Pruning = trusses where
+        live == target × (target=4 for Tomimaru).
       </div>
     </div>
   );

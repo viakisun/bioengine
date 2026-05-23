@@ -437,6 +437,7 @@ interface TwinState {
     cultivar: boolean;
     state: boolean;
     truss: boolean;
+    phenology: boolean;
     genome: boolean;
   };
   setSinglePlantMinute: (m: number) => void;
@@ -445,7 +446,7 @@ interface TwinState {
   setSinglePlantChartVar: (v: SinglePlantChartVar) => void;
   setSinglePlantChartWindow: (w: '1d' | '7d' | '30d' | 'all') => void;
   setSinglePlantCamera: (c: 'free' | 'truss' | 'fruit' | 'top') => void;
-  toggleSinglePlantInspector: (key: 'cultivar' | 'state' | 'truss' | 'genome') => void;
+  toggleSinglePlantInspector: (key: 'cultivar' | 'state' | 'truss' | 'phenology' | 'genome') => void;
 
   // -- Boot progress + notifications + live log + env --
   boot: BootSnapshot;
@@ -624,7 +625,7 @@ export const useTwinStore = create<TwinState>((set) => ({
   singlePlantChartVar: 'LAI',
   singlePlantChartWindow: '7d',
   singlePlantCamera: 'free',
-  singlePlantInspectorOpen: { cultivar: true, state: true, truss: true, genome: false },
+  singlePlantInspectorOpen: { cultivar: true, state: true, truss: true, phenology: true, genome: false },
   setSinglePlantMinute: (m) =>
     set({ singlePlantMinute: Math.max(0, Math.min(120 * 24 * 60 - 1, Math.round(m))) }),
   setSinglePlantPlaying: (p) => set({ singlePlantPlaying: p }),
