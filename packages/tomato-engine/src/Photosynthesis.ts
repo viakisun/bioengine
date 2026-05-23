@@ -13,6 +13,7 @@
 // sun/shade leaf partitioning if/when needed.
 
 import type { DailyClimate } from './CoreModel';
+import type { HourlyClimate } from './DiurnalEnv';
 
 /** Beer-Lambert canopy light interception fraction.
  *  f_abs = 1 - exp(-k · LAI)
@@ -67,6 +68,48 @@ export function maintenanceRespiration(
   Q10 = 2.0,
 ): number {
   return W_total_g * m_ref * Math.pow(Q10, (T_avg - 20) / 10);
+}
+
+/**
+ * Instantaneous gross canopy photosynthesis at the given PAR.
+ *
+ *   A_canopy [g DM / m² / s]  =  LUE [g/mol] · f_abs · PAR_now [μmol/m²/s] · 1e-6
+ *
+ * Multiply by seconds in the integration step to get DM accumulated.
+ * Per-hour, that's × 3600. This is the hour-grained counterpart of
+ * `dailyGrossAssimilation` — both call into the same Beer-Lambert /
+ * LUE formulation, just at different time scales.
+ */
+export function hourlyGrossAssimilation(
+  PAR_now_umol: number,
+  LAI: number,
+  LUE = 3.5,
+): number {
+  if (LAI <= 0 || PAR_now_umol <= 0) return 0;
+  const f_abs = canopyAbsorbedFraction(LAI);
+  // μmol/m²/s × f_abs × 3600 s/hr = μmol/m²/hr absorbed → /1e6 = mol/m²/hr
+  const PAR_abs_mol_per_hr = (PAR_now_umol * f_abs * 3600) / 1e6;
+  return LUE * PAR_abs_mol_per_hr;
+}
+
+/** Hourly net new dry matter per plant (g DM / hr).
+ *
+ *  Same form as `dailyNetDM` but uses the diurnal-sampled instantaneous
+ *  PAR + temperature instead of the daily integral. Used by
+ *  `stepHourly` for sub-daily time resolution.
+ */
+export function hourlyNetDM(
+  env: HourlyClimate,
+  LAI: number,
+  W_total_g: number,
+  plantFootprintM2 = 0.4,
+  Cf = 0.7,
+): number {
+  const P_gross_per_m2 = hourlyGrossAssimilation(env.PAR_now, LAI);
+  const P_gross_per_plant = P_gross_per_m2 * plantFootprintM2;
+  // Maintenance respiration uses T_now and is in g/day → divide by 24
+  const R_m_per_hr = maintenanceRespiration(W_total_g, env.T_now) / 24;
+  return Cf * (P_gross_per_plant - R_m_per_hr);
 }
 
 /** Net new dry matter per plant per day (g DM).

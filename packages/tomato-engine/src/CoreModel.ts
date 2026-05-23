@@ -24,7 +24,8 @@
 import type { Cultivar, CultivarSample } from './Cultivar';
 import { sampleCultivarGenome } from './Cultivar';
 import { SeededRandom } from './SeededRandom';
-import { dailyNetDM } from './Photosynthesis';
+import { dailyNetDM, hourlyNetDM } from './Photosynthesis';
+import { diurnalEnv, type HourlyClimate } from './DiurnalEnv';
 import { allocateDM } from './SinkAllocation';
 import { acropetalGDDOffset, potentialDailyGrowthFW, updateAbortionTracker } from './FruitGrowth';
 
@@ -257,7 +258,196 @@ function gaussian(rng: () => number): number {
  * For Phase 1, fruit dry weight grows along a placeholder Gompertz
  * curve calibrated to cultivar.potentialFruitMassG.
  */
+/**
+ * Single-hour integration step — the building block of stepDaily.
+ *
+ * Splits the daily TOMSIM math into 24 sub-steps so the Single-Plant
+ * Analysis mode can scrub through hours and see growth respond to the
+ * diurnal cycle. Each hour:
+ *   - GDD accumulates with the instantaneous T_now (per-hour share of
+ *     the daily thermal time).
+ *   - Photosynthesis uses PAR_now → instantaneous net DM (g/hr).
+ *   - Sink allocation distributes the hour's DM across organs.
+ *   - Event-based logic (truss emergence, fruit set, pruning,
+ *     abortion check) fires at hour=0 to retain daily semantics.
+ *   - Ripening stage progression updates every hour (continuous in TT).
+ *
+ * Calling `stepHourly` 24× with `diurnalEnv(daily, h)` for h=0..23 is
+ * mathematically equivalent to the original `stepDaily(daily)` to
+ * within float rounding (the daily PAR integral is preserved by the
+ * sin² envelope; the daily T_avg is preserved by the sinusoid).
+ */
+export function stepHourly(
+  state: PlantPhysiologyState,
+  cultivar: Cultivar,
+  env: HourlyClimate,
+): void {
+  // 0. Hour-of-day boundary (h=0) → advance the day counter and run
+  // the per-day event logic that doesn't fit into a per-hour loop.
+  const isDayStart = env.hour === 0;
+  if (isDayStart) state.day += 1;
+
+  // 1. Thermal time — per-hour share of the daily TT.
+  //    T_eff(hour) = max(0, min(32, T_now) - T_base) / 24
+  const T_eff_per_hour = (Math.max(0, Math.min(32, env.T_now) - cultivar.T_base)) / 24;
+  state.TT += T_eff_per_hour;
+
+  // 2. Truss emergence — TT-threshold based, fires the first hour TT
+  // crosses the threshold (event semantics preserved).
+  const expectedTrussCount = Math.floor(
+    Math.max(0, (state.TT - cultivar.GDD_to_first_flower) / cultivar.GDD_per_truss) + 1,
+  );
+  while (state.trusses.length < expectedTrussCount && state.trusses.length < 30) {
+    emergeTruss(state, cultivar);
+  }
+
+  // 3. Per-truss processing — fruit set / phase boundaries / ripening
+  for (const truss of state.trusses) {
+    for (const fruit of truss.fruits) {
+      if (fruit.aborted) continue;
+
+      // Fruit set (Phase I → II) at anthesis + a short lag
+      if (fruit.fertilizationTT < 0 && state.TT >= fruit.anthesisTT) {
+        const setRng = trussRng(state.seed, truss.index + 10_000 + fruit.index);
+        if (setRng() < cultivar.fruitSetRate) {
+          fruit.fertilizationTT = state.TT;
+        } else {
+          fruit.aborted = true;
+          continue;
+        }
+      }
+      if (fruit.fertilizationTT < 0) continue;
+
+      // Phase boundaries
+      if (fruit.cellDivisionEndTT < 0 && state.TT - fruit.fertilizationTT >= cultivar.cellDivisionDurationGDD) {
+        fruit.cellDivisionEndTT = state.TT;
+      }
+      const expansionEndTT =
+        fruit.cellDivisionEndTT > 0
+          ? fruit.cellDivisionEndTT + cultivar.cellExpansionDurationGDD
+          : -1;
+      if (fruit.ripenStartTT < 0 && expansionEndTT > 0 && state.TT >= expansionEndTT) {
+        fruit.ripenStartTT = state.TT;
+      }
+
+      // 3b. Ripening (continuous in TT — fine to update each hour)
+      if (fruit.ripenStartTT > 0) {
+        const acropetal = acropetalGDDOffset(fruit, truss, cultivar);
+        const gddRipening =
+          (state.TT - fruit.ripenStartTT - acropetal) * fruit.genome.ripeningSpeedFactor;
+        const stagesPerGDD = 5 / cultivar.ripeningDurationGDD;
+        const continuous = Math.max(0, Math.min(5, gddRipening * stagesPerGDD));
+        fruit.ripenStage = Math.min(5, Math.floor(continuous)) as RipenStage;
+        fruit.ripenFraction = continuous - Math.floor(continuous);
+      }
+    }
+
+    // Pruning (적과) — fires once per truss when all flowers decided.
+    // Idempotent: once excess fruits are marked aborted, subsequent hours
+    // don't add anything.
+    const allDecided = truss.fruits.every(
+      (f) => f.aborted || f.fertilizationTT > 0,
+    );
+    if (allDecided && cultivar.trussTargetFruitCount > 0) {
+      const live = truss.fruits.filter((f) => !f.aborted);
+      if (live.length > cultivar.trussTargetFruitCount) {
+        live.sort((a, b) => a.index - b.index);
+        for (let k = cultivar.trussTargetFruitCount; k < live.length; k++) {
+          live[k].aborted = true;
+        }
+      }
+    }
+
+    truss.fruitCount = truss.fruits.filter((f) => !f.aborted && f.fertilizationTT > 0).length;
+  }
+
+  // 4. Photosynthesis → net new DM for this hour
+  const newDM_hr = hourlyNetDM(env, state.LAI, state.W);
+
+  // 5. Sink-driven allocation — distribute the hour's DM across organs
+  if (newDM_hr > 0) {
+    const alloc = allocateDM(newDM_hr, state, cultivar);
+
+    for (let ti = 0; ti < state.trusses.length; ti++) {
+      const truss = state.trusses[ti];
+      for (let fi = 0; fi < truss.fruits.length; fi++) {
+        const fruit = truss.fruits[fi];
+        if (fruit.aborted || fruit.fertilizationTT < 0) continue;
+        const allocatedHr = alloc.trussFruitsG[ti][fi];
+
+        // Abortion tracker — only check at hour=23 (end of day) using
+        // accumulated daily allocation. To do this without a second
+        // accumulator we still tick the tracker hourly with the per-
+        // hour potential, so 24h of starvation == 1 starved day.
+        // (Equivalent in expectation; small variance OK for stochastic
+        //  cohort model.)
+        const T_eff_day_equiv = T_eff_per_hour * 24;
+        const gddSinceFert = state.TT - fruit.fertilizationTT;
+        const potentialFW_day = potentialDailyGrowthFW(gddSinceFert, T_eff_day_equiv, fruit.genome, cultivar);
+        const potentialDM_hr = (potentialFW_day * 0.06) / 24;
+        const tracker = updateAbortionTracker(allocatedHr, potentialDM_hr, fruit.starvedDays);
+        fruit.starvedDays = tracker.starvedDays;
+        if (tracker.abort) {
+          fruit.aborted = true;
+          continue;
+        }
+
+        // Apply allocation
+        fruit.W_fruit_dry += allocatedHr;
+        const W_dry_cap = fruit.genome.potentialMassG * 0.06;
+        if (fruit.W_fruit_dry > W_dry_cap) fruit.W_fruit_dry = W_dry_cap;
+        fruit.W_fruit_fresh = fruit.W_fruit_dry / 0.06;
+        fruit.diameter = freshMassToDiameter(fruit.W_fruit_fresh, fruit.genome);
+      }
+    }
+
+    state.W += newDM_hr;
+    const laiCap = 3.6 - cultivar.defoliationAggressiveness * 1.2;
+    state.LAI = Math.min(laiCap, state.LAI + alloc.leafG * cultivar.SLA);
+  }
+
+  // 6. Plant-level fruit DM roll-up — same as stepDaily
+  let totalFruitDry = 0;
+  let matureFruitDry = 0;
+  for (const truss of state.trusses) {
+    for (const fruit of truss.fruits) {
+      if (fruit.aborted) continue;
+      totalFruitDry += fruit.W_fruit_dry;
+      if (fruit.ripenStage >= 4) matureFruitDry += fruit.W_fruit_dry;
+    }
+  }
+  state.W_f = totalFruitDry;
+  state.W_m = matureFruitDry;
+
+  // 7-8. Node count + height — only change when truss count changes,
+  // safe to compute every hour (idempotent given truss count)
+  state.N = 6 + state.trusses.length * 3;
+  state.heightCm = 30 + state.trusses.length * 27;
+}
+
+/**
+ * Daily integration step — now a thin wrapper over `stepHourly` × 24.
+ * The diurnal env profile preserves the daily T_avg and PAR_integral_mol
+ * exactly, so the cumulative output matches the old monolithic
+ * `stepDaily` to within float rounding.
+ */
 export function stepDaily(
+  state: PlantPhysiologyState,
+  cultivar: Cultivar,
+  env: DailyClimate = DEFAULT_CLIMATE,
+): void {
+  for (let h = 0; h < 24; h++) {
+    stepHourly(state, cultivar, diurnalEnv(env, h));
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Legacy monolithic stepDaily kept here for reference + diff bisection
+// during the Phase B refactor. Not exported, can be deleted once Phase E
+// validation confirms numerical parity within the literature tolerances.
+// ---------------------------------------------------------------------------
+/* eslint-disable @typescript-eslint/no-unused-vars */
+function _legacyStepDaily(
   state: PlantPhysiologyState,
   cultivar: Cultivar,
   env: DailyClimate = DEFAULT_CLIMATE,

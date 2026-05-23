@@ -13,6 +13,14 @@
 import { type PlantGenome, generateGenome } from './PlantGenome';
 import { computePlantState, type PlantState, type PlantStressInputs } from './GrowthModel';
 import { type Cultivar, getCultivar } from './Cultivar';
+import {
+  createPlant,
+  stepHourly,
+  type PlantPhysiologyState,
+  type DailyClimate,
+  DEFAULT_CLIMATE,
+} from './CoreModel';
+import { diurnalEnv } from './DiurnalEnv';
 
 /**
  * Greenhouse environment parameters that modulate growth and physics.
@@ -127,6 +135,11 @@ export function applyEnvironmentToGenome(
 interface PlantEntry {
   genome: PlantGenome;
   cultivar: Cultivar;
+  /** Physiology state for stepHourly simulation — null until
+   *  simulatePlantToHour() is first called for this seed. */
+  physiology: PlantPhysiologyState | null;
+  /** Day+hour the physiology state was last advanced to. */
+  simulatedToHour: number;     // total hours since transplant = day*24+hour
 }
 
 /**
@@ -164,7 +177,12 @@ export class GrowthEngine {
       ? { ...base, ...input.genomeOverrides, seed: input.seed }
       : base;
     const cultivar = getCultivar(input.cultivarName ?? 'round-generic');
-    this.plants.set(input.seed, { genome, cultivar });
+    this.plants.set(input.seed, {
+      genome,
+      cultivar,
+      physiology: null,
+      simulatedToHour: -1,
+    });
     return genome;
   }
 
@@ -242,6 +260,63 @@ export class GrowthEngine {
     return this.plants.get(seed)?.cultivar;
   }
 
+  // ---------------------------------------------------------------------
+  // Single-Plant Analysis — hour-level CoreModel simulation
+  // ---------------------------------------------------------------------
+
+  /**
+   * Advance the plant's CoreModel state to the given (day, hour) and
+   * return the live PlantPhysiologyState. If the requested hour is in
+   * the past relative to current simulation state, the state is reset
+   * and re-simulated from day 0 (so any (day, hour) call is reproducible
+   * deterministically from the seed).
+   *
+   * Used by Single-Plant Analysis mode — the engine carries a live
+   * physiology state per plant; the existing computeState() (sigmoid)
+   * is left untouched for Greenhouse mode.
+   */
+  simulatePlantToHour(
+    seed: number,
+    day: number,
+    hour: number,
+    dailyEnv: DailyClimate = DEFAULT_CLIMATE,
+  ): PlantPhysiologyState {
+    const entry = this.plants.get(seed);
+    if (!entry) throw new Error(`Plant with seed ${seed} not registered`);
+
+    const targetHour = Math.max(0, day * 24 + hour);
+
+    // If asking for an earlier hour than we've already simulated, reset.
+    if (entry.physiology == null || targetHour < entry.simulatedToHour) {
+      entry.physiology = createPlant(seed);
+      entry.simulatedToHour = -1;
+    }
+
+    while (entry.simulatedToHour < targetHour) {
+      const nextHour = entry.simulatedToHour + 1;
+      const nextDay = Math.floor(nextHour / 24);
+      const hourOfDay = nextHour - nextDay * 24;
+      stepHourly(entry.physiology, entry.cultivar, diurnalEnv(dailyEnv, hourOfDay));
+      entry.simulatedToHour = nextHour;
+    }
+
+    return entry.physiology;
+  }
+
+  /** Read the live physiology state for a plant — null if never simulated. */
+  getPhysiologyState(seed: number): PlantPhysiologyState | null {
+    return this.plants.get(seed)?.physiology ?? null;
+  }
+
+  /** Reset the live physiology state for a seed (next simulate call
+   *  restarts from day 0). */
+  resetPhysiology(seed: number): void {
+    const entry = this.plants.get(seed);
+    if (!entry) return;
+    entry.physiology = null;
+    entry.simulatedToHour = -1;
+  }
+
   /** Compute states for every registered plant at a given day. */
   computeAllStates(day: number, envOverride?: EnvironmentParams): PlantState[] {
     const out: PlantState[] = [];
@@ -284,6 +359,8 @@ export class GrowthEngine {
       engine.plants.set(p.seed, {
         genome: { ...p.genome },
         cultivar: getCultivar('round-generic'),
+        physiology: null,
+        simulatedToHour: -1,
       });
     }
     return engine;
