@@ -193,7 +193,7 @@ export function createShowcasePlant(
       }
     }
 
-    // === Stem ===
+    // === Stem (main axis) ===
     if (state.nodes.length >= 2) {
       const stemRng = new SeededRandom(seed * 13);
       const stem = createStemMesh(`showcase_stem_${seed}`, scene, state.nodes, stemRng);
@@ -205,15 +205,47 @@ export function createShowcasePlant(
       }
     }
 
+    // === Side shoot stems (Plan 3b Phase ζ-4) ===
+    // plant.allAxes 의 order >= 1 axis 들. 각각 자체 stem mesh.
+    // 부모 attachment 위치 (mainAxis.nodes[parentNodeIdx].position) 에서 시작.
+    if (state.allAxes && state.allAxes.length > 1) {
+      for (let a = 1; a < state.allAxes.length; a++) {
+        const sideAxis = state.allAxes[a];
+        if (!sideAxis.nodes || sideAxis.nodes.length < 1) continue;
+        // 부모 axis 의 분기 node 좌표 — origin
+        const parentAxisIdx = sideAxis.parentAxisIdx ?? 0;
+        const parentAxis = state.allAxes[parentAxisIdx];
+        const parentNode = parentAxis?.nodes[sideAxis.parentNodeIdx ?? 0];
+        const origin = parentNode?.position
+          ? { x: parentNode.position.x, y: parentNode.position.y, z: parentNode.position.z }
+          : null;
+        // 곁가지 nodes 가 1개여도 origin 까지 더하면 2 point — line drawable
+        const sideRng = new SeededRandom(seed * 13 + a * 101);
+        const sideStem = createStemMesh(
+          `showcase_sidestem_${seed}_${a}`,
+          scene,
+          sideAxis.nodes.length >= 1 ? sideAxis.nodes : [],
+          sideRng,
+          { origin },
+        );
+        if (sideStem) {
+          sideStem.parent = root;
+          sideStem.material = stemMat;
+          currentMeshes.push(sideStem);
+        }
+      }
+    }
+
     // Select effective leaf material per plant-level health
     const isDiseased = state.diseaseLoad > 0.3;
     const leafMatForPlant = isDiseased ? diseasedLeafMat : leafMat;
 
-    // === Leaves (per node) ===
+    // === Leaves + truss — Plan 3b: node.position 직접 사용 ===
+    // Skeleton 의 authoritative 3D 위치 → lush mesh 가 skeleton 과 동일
+    // 형태. Mode 와 무관하게 같은 plant 의 같은 anatomy.
     for (const node of state.nodes) {
       if (node.leafMaturity < 0.05) continue;
 
-      const heightM = node.heightCm / 100;
       const azimuthRad = (node.phyllotaxisAngle * Math.PI) / 180;
       const droopRad = (node.droopExtra * Math.PI) / 180;
 
@@ -226,12 +258,11 @@ export function createShowcasePlant(
         state.day,
         rng
       );
-      // Senescent (yellow) > diseased > normal
       leaf.material = node.yellowing > 0.4
         ? yellowLeafMat
         : leafMatForPlant;
       leaf.parent = root;
-      leaf.position = new Vector3(0, heightM, 0);
+      leaf.position = new Vector3(node.position.x, node.position.y, node.position.z);
 
       const q = Quaternion.RotationAxis(Vector3.Up(), azimuthRad).multiply(
         Quaternion.RotationAxis(new Vector3(0, 0, 1), -droopRad)
@@ -240,7 +271,7 @@ export function createShowcasePlant(
       currentMeshes.push(leaf);
       currentParts.leaves.push(leaf);
 
-      // Truss
+      // Truss — 휜 줄기의 실제 위치에서 phyllotaxis 반대 방향으로 분기
       if (node.truss && (node.truss.fruits.length > 0 || node.truss.flowers.length > 0)) {
         const trussRng = new SeededRandom(seed * 7919 + node.index * 31);
         const trussNode = createTrussNode(
@@ -252,7 +283,11 @@ export function createShowcasePlant(
           trussRng
         );
         trussNode.parent = root;
-        trussNode.position = new Vector3(0, heightM - 0.02, 0);
+        trussNode.position = new Vector3(
+          node.position.x,
+          node.position.y - 0.02,
+          node.position.z,
+        );
 
         trussNode.getChildMeshes().forEach((m) => {
           if (m.name.includes('_body')) {

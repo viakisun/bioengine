@@ -65,30 +65,51 @@ export function createStemMesh(
   name: string,
   scene: Scene,
   nodes: NodeState[],
-  rng: SeededRandom
+  rng: SeededRandom,
+  /** Side shoots: pass parent's branch position instead of ground origin. */
+  options?: { origin?: { x: number; y: number; z: number } | null },
 ): Mesh | null {
-  if (nodes.length < 2) return null;
+  // With origin prefix, even 1-node axis (origin + node) yields 2 points.
+  // Without prefix (origin === null), need >= 2 nodes.
+  const hasOrigin = options?.origin !== null;
+  const minNodes = hasOrigin ? 1 : 2;
+  if (nodes.length < minNodes) return null;
 
-  // Build control points: ground + each node, with accumulated deflection
+  // Build control points from skeleton (Plan 3b — single source of truth).
+  // node.position 은 GrowthModel 의 synthesizeGrowthDir 합성 결과로 이미
+  // wandering + gravity sag 반영. PhysicsModel 의 deflectionRad/Azimuth
+  // (fruit weight 의 추가 bending) 는 *온 top of* position 으로 더해서
+  // 둘 다 보존.
   const controlPoints: Vector3[] = [];
   const controlRadii: number[] = [];
-  controlPoints.push(new Vector3(0, 0, 0));
-  controlRadii.push((nodes[0].stemRadiusMm / 1000) * 1.1);
+  const originPoint = options?.origin === undefined
+    ? new Vector3(0, 0, 0)              // main stem: ground anchor
+    : options.origin === null
+      ? null                            // explicit null: no origin prefix
+      : new Vector3(options.origin.x, options.origin.y, options.origin.z);
+  if (originPoint) {
+    controlPoints.push(originPoint);
+    controlRadii.push((nodes[0].stemRadiusMm / 1000) * 1.1);
+  }
 
   let accX = 0;
   let accZ = 0;
   for (let i = 0; i < nodes.length; i++) {
     const node = nodes[i];
-    const y = node.heightCm / 100;
-
+    // Deflection 누적 — fruit weight bending 만. Skeleton 의 wandering
+    // 은 node.position 에 이미 반영됨.
     if (node.deflectionRad > 0.001) {
-      const segLen = i > 0 ? (node.heightCm - nodes[i - 1].heightCm) / 100 : y;
+      const segLen = i > 0 ? (node.heightCm - nodes[i - 1].heightCm) / 100 : node.heightCm / 100;
       accX += Math.sin(node.deflectionRad) * Math.cos(node.deflectionAzimuth) * segLen;
       accZ += Math.sin(node.deflectionRad) * Math.sin(node.deflectionAzimuth) * segLen;
     }
     const jitterX = rng.gaussian(0, 0.002);
     const jitterZ = rng.gaussian(0, 0.002);
-    controlPoints.push(new Vector3(accX + jitterX, y, accZ + jitterZ));
+    controlPoints.push(new Vector3(
+      node.position.x + accX + jitterX,
+      node.position.y,
+      node.position.z + accZ + jitterZ,
+    ));
     controlRadii.push(node.stemRadiusMm / 1000);
   }
 
