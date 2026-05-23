@@ -289,7 +289,7 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
     if (s.mode !== prev.mode && greenhouse) {
       if (s.mode === 'single-plant') {
         greenhouse.setSingleFocusMode(true);
-        cameraRig.setPreset('closeup');
+        cameraRig.setPreset('single-plant');
       } else if (s.mode === 'greenhouse') {
         greenhouse.setSingleFocusMode(false);
         cameraRig.setPreset('overview');
@@ -304,7 +304,7 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
     const initialMode = useTwinStore.getState().mode;
     if (initialMode === 'single-plant') {
       greenhouse.setSingleFocusMode(true);
-      cameraRig.setPreset('closeup');
+      cameraRig.setPreset('single-plant');
     }
   }
 

@@ -33,9 +33,12 @@ export function TimelineSlider() {
 
   return (
     <div style={{
-      borderTop: `1px solid ${C_BORDER}`,
-      background: '#fff',
-      padding: '10px 16px',
+      // Strong top border + light grey background → visually separate
+      // from the TimelineChart above (사용자 피드백: "슬라이더 어딨는지
+      // 모르겠다"). Background fill makes the slider tray distinct.
+      borderTop: `2px solid ${C_BORDER}`,
+      background: '#f5f4ee',
+      padding: '12px 16px',
       display: 'flex',
       alignItems: 'center',
       gap: 14,
@@ -86,7 +89,7 @@ export function TimelineSlider() {
         ))}
       </div>
 
-      {/* Slider */}
+      {/* Slider — strong accent + larger height for visibility */}
       <input
         type="range"
         min={0}
@@ -94,7 +97,13 @@ export function TimelineSlider() {
         step={1}
         value={minute}
         onChange={(e) => setMinute(parseInt(e.target.value, 10))}
-        style={{ flex: 1, accentColor: C_ACCENT, marginLeft: 8 }}
+        style={{
+          flex: 1,
+          accentColor: C_ACCENT,
+          marginLeft: 8,
+          height: 6,
+          cursor: 'pointer',
+        }}
       />
 
       {/* Timestamp */}
