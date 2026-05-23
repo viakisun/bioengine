@@ -95,13 +95,6 @@ export function BootOverlay() {
   const boot = useTwinStore((s) => s.boot);
   const isReady = boot.currentStage === 'ready';
 
-  // 첫 부팅 (ready 도달 전) 만 풀스크린 표시. 한 번 ready 도달 후엔
-  // 모드 전환 / 카메라 조작 / 시뮬레이션 trigger 로 stage 가 다시
-  // 'engine' 같은 값으로 와도 풀스크린 안 띄움. 사용자 의도:
-  // "들어가서 로딩창 띄울 필요는 없을거 같은데?" — 두 번째 진입부터는
-  // corner spinner (Phase 3) 가 처리.
-  if (boot.hasEverReached) return null;
-
   // Tick for elapsed-time display — 200ms is the sweet spot (visible
   // motion without React thrashing).
   const [, setTick] = useState(0);
@@ -127,6 +120,11 @@ export function BootOverlay() {
     }
   }, [boot.liveLog.length]);
 
+  // Early returns must come AFTER all hook calls (React Rules of Hooks).
+  // 첫 부팅 (ready 도달 전) 만 풀스크린 표시. 한 번 ready 도달 후엔
+  // 모드 전환 / 카메라 조작 / 시뮬레이션 trigger 로 stage 가 다시
+  // 'engine' 같은 값으로 와도 풀스크린 안 띄움 (사용자 의도).
+  if (boot.hasEverReached) return null;
   if (hidden) return null;
 
   const elapsed = (performance.now() - boot.startedAt) / 1000;
