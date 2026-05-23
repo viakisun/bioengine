@@ -24,6 +24,8 @@
 import type { Cultivar, CultivarSample } from './Cultivar';
 import { sampleCultivarGenome } from './Cultivar';
 import { SeededRandom } from './SeededRandom';
+import { dailyNetDM } from './Photosynthesis';
+import { allocateDM } from './SinkAllocation';
 
 // ---------------------------------------------------------------------------
 // Environment input
@@ -41,10 +43,12 @@ export interface DailyClimate {
   CO2_ppm: number;
 }
 
-/** Default climate used by Phase 1 stub when caller doesn't supply one. */
+/** Default climate used when caller doesn't supply one. Tuned for a
+ *  protected (greenhouse) culture with CO2 enrichment + some
+ *  supplemental lighting — Korean smart-farm typical. */
 export const DEFAULT_CLIMATE: DailyClimate = {
   T_avg: 22,
-  PAR_integral_mol: 15,
+  PAR_integral_mol: 20,    // 20 mol m⁻² day⁻¹ — winter w/ HPS or sunny day
   daylight_hours: 14,
   CO2_ppm: 800,
 };
@@ -137,16 +141,19 @@ export interface PlantPhysiologyState {
 // ---------------------------------------------------------------------------
 
 export function createPlant(seed: number): PlantPhysiologyState {
+  // Commercial K-smartfarm transplants are 4-6 week old seedlings with
+  // 5-7 true leaves — they already carry meaningful biomass when planted
+  // out. These initial values reflect that.
   return {
     seed,
     day: 0,
     TT: 0,
-    N: 1,
-    LAI: 0.05,
-    W: 0.5,            // ~0.5 g DM at transplant (seedling)
+    N: 5,
+    LAI: 0.3,          // a 4-week seedling already has ~0.3 m² leaf area / m² footprint
+    W: 15,             // ~15 g DM (cotyledons + 5-7 true leaves + stem + root)
     W_f: 0,
     W_m: 0,
-    heightCm: 8,       // ~8 cm at transplant
+    heightCm: 25,      // ~25 cm at transplant
     trusses: [],
     rngCounter: 1,
   };
@@ -295,20 +302,10 @@ export function stepDaily(
         fruit.ripenStartTT = state.TT;
       }
 
-      // 3a. Fruit fresh-weight growth — Phase-1 placeholder Gompertz on
-      //     fresh weight directly. (Phase 3 will replace with proper
-      //     dry-weight driven Gompertz from sink allocation.)
-      const a = fruit.genome.potentialMassG; // asymptote
-      const b = cultivar.gompertzRateB * fruit.genome.ripeningSpeedFactor;
-      const c = cultivar.gompertzInflectionC;
-      const gddSinceFert = Math.max(0, state.TT - fruit.fertilizationTT);
-      const totalGrowthGDD = cultivar.cellDivisionDurationGDD + cultivar.cellExpansionDurationGDD;
-      const tau = totalGrowthGDD * c; // inflection point in GDD
-      // Gompertz: W(t) = a · exp(-exp(-b·(t - τ)))
-      const W_fresh = a * Math.exp(-Math.exp(-b * (gddSinceFert - tau) * 0.01));
-      fruit.W_fruit_fresh = W_fresh;
-      fruit.W_fruit_dry = W_fresh * 0.06; // ~6% DM typical
-      fruit.diameter = freshMassToDiameter(W_fresh, fruit.genome);
+      // 3a. Phase-3 placeholder — proper Gompertz from sink allocation
+      //     happens below; until allocation runs we just leave the
+      //     existing weights. The actual fruit weight update is done
+      //     in the sink-allocation pass after this loop.
 
       // 3b. Ripening (USDA stage progression) — linear in GDD after
       //     ripenStartTT, modulated by per-fruit ripeningSpeedFactor.
@@ -325,8 +322,37 @@ export function stepDaily(
     truss.fruitCount = truss.fruits.filter((f) => !f.aborted && f.fertilizationTT > 0).length;
   }
 
-  // 4. Plant-level totals — Phase 1 placeholder (will be replaced by
-  //    sink-allocation in Phase 2).
+  // 4. Photosynthesis → net new DM (Phase 2)
+  const newDM = dailyNetDM(env, state.LAI, state.W);
+
+  // 5. Sink-driven allocation across organs + per-truss/per-fruit
+  //    (Marcelis 1996 / Heuvelink 1996 with TOMSIM saturation cap).
+  if (newDM > 0) {
+    const alloc = allocateDM(newDM, state, cultivar);
+
+    // Increment per-fruit dry weight, then derive fresh & diameter
+    for (let ti = 0; ti < state.trusses.length; ti++) {
+      const truss = state.trusses[ti];
+      for (let fi = 0; fi < truss.fruits.length; fi++) {
+        const fruit = truss.fruits[fi];
+        if (fruit.aborted || fruit.fertilizationTT < 0) continue;
+        fruit.W_fruit_dry += alloc.trussFruitsG[ti][fi];
+        // Cap at potential mass
+        const W_dry_cap = fruit.genome.potentialMassG * 0.06;
+        if (fruit.W_fruit_dry > W_dry_cap) fruit.W_fruit_dry = W_dry_cap;
+        // Fresh = dry / DM%
+        fruit.W_fruit_fresh = fruit.W_fruit_dry / 0.06;
+        fruit.diameter = freshMassToDiameter(fruit.W_fruit_fresh, fruit.genome);
+      }
+    }
+
+    // Update plant compartments
+    state.W += newDM;
+    // LAI grows from leaf DM via cultivar.SLA (m²/g DM)
+    state.LAI = Math.min(3.5, state.LAI + alloc.leafG * cultivar.SLA);
+  }
+
+  // 6. Plant-level fruit DM roll-up
   let totalFruitDry = 0;
   let matureFruitDry = 0;
   for (const truss of state.trusses) {
@@ -338,15 +364,11 @@ export function stepDaily(
   }
   state.W_f = totalFruitDry;
   state.W_m = matureFruitDry;
-  // W (total plant DM) grows with truss count as a stand-in until Phase 2
-  state.W = 50 + state.trusses.length * 60 + totalFruitDry;
 
-  // 5. Node count + LAI placeholder (Phase 2 will compute LAI from
-  //    leaf-DM and SLA). Rough: 3 nodes per truss + initial 6.
+  // 7. Node count — 3 leaves between successive trusses on the main stem
   state.N = 6 + state.trusses.length * 3;
-  state.LAI = Math.min(3.5, 0.05 + state.N * 0.04);
 
-  // 6. Height — placeholder
+  // 8. Height — internode ~25cm with ~3 internodes per truss + base
   state.heightCm = 30 + state.trusses.length * 27;
 }
 

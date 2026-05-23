@@ -48,16 +48,21 @@ console.log(`Live fruit count:          ${totalFruits}`);
 console.log(`Total fruit FW g:          ${totalFresh.toFixed(1)} (= ${(totalFresh/1000).toFixed(2)} kg)`);
 console.log(`Stage histogram (0..5):    ${stageHistogram.join(', ')}`);
 
-// Acropetal ripening check on truss 0
-if (state.trusses.length > 0) {
-  const t0 = state.trusses[0];
-  const active = t0.fruits.filter((f) => !f.aborted && f.fertilizationTT > 0);
+// Acropetal ripening: pick a mid-cycle truss (not too early — would be
+// all red; not too late — would be all green) to see the spread.
+{
+  const midIdx = Math.min(state.trusses.length - 1, Math.max(0, Math.floor(state.trusses.length * 0.55)));
+  const tm = state.trusses[midIdx];
+  const active = tm.fruits.filter((f) => !f.aborted && f.fertilizationTT > 0);
   if (active.length >= 2) {
     const basal = active[0];
     const distal = active[active.length - 1];
-    console.log(`Acropetal check (truss 0): basal stage=${basal.ripenStage} (frac ${basal.ripenFraction.toFixed(2)}) vs distal stage=${distal.ripenStage} (frac ${distal.ripenFraction.toFixed(2)})`);
+    const stageSpread = basal.ripenStage - distal.ripenStage;
+    console.log(`Acropetal check (truss ${midIdx}, mid-cycle): basal stage=${basal.ripenStage} (frac ${basal.ripenFraction.toFixed(2)}) vs distal stage=${distal.ripenStage} (frac ${distal.ripenFraction.toFixed(2)})  spread=${stageSpread}`);
   }
 }
+// Also harvest index
+console.log(`Harvest index (W_f / W):   ${(state.W_f / state.W).toFixed(3)} (target 0.55-0.65 — Phase 3 tightening)`);
 
 // Sanity assertions vs literature ranges
 const errors = [];

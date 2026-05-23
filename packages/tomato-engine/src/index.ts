@@ -58,6 +58,22 @@ export type {
 } from './CoreModel';
 export { DEFAULT_CLIMATE, createPlant, stepDaily, simulateToDay } from './CoreModel';
 
+export {
+  canopyAbsorbedFraction,
+  dailyGrossAssimilation,
+  maintenanceRespiration,
+  dailyNetDM,
+} from './Photosynthesis';
+
+export type { OrganAllocation } from './SinkAllocation';
+export {
+  trussSinkStrength,
+  fruitSinkStrength,
+  vegetativeSinkStrength,
+  fruitFractionCap,
+  allocateDM,
+} from './SinkAllocation';
+
 export { computePhysics, computeTrussDroop } from './PhysicsModel';
 
 export { getSunState, dayToHour } from './SunPosition';
