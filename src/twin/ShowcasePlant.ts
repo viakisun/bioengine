@@ -229,10 +229,17 @@ export function createShowcasePlant(
       }
     }
 
-    // === Stem (main axis) ===
+    // === Stem (main axis) — Plan 3b Phase ζ-5 polish ===
+    // 12-segment cross-section (round), 15% bulge at each node (마디감),
+    // 8 vertical grooves (vascular bundle hint, 6% depth).
     if (state.nodes.length >= 2) {
       const stemRng = new SeededRandom(seed * 13);
-      const stem = createStemMesh(`showcase_stem_${seed}`, scene, state.nodes, stemRng);
+      const stem = createStemMesh(`showcase_stem_${seed}`, scene, state.nodes, stemRng, {
+        radialSegments: 12,
+        nodeBulge: 0.15,
+        verticalStripeCount: 8,
+        stripeDepth: 0.06,
+      });
       if (stem) {
         stem.parent = root;
         stem.material = stemMat;
@@ -262,7 +269,15 @@ export function createShowcasePlant(
           scene,
           sideAxis.nodes.length >= 1 ? sideAxis.nodes : [],
           sideRng,
-          { origin },
+          {
+            origin,
+            // Side shoots: 10 segments (lighter than main 12), softer
+            // bulge, same stripe scheme. Visual continuity with main axis.
+            radialSegments: 10,
+            nodeBulge: 0.10,
+            verticalStripeCount: 8,
+            stripeDepth: 0.05,
+          },
         );
         if (sideStem) {
           sideStem.parent = root;
