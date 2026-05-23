@@ -377,6 +377,141 @@ function activateAndPruneBuds(
   }
 }
 
+/**
+ * Build the starter chain of NodeStates for an activated side shoot.
+ *
+ * Each shoot node's leaf biology mirrors the main-axis model: leafMaturity
+ * is a sigmoid of node age, leaf area/mass scale with leafSizeFactor², droop
+ * accumulates from weight + age + senescence. Side-shoot leaves are *60%*
+ * the size of main-axis leaves to reflect their secondary status.
+ *
+ * Internode length: 4-6 cm (real tomato side shoots are typically shorter
+ * + wirier than main stem). Stem radius starts at 60% of parent's at that
+ * node and tapers further toward the shoot tip.
+ *
+ * Plan 3c-1 — previously leafMaturity was hardcoded 0, leaving side shoots
+ * visually as bare twigs in lush mode.
+ */
+function populateSideShootChain(
+  parentNode: NodeState,
+  shoot: StemAxis,
+  allAxes: StemAxis[],
+  genome: PlantGenome,
+  rng: SeededRandom,
+  stress: { waterStress: number; diseaseLoad: number },
+): void {
+  const angleRad = ((parentNode.sideShootAngleDeg ?? 35) * Math.PI) / 180;
+  const az = shoot.branchAzimuth;
+  const startDir = normalize3({
+    x: parentNode.growthDir.x * Math.cos(angleRad) + Math.cos(az) * Math.sin(angleRad),
+    y: parentNode.growthDir.y * Math.cos(angleRad) + Math.sin(angleRad) * 0.3,
+    z: parentNode.growthDir.z * Math.cos(angleRad) + Math.sin(az) * Math.sin(angleRad),
+  });
+
+  // Shoot age = parent age - lag for emergence. Younger shoots = fewer
+  // nodes (apex hasn't grown that far yet).
+  const shootAge = Math.max(0, parentNode.age - 5);
+  const shootInternodes = Math.min(8, Math.floor(shootAge / 4));
+
+  shoot.parentAxisIdx = 0;          // (currently only main has order=0)
+  allAxes.push(shoot);
+
+  // Leaf-size scaling for side shoots — slightly smaller than main axis.
+  // 0.6× matches Marcelis et al. observation that lateral shoot leaves
+  // average ~60% of primary leaf area before pruning intervention.
+  const SHOOT_LEAF_SCALE = 0.6;
+
+  // Sigmoid params reused from main-axis biology.
+  const leafExpK = genome.leafExpansionRate ?? 0.35;
+
+  let pos = { ...parentNode.position };
+  let dir = startDir;
+
+  for (let k = 0; k < Math.max(1, shootInternodes); k++) {
+    // Internode length — 4-6 cm with deterministic jitter.
+    const internodeM = 0.04 + rng.next() * 0.02;
+    pos = {
+      x: pos.x + dir.x * internodeM,
+      y: pos.y + dir.y * internodeM,
+      z: pos.z + dir.z * internodeM,
+    };
+    const nextDir = synthesizeGrowthDir(dir, shootAge, 0, rng);
+
+    // Per-node age (older at base, younger at tip). Same biology as main.
+    const nodeAge = Math.max(0, shootAge - k * 3);
+    const leafExpansion = sigmoid(nodeAge, leafExpK, 9);
+    const leafMaturity = Math.max(0.02, leafExpansion);
+
+    // Position factor (peaks mid-shoot) — match main axis style.
+    const nodeFrac = shootInternodes <= 1 ? 0.5 : k / (shootInternodes - 1);
+    const positionFactor = Math.sin(nodeFrac * Math.PI);
+    const potentialSize = (0.85 + 0.20 * positionFactor)
+      * genome.leafSizeMultiplier * SHOOT_LEAF_SCALE;
+    const leafSizeFactor = potentialSize * leafExpansion;
+
+    // Leaf area / mass scale with leafSizeFactor² (same formula as main).
+    const BASE_LEAF_AREA_CM2 = 880;
+    const leafAreaCm2 = BASE_LEAF_AREA_CM2 * leafSizeFactor * leafSizeFactor;
+    const leafMassG = 25 * leafSizeFactor * leafSizeFactor * leafMaturity;
+
+    // Yellowing — side shoots typically don't reach senescence age before
+    // pruning, but mirror the rule for completeness.
+    const yellowing = nodeAge > 60 ? Math.min(1, (nodeAge - 60) / 30) : 0;
+
+    // Droop — weight + age + senescence (water stress copies plant level).
+    const armLenM = 0.18;             // shoot leaves stick out a bit shorter
+    const DROOP_WEIGHT_COEFF = 6000;
+    const weightDroop = (leafMassG / 1000) * armLenM * armLenM * DROOP_WEIGHT_COEFF;
+    const ageDroop = nodeAge < 8
+      ? 0
+      : nodeAge < 20
+        ? Math.min(25, (nodeAge - 8) * 1.2 * genome.leafDroopMultiplier)
+        : Math.min(55, 15 + (nodeAge - 20) * 0.8 * genome.leafDroopMultiplier);
+    const droopExtra = Math.min(120,
+      weightDroop + ageDroop + stress.waterStress * 30 + yellowing * 25,
+    );
+
+    // Leaflet count — biased by maturity (5/7/9 thresholds like main axis).
+    const biasedMaturity = leafMaturity + genome.leafletCountBias * 0.15;
+    const leafletCount = biasedMaturity < 0.3 ? 5 : biasedMaturity < 0.6 ? 7 : 9;
+
+    // Stem radius — pipe-model approx: parent radius × 0.6 base × taper.
+    // Taper formula keeps tip ~0.6 × parent × 0.1 = 6% rather than 0.
+    const stemRadiusMm = parentNode.stemRadiusMm * 0.6
+      * Math.max(0.15, 1 - k / Math.max(1, shootInternodes));
+
+    shoot.nodes.push({
+      index: k,
+      heightCm: parentNode.heightCm + (pos.y - parentNode.position.y) * 100,
+      phyllotaxisAngle: (k * GOLDEN_ANGLE) % 360,
+      leafMaturity,
+      leafSizeFactor,
+      leafletCount,
+      yellowing,
+      droopExtra,
+      truss: null,                     // 곁가지 truss = Plan 3c+ scope
+      age: nodeAge,
+      emergence: 1,
+      leafAreaCm2,
+      leafMassG,
+      internodeLenCm: internodeM * 100,
+      massAboveKg: 0,
+      stemRadiusMm,
+      bendingMomentNm: 0,
+      deflectionRad: 0,
+      deflectionAzimuth: 0,
+      waterStress: stress.waterStress,
+      diseaseLoad: stress.diseaseLoad,
+      position: { ...pos },
+      growthDir: { ...nextDir },
+      budState: 'dormant',
+      sideShoot: null,
+      sideShootAngleDeg: null,
+    });
+    dir = nextDir;
+  }
+}
+
 export function computePlantState(
   day: number,
   genome: PlantGenome,
@@ -748,65 +883,22 @@ export function computePlantState(
     activateAndPruneBuds(allAxes, skeletonRng, defAgg, maxOrder);
   }
 
-  // Populate side-shoot axes' nodes — short starter chain per activated
-  // bud, anchored at parent node's position with branch direction.
+  // Populate side-shoot axes' nodes — starter chain per activated bud.
+  // 곁가지 node 의 leaf biology 는 main axis 와 동일 sigmoid 모델로
+  // (Plan 3c-1). 단 size 는 곁가지 특성 반영해서 main 대비 작게.
   for (let i = 0; i < mainAxis.nodes.length; i++) {
     const node = mainAxis.nodes[i];
     if (!node.sideShoot || node.budState !== 'growing') continue;
     if (node.sideShoot.nodes.length > 0) continue;
 
-    const angleRad = ((node.sideShootAngleDeg ?? 35) * Math.PI) / 180;
-    const az = node.sideShoot.branchAzimuth;
-    const startDir = normalize3({
-      x: node.growthDir.x * Math.cos(angleRad) + Math.cos(az) * Math.sin(angleRad),
-      y: node.growthDir.y * Math.cos(angleRad) + Math.sin(angleRad) * 0.3,
-      z: node.growthDir.z * Math.cos(angleRad) + Math.sin(az) * Math.sin(angleRad),
-    });
-    const shootAge = Math.max(0, node.age - 5);
-    const shootInternodes = Math.min(8, Math.floor(shootAge / 4));
-    node.sideShoot.parentAxisIdx = 0;
-    allAxes.push(node.sideShoot);
-
-    let pos = { ...node.position };
-    let dir = startDir;
-    for (let k = 0; k < Math.max(1, shootInternodes); k++) {
-      const internodeM = 0.04 + skeletonRng.next() * 0.02;
-      pos = {
-        x: pos.x + dir.x * internodeM,
-        y: pos.y + dir.y * internodeM,
-        z: pos.z + dir.z * internodeM,
-      };
-      const nextDir = synthesizeGrowthDir(dir, shootAge, 0, skeletonRng);
-      node.sideShoot.nodes.push({
-        index: k,
-        heightCm: node.heightCm + (pos.y - node.position.y) * 100,
-        phyllotaxisAngle: (k * GOLDEN_ANGLE) % 360,
-        leafMaturity: 0,
-        leafSizeFactor: 0.4,
-        leafletCount: 5,
-        yellowing: 0,
-        droopExtra: 0,
-        truss: null,
-        age: Math.max(0, shootAge - k * 3),
-        emergence: 1,
-        leafAreaCm2: 100,
-        leafMassG: 3,
-        internodeLenCm: internodeM * 100,
-        massAboveKg: 0,
-        stemRadiusMm: node.stemRadiusMm * 0.6 * (1 - k / 10),
-        bendingMomentNm: 0,
-        deflectionRad: 0,
-        deflectionAzimuth: 0,
-        waterStress,
-        diseaseLoad,
-        position: { ...pos },
-        growthDir: { ...nextDir },
-        budState: 'dormant',
-        sideShoot: null,
-        sideShootAngleDeg: null,
-      });
-      dir = nextDir;
-    }
+    populateSideShootChain(
+      node,
+      node.sideShoot,
+      allAxes,
+      genome,
+      skeletonRng,
+      { waterStress, diseaseLoad },
+    );
   }
 
   return {

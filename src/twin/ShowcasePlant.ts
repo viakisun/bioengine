@@ -229,124 +229,112 @@ export function createShowcasePlant(
       }
     }
 
-    // === Stem (main axis) — Plan 3b Phase ζ-5 polish ===
-    // 12-segment cross-section (round), 15% bulge at each node (마디감),
-    // 8 vertical grooves (vascular bundle hint, 6% depth).
-    if (state.nodes.length >= 2) {
-      const stemRng = new SeededRandom(seed * 13);
-      const stem = createStemMesh(`showcase_stem_${seed}`, scene, state.nodes, stemRng, {
-        radialSegments: 12,
-        nodeBulge: 0.15,
-        verticalStripeCount: 8,
-        stripeDepth: 0.06,
-      });
-      if (stem) {
-        stem.parent = root;
-        stem.material = stemMat;
-        currentMeshes.push(stem);
-        currentParts.stem = stem;
-      }
-    }
-
-    // === Side shoot stems (Plan 3b Phase ζ-4) ===
-    // plant.allAxes 의 order >= 1 axis 들. 각각 자체 stem mesh.
-    // 부모 attachment 위치 (mainAxis.nodes[parentNodeIdx].position) 에서 시작.
-    if (state.allAxes && state.allAxes.length > 1) {
-      for (let a = 1; a < state.allAxes.length; a++) {
-        const sideAxis = state.allAxes[a];
-        if (!sideAxis.nodes || sideAxis.nodes.length < 1) continue;
-        // 부모 axis 의 분기 node 좌표 — origin
-        const parentAxisIdx = sideAxis.parentAxisIdx ?? 0;
-        const parentAxis = state.allAxes[parentAxisIdx];
-        const parentNode = parentAxis?.nodes[sideAxis.parentNodeIdx ?? 0];
-        const origin = parentNode?.position
-          ? { x: parentNode.position.x, y: parentNode.position.y, z: parentNode.position.z }
-          : null;
-        // 곁가지 nodes 가 1개여도 origin 까지 더하면 2 point — line drawable
-        const sideRng = new SeededRandom(seed * 13 + a * 101);
-        const sideStem = createStemMesh(
-          `showcase_sidestem_${seed}_${a}`,
-          scene,
-          sideAxis.nodes.length >= 1 ? sideAxis.nodes : [],
-          sideRng,
-          {
-            origin,
-            // Side shoots: 10 segments (lighter than main 12), softer
-            // bulge, same stripe scheme. Visual continuity with main axis.
-            radialSegments: 10,
-            nodeBulge: 0.10,
-            verticalStripeCount: 8,
-            stripeDepth: 0.05,
-          },
-        );
-        if (sideStem) {
-          sideStem.parent = root;
-          sideStem.material = stemMat;
-          currentMeshes.push(sideStem);
-        }
-      }
-    }
-
-    // Select effective leaf material per plant-level health
+    // === Stems + leaves + trusses — iterate all axes (main + side shoots) ===
+    // Plan 3b: single source of truth. Plan 3c-1: 곁가지 도 자체 leaf 생물학.
+    // 한 함수 (buildAxisVisuals) 에서 axis 1개의 stem + leaf + truss 모두
+    // 처리 — main 과 side shoot 코드 중복 제거.
     const isDiseased = state.diseaseLoad > 0.3;
     const leafMatForPlant = isDiseased ? diseasedLeafMat : leafMat;
 
-    // === Leaves + truss — Plan 3b: node.position 직접 사용 ===
-    // Skeleton 의 authoritative 3D 위치 → lush mesh 가 skeleton 과 동일
-    // 형태. Mode 와 무관하게 같은 plant 의 같은 anatomy.
-    for (const node of state.nodes) {
-      if (node.leafMaturity < 0.05) continue;
+    const buildAxisVisuals = (
+      axis: import('@farmsim/tomato-engine').StemAxis,
+      axisIdx: number,
+    ) => {
+      const isMain = axisIdx === 0;
+      const stemOpts = isMain
+        ? { radialSegments: 12, nodeBulge: 0.15, verticalStripeCount: 8, stripeDepth: 0.06 }
+        : { radialSegments: 10, nodeBulge: 0.10, verticalStripeCount: 8, stripeDepth: 0.05 };
 
-      const azimuthRad = (node.phyllotaxisAngle * Math.PI) / 180;
-      const droopRad = (node.droopExtra * Math.PI) / 180;
-
-      const rng = new SeededRandom(seed * 1000 + node.index * 13 + 7);
-      const leaf = createLeafMeshFromNode(
-        `showcase_leaf_${seed}_${node.index}`,
-        scene,
-        node,
-        genome,
-        state.day,
-        rng
-      );
-      leaf.material = node.yellowing > 0.4
-        ? yellowLeafMat
-        : leafMatForPlant;
-      leaf.parent = root;
-      leaf.position = new Vector3(node.position.x, node.position.y, node.position.z);
-
-      const q = Quaternion.RotationAxis(Vector3.Up(), azimuthRad).multiply(
-        Quaternion.RotationAxis(new Vector3(0, 0, 1), -droopRad)
-      );
-      leaf.rotationQuaternion = q;
-      currentMeshes.push(leaf);
-      currentParts.leaves.push(leaf);
-
-      // Truss — 휜 줄기의 실제 위치에서 phyllotaxis 반대 방향으로 분기
-      if (node.truss && (node.truss.fruits.length > 0 || node.truss.flowers.length > 0)) {
-        const trussRng = new SeededRandom(seed * 7919 + node.index * 31);
-        const trussNode = createTrussNode(
-          `showcase_truss_${seed}_${node.index}`,
-          scene,
-          node.truss,
-          genome,
-          azimuthRad + Math.PI,
-          trussRng
-        );
-        trussNode.parent = root;
-        trussNode.position = new Vector3(
-          node.position.x,
-          node.position.y - 0.02,
-          node.position.z,
-        );
-
-        trussNode.getChildMeshes().forEach((m) => {
-          if (m.name.includes('_body')) {
-            currentParts.fruits.push(m as Mesh);
-          }
-        });
-        currentTransformNodes.push(trussNode);
+      // Resolve stem origin — main = ground (default), side = parent's node position.
+      let origin: { x: number; y: number; z: number } | undefined | null;
+      if (isMain) {
+        origin = undefined;  // ground (0,0,0) prefix
+      } else {
+        const parentAxis = state.allAxes[axis.parentAxisIdx ?? 0];
+        const parentNode = parentAxis?.nodes[axis.parentNodeIdx ?? 0];
+        origin = parentNode?.position
+          ? { x: parentNode.position.x, y: parentNode.position.y, z: parentNode.position.z }
+          : null;
       }
+
+      // === Stem ===
+      if (axis.nodes.length >= (isMain ? 2 : 1)) {
+        const stemRng = new SeededRandom(seed * 13 + axisIdx * 101);
+        const stem = createStemMesh(
+          `showcase_stem_${seed}_a${axisIdx}`,
+          scene,
+          axis.nodes,
+          stemRng,
+          { ...stemOpts, origin },
+        );
+        if (stem) {
+          stem.parent = root;
+          stem.material = stemMat;
+          currentMeshes.push(stem);
+          if (isMain) currentParts.stem = stem;
+        }
+      }
+
+      // === Leaves + trusses per node ===
+      for (const node of axis.nodes) {
+        if (node.leafMaturity < 0.05) continue;
+
+        const azimuthRad = (node.phyllotaxisAngle * Math.PI) / 180;
+        const droopRad = (node.droopExtra * Math.PI) / 180;
+
+        // Seed mixes axisIdx so each side shoot has distinct leaf RNG.
+        const leafRng = new SeededRandom(seed * 1000 + axisIdx * 99991 + node.index * 13 + 7);
+        const leaf = createLeafMeshFromNode(
+          `showcase_leaf_${seed}_a${axisIdx}_n${node.index}`,
+          scene,
+          node,
+          genome,
+          state.day,
+          leafRng,
+        );
+        leaf.material = node.yellowing > 0.4 ? yellowLeafMat : leafMatForPlant;
+        leaf.parent = root;
+        leaf.position = new Vector3(node.position.x, node.position.y, node.position.z);
+
+        const q = Quaternion.RotationAxis(Vector3.Up(), azimuthRad).multiply(
+          Quaternion.RotationAxis(new Vector3(0, 0, 1), -droopRad),
+        );
+        leaf.rotationQuaternion = q;
+        currentMeshes.push(leaf);
+        currentParts.leaves.push(leaf);
+
+        // Truss — currently only main-axis nodes carry trusses (Plan 3c+
+        // could add side-shoot trusses if growers don't prune).
+        if (node.truss && (node.truss.fruits.length > 0 || node.truss.flowers.length > 0)) {
+          const trussRng = new SeededRandom(seed * 7919 + axisIdx * 88883 + node.index * 31);
+          const trussNode = createTrussNode(
+            `showcase_truss_${seed}_a${axisIdx}_n${node.index}`,
+            scene,
+            node.truss,
+            genome,
+            azimuthRad + Math.PI,
+            trussRng,
+          );
+          trussNode.parent = root;
+          trussNode.position = new Vector3(
+            node.position.x,
+            node.position.y - 0.02,
+            node.position.z,
+          );
+          trussNode.getChildMeshes().forEach((m) => {
+            if (m.name.includes('_body')) {
+              currentParts.fruits.push(m as Mesh);
+            }
+          });
+          currentTransformNodes.push(trussNode);
+        }
+      }
+    };
+
+    // Drive buildAxisVisuals across all axes — main + each side shoot.
+    const axes = state.allAxes ?? [state.mainAxis];
+    for (let a = 0; a < axes.length; a++) {
+      buildAxisVisuals(axes[a], a);
     }
 
     applySegmentationHighlights();
