@@ -524,6 +524,11 @@ interface TwinState {
   showSkeleton: boolean;
   setShowSkeleton: (v: boolean) => void;
 
+  /** Plan 3b Phase η-2 — 진단 로그 토글. ON 시 ShowcasePlant.update 와
+   *  SkeletonOverlay 의 update/setVisible 가 4단계 [diag:N] log 출력. */
+  debugDiagnostics: boolean;
+  setDebugDiagnostics: (v: boolean) => void;
+
   /** Plan 3a Phase ζ — skeleton overlay 의 thickness + color 설정.
    *  Drawer 에서 슬라이더/컬러 픽커로 조정. localStorage 에 persist. */
   skeleton: SkeletonConfig;
@@ -787,6 +792,8 @@ export const useTwinStore = create<TwinState>((set) => ({
   singlePlantInspectorOpen: { cultivar: true, state: true, truss: true, phenology: true, genome: false },
   showSkeleton: false,
   setShowSkeleton: (v) => set({ showSkeleton: v }),
+  debugDiagnostics: false,
+  setDebugDiagnostics: (v) => set({ debugDiagnostics: v }),
 
   skeleton: { ...SKELETON_DEFAULTS, ...PERSISTED_SKELETON },
   setSkeleton: (patch) => set((s) => ({ skeleton: { ...s.skeleton, ...patch } })),

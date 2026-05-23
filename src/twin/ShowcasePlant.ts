@@ -18,6 +18,7 @@ import { createTrussNode } from '../plant/TrussGenerator';
 import { buildCotyledonChunk } from '@farmsim/tomato-geometry';
 import type { GrowthEngine, PlantState } from '@farmsim/tomato-engine';
 import { createSkeletonOverlay, type SkeletonOverlayHandle } from './SkeletonOverlay';
+import { useTwinStore } from '../store/twinStore';
 
 /**
  * Live, GrowthEngine-driven plant that rebuilds on every day-scrub.
@@ -120,7 +121,42 @@ export function createShowcasePlant(
 
   let segmentationOn = false;
   let skeletonOn = false;
-  const skeleton: SkeletonOverlayHandle = createSkeletonOverlay(scene);
+  // Plan 3b Phase η-1 — skeleton overlay 를 ShowcasePlant.root 의 child 로.
+  // 그래야 lush mesh 와 *같은 world transform* 으로 렌더 (X offset bug 방지).
+  const skeleton: SkeletonOverlayHandle = createSkeletonOverlay(scene, root);
+
+  // Plan 3b Phase η-2 — 진단 로그 (store.debugDiagnostics ON 일 때만).
+  function diag(): boolean {
+    return useTwinStore.getState().debugDiagnostics;
+  }
+  // 타입은 Mesh / AbstractMesh 호환 위해 import 의 AbstractMesh 사용 안 하고
+  // 메소드 호출만 하니 widening 으로 처리.
+  function logBbox(label: string, meshes: ReadonlyArray<import('@babylonjs/core/Meshes/abstractMesh').AbstractMesh>): void {
+    let n = 0;
+    let minX = Infinity, minY = Infinity, minZ = Infinity;
+    let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+    for (const m of meshes) {
+      try {
+        // 최신 Babylon AbstractMesh.refreshBoundingInfo 시그니처:
+        // (applySkeletonOrOptions: boolean | IMeshDataOptions, applyMorph: boolean) => this
+        m.refreshBoundingInfo(false, false);
+        const b = m.getBoundingInfo().boundingBox;
+        const lo = b.minimumWorld; const hi = b.maximumWorld;
+        if (Number.isFinite(lo.y) && Number.isFinite(hi.y)) {
+          n++;
+          minX = Math.min(minX, lo.x); maxX = Math.max(maxX, hi.x);
+          minY = Math.min(minY, lo.y); maxY = Math.max(maxY, hi.y);
+          minZ = Math.min(minZ, lo.z); maxZ = Math.max(maxZ, hi.z);
+        }
+      } catch { /* ignore */ }
+    }
+    if (n === 0) { console.log(`[diag:4]   ${label}: 0 meshes`); return; }
+    console.log(
+      `[diag:4]   ${label}: n=${n} world-bbox min=(${minX.toFixed(3)}, ${minY.toFixed(3)}, ${minZ.toFixed(3)}) ` +
+      `max=(${maxX.toFixed(3)}, ${maxY.toFixed(3)}, ${maxZ.toFixed(3)})`,
+    );
+  }
+
   function applySegmentationHighlights() {
     highlight.removeAllMeshes();
     if (!segmentationOn) return;
@@ -304,6 +340,9 @@ export function createShowcasePlant(
   return {
     root,
     update(day, physiology) {
+      if (diag()) {
+        console.log(`[diag:1] showcase.update(day=${day.toFixed(2)}, physiology=${physiology ? 'yes' : 'no'})`);
+      }
       // Single-plant mode (physiology supplied): always rebuild —
       // ignore the day-threshold throttle so 1-minute scrubs visibly
       // update fruit color/size. The mesh rebuild is light enough at
@@ -318,6 +357,14 @@ export function createShowcasePlant(
       buildFromState(state);
       // Keep skeleton overlay in sync with current plant data.
       skeleton.update(state);
+
+      if (diag()) {
+        const apex = state.nodes[state.nodes.length - 1];
+        console.log(`[diag:1]   nodes=${state.nodes.length} allAxes=${state.allAxes?.length ?? '?'}`);
+        if (apex && apex.position) {
+          console.log(`[diag:1]   apex — heightCm=${apex.heightCm.toFixed(1)} position=(${apex.position.x.toFixed(3)}, ${apex.position.y.toFixed(3)}, ${apex.position.z.toFixed(3)})`);
+        }
+      }
     },
     setVisible(v) {
       root.setEnabled(v);
@@ -330,10 +377,32 @@ export function createShowcasePlant(
     setSkeletonMode(on) {
       if (skeletonOn === on) return;
       skeletonOn = on;
+      if (diag()) {
+        console.log(`[diag:2] setSkeletonMode(${on})`);
+        const p = root.position;
+        console.log(`[diag:2]   ShowcasePlant.root.position = (${p.x.toFixed(3)}, ${p.y.toFixed(3)}, ${p.z.toFixed(3)})`);
+        const sn = scene.transformNodes.find((n) => n.name === 'skeletonOverlayRoot');
+        if (sn) {
+          console.log(`[diag:2]   SkeletonOverlay.root.position(local) = (${sn.position.x.toFixed(3)}, ${sn.position.y.toFixed(3)}, ${sn.position.z.toFixed(3)})`);
+          console.log(`[diag:2]   SkeletonOverlay.root.parent = ${sn.parent?.name ?? 'null'}`);
+        } else {
+          console.log(`[diag:2]   SkeletonOverlay.root: not yet created (lazy)`);
+        }
+      }
       // Hide lush mesh while skeleton is on so user can verify biology.
       root.setEnabled(!on);
       skeleton.setVisible(on);
       if (on && lastState) skeleton.update(lastState);
+
+      if (diag()) {
+        const lushStem = scene.meshes.filter(
+          (m) => m.name.startsWith('showcase_stem_') || m.name.startsWith('showcase_sidestem_'),
+        );
+        const skelMesh = scene.meshes.filter((m) => m.name.startsWith('skel_'));
+        console.log(`[diag:4] mesh tally — lush stem: ${lushStem.length}, skel: ${skelMesh.length}`);
+        logBbox('lush', lushStem);
+        logBbox('skel', skelMesh);
+      }
     },
     setSkeletonConfig(cfg) {
       skeleton.setConfig(cfg);

@@ -97,7 +97,13 @@ const DEFAULT_CONFIG: SkeletonConfig = {
   nodeMarkerSize: 0.011, apexMarkerSize: 0.014, fruitMarkerScale: 1.0,
 };
 
-export function createSkeletonOverlay(scene: Scene): SkeletonOverlayHandle {
+export function createSkeletonOverlay(
+  scene: Scene,
+  /** Parent TransformNode (showcase plant root). Skeleton overlay 가 그 위치
+   *  를 inherits 해서 lush mesh 와 *동일 world 좌표계* 에서 렌더됨.
+   *  null 이면 (0,0,0) — 호환성용 (테스트 등). */
+  parent: TransformNode | null = null,
+): SkeletonOverlayHandle {
   let root: TransformNode | null = null;
   let mats: MatBucket | null = null;
   const meshes: Mesh[] = [];
@@ -108,6 +114,7 @@ export function createSkeletonOverlay(scene: Scene): SkeletonOverlayHandle {
   function ensureInit() {
     if (root) return;
     root = new TransformNode('skeletonOverlayRoot', scene);
+    if (parent) root.parent = parent;
     mats = makeMaterials(scene);
     root.setEnabled(false);
   }

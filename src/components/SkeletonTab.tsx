@@ -28,6 +28,8 @@ export function SkeletonTab() {
   const reset = useTwinStore((s) => s.resetSkeleton);
   const showSkeleton = useTwinStore((s) => s.showSkeleton);
   const setShowSkeleton = useTwinStore((s) => s.setShowSkeleton);
+  const debugDiag = useTwinStore((s) => s.debugDiagnostics);
+  const setDebugDiag = useTwinStore((s) => s.setDebugDiagnostics);
 
   const widthSlider = (key: WidthKey, label: string) => (
     <SliderRow
@@ -133,6 +135,16 @@ export function SkeletonTab() {
       {toggleBtn('showFruitDots', '과실 점')}
       {toggleBtn('showDormantBuds', 'Dormant Bud')}
       {toggleBtn('showPrunedBuds', 'Pruned Bud')}
+
+      <Eyebrow>진단</Eyebrow>
+      <ToggleBtn on={debugDiag} onClick={() => setDebugDiag(!debugDiag)}>
+        진단 로그 {debugDiag ? 'ON' : 'OFF'}
+      </ToggleBtn>
+      <div className="quality-note">
+        ON 일 때 Skeleton 토글 / update 마다 console 에 [diag:1-4]
+        4단계 dump (lush vs skel mesh count + bbox + root transform).
+        lush ↔ skel 위치 mismatch 진단용.
+      </div>
 
       <Eyebrow>리셋</Eyebrow>
       <button type="button" className="btn-ghost" onClick={reset}>
