@@ -313,7 +313,42 @@ input[type="range"].slim::-moz-range-thumb {
   letter-spacing: 0.4px;
 }
 
-/* ===== Lighting drawer (single-plant 모드 우측 슬라이드 패널) ===== */
+/* ===== Drawer stack (single-plant 모드 우측 슬라이드 패널) ===== */
+/* 3 vertical 탭 — 조명 / 정보 / 스켈레톤. 화면 우측 모서리 vertical 중앙 정렬. */
+.drawer-toggles {
+  position: fixed;
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 50;
+  pointer-events: auto;
+}
+.drawer-toggle {
+  width: 28px;
+  height: 86px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--bd);
+  border-right: none;
+  border-top-left-radius: var(--radius-xs);
+  border-bottom-left-radius: var(--radius-xs);
+  font: 600 11px / 1 var(--font-mono, ui-monospace, monospace);
+  letter-spacing: 0.08em;
+  color: var(--text-strong, #1a1a1a);
+  cursor: pointer;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  pointer-events: auto;
+  box-shadow: -2px 0 8px rgba(0, 0, 0, 0.06);
+}
+.drawer-toggle:hover {
+  background: #fff;
+  border-color: var(--bd-strong);
+}
+/* 기존 .lighting-drawer-toggle (단일 drawer 패턴) — alias for 호환 */
 .lighting-drawer-toggle {
   position: fixed;
   top: 50%;

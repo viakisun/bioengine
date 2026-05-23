@@ -13,12 +13,11 @@
 import { useEffect, useRef } from 'react';
 import { useTwinStore } from '../store/twinStore';
 import { ToolsPanel } from '../ui/single-plant/ToolsPanel';
-import { InspectorPanel } from '../ui/single-plant/InspectorPanel';
 import { TimelineChart } from '../ui/single-plant/TimelineChart';
 import { TimelineSlider } from '../ui/single-plant/TimelineSlider';
 import { StatusBar } from '../ui/single-plant/StatusBar';
 import { PARGauge } from '../ui/single-plant/PARGauge';
-import { LightingDrawer } from './LightingDrawer';
+import { DrawerStack } from './DrawerStack';
 import { FONT_SERIF, FONT_MONO, C_FG, C_FG_MUTE, C_BORDER } from '../ui/single-plant/styles';
 import { SHOWCASE_SEED } from '../twin/GreenhouseScene';
 import { getSinglePlantEngine, getSinglePlantShowcase } from '../ui/single-plant/useSinglePlantState';
@@ -91,13 +90,13 @@ export function SinglePlantOverlay() {
       color: C_FG,
       display: 'grid',
       gridTemplateRows: 'auto 1fr auto auto auto',
-      gridTemplateColumns: '220px 1fr 340px',
+      gridTemplateColumns: '220px 1fr',
       gridTemplateAreas: `
-        "topbar topbar topbar"
-        "tools viewport inspector"
-        "chart chart chart"
-        "slider slider slider"
-        "status status status"
+        "topbar topbar"
+        "tools viewport"
+        "chart chart"
+        "slider slider"
+        "status status"
       `,
     }}>
       {/* Top bar */}
@@ -169,11 +168,6 @@ export function SinglePlantOverlay() {
         <PARGauge />
       </div>
 
-      {/* Inspector — interactive */}
-      <div style={{ gridArea: 'inspector', minHeight: 0, overflow: 'auto', pointerEvents: 'auto' }}>
-        <InspectorPanel />
-      </div>
-
       {/* Timeline chart — interactive */}
       <div style={{ gridArea: 'chart', height: 180, minHeight: 0, overflow: 'hidden', pointerEvents: 'auto' }}>
         <TimelineChart />
@@ -189,9 +183,9 @@ export function SinglePlantOverlay() {
         <StatusBar />
       </div>
 
-      {/* Lighting drawer — right-edge slide-in. Toggle button lives on the
-          right edge (vertical center) when closed. Sits above all panels. */}
-      <LightingDrawer />
+      {/* Drawer stack — 우측 모서리 vertical 탭 3개 (조명/정보/스켈레톤).
+          하나만 동시 open. 모두 닫혀있을 때 탭만 보임. */}
+      <DrawerStack />
     </div>
   );
 }

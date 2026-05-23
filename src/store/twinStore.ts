@@ -112,6 +112,79 @@ export interface LightingState {
   ssaoRadius: number;
 }
 
+// ──────────────────────────────────────────────────────────────────
+// Skeleton overlay 설정 (Plan 3a Phase ζ)
+// ──────────────────────────────────────────────────────────────────
+
+export type DrawerKind = 'lighting' | 'inspector' | 'skeleton';
+
+export interface SkeletonConfig {
+  // 두께 (월드 단위, m). 0.001 m = 1mm.
+  axisMainWidth: number;
+  axisOrder1Width: number;
+  axisOrder2Width: number;
+  petioleWidth: number;
+  rachisWidth: number;
+  pedicelWidth: number;
+  calyxWidth: number;
+
+  // 색상 (hex)
+  axisMainColor: string;
+  axisOrder1Color: string;
+  axisOrder2Color: string;
+  petioleColor: string;
+  rachisColor: string;
+  pedicelColor: string;
+  calyxColor: string;
+
+  // 곡선 sampling
+  subdivisionsPerInternode: number;
+
+  // 표시 토글
+  showPetiole: boolean;
+  showTruss: boolean;
+  showCalyx: boolean;
+  showFruitDots: boolean;
+  showDormantBuds: boolean;
+  showPrunedBuds: boolean;
+
+  // Node 마커 크기 (m)
+  nodeMarkerSize: number;
+  apexMarkerSize: number;
+  fruitMarkerScale: number;
+}
+
+export const SKELETON_DEFAULTS: SkeletonConfig = {
+  axisMainWidth: 0.006,
+  axisOrder1Width: 0.004,
+  axisOrder2Width: 0.003,
+  petioleWidth: 0.003,
+  rachisWidth: 0.0045,
+  pedicelWidth: 0.0025,
+  calyxWidth: 0.0018,
+
+  axisMainColor: '#e90b2c',
+  axisOrder1Color: '#ff7a1a',
+  axisOrder2Color: '#ffcc00',
+  petioleColor: '#ff20a0',
+  rachisColor: '#ff0080',
+  pedicelColor: '#e8408a',
+  calyxColor: '#3fff5a',
+
+  subdivisionsPerInternode: 5,
+
+  showPetiole: true,
+  showTruss: true,
+  showCalyx: true,
+  showFruitDots: true,
+  showDormantBuds: true,
+  showPrunedBuds: true,
+
+  nodeMarkerSize: 0.011,
+  apexMarkerSize: 0.014,
+  fruitMarkerScale: 1.0,
+};
+
 // Defaults mirror SceneSetup.ts hardcoded values so toggling between
 // "default" preset and the boot state is a no-op.
 export const LIGHTING_DEFAULTS: LightingState = {
@@ -450,6 +523,16 @@ interface TwinState {
    *  (apex, node bulge, side shoots, pruning) without visual clutter. */
   showSkeleton: boolean;
   setShowSkeleton: (v: boolean) => void;
+
+  /** Plan 3a Phase ζ — skeleton overlay 의 thickness + color 설정.
+   *  Drawer 에서 슬라이더/컬러 픽커로 조정. localStorage 에 persist. */
+  skeleton: SkeletonConfig;
+  setSkeleton: (patch: Partial<SkeletonConfig>) => void;
+  resetSkeleton: () => void;
+
+  /** 우측 드로어 — 'lighting' | 'inspector' | 'skeleton' | null. 동시 하나만. */
+  openDrawer: DrawerKind | null;
+  setOpenDrawer: (d: DrawerKind | null) => void;
   setSinglePlantMinute: (m: number) => void;
   setSinglePlantPlaying: (p: boolean) => void;
   setSinglePlantSpeed: (s: 1 | 4 | 24) => void;
@@ -517,6 +600,8 @@ const BOOT_QUALITY = readQualityFromUrl() ?? 9;
 // v1 → v2: 이전 사용자가 저장한 Lv 10 heavy 설정이 메모리 초과 유발
 // 가능성. v2 부터는 신규 시작 (사용자가 다시 dial in).
 const LS_KEY_LIGHTING = 'farmsim.lighting.v2';
+// Skeleton config persistence (Plan 3a Phase ζ)
+const LS_KEY_SKELETON = 'farmsim.skeleton.v1';
 
 interface PersistedLighting {
   lighting?: Partial<LightingState>;
@@ -544,7 +629,21 @@ function loadPersistedLighting(): PersistedLighting {
   }
 }
 
+function loadPersistedSkeleton(): Partial<SkeletonConfig> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem(LS_KEY_SKELETON);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== 'object') return {};
+    return parsed as Partial<SkeletonConfig>;
+  } catch {
+    return {};
+  }
+}
+
 const PERSISTED = loadPersistedLighting();
+const PERSISTED_SKELETON = loadPersistedSkeleton();
 const EFFECTIVE_QUALITY = PERSISTED.renderQuality ?? BOOT_QUALITY;
 
 export const useTwinStore = create<TwinState>((set) => ({
@@ -688,6 +787,13 @@ export const useTwinStore = create<TwinState>((set) => ({
   singlePlantInspectorOpen: { cultivar: true, state: true, truss: true, phenology: true, genome: false },
   showSkeleton: false,
   setShowSkeleton: (v) => set({ showSkeleton: v }),
+
+  skeleton: { ...SKELETON_DEFAULTS, ...PERSISTED_SKELETON },
+  setSkeleton: (patch) => set((s) => ({ skeleton: { ...s.skeleton, ...patch } })),
+  resetSkeleton: () => set({ skeleton: { ...SKELETON_DEFAULTS } }),
+
+  openDrawer: null,
+  setOpenDrawer: (d) => set({ openDrawer: d }),
   setSinglePlantMinute: (m) =>
     set({ singlePlantMinute: Math.max(0, Math.min(120 * 24 * 60 - 1, Math.round(m))) }),
   setSinglePlantPlaying: (p) => set({ singlePlantPlaying: p }),
@@ -847,18 +953,31 @@ export const useTwinStore = create<TwinState>((set) => ({
 // parse / quota 에러는 swallow — persistence 실패가 앱 동작에 영향 X.
 
 let _lightingSaveTimer: ReturnType<typeof setTimeout> | null = null;
+let _skeletonSaveTimer: ReturnType<typeof setTimeout> | null = null;
 if (typeof window !== 'undefined') {
   useTwinStore.subscribe((s, prev) => {
-    if (s.lighting === prev.lighting && s.renderQuality === prev.renderQuality) return;
-    if (_lightingSaveTimer) clearTimeout(_lightingSaveTimer);
-    _lightingSaveTimer = setTimeout(() => {
-      try {
-        window.localStorage.setItem(
-          LS_KEY_LIGHTING,
-          JSON.stringify({ lighting: s.lighting, renderQuality: s.renderQuality }),
-        );
-      } catch { /* quota / private mode 등 무시 */ }
-      _lightingSaveTimer = null;
-    }, 300);
+    // lighting + renderQuality
+    if (s.lighting !== prev.lighting || s.renderQuality !== prev.renderQuality) {
+      if (_lightingSaveTimer) clearTimeout(_lightingSaveTimer);
+      _lightingSaveTimer = setTimeout(() => {
+        try {
+          window.localStorage.setItem(
+            LS_KEY_LIGHTING,
+            JSON.stringify({ lighting: s.lighting, renderQuality: s.renderQuality }),
+          );
+        } catch { /* quota / private mode 등 무시 */ }
+        _lightingSaveTimer = null;
+      }, 300);
+    }
+    // skeleton config
+    if (s.skeleton !== prev.skeleton) {
+      if (_skeletonSaveTimer) clearTimeout(_skeletonSaveTimer);
+      _skeletonSaveTimer = setTimeout(() => {
+        try {
+          window.localStorage.setItem(LS_KEY_SKELETON, JSON.stringify(s.skeleton));
+        } catch { /* ignore */ }
+        _skeletonSaveTimer = null;
+      }, 300);
+    }
   });
 }

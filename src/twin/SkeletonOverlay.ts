@@ -26,10 +26,12 @@ import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import '@babylonjs/core/Meshes/Builders/sphereBuilder';
 import { catmullRomPath } from '../plant/StemGenerator';
 import type { PlantState, StemAxis, NodeState } from '@farmsim/tomato-engine';
+import type { SkeletonConfig } from '../store/twinStore';
 
 export interface SkeletonOverlayHandle {
   update: (plant: PlantState) => void;
   setVisible: (v: boolean) => void;
+  setConfig: (config: SkeletonConfig) => void;
   dispose: () => void;
 }
 
@@ -83,11 +85,25 @@ function isFiniteVec(p: { x: number; y: number; z: number }): boolean {
   return Number.isFinite(p.x) && Number.isFinite(p.y) && Number.isFinite(p.z);
 }
 
+// Default config — store 가 아직 안 붙었을 때 fallback.
+const DEFAULT_CONFIG: SkeletonConfig = {
+  axisMainWidth: 0.006, axisOrder1Width: 0.004, axisOrder2Width: 0.003,
+  petioleWidth: 0.003, rachisWidth: 0.0045, pedicelWidth: 0.0025, calyxWidth: 0.0018,
+  axisMainColor: '#e90b2c', axisOrder1Color: '#ff7a1a', axisOrder2Color: '#ffcc00',
+  petioleColor: '#ff20a0', rachisColor: '#ff0080', pedicelColor: '#e8408a', calyxColor: '#3fff5a',
+  subdivisionsPerInternode: 5,
+  showPetiole: true, showTruss: true, showCalyx: true,
+  showFruitDots: true, showDormantBuds: true, showPrunedBuds: true,
+  nodeMarkerSize: 0.011, apexMarkerSize: 0.014, fruitMarkerScale: 1.0,
+};
+
 export function createSkeletonOverlay(scene: Scene): SkeletonOverlayHandle {
   let root: TransformNode | null = null;
   let mats: MatBucket | null = null;
   const meshes: Mesh[] = [];
   let visible = false;
+  let cfg: SkeletonConfig = { ...DEFAULT_CONFIG };
+  let lastPlantForRebuild: PlantState | null = null;
 
   function ensureInit() {
     if (root) return;
@@ -183,13 +199,17 @@ export function createSkeletonOverlay(scene: Scene): SkeletonOverlayHandle {
       controlPoints.push(nodeWorld(n));
     }
     if (controlPoints.length >= 2) {
-      // 5 subsamples per internode → 30 node 면 145 점. 부드러운 wandering
-      // curve. 두께는 axis order 별 단일값 — GreasedLine widths array 가
-      // pair-based 해석으로 거대 블럭이 되는 문제 회피.
-      const curve = catmullRomPath(controlPoints, 5);
-      const axisWidth = axis.order === 0 ? 0.006 : axis.order === 1 ? 0.004 : 0.003;
+      const curve = catmullRomPath(controlPoints, Math.max(1, cfg.subdivisionsPerInternode));
+      const axisWidth =
+        axis.order === 0 ? cfg.axisMainWidth
+        : axis.order === 1 ? cfg.axisOrder1Width
+        : cfg.axisOrder2Width;
+      const colorHex =
+        axis.order === 0 ? cfg.axisMainColor
+        : axis.order === 1 ? cfg.axisOrder1Color
+        : cfg.axisOrder2Color;
       meshes.push(thickLine(
-        `skel_axis_a${axisIdx}`, curve, axisColor(axis.order), axisWidth,
+        `skel_axis_a${axisIdx}`, curve, Color3.FromHexString(colorHex), axisWidth,
       ));
     }
 
@@ -201,16 +221,22 @@ export function createSkeletonOverlay(scene: Scene): SkeletonOverlayHandle {
       const isApex = i === lastIdx;
       const isTruss = node.truss !== null;
 
+      // budState 별 visibility skip
+      if (!isApex) {
+        if (node.budState === 'dormant' && !cfg.showDormantBuds) continue;
+        if (node.budState === 'pruned' && !cfg.showPrunedBuds) continue;
+      }
+
       let dotMat: StandardMaterial;
       let radius: number;
       if (isApex) {
         dotMat = mats.apex;
-        radius = 0.014;
+        radius = cfg.apexMarkerSize;
       } else {
         switch (node.budState) {
-          case 'growing': dotMat = mats.dotGrowing; radius = 0.011; break;
-          case 'pruned':  dotMat = mats.dotPruned;  radius = 0.008; break;
-          default:        dotMat = mats.dotDormant; radius = 0.008;
+          case 'growing': dotMat = mats.dotGrowing; radius = cfg.nodeMarkerSize; break;
+          case 'pruned':  dotMat = mats.dotPruned;  radius = cfg.nodeMarkerSize * 0.7; break;
+          default:        dotMat = mats.dotDormant; radius = cfg.nodeMarkerSize * 0.7;
         }
       }
 
@@ -228,7 +254,7 @@ export function createSkeletonOverlay(scene: Scene): SkeletonOverlayHandle {
       // ── Petiole — arching curve in leaf's azimuth.
       //   nodePos → arch up slightly → curve down to drooped tip.
       //   Catmull-Rom 으로 매끈한 droop. *직선 금지*.
-      if (node.leafMaturity > 0.05 && axis.order === 0) {
+      if (cfg.showPetiole && node.leafMaturity > 0.05 && axis.order === 0) {
         const leafAzimuth = (node.phyllotaxisAngle * Math.PI) / 180;
         const droopRad = (node.droopExtra * Math.PI) / 180;
         const petLen = 0.12 * Math.max(0.3, node.leafSizeFactor);
@@ -256,7 +282,8 @@ export function createSkeletonOverlay(scene: Scene): SkeletonOverlayHandle {
         );
         const petCurve = catmullRomPath([nodePos, c1, c2, tip], 4);
         meshes.push(thickLine(
-          `skel_pet_a${axisIdx}_n${i}`, petCurve, COLOR_PETIOLE, 0.003,
+          `skel_pet_a${axisIdx}_n${i}`, petCurve,
+          Color3.FromHexString(cfg.petioleColor), cfg.petioleWidth,
         ));
         const leafDot = MeshBuilder.CreateSphere(
           `skel_leafdot_a${axisIdx}_n${i}`,
@@ -270,7 +297,7 @@ export function createSkeletonOverlay(scene: Scene): SkeletonOverlayHandle {
       }
 
       // ── Truss: rachis (cantilever droop curve) + per-fruit pedicels + calyx
-      if (isTruss && node.truss && axis.order === 0) {
+      if (cfg.showTruss && isTruss && node.truss && axis.order === 0) {
         const trussAz = (node.phyllotaxisAngle * Math.PI) / 180 + Math.PI;
         const cosAz = Math.cos(trussAz);
         const sinAz = Math.sin(trussAz);
@@ -296,7 +323,8 @@ export function createSkeletonOverlay(scene: Scene): SkeletonOverlayHandle {
         );
         const rachisCurve = catmullRomPath([nodePos, rc1, rc2, rachisTip], 4);
         meshes.push(thickLine(
-          `skel_rachis_a${axisIdx}_n${i}`, rachisCurve, COLOR_RACHIS, 0.0045,
+          `skel_rachis_a${axisIdx}_n${i}`, rachisCurve,
+          Color3.FromHexString(cfg.rachisColor), cfg.rachisWidth,
         ));
 
         const fruits = node.truss.fruits;
@@ -332,7 +360,7 @@ export function createSkeletonOverlay(scene: Scene): SkeletonOverlayHandle {
           meshes.push(thickLine(
             `skel_ped_a${axisIdx}_n${i}_f${f}`,
             pedCurve,
-            COLOR_PEDICEL, 0.0025,
+            Color3.FromHexString(cfg.pedicelColor), cfg.pedicelWidth,
           ));
 
           // Abscission joint dot
@@ -347,37 +375,41 @@ export function createSkeletonOverlay(scene: Scene): SkeletonOverlayHandle {
           meshes.push(absciss);
 
           // Calyx 5-ray star
-          const calyxLen = 0.012;
-          const downDir = fruitPos.subtract(p2).normalize();
-          const perp = Math.abs(downDir.y) < 0.95
-            ? Vector3.Cross(downDir, new Vector3(0, 1, 0)).normalize()
-            : new Vector3(1, 0, 0);
-          const perp2 = Vector3.Cross(downDir, perp).normalize();
-          for (let s = 0; s < 5; s++) {
-            const theta = (s / 5) * Math.PI * 2;
-            const outward = Math.sin((25 * Math.PI) / 180);
-            const dir = downDir.scale(-Math.cos((25 * Math.PI) / 180))
-              .add(perp.scale(Math.cos(theta) * outward))
-              .add(perp2.scale(Math.sin(theta) * outward))
-              .normalize();
-            const tip = fruitPos.add(dir.scale(calyxLen));
-            meshes.push(thickLine(
-              `skel_calyx_a${axisIdx}_n${i}_f${f}_s${s}`,
-              [fruitPos, tip],
-              COLOR_CALYX, 0.0018,
-            ));
+          if (cfg.showCalyx) {
+            const calyxLen = 0.012;
+            const downDir = fruitPos.subtract(p2).normalize();
+            const perp = Math.abs(downDir.y) < 0.95
+              ? Vector3.Cross(downDir, new Vector3(0, 1, 0)).normalize()
+              : new Vector3(1, 0, 0);
+            const perp2 = Vector3.Cross(downDir, perp).normalize();
+            for (let s = 0; s < 5; s++) {
+              const theta = (s / 5) * Math.PI * 2;
+              const outward = Math.sin((25 * Math.PI) / 180);
+              const dir = downDir.scale(-Math.cos((25 * Math.PI) / 180))
+                .add(perp.scale(Math.cos(theta) * outward))
+                .add(perp2.scale(Math.sin(theta) * outward))
+                .normalize();
+              const tip = fruitPos.add(dir.scale(calyxLen));
+              meshes.push(thickLine(
+                `skel_calyx_a${axisIdx}_n${i}_f${f}_s${s}`,
+                [fruitPos, tip],
+                Color3.FromHexString(cfg.calyxColor), cfg.calyxWidth,
+              ));
+            }
           }
 
-          const fruitDiam = 0.010 + 0.014 * Math.min(1, dia / 60);
-          const fr = MeshBuilder.CreateSphere(
-            `skel_fr_a${axisIdx}_n${i}_f${f}`,
-            { diameter: fruitDiam, segments: 6 },
-            scene,
-          );
-          fr.position = fruitPos;
-          fr.material = mats.fruit;
-          fr.parent = root;
-          meshes.push(fr);
+          if (cfg.showFruitDots) {
+            const fruitDiam = (0.010 + 0.014 * Math.min(1, dia / 60)) * cfg.fruitMarkerScale;
+            const fr = MeshBuilder.CreateSphere(
+              `skel_fr_a${axisIdx}_n${i}_f${f}`,
+              { diameter: fruitDiam, segments: 6 },
+              scene,
+            );
+            fr.position = fruitPos;
+            fr.material = mats.fruit;
+            fr.parent = root;
+            meshes.push(fr);
+          }
         }
 
         const trMarker = MeshBuilder.CreateSphere(
@@ -393,30 +425,42 @@ export function createSkeletonOverlay(scene: Scene): SkeletonOverlayHandle {
     }
   }
 
+  function rebuild() {
+    if (!visible) {
+      if (meshes.length > 0) clearMeshes();
+      return;
+    }
+    const plant = lastPlantForRebuild;
+    if (!plant || !plant.allAxes || plant.allAxes.length === 0) {
+      clearMeshes();
+      return;
+    }
+    clearMeshes();
+    try {
+      for (let i = 0; i < plant.allAxes.length; i++) {
+        drawAxis(plant.allAxes[i], i);
+      }
+    } catch (err) {
+      console.error('[SkeletonOverlay] draw failed:', err);
+      clearMeshes();
+    }
+  }
+
   return {
     update(plant: PlantState) {
-      if (!visible) {
-        if (meshes.length > 0) clearMeshes();
-        return;
-      }
-      if (!plant || !plant.allAxes || plant.allAxes.length === 0) {
-        clearMeshes();
-        return;
-      }
-      clearMeshes();
-      try {
-        for (let i = 0; i < plant.allAxes.length; i++) {
-          drawAxis(plant.allAxes[i], i);
-        }
-      } catch (err) {
-        console.error('[SkeletonOverlay] draw failed:', err);
-        clearMeshes();
-      }
+      lastPlantForRebuild = plant;
+      rebuild();
     },
     setVisible(v: boolean) {
       visible = v;
       if (v) ensureInit();
       if (root) root.setEnabled(v);
+      // 토글 ON 시점에 lastPlant 있으면 즉시 그림.
+      if (v && lastPlantForRebuild) rebuild();
+    },
+    setConfig(next: SkeletonConfig) {
+      cfg = next;
+      if (visible) rebuild();
     },
     dispose() {
       clearMeshes();

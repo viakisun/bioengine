@@ -50,6 +50,8 @@ export interface ShowcasePlantHandle {
    *  the lush mesh is hidden so the user can verify the biology (apex,
    *  node bulge, side shoots, pruning) without visual noise. */
   setSkeletonMode: (on: boolean) => void;
+  /** Plan 3a Phase ζ — push new SkeletonConfig (thickness/color/toggles). */
+  setSkeletonConfig: (cfg: import('../store/twinStore').SkeletonConfig) => void;
   currentState: () => PlantState | null;
 }
 
@@ -297,6 +299,9 @@ export function createShowcasePlant(
       root.setEnabled(!on);
       skeleton.setVisible(on);
       if (on && lastState) skeleton.update(lastState);
+    },
+    setSkeletonConfig(cfg) {
+      skeleton.setConfig(cfg);
     },
     currentState: () => lastState,
   };
