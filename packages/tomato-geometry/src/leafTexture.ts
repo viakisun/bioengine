@@ -46,7 +46,11 @@ function veinDistance(px: number, py: number, veins: Vein[]): { dist: number; wi
   const nu = px / LEAF_TEX_SIZE;
   const nv = py / LEAF_TEX_SIZE;
   for (const vein of veins) {
-    const steps = 20;
+    // 20 was visible as a "string of beads" along each vein — each sample
+    // point produced a small intensity peak, the gaps between dipped, and
+    // close zoom made the dots pop. 64 makes the gap between samples
+    // sub-pixel at 256² so the field reads as a continuous curve.
+    const steps = 64;
     for (let i = 0; i <= steps; i++) {
       const t = i / steps;
       const [bx, by] = bezierPoint(vein, t);

@@ -116,9 +116,11 @@ function buildFruitBodyVertexData(
       }
 
       // Per-vertex asymmetry — Gaussian noise scaled by the cultivar's
-      // (per-fruit-sampled) asymmetryAmp. Beefsteak ≈ 0.13, cherry ≈
-      // 0.05. Same seed → same shape every rebuild (deterministic).
-      const asymAmp = (genome.asymmetryAmp ?? 0.05);
+      // (per-fruit-sampled) asymmetryAmp. The raw amp generates visible
+      // lumpiness because every vertex picks an independent offset →
+      // bumpy normals → cauliflower under specular lighting. Damp to 30%
+      // of the cultivar value: still varies per fruit, no cauliflower.
+      const asymAmp = (genome.asymmetryAmp ?? 0.05) * 0.3;
       const ax = asymRng.gaussian(0, asymAmp);
       const ay = asymRng.gaussian(0, asymAmp * 0.8);
       const az = asymRng.gaussian(0, asymAmp);

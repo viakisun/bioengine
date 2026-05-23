@@ -69,8 +69,8 @@ function addFruitCluster(scene: Scene, parent: TransformNode, detail: 'full' | '
     fruitMat.metallic = 0;
     fruitMat.roughness = 0.28;
     fruitMat.clearCoat.isEnabled = true;
-    fruitMat.clearCoat.intensity = 0.4;
-    fruitMat.clearCoat.roughness = 0.12;
+    fruitMat.clearCoat.intensity = 0.22;     // 0.4 → 0.22 (cauliflower 방지)
+    fruitMat.clearCoat.roughness = 0.2;      // 0.12 → 0.2 (specular 분산)
 
     for (let i = 0; i < truss.count; i++) {
       const fruitSize = 0.045 + (truss.ripenStage >= 3 ? 0.01 : 0);
