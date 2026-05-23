@@ -20,7 +20,7 @@ import { StatusBar } from '../ui/single-plant/StatusBar';
 import { PARGauge } from '../ui/single-plant/PARGauge';
 import { FONT_SERIF, FONT_MONO, C_FG, C_FG_MUTE, C_BORDER } from '../ui/single-plant/styles';
 import { SHOWCASE_SEED } from '../twin/GreenhouseScene';
-import { getSinglePlantEngine } from '../ui/single-plant/useSinglePlantState';
+import { getSinglePlantEngine, getSinglePlantShowcase } from '../ui/single-plant/useSinglePlantState';
 
 function formatTopBarSimId(): string {
   return `cv=tomimaru-muchoo seed=${SHOWCASE_SEED}`;
@@ -43,7 +43,14 @@ export function SinglePlantOverlay() {
     const setBusy = useTwinStore.getState().setBusy;
     const showAt = window.setTimeout(() => setBusy(true, 'Simulating...'), 300);
     try {
-      engine.simulatePlantToMinute(SHOWCASE_SEED, minute);
+      const physiology = engine.simulatePlantToMinute(SHOWCASE_SEED, minute);
+      // Rebuild the ShowcasePlant visual using the TOMGRO physiology —
+      // fruit color/size/ripening reflect the academic model rather
+      // than the sigmoid placeholder (Phase 4).
+      const showcase = getSinglePlantShowcase();
+      if (showcase) {
+        showcase.update(Math.floor(minute / 1440), physiology);
+      }
     } finally {
       window.clearTimeout(showAt);
       setBusy(false);

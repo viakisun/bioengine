@@ -114,6 +114,86 @@ export interface PlantStressInputs {
   diseaseLoad?: number;
 }
 
+/**
+ * Overlay a TOMGRO physiology-derived fruit set onto a sigmoid PlantState.
+ *
+ * The sigmoid PlantState already carries the full plant structure
+ * (nodes / leaves / stem / truss attachment positions). What we replace
+ * is the *fruit content* of each truss — TOMGRO's per-fruit diameter,
+ * ripening stage, color, and cultivarGenome — so the visual matches
+ * the academic model. Result: fruit ripening transitions visibly in
+ * 1-minute steps in single-plant mode.
+ *
+ * Trusses are matched by index (truss 0 of physiology → first non-null
+ * truss of base PlantState). Bases without a matching physiology truss
+ * keep their sigmoid fruits.
+ *
+ * Used by Single-Plant Analysis mode (ShowcasePlant.update receives
+ * the optional physiology parameter).
+ */
+export function overlayPhysiologyFruits(
+  base: PlantState,
+  physiology: import('./CoreModel').PlantPhysiologyState,
+): PlantState {
+  // Locate every truss-bearing node in the base state, in order.
+  const baseTrussNodes = base.nodes.filter((n) => n.truss !== null);
+
+  const newNodes = base.nodes.map((node) => {
+    if (!node.truss) return node;
+    const baseTrussIdx = baseTrussNodes.indexOf(node);
+    const physTruss = physiology.trusses[baseTrussIdx];
+    if (!physTruss) return node;
+
+    // Map physiology fruits → FruitState. Filter out aborted fruits.
+    const liveFruits = physTruss.fruits.filter((f) => !f.aborted && f.fertilizationTT > 0);
+    const newFruitsState: FruitState[] = liveFruits.map((f, i) => {
+      // Interpolate stage color from base palette (STAGE_COLORS).
+      const stageIdx = Math.max(0, Math.min(5, f.ripenStage));
+      const c1 = STAGE_COLORS[stageIdx];
+      const c2 = STAGE_COLORS[Math.min(5, stageIdx + 1)];
+      const color = lerpColor(c1, c2, f.ripenFraction);
+      return {
+        index: i,
+        diameterMm: f.diameter,
+        ripenStage: f.ripenStage,
+        ripenFraction: f.ripenFraction,
+        color,
+        age: 0,
+        cultivarGenome: f.genome,
+      };
+    });
+
+    return {
+      ...node,
+      truss: {
+        flowers: node.truss.flowers,   // keep sigmoid flowers (no physiology data)
+        fruits: newFruitsState,
+      },
+    };
+  });
+
+  // Roll-up plant-level counts from the overlaid trusses.
+  let totalFruits = 0;
+  let maxRipenStage = 0;
+  for (const n of newNodes) {
+    if (!n.truss) continue;
+    for (const f of n.truss.fruits) {
+      totalFruits++;
+      if (f.ripenStage > maxRipenStage) maxRipenStage = f.ripenStage;
+    }
+  }
+
+  return {
+    ...base,
+    nodes: newNodes,
+    heightCm: physiology.heightCm,    // height from TOMGRO
+    nodeCount: physiology.N,
+    trussCount: physiology.trusses.length,
+    totalFruits,
+    maxRipenStage,
+  };
+}
+
 function lerpColor(c1: [number, number, number], c2: [number, number, number], t: number): [number, number, number] {
   t = Math.max(0, Math.min(1, t));
   return [

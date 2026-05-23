@@ -16,7 +16,7 @@ import { Matrix } from '@babylonjs/core/Maths/math.vector';
 import { setShaderWindEnabled, isShaderWindEnabled } from '../plant/LeafGenerator';
 import { getLabelOverlayHandle } from '../components/LabelOverlay';
 import { setBootStage, logBoot, setEnvInfo, setEnvCounters, notify } from '../store/notify';
-import { setSinglePlantEngineRef } from '../ui/single-plant/useSinglePlantState';
+import { setSinglePlantEngineRef, setSinglePlantShowcaseRef } from '../ui/single-plant/useSinglePlantState';
 
 import '@babylonjs/core/Helpers/sceneHelpers';
 import '@babylonjs/core/Materials/Textures/Loaders';
@@ -209,9 +209,10 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
   let greenhouse: GreenhouseSceneHandle | null = null;
   try {
     greenhouse = await buildGreenhouseScene(scene);
-    // Expose this GrowthEngine to the SinglePlant analysis panels —
-    // they all read PhysiologyState from a shared singleton ref.
+    // Expose this GrowthEngine + ShowcasePlant to the SinglePlant
+    // analysis panels — they read both from shared singleton refs.
     setSinglePlantEngineRef(greenhouse.growthEngine);
+    setSinglePlantShowcaseRef(greenhouse.showcasePlant);
   } catch (err) {
     console.error('[BabylonEngine] buildGreenhouseScene failed:', err);
     notify.error('온실 빌드 실패', err instanceof Error ? err : String(err));

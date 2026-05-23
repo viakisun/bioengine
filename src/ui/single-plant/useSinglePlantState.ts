@@ -11,9 +11,11 @@
 import { useEffect, useState } from 'react';
 import { useTwinStore } from '../../store/twinStore';
 import type { GrowthEngine, PlantPhysiologyState } from '@farmsim/tomato-engine';
+import type { ShowcasePlantHandle } from '../../twin/ShowcasePlant';
 import { SHOWCASE_SEED } from '../../twin/GreenhouseScene';
 
 let engineRef: GrowthEngine | null = null;
+let showcaseRef: ShowcasePlantHandle | null = null;
 const listeners = new Set<() => void>();
 
 export function setSinglePlantEngineRef(engine: GrowthEngine | null): void {
@@ -21,10 +23,18 @@ export function setSinglePlantEngineRef(engine: GrowthEngine | null): void {
   listeners.forEach((l) => l());
 }
 
+export function setSinglePlantShowcaseRef(showcase: ShowcasePlantHandle | null): void {
+  showcaseRef = showcase;
+}
+
 /** Module-level access to the live GrowthEngine for non-React callers
  *  (e.g. SinglePlantOverlay's useEffect to advance the simulation). */
 export function getSinglePlantEngine(): GrowthEngine | null {
   return engineRef;
+}
+
+export function getSinglePlantShowcase(): ShowcasePlantHandle | null {
+  return showcaseRef;
 }
 
 const PLANT_SEED = SHOWCASE_SEED;

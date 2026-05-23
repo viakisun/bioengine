@@ -34,6 +34,7 @@ export {
   STAGE_COLORS,
   RIPEN_NAMES,
   computePlantState,
+  overlayPhysiologyFruits,
 } from './GrowthModel';
 
 export type { PlantGenome } from './PlantGenome';
