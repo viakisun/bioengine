@@ -413,8 +413,15 @@ export function applyRenderQuality(
     setup.pipeline.grain.intensity = 8;
     setup.pipeline.grain.animated = true;
   }
-  setup.pipeline.depthOfFieldEnabled = fx.dofEnabled;
-  if (fx.dofEnabled) {
+  // DOF needs the depth+geometry PrePass. WebGPU's PrePassRenderer
+  // throws on createInternalTextures (TextureView descriptor undefined),
+  // so disable on WebGPU. WebGL2 keeps the full effect.
+  if (fx.dofEnabled && isWebGPU) {
+    notify.warn('DOF 비활성화', '현재 백엔드(WebGPU)에서 지원하지 않습니다');
+  }
+  const dofEnabledEffective = fx.dofEnabled && !isWebGPU;
+  setup.pipeline.depthOfFieldEnabled = dofEnabledEffective;
+  if (dofEnabledEffective) {
     setup.pipeline.depthOfField.fStop = 1.4;
     setup.pipeline.depthOfField.focalLength = 50;
     setup.pipeline.depthOfField.focusDistance = 6000;
@@ -435,12 +442,16 @@ export function applyRenderQuality(
     handles.glowLayer = null;
   }
 
-  // Motion blur
-  if (fx.motionBlurEnabled && !handles.motionBlur && scene.activeCamera) {
+  // Motion blur — also needs PrePass (motion vector RT). WebGPU skip.
+  if (fx.motionBlurEnabled && isWebGPU) {
+    notify.warn('Motion Blur 비활성화', '현재 백엔드(WebGPU)에서 지원하지 않습니다');
+  }
+  const motionBlurEnabledEffective = fx.motionBlurEnabled && !isWebGPU;
+  if (motionBlurEnabledEffective && !handles.motionBlur && scene.activeCamera) {
     const mb = new MotionBlurPostProcess('fx_motionBlur', scene, 1.0, scene.activeCamera);
     mb.motionStrength = 0.5;
     handles.motionBlur = mb;
-  } else if (!fx.motionBlurEnabled && handles.motionBlur) {
+  } else if (!motionBlurEnabledEffective && handles.motionBlur) {
     handles.motionBlur.dispose();
     handles.motionBlur = null;
   }

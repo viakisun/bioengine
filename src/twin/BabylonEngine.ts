@@ -244,6 +244,10 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
     }
   });
 
+  // Phase 5 — savedRenderQuality holds the user's pre-boost quality
+  // so greenhouse-mode 복귀 시 복원할 수 있음. null = 아직 boost 안 됨.
+  let savedRenderQuality: number | null = null;
+
   // Store subscription — react to changes
   const unsubStore = useTwinStore.subscribe((s, prev) => {
     if (s.selectedZoneId !== prev.selectedZoneId && greenhouse) {
@@ -281,18 +285,24 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
       }
     }
 
-    // App-mode handler — Phase 1 (Overlay 통합).
-    // Phase 5 (자동 Lv 10 quality boost) 는 WebGPU 의 PrePassRenderer
-    // + GeometryBuffer + TAA/SSR/DOF/MotionBlur 와 호환 문제로 제거.
-    // 사용자가 quality slider 로 직접 조정 가능. ShowcasePlant 의
-    // PBR (clearcoat + SSS) 은 이미 default Lv 9 에서 활성화됨.
+    // App-mode handler — Phase 1 (Overlay) + Phase 5 (render boost).
+    // WebGPU 호환 partial-boost: DOF / MotionBlur 가 WebGPU PrePass
+    // 깨뜨리므로 RenderQuality.ts 안에서 자동 스킵 + notify.warn. 나머지
+    // FX (shadow 8192 / MSAA 8 / SSAO 32 / 모든 PBR / clearcoat / SSS /
+    // grain / glow 등) 는 Lv 10 그대로 활성.
     if (s.mode !== prev.mode && greenhouse) {
       if (s.mode === 'single-plant') {
         greenhouse.setSingleFocusMode(true);
         cameraRig.setPreset('single-plant');
+        if (savedRenderQuality === null) savedRenderQuality = prev.renderQuality;
+        useTwinStore.getState().setRenderQuality(10);
       } else if (s.mode === 'greenhouse') {
         greenhouse.setSingleFocusMode(false);
         cameraRig.setPreset('overview');
+        if (savedRenderQuality !== null) {
+          useTwinStore.getState().setRenderQuality(savedRenderQuality);
+          savedRenderQuality = null;
+        }
       }
     }
   });
@@ -301,10 +311,14 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
   // 으로 진입했을 때 initial mode 에 대한 핸들러는 fire 안 함. 따라서
   // 부팅 직후 한 번 현재 mode 를 평가해서 setSingleFocusMode 적용.
   if (greenhouse) {
-    const initialMode = useTwinStore.getState().mode;
-    if (initialMode === 'single-plant') {
+    const initialState = useTwinStore.getState();
+    if (initialState.mode === 'single-plant') {
       greenhouse.setSingleFocusMode(true);
       cameraRig.setPreset('single-plant');
+      // Phase 5: 자동 quality 10 boost (WebGPU 호환 partial — DOF/
+      // MotionBlur 만 RenderQuality 안에서 skip).
+      savedRenderQuality = initialState.renderQuality;
+      useTwinStore.getState().setRenderQuality(10);
     }
   }
 
