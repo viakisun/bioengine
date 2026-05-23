@@ -1,35 +1,32 @@
 // SkeletonOverlay — wireframe + node-marker visualization of the plant's
-// growth skeleton (Plan 3a). Built on top of an existing ShowcasePlant
-// instance so the user can toggle between "lush mesh" and "anatomical
-// skeleton" views without disposing/rebuilding anything.
+// growth skeleton (Plan 3a). Lightweight LinesMesh + small spheres so
+// the renderer doesn't choke when toggling on a fully-grown plant.
 //
 // What's rendered:
-//   • For every StemAxis (main + side shoots, recursive), draw the
-//     curve through node.position values as a tube — radius proportional
-//     to node.stemRadiusMm so the user *sees* the stem thickening over
-//     time. Color by branchOrder: 0=brown→tip green, 1=orange, 2=red.
-//   • A small sphere at every node, color-coded by budState:
-//       dormant=skyblue, growing=lime, pruned=grey.
-//   • Apex of every axis = yellow sphere (brighter, slightly larger).
+//   • Per StemAxis: a polyline through node positions, drawn as a
+//     LinesMesh segmented at each node. Color by branchOrder.
+//   • A small sphere at each node, color-coded by budState
+//     (dormant=skyblue, growing=lime, pruned=grey). Apex = yellow.
 //   • Truss-bearing nodes get an extra small red dot.
 //
-// Invariant (per Plan 3a Context): no straight internodes. Each internode
-// is drawn as a Catmull-Rom segment between prev/curr/next node centers,
-// so the visible wandering of growth direction is preserved. Babylon's
-// MeshBuilder.CreateTube samples the curve internally.
+// Invariant: no straight internodes. Each internode is rendered as a
+// segment between two consecutive node.position values. Wandering
+// directions (from GrowthModel.synthesizeGrowthDir) make the line read
+// as natural growth.
+//
+// All meshes are children of a single TransformNode so setVisible toggles
+// the whole overlay in one call. Defensive against null state, empty
+// axes, and NaN positions.
 
 import { Scene } from '@babylonjs/core/scene';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
-import { Color3 } from '@babylonjs/core/Maths/math.color';
+import { Color3, Color4 } from '@babylonjs/core/Maths/math.color';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
-// Side-effect imports — register CreateTube / CreateSphere onto MeshBuilder.
-// Without these Babylon's tree-shaken bundle has no CreateTube and the
-// call throws at runtime (renderer crash, "오류 코드: 5").
-import '@babylonjs/core/Meshes/Builders/tubeBuilder';
 import '@babylonjs/core/Meshes/Builders/sphereBuilder';
+import '@babylonjs/core/Meshes/Builders/linesBuilder';
 import type { PlantState, StemAxis, NodeState } from '@farmsim/tomato-engine';
 
 export interface SkeletonOverlayHandle {
@@ -39,9 +36,6 @@ export interface SkeletonOverlayHandle {
 }
 
 interface MatBucket {
-  axis0: StandardMaterial;  // main stem
-  axis1: StandardMaterial;  // 1st-order shoot
-  axis2: StandardMaterial;  // 2nd-order shoot
   dotDormant: StandardMaterial;
   dotGrowing: StandardMaterial;
   dotPruned: StandardMaterial;
@@ -50,25 +44,32 @@ interface MatBucket {
 }
 
 function makeMaterials(scene: Scene): MatBucket {
-  const m = (name: string, hex: string, emissive = 0.4): StandardMaterial => {
+  const m = (name: string, hex: string, emissive = 0.85): StandardMaterial => {
     const mat = new StandardMaterial(name, scene);
     const c = Color3.FromHexString(hex);
     mat.diffuseColor = c;
     mat.emissiveColor = c.scale(emissive);
-    mat.specularColor = new Color3(0.1, 0.1, 0.1);
+    mat.specularColor = new Color3(0.05, 0.05, 0.05);
     mat.disableLighting = true;
     return mat;
   };
   return {
-    axis0: m('skel_axis0', '#6e4a2a', 0.65),
-    axis1: m('skel_axis1', '#c47a30', 0.7),
-    axis2: m('skel_axis2', '#d23a3a', 0.7),
-    dotDormant: m('skel_dot_dormant', '#7ab7d8', 0.8),
-    dotGrowing: m('skel_dot_growing', '#5fdf6a', 0.85),
-    dotPruned: m('skel_dot_pruned', '#888888', 0.65),
+    dotDormant: m('skel_dot_dormant', '#7ab7d8'),
+    dotGrowing: m('skel_dot_growing', '#5fdf6a'),
+    dotPruned: m('skel_dot_pruned', '#888888', 0.5),
     apex: m('skel_apex', '#f5d63a', 1.0),
-    truss: m('skel_truss', '#cc2b2b', 0.9),
+    truss: m('skel_truss', '#cc2b2b'),
   };
+}
+
+function axisColor(order: number): Color4 {
+  if (order === 0) return new Color4(0.45, 0.30, 0.18, 1);     // brown
+  if (order === 1) return new Color4(0.85, 0.50, 0.20, 1);     // orange
+  return new Color4(0.85, 0.25, 0.25, 1);                       // red
+}
+
+function isFiniteVec(p: { x: number; y: number; z: number }): boolean {
+  return Number.isFinite(p.x) && Number.isFinite(p.y) && Number.isFinite(p.z);
 }
 
 export function createSkeletonOverlay(scene: Scene): SkeletonOverlayHandle {
@@ -87,46 +88,31 @@ export function createSkeletonOverlay(scene: Scene): SkeletonOverlayHandle {
     return new Vector3(node.position.x, node.position.y, node.position.z);
   }
 
-  function axisMat(order: number): StandardMaterial {
-    if (order === 0) return mats.axis0;
-    if (order === 1) return mats.axis1;
-    return mats.axis2;
-  }
-
   function drawAxis(axis: StemAxis, axisIdx: number) {
-    if (axis.nodes.length < 1) return;
-    // Build curve points from node positions. Prefix ground origin
-    // (0,0,0) for main, or parent node position for side shoots, so
-    // the tube anchors to the attachment point.
+    if (!axis || !axis.nodes || axis.nodes.length < 1) return;
+
+    // Skeleton polyline (one LinesMesh per axis).
     const points: Vector3[] = [];
     if (axis.order === 0) points.push(new Vector3(0, 0, 0));
-    for (const n of axis.nodes) points.push(nodeWorld(n));
-
-    // Tube radius function — average stemRadiusMm of bracketing nodes.
-    const radii = axis.nodes.map((n) => n.stemRadiusMm / 1000);  // mm → m
-    if (axis.order === 0) radii.unshift(radii[0] ?? 0.005);
-
-    // Build tube via MeshBuilder.CreateTube with per-point radius.
+    for (const n of axis.nodes) {
+      if (!n.position || !isFiniteVec(n.position)) continue;
+      points.push(nodeWorld(n));
+    }
     if (points.length >= 2) {
-      const tube = MeshBuilder.CreateTube(
-        `skel_tube_a${axisIdx}`,
-        {
-          path: points,
-          radiusFunction: (i) => radii[Math.min(i, radii.length - 1)] * 1.1,
-          tessellation: 10,
-          cap: Mesh.NO_CAP,
-        },
+      const lines = MeshBuilder.CreateLines(
+        `skel_lines_a${axisIdx}`,
+        { points, colors: points.map(() => axisColor(axis.order)) },
         scene,
       );
-      tube.material = axisMat(axis.order);
-      tube.parent = root;
-      meshes.push(tube);
+      lines.parent = root;
+      meshes.push(lines);
     }
 
-    // Node markers — sphere per node
+    // Per-node markers
     const lastIdx = axis.nodes.length - 1;
     for (let i = 0; i < axis.nodes.length; i++) {
       const node = axis.nodes[i];
+      if (!node.position || !isFiniteVec(node.position)) continue;
       const isApex = i === lastIdx;
       const isTruss = node.truss !== null;
 
@@ -134,18 +120,19 @@ export function createSkeletonOverlay(scene: Scene): SkeletonOverlayHandle {
       let radius: number;
       if (isApex) {
         dotMat = mats.apex;
-        radius = 0.012;
+        // Bigger to spot the apex easily.
+        radius = 0.014;
       } else {
         switch (node.budState) {
-          case 'growing': dotMat = mats.dotGrowing; radius = 0.010; break;
-          case 'pruned':  dotMat = mats.dotPruned;  radius = 0.007; break;
-          default:        dotMat = mats.dotDormant; radius = 0.007;
+          case 'growing': dotMat = mats.dotGrowing; radius = 0.011; break;
+          case 'pruned':  dotMat = mats.dotPruned;  radius = 0.008; break;
+          default:        dotMat = mats.dotDormant; radius = 0.008;
         }
       }
 
       const sphere = MeshBuilder.CreateSphere(
         `skel_node_a${axisIdx}_n${i}`,
-        { diameter: radius * 2, segments: 8 },
+        { diameter: radius * 2, segments: 6 },
         scene,
       );
       sphere.position = nodeWorld(node);
@@ -153,15 +140,15 @@ export function createSkeletonOverlay(scene: Scene): SkeletonOverlayHandle {
       sphere.parent = root;
       meshes.push(sphere);
 
-      // Truss marker: small extra red dot offset slightly off the node
+      // Truss marker
       if (isTruss && !isApex) {
         const t = MeshBuilder.CreateSphere(
           `skel_truss_a${axisIdx}_n${i}`,
-          { diameter: 0.012, segments: 6 },
+          { diameter: 0.013, segments: 6 },
           scene,
         );
         const off = nodeWorld(node);
-        off.x += 0.018;  // 18mm offset so it's visibly to the side
+        off.x += 0.020;
         t.position = off;
         t.material = mats.truss;
         t.parent = root;
@@ -172,12 +159,23 @@ export function createSkeletonOverlay(scene: Scene): SkeletonOverlayHandle {
 
   return {
     update(plant: PlantState) {
+      // Guard: defensive against partially-built state on first frame.
+      if (!visible) {
+        if (meshes.length > 0) clearMeshes();
+        return;
+      }
+      if (!plant || !plant.allAxes || plant.allAxes.length === 0) {
+        clearMeshes();
+        return;
+      }
       clearMeshes();
-      if (!visible) return;
-      // Draw main axis first, then each side shoot. allAxes flat array
-      // lets visual layer iterate without recursive traversal.
-      for (let i = 0; i < plant.allAxes.length; i++) {
-        drawAxis(plant.allAxes[i], i);
+      try {
+        for (let i = 0; i < plant.allAxes.length; i++) {
+          drawAxis(plant.allAxes[i], i);
+        }
+      } catch (err) {
+        console.error('[SkeletonOverlay] draw failed:', err);
+        clearMeshes();
       }
     },
     setVisible(v: boolean) {
@@ -187,9 +185,11 @@ export function createSkeletonOverlay(scene: Scene): SkeletonOverlayHandle {
     dispose() {
       clearMeshes();
       root.dispose();
-      mats.axis0.dispose(); mats.axis1.dispose(); mats.axis2.dispose();
-      mats.dotDormant.dispose(); mats.dotGrowing.dispose(); mats.dotPruned.dispose();
-      mats.apex.dispose(); mats.truss.dispose();
+      mats.dotDormant.dispose();
+      mats.dotGrowing.dispose();
+      mats.dotPruned.dispose();
+      mats.apex.dispose();
+      mats.truss.dispose();
     },
   };
 }
