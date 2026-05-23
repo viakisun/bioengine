@@ -209,7 +209,11 @@ export function createSupportingPlant(
       const node = state.nodes[i];
       if (node.leafMaturity < 0.1) continue;
 
-      const heightM = node.heightCm / 100;
+      // Plan 4 — skeleton-aware position. node.position 의 X/Y/Z 사용
+      // (이전엔 heightM 만, X/Z 0 절대좌표). lush mesh ↔ skeleton 일치.
+      const nodeX = node.position.x;
+      const nodeY = node.position.y;
+      const nodeZ = node.position.z;
       const azimuthRad = (node.phyllotaxisAngle * Math.PI) / 180;
       const droopRad = (node.droopExtra * Math.PI) / 180;
 
@@ -245,7 +249,7 @@ export function createSupportingPlant(
       vd.applyToMesh(leaf);
       leaf.material = node.yellowing > 0.4 ? yellowLeafMat : baseLeafMat;
       leaf.parent = root;
-      leaf.position = new Vector3(0, heightM, 0);
+      leaf.position = new Vector3(nodeX, nodeY, nodeZ);
       leaf.rotationQuaternion = Quaternion.RotationAxis(Vector3.Up(), azimuthRad).multiply(
         Quaternion.RotationAxis(new Vector3(0, 0, 1), -droopRad)
       );
@@ -277,19 +281,20 @@ export function createSupportingPlant(
           peduncle.rotation.z = -Math.PI / 2 + 0.15;
           peduncle.rotation.y = trussAz;
           const pedMidR = pedLen / 2;
+          // Anchor peduncle at node's actual 3D position, not absolute Y.
           peduncle.position = new Vector3(
-            Math.cos(trussAz) * pedMidR,
-            heightM - 0.03,
-            Math.sin(trussAz) * pedMidR
+            nodeX + Math.cos(trussAz) * pedMidR,
+            nodeY - 0.03,
+            nodeZ + Math.sin(trussAz) * pedMidR,
           );
           currentMeshes.push(peduncle);
 
           // Cluster fruits around peduncle tip with bounded radial offsets,
           // not in a line. Seeded RNG so the layout is stable across rebuilds.
           const fruitRng = new SeededRandom(seed * 7919 + i * 31);
-          const cx = Math.cos(trussAz) * pedLen;
-          const cz = Math.sin(trussAz) * pedLen;
-          const cy = heightM - 0.05 - pedLen * 0.15;
+          const cx = nodeX + Math.cos(trussAz) * pedLen;
+          const cz = nodeZ + Math.sin(trussAz) * pedLen;
+          const cy = nodeY - 0.05 - pedLen * 0.15;
           // Supporting plants use a lightweight sphere — 870 fruits
           // total wedges SwiftShader with the full FruitGenerator path.
           // We still apply the cultivar genome's H:W ratio (Y-scale)
