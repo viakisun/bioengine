@@ -5,6 +5,17 @@ import { QUALITY_PRESETS, RENDER_FX_DEFAULTS } from '../twin/RenderQuality';
 
 export type CompareMode = 'off' | 'yesterday' | '7days';
 
+/** Top-level app mode — drives which scene/layout is mounted. */
+export type AppMode = 'lobby' | 'greenhouse' | 'single-plant' | 'robot' | 'sandbox';
+
+const VALID_MODES: AppMode[] = ['lobby', 'greenhouse', 'single-plant', 'robot', 'sandbox'];
+
+function readModeFromHash(): AppMode {
+  if (typeof window === 'undefined') return 'lobby';
+  const h = window.location.hash.replace(/^#/, '');
+  return (VALID_MODES as string[]).includes(h) ? (h as AppMode) : 'lobby';
+}
+
 export type ToneMappingMode = 'aces' | 'standard' | 'none';
 export type LightingPresetName = 'default' | 'golden' | 'overcast' | 'noon-bright' | 'grow-light';
 
@@ -386,6 +397,10 @@ interface TwinState {
 
   setCameraPreset: (preset: PresetView) => void;
 
+  // -- App mode (top-level routing) --
+  mode: AppMode;
+  setMode: (mode: AppMode) => void;
+
   // -- Boot progress + notifications + live log + env --
   boot: BootSnapshot;
   notifications: Notification[];
@@ -541,6 +556,18 @@ export const useTwinStore = create<TwinState>((set) => ({
   toggleFov: () => set((s) => ({ fovVisible: !s.fovVisible })),
 
   setCameraPreset: (preset) => set({ cameraPreset: preset }),
+
+  // -- App mode --
+  mode: readModeFromHash(),
+  setMode: (mode) => {
+    set({ mode });
+    if (typeof window !== 'undefined') {
+      const newHash = `#${mode}`;
+      if (window.location.hash !== newHash) {
+        window.location.hash = newHash;
+      }
+    }
+  },
 
   // -- Boot progress + notifications + live log + env --
   boot: {
