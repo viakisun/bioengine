@@ -96,8 +96,13 @@ export function createShowcasePlant(
   seed: number,
   worldPosition: Vector3
 ): ShowcasePlantHandle {
+  // root = shared wrapper. BabylonEngine 의 wind sway 가 여기 적용됨.
+  // 그 안에 lushGroup (lush meshes only) + skeleton overlay root 가 sibling.
+  // setSkeletonMode 가 lushGroup 만 disable 하므로 skeleton 은 영향 X.
   const root = new TransformNode(`showcase_${seed}`, scene);
   root.position.copyFrom(worldPosition);
+  const lushGroup = new TransformNode(`showcase_lush_${seed}`, scene);
+  lushGroup.parent = root;
 
   const leafMat = getLeafMaterial(scene);
   const yellowLeafMat = getYellowLeafMaterial(scene);
@@ -216,7 +221,7 @@ export function createShowcasePlant(
           `showcase_cot_${seed}_${side}`,
           cotSize
         );
-        cot.parent = root;
+        cot.parent = lushGroup;
         cot.position = new Vector3(side * cotSize * 0.5, cotY, 0);
         // tilt slightly outward + face up
         cot.rotation = new Vector3(-0.3 * side, side * 0.5, 0);
@@ -268,7 +273,7 @@ export function createShowcasePlant(
           { ...stemOpts, origin },
         );
         if (stem) {
-          stem.parent = root;
+          stem.parent = lushGroup;
           stem.material = stemMat;
           currentMeshes.push(stem);
           if (isMain) currentParts.stem = stem;
@@ -293,7 +298,7 @@ export function createShowcasePlant(
           leafRng,
         );
         leaf.material = node.yellowing > 0.4 ? yellowLeafMat : leafMatForPlant;
-        leaf.parent = root;
+        leaf.parent = lushGroup;
         leaf.position = new Vector3(node.position.x, node.position.y, node.position.z);
 
         const q = Quaternion.RotationAxis(Vector3.Up(), azimuthRad).multiply(
@@ -315,7 +320,7 @@ export function createShowcasePlant(
             azimuthRad + Math.PI,
             trussRng,
           );
-          trussNode.parent = root;
+          trussNode.parent = lushGroup;
           trussNode.position = new Vector3(
             node.position.x,
             node.position.y - 0.02,
@@ -399,7 +404,9 @@ export function createShowcasePlant(
         }
       }
       // Hide lush mesh while skeleton is on so user can verify biology.
-      root.setEnabled(!on);
+      // lushGroup (not root) — root holds shared transform (wind sway,
+      // worldPosition) inherited by *both* lush and skeleton overlay.
+      lushGroup.setEnabled(!on);
       skeleton.setVisible(on);
       // skeleton.update 호출은 위 setSkeletonMode 분기 (lastState + genome)
       // 에서 이미 진행됨. setVisible(on) 직후 rebuild trigger 없음.
