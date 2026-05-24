@@ -10,6 +10,7 @@ import { setupCamera, type CameraRig } from './CameraRig';
 import { buildGreenhouseScene, type GreenhouseSceneHandle } from './GreenhouseScene';
 import { buildGreenhouseContent, type GreenhouseContentHandle } from './GreenhouseContent';
 import { createProgressiveLoad, type ProgressiveLoadHandle } from './ProgressiveLoad';
+import { createQualityProbe, type QualityProbeHandle } from './QualityProbe';
 import { useTwinStore, type LightingState } from '../store/twinStore';
 import { SCENARIO } from '../data/mockScenario';
 import { getSunState } from '@farmsim/tomato-engine';
@@ -192,8 +193,31 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
   scene.ambientColor = new Color3(0.22, 0.22, 0.22);
 
   // dev 진단 편의 — playwright / DevTools 에서 scene/engine/store 접근 가능.
-  // ProgressiveLoad 의 console.log 와 함께 사용자가 직접 metric 확인.
-  (globalThis as { __farmsim?: unknown; __twinStore?: unknown }).__farmsim = { engine, scene };
+  // + qualityProbe() — q7↔q8 fps 폭락 원인 분석 (single-plant 모드 진입 후
+  //   DevTools 에서 `__farmsim.qualityProbe()` 한 줄로 트리거).
+  let qualityProbe: QualityProbeHandle | null = null;
+  (globalThis as { __farmsim?: unknown; __twinStore?: unknown }).__farmsim = {
+    engine,
+    scene,
+    qualityProbe(): Promise<void> {
+      if (!qualityProbe) {
+        if (!sceneSetup) {
+          console.warn('[QualityProbe] sceneSetup 미완료 — 부팅 후 다시 시도');
+          return Promise.resolve();
+        }
+        qualityProbe = createQualityProbe({
+          scene,
+          engine,
+          sceneSetup,
+          progressiveIsRunning: () => progressive?.isRunning() ?? false,
+        });
+      }
+      return qualityProbe.start();
+    },
+    isProbeRunning(): boolean {
+      return qualityProbe?.isRunning() ?? false;
+    },
+  };
   (globalThis as { __twinStore?: unknown }).__twinStore = useTwinStore;
 
   const cameraRig = setupCamera(scene, canvas);
