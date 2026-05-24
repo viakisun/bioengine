@@ -7,17 +7,12 @@ import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { SeededRandom } from '@farmsim/tomato-engine';
 import { SCENARIO } from '../data/mockScenario';
 import { createLeafMesh, getLeafMaterial } from '../plant/LeafGenerator';
-import { createHeatmap, type HeatmapHandle } from './Heatmap';
-import { createRobot, type RobotHandle } from './Robot';
-import { createPathTrail, type PathTrailHandle } from './PathTrail';
-import { attachZonePicker } from './ZonePicker';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { GrowthEngine } from '@farmsim/tomato-engine';
 import { useTwinStore } from '../store/twinStore';
-import { logBoot, updateStageDetail, setBootStage } from '../store/notify';
+import { logBoot, updateStageDetail } from '../store/notify';
 import { createShowcasePlant, type ShowcasePlantHandle } from './ShowcasePlant';
-import { createSupportingPlant, type SupportingPlantHandle } from './SupportingPlant';
-import { createPlantLODManager } from './PlantLODManager';
+import type { SharedEnvContext } from './GreenhouseContent';
 import { createCocopeatBags, SUBSTRATE_TOP_Y } from './CocopeatBags';
 import { createTubeRail } from './TubeRail';
 import { createBedStands } from './BedStands';
@@ -95,23 +90,21 @@ function addFruitCluster(scene: Scene, parent: TransformNode, detail: 'full' | '
  *  single-plant inspector panel) refer to the same seed deterministically. */
 export const SHOWCASE_SEED = 20260520;
 
+/**
+ * SharedEnvironment build 결과.
+ *
+ * 영구 영역 (mode 무관, 절대 dispose 안 됨): GrowthEngine, showcase plant,
+ * 온실 인프라(베드/프레임/지붕/cocopeat/wires/lights/IBL).
+ *
+ * Mode-specific 영역 (greenhouse content — supporting/heatmap/robot/pathTrail/
+ * plantLOD) 은 `GreenhouseContent.ts` 의 `buildGreenhouseContent(sharedEnv)`
+ * 로 별도 build/dispose. `sharedEnv` 는 거기에 필요한 좌표/구성 상수를 담음.
+ */
 export interface GreenhouseSceneHandle {
-  heatmap: HeatmapHandle;
-  robot: RobotHandle;
-  pathTrail: PathTrailHandle;
   growthEngine: GrowthEngine;
   showcasePlant: ShowcasePlantHandle;
-  supportingPlants: SupportingPlantHandle[];
-  plantLOD: import('./PlantLODManager').PlantLODManagerHandle;
-  update: (day: number) => void;
-  onZoneHover: (cb: (zoneId: number | null) => void) => void;
-  onZoneClick: (cb: (zoneId: number | null) => void) => void;
-  /**
-   * Single-Plant Analysis 모드용 — supporting plants 만 일괄 hide/show.
-   * ShowcasePlant + 인프라 (베드 / cocopeat / wire / 프레임 / 지붕) 는
-   * 그대로 보임. 사용자 의도: "환경 그대로 + 1 plant".
-   */
-  setSingleFocusMode: (focusOnly: boolean) => void;
+  /** Greenhouse content build 시 넘기는 영구 context. */
+  sharedEnv: SharedEnvContext;
 }
 
 export async function buildGreenhouseScene(scene: Scene): Promise<GreenhouseSceneHandle> {
@@ -465,40 +458,19 @@ export async function buildGreenhouseScene(scene: Scene): Promise<GreenhouseScen
     if (bucket < 20) return 'round-generic';
     return 'tomimaru-muchoo';
   };
-  // ---- 'plants' stage begins ----
-  // GrowthEngine.addPlant only registers a genome — the heavier mesh
-  // build happens later via ShowcasePlant + SupportingPlant.update().
-  // So the addPlant pass advances progress 0→0.4; the mesh builds
-  // advance 0.4→1.0.
+  // ---- 인프라 완료 ----------------------------------------------------
+  // SharedEnvironment 는 GrowthEngine 에 showcase plant 한 그루만 등록.
+  // Supporting plants (그리고 그에 딸린 720 GrowthEngine entry) 는
+  // `buildGreenhouseContent` 가 mode 'greenhouse' 진입 시점에 추가하고
+  // 'single-plant' 진입 시점에 모두 removePlant 로 정리.
   updateStageDetail('인프라 완료', 1.0);
   logBoot('log', 'greenhouse: 인프라 완료');
   await new Promise((r) => setTimeout(r, 0));
 
-  setBootStage('plants', '식물 등록 시작', 0);
-
-  const totalToAdd = ACTIVE_BED_INDICES.length * PLANT_BLOCK;
-  let addedSoFar = 0;
-  for (const bedIdx of ACTIVE_BED_INDICES) {
-    for (let slot = 0; slot < PLANT_BLOCK; slot++) {
-      growthEngine.addPlant({
-        seed: plantSeedFor(bedIdx, slot),
-        cultivarName: pickCultivar(bedIdx, slot),
-      });
-      addedSoFar++;
-      if (addedSoFar % 20 === 0) {
-        updateStageDetail(
-          `${addedSoFar}/${totalToAdd} 식물 등록`,
-          (addedSoFar / totalToAdd) * 0.4,
-          [{ label: 'GrowthEngine', value: `${addedSoFar}/${totalToAdd}` }],
-        );
-        logBoot('log', `plants: ${addedSoFar}/${totalToAdd} 등록`);
-        await new Promise((r) => setTimeout(r, 0));
-      }
-    }
-  }
-  updateStageDetail(`${totalToAdd}/${totalToAdd} 식물 등록 완료`, 0.4);
-  logBoot('log', `plants: 등록 완료 (${totalToAdd}개)`);
-  await new Promise((r) => setTimeout(r, 0));
+  growthEngine.addPlant({
+    seed: SHOWCASE_SEED,
+    cultivarName: pickCultivar(MAIN_BED_IDX, showcasePlantIndex),
+  });
 
   // Cocopeat grow bags row + substrate mounds — bag top now occupies
   // y ∈ [0.95, 1.05]. Plant root y is lifted from scenario's bedY
@@ -553,120 +525,23 @@ export async function buildGreenhouseScene(scene: Scene): Promise<GreenhouseScen
     )
   );
 
-  // Supporting plants — Light-LOD, GrowthEngine-driven. We fill all
-  // five beds with the same 90-slot grid, skipping the showcase's slot
-  // on the main bed (one slot replaced by the heavy-LOD showcase).
-  //
-  // Each plant's seed is unique (see plantSeedFor) so leaf shapes,
-  // fruit counts, height curves etc. are all procedurally different —
-  // no preset / hardcoded values per stem.
-  //
-  // Rebuild staggering: each plant rebuilds its geometry every ~2
-  // sim-days. With ~449 supports, spreading them across the 2-day
-  // window keeps the per-frame GC bounded.
-  const supportingPlants: SupportingPlantHandle[] = [];
-  // Parallel to supportingPlants. For main-bed plants this is the
-  // SCENARIO.plants index (drives health label per day). For sister
-  // beds it's -1 — the plant runs on its own engine seed with default
-  // health (visual-only).
-  const supportingPlantSlotIds: number[] = [];
-  let supportIdx = 0;
-  const totalSupports = ACTIVE_BED_INDICES.length * PLANT_BLOCK - 1; // minus showcase slot
-
-  updateStageDetail('Supporting 식물 메쉬 빌드 시작', 0.5);
-  logBoot('log', `plants: Supporting ${totalSupports}개 빌드 시작`);
-  await new Promise((r) => setTimeout(r, 0));
-
-  for (const bedIdx of ACTIVE_BED_INDICES) {
-    const bedZ = BED_Z_POSITIONS[bedIdx];
-    const isMainBed = bedIdx === MAIN_BED_IDX;
-    for (let slot = 0; slot < PLANT_BLOCK; slot++) {
-      if (isMainBed && slot === showcasePlantIndex) continue;
-      const spec = SCENARIO.plants[slot];
-      const rebuildOffset = (supportIdx / totalSupports) * 2.0;
-      supportingPlants.push(
-        createSupportingPlant(
-          scene,
-          growthEngine,
-          plantSeedFor(bedIdx, slot),
-          new Vector3(spec.position[0], SUBSTRATE_TOP_Y, bedZ),
-          rebuildOffset
-        )
-      );
-      supportingPlantSlotIds.push(isMainBed ? slot : -1);
-      supportIdx++;
-      if (supportIdx % 20 === 0) {
-        // Plants 단계 진행도: 0.5 → 1.0 동안 supporting 빌드
-        const supportFrac = supportIdx / totalSupports;
-        updateStageDetail(
-          `Supporting ${supportIdx}/${totalSupports} 빌드`,
-          0.5 + supportFrac * 0.5,
-          [{ label: 'Supporting', value: `${supportIdx}/${totalSupports}` }],
-        );
-        logBoot('log', `plants: ${supportIdx}/${totalSupports} 빌드`);
-        await new Promise((r) => setTimeout(r, 0));
-      }
-    }
-  }
-  updateStageDetail(`식물 빌드 완료 (${totalSupports + 1}개)`, 1.0);
-  logBoot('log', `plants: 빌드 완료 (showcase + ${totalSupports} supporting)`);
-
-  const heatmap = createHeatmap(scene);
-  const robot = createRobot(scene);
-  const pathTrail = createPathTrail(scene);
-
-  let hoverCb: ((zoneId: number | null) => void) | null = null;
-  let clickCb: ((zoneId: number | null) => void) | null = null;
-
-  attachZonePicker(
+  // SharedEnvironment 의 context 묶기 — GreenhouseContent build/dispose 용.
+  const sharedEnv: SharedEnvContext = {
     scene,
-    heatmap.mesh,
-    (zoneId) => {
-      heatmap.setHoveredZone(zoneId);
-      hoverCb?.(zoneId);
-    },
-    (zoneId) => clickCb?.(zoneId)
-  );
-
-  const plantLOD = createPlantLODManager(scene, scene.activeCamera!, supportingPlants);
+    growthEngine,
+    bedZPositions: BED_Z_POSITIONS,
+    activeBedIndices: ACTIVE_BED_INDICES,
+    mainBedIdx: MAIN_BED_IDX,
+    plantBlock: PLANT_BLOCK,
+    showcasePlantIndex,
+    showcaseSeed: SHOWCASE_SEED,
+    plantSeedFor,
+    pickCultivar,
+  };
 
   return {
-    heatmap,
-    robot,
-    pathTrail,
     growthEngine,
     showcasePlant,
-    supportingPlants,
-    plantLOD,
-    setSingleFocusMode(focusOnly) {
-      // Toggle visibility of every supporting plant. Showcase + all
-      // infrastructure (beds, cocopeat bags, training wires, frames,
-      // roof) stay visible regardless — user explicitly wanted the
-      // environment preserved in single-plant mode.
-      for (const sp of supportingPlants) sp.setVisible(!focusOnly);
-    },
-    update(day) {
-      heatmap.update(day);
-      robot.update(day);
-      pathTrail.update(day);
-      showcasePlant.update(day);
-      // Wire each supporting plant to its mockScenario healthLabel
-      // → engine env override + stress inputs.
-      const dayIdx = Math.max(0, Math.min(SCENARIO.durationDays, Math.floor(day)));
-      const waterStressOverride = useTwinStore.getState().waterStressOverride;
-      for (let i = 0; i < supportingPlants.length; i++) {
-        const slotId = supportingPlantSlotIds[i];
-        if (slotId < 0) {
-          // Sister-bed plant — no scenario health track; use 'normal'.
-          supportingPlants[i].update(day, 'normal', waterStressOverride);
-          continue;
-        }
-        const plant = SCENARIO.plants[slotId];
-        const snap = plant.daily[Math.min(plant.daily.length - 1, dayIdx)];
-        supportingPlants[i].update(day, snap.health, waterStressOverride);
-      }
-    },
-    onZoneHover(cb) { hoverCb = cb; },
-    onZoneClick(cb) { clickCb = cb; },
+    sharedEnv,
   };
 }
