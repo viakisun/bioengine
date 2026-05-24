@@ -222,24 +222,10 @@ export function createSkeletonOverlay(
     if (!leaf.visibility.visible && !showHiddenOrgans) return;
     if (!isFiniteVec(leaf.attachPosition)) return;
 
-    const attach = v(leaf.attachPosition);
-    const cos = Math.cos(leaf.azimuthRad);
-    const sin = Math.sin(leaf.azimuthRad);
-    // Tip at petLen × (cos azimuth, ...) with droop component, arched curve.
-    const tipY = -leaf.petioleLengthM * Math.sin(leaf.droopRad * 0.6);
-    const tipR = leaf.petioleLengthM * Math.cos(leaf.droopRad * 0.6);
-    const tip = new Vector3(attach.x + cos * tipR, attach.y + tipY, attach.z + sin * tipR);
-    const c1 = new Vector3(
-      attach.x + cos * tipR * 0.35,
-      attach.y + Math.max(0, -tipY * 0.15) + 0.005,
-      attach.z + sin * tipR * 0.35,
-    );
-    const c2 = new Vector3(
-      attach.x + cos * tipR * 0.70,
-      attach.y + tipY * 0.55,
-      attach.z + sin * tipR * 0.70,
-    );
-    const petCurve = catmullRomPath([attach, c1, c2, tip], 4);
+    // Single source of truth — petioleCurve comes from PlantBase. Skeleton
+    // and any future lush petiole tube both consume this identical curve.
+    const petCurve = catmullRomPath(leaf.petioleCurve.map(v), 4);
+    const tip = v(leaf.petioleCurve[leaf.petioleCurve.length - 1]);
     meshes.push(thickLine(
       `skel_pet_a${axisIdx}_n${leaf.nodeIdx}`, petCurve,
       Color3.FromHexString(cfg.petioleColor), cfg.petioleWidth,
@@ -270,7 +256,16 @@ export function createSkeletonOverlay(
       return;
     }
 
-    // ── Legacy fallback (Phase F removes) ────────────────────────────
+    // ── Legacy v4.0 fallback (Phase F removes) ───────────────────────
+    // PlantBase always populates v4.1 fields → this path should be
+    // unreachable. Dev warn for regression detection.
+    if (import.meta.env?.DEV) {
+      console.warn(
+        `[v4.0 path reached] SkeletonOverlay drawTruss legacy fallback hit `
+        + `for axis ${axisIdx} truss n${truss.nodeIdx}. `
+        + `PlantBase should populate v4.1 fields.`,
+      );
+    }
     const origin = v(truss.worldOrigin);
     const rachisCurve = catmullRomPath(truss.rachisCurveWorld.map(v), 4);
     meshes.push(thickLine(

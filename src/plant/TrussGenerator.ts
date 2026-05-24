@@ -115,6 +115,11 @@ export interface TrussLayout {
  *   - cantilever Y droop from `computeTrussDroop(truss, genome)`
  *   - cumulative-spacing collision avoidance along the peduncle
  *   - pedicel cantilever sag scales with fruit weight (diameter proxy)
+ *
+ * @deprecated v4.0 layout. PlantBase v4.1 (peduncleCurve / rachisCurve /
+ * floralSites) is the active path. Still invoked from PlantBase to populate
+ * legacy fields read by SkeletonOverlay's v4.0 fallback (unreachable in
+ * practice) — removal scheduled for Phase F.
  */
 export function layoutTruss(truss: TrussState, genome: PlantGenome): TrussLayout {
   const totalItems = truss.fruits.length + truss.flowers.length;
@@ -203,6 +208,9 @@ export function layoutTruss(truss: TrussState, genome: PlantGenome): TrussLayout
 /**
  * Build the 4 control points for a pedicel curve given a layout item.
  * Shared between lush mesh sweep and skeleton overlay line.
+ *
+ * @deprecated v4.0 path. v4.1 stores `pedicelCurve` directly on
+ * `FloralSiteBase`. Still used by `layoutTruss` legacy field population.
  */
 export function pedicelControlPoints(
   item: TrussLayoutItem,
@@ -228,6 +236,10 @@ export function pedicelControlPoints(
  *
  * azimuthRad: world rotation around Y (typically opposite the leaf
  * at the same node, i.e. node.phyllotaxisAngle + π).
+ *
+ * @deprecated v4.0 entry. Use `createTrussNodeFromBase` (v4.1) which
+ * consumes the PlantBase truss curves directly. This function is only
+ * reached if PlantBase fails to populate v4.1 fields (should not happen).
  */
 export function createTrussNode(
   name: string,
@@ -331,6 +343,7 @@ export function createTrussNodeFromBase(
   scene: Scene,
   trussBase: import('./PlantBase').TrussBase,
   rng: SeededRandom,
+  opts?: { tubeDivisions?: number },
 ): TransformNode {
   const root = new TransformNode(name, scene);
   if (!trussBase.peduncleCurve || !trussBase.rachisCurve || !trussBase.floralSites) {
@@ -339,6 +352,7 @@ export function createTrussNodeFromBase(
 
   const anatomy = ACTIVE_MODEL.trussAnatomy;
   const toV3 = (p: { x: number; y: number; z: number }) => new Vector3(p.x, p.y, p.z);
+  const tubeDivisions = opts?.tubeDivisions;  // undefined → StemGenerator default(4)
 
   // Tier 1: peduncle.
   const pedRadii = [
@@ -349,7 +363,7 @@ export function createTrussNodeFromBase(
   ];
   const peduncleMesh = createCurvedTube(
     `${name}_peduncle`, scene, trussBase.peduncleCurve.map(toV3), pedRadii,
-    { radialSegments: 8, color: PEDUNCLE_RGB },
+    { radialSegments: 8, color: PEDUNCLE_RGB, divisionsPerSeg: tubeDivisions },
   );
   if (peduncleMesh) {
     peduncleMesh.parent = root;
@@ -363,7 +377,7 @@ export function createTrussNodeFromBase(
   });
   const rachisMesh = createCurvedTube(
     `${name}_rachis`, scene, trussBase.rachisCurve.map(toV3), rachisRadii,
-    { radialSegments: 6, color: PEDUNCLE_RGB },
+    { radialSegments: 6, color: PEDUNCLE_RGB, divisionsPerSeg: tubeDivisions },
   );
   if (rachisMesh) {
     rachisMesh.parent = root;
@@ -387,7 +401,7 @@ export function createTrussNodeFromBase(
       const pedicelMesh = createCurvedTube(
         `${name}_pedicel_${site.index}`, scene,
         site.pedicelCurve.map(toV3), pedicelRadii,
-        { radialSegments: 6, color: PEDICEL_RGB },
+        { radialSegments: 6, color: PEDICEL_RGB, divisionsPerSeg: tubeDivisions },
       );
       if (pedicelMesh) {
         pedicelMesh.parent = root;

@@ -2,6 +2,8 @@
 
 토마토 생육 시뮬레이터 + 학술 모델 튜닝 실험실. **Reduced TOMGRO + TOMSIM photosynthesis + Gillaspy 3-phase fruit growth + Marcelis abortion** 기반. Babylon.js 9 + React 19 + Vite + WebGPU.
 
+**Release:** `v0.1` — Single-Plant Analysis, JSONC 학술 모델 spec, PlantBase 기반 truss/leaf geometry SSOT, 전문가 검토용 생육 모델 export 포함.
+
 > **모노레포 구조** — `packages/tomato-engine` (생육 알고리즘 + JSON 모델 spec, 엔진 무관) + `packages/tomato-geometry` (식물 메시 generator, 엔진 무관) + `src/` (Babylon + React 운영 화면). 두 패키지는 다른 프로젝트 / Node CLI / worker 에서 그대로 import 가능.
 
 레퍼런스 환경: **김제 스마트팜혁신밸리** (UWB 위치측위 시험, `_ref/smartfarm.mp4` frame_07).
@@ -51,7 +53,17 @@ npm run preview           # production build 미리보기
 - **PARGauge** — 실시간 PAR / 온도 시각화
 - **자동 Lv 10 boost** — 720 plant hide 후 풀 PBR + Shadow 8192 + MSAA 8 + clearcoat + SSS
 
-### 2. 학술 모델 JSON Spec Sheet (v0.1 신규)
+### 2. PlantBase v4.1 — 구조/렌더 SSOT
+
+식물의 lush mesh와 skeleton overlay가 같은 구조 데이터를 읽도록 정리:
+
+- **Petiole curve SSOT** — `PlantBase`가 잎자루 Catmull-Rom curve를 계산하고, skeleton/lush가 같은 곡선을 소비
+- **Truss curve SSOT** — peduncle / rachis / pedicel curve와 floral site를 `PlantBase`에서 생성
+- **Fruit orientation** — truss fruit body stem-end가 fruitTop / calyx 방향과 정렬
+- **Geometry diagnostics** — rachis knuckle, pedicel endpoint, fruitTop alignment invariant 점검
+- **Legacy fallback 격리** — v4.0 truss layout path는 dev warning과 함께 fallback으로만 유지
+
+### 3. 학술 모델 JSON Spec Sheet (v0.1 신규)
 
 `packages/tomato-engine/models/` 에 *엔진의 동작 명세* 가 JSON 으로 외부화:
 
@@ -75,7 +87,16 @@ models/
 
 코드 = 인터프리터, JSON = 모델 spec. DSSAT / APSIM / WUR TOMSIM 의 spec sheet 와 같은 패턴.
 
-### 3. Greenhouse Twin — 운영 시나리오
+### 4. Expert Review Export — FSPM 전환 준비
+
+`docs/expert-review/` 에 전문가 검토용 strict JSON + 하드코딩 파라미터 감사표 포함:
+
+- [`tomato-growth-model.review.json`](docs/expert-review/tomato-growth-model.review.json) — `jsonb` 저장 가능한 생육/품종/화방/곁가지/렌더 anatomy 검토 데이터
+- [`hardcoded-parameter-audit.md`](docs/expert-review/hardcoded-parameter-audit.md) — 생물학 파라미터, 알고리즘 상수, 렌더 전용 상수 분류
+
+다음 단계는 TOMGRO/TOMSIM 생리 엔진 위에 phytomer / axis 기반 FSPM structural state generator를 얹는 것.
+
+### 5. Greenhouse Twin — 운영 시나리오
 
 기존 720 plant 온실 (sigmoid 모델, K-smartfarm 13 베드):
 
@@ -182,6 +203,8 @@ node verify-farmsim.mjs
 ## 문서
 
 - [**packages/tomato-engine/models/README.md**](packages/tomato-engine/models/README.md) — **학술 모델 spec sheet** (v0.1 신규). 파라미터 표 + 학술 reference + 튜닝 워크플로 + cultivar 추가 절차
+- [**docs/expert-review/tomato-growth-model.review.json**](docs/expert-review/tomato-growth-model.review.json) — 전문가 검토 / DB `jsonb` 저장용 생육 모델 export
+- [**docs/expert-review/hardcoded-parameter-audit.md**](docs/expert-review/hardcoded-parameter-audit.md) — 하드코딩 생물학 파라미터 감사표
 - [CHANGELOG.md](CHANGELOG.md) — 버전별 변경 사항
 - [docs/stage-by-stage.md](docs/stage-by-stage.md) — 부위별 단계별 알고리즘 (떡잎/잎/꽃/과실/줄기/스트레스, 모델↔메시 매핑)
 - [docs/architecture.md](docs/architecture.md) — 레이어 구조, 생육 엔진, 씬 구성

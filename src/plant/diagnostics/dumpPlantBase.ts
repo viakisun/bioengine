@@ -284,7 +284,8 @@ function assertInvariants(plantBase: PlantBase): void {
         }
       }
       // 3. floralSites: pedicelCurve length, fruitAxisDir unit, fruitCenter offset, stage consistency.
-      for (const site of truss.floralSites) {
+      for (let si = 0; si < truss.floralSites.length; si++) {
+        const site = truss.floralSites[si];
         if (site.pedicelCurve.length !== 4) {
           issues.push(`axis ${axis.order} truss n${truss.nodeIdx} site ${site.index}: pedicelCurve length ${site.pedicelCurve.length} (expected 4)`);
         }
@@ -294,6 +295,17 @@ function assertInvariants(plantBase: PlantBase): void {
           const d0 = dist3(pedStart, site.knuckle);
           if (d0 > 0.001) {
             issues.push(`axis ${axis.order} truss n${truss.nodeIdx} site ${site.index}: pedicelCurve[0] Δ ${(d0 * 1000).toFixed(3)}mm from knuckle`);
+          }
+        }
+        // Knuckle ↔ rachisCurve index alignment: knuckle은 rachisCurve의
+        // subset이므로 rachisCurve[si+1]과 좌표가 일치해야 함 (rachisCurve[0]
+        // = peduncleEnd, rachisCurve[1..N] = knuckles).
+        const expectedRachisIdx = si + 1;
+        const expectedKnuckle = truss.rachisCurve[expectedRachisIdx];
+        if (expectedKnuckle && site.knuckle) {
+          const dK = dist3(site.knuckle, expectedKnuckle);
+          if (dK > 0.001) {
+            issues.push(`axis ${axis.order} truss n${truss.nodeIdx} site ${site.index}: knuckle Δ ${(dK * 1000).toFixed(3)}mm from rachisCurve[${expectedRachisIdx}]`);
           }
         }
         if (pedLast && site.fruitTop) {

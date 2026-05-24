@@ -326,11 +326,21 @@ export function createShowcasePlant(
           trussNode = createTrussNodeFromBase(
             `showcase_truss_${seed}_a${axisIdx}_n${trussBase.nodeIdx}`,
             scene, trussBase, trussRng,
+            { tubeDivisions: 8 },  // close-up hero LOD — smoother peduncle/rachis/pedicel curves
           );
           trussNode.parent = lushGroup;
           // PlantBase pre-baked world coords, no extra positioning.
         } else {
-          // Legacy fallback (Phase F removes).
+          // Legacy v4.0 fallback (Phase F removes). PlantBase v4.1 always
+          // populates floralSites/peduncleCurve/rachisCurve, so this path
+          // should not be reachable. Dev warn to catch regressions.
+          if (import.meta.env?.DEV) {
+            console.warn(
+              `[v4.0 path reached] ShowcasePlant trussNode legacy fallback hit `
+              + `for axis ${axisIdx} truss n${trussBase.nodeIdx}. `
+              + `PlantBase should populate v4.1 fields.`,
+            );
+          }
           const rawNode = rawAxis.nodes[trussBase.nodeIdx];
           if (!rawNode || !rawNode.truss) continue;
           trussNode = createTrussNode(
@@ -413,6 +423,25 @@ export function createShowcasePlant(
       // root 자체는 변경 X — wind sway 와 worldPosition 은 lush/skeleton 양쪽이
       // 공유해야 하므로 root 가 아닌 lushGroup 으로 hide.
       lushGroup.setEnabled(v);
+      // Dev-mode ownership audit. 모든 ShowcasePlant lush mesh는 lushGroup의
+      // (간접) 자손이어야 함 — 다른 부모에 leak되면 토글 무시되어 skeleton
+      // 모드에서 fruit body가 보이는 등의 시각 회귀 발생.
+      if (import.meta.env?.DEV && !v) {
+        const PREFIXES = [
+          'showcase_fruit_', 'showcase_truss_', 'showcase_stem_',
+          'showcase_leaf_', 'showcase_cot_', 'showcase_sidestem_',
+        ];
+        const orphans = scene.meshes.filter(
+          (m) => PREFIXES.some((p) => m.name.startsWith(p)) && m.isEnabled(),
+        );
+        if (orphans.length > 0) {
+          console.warn(
+            `[lush ownership] ${orphans.length} mesh(es) still enabled after `
+            + `setLushEnabled(false). Check parenting to lushGroup. Names:`,
+            orphans.map((m) => m.name).slice(0, 10),
+          );
+        }
+      }
     },
     setSkeletonEnabled(v) {
       if (skeletonOn === v) return;

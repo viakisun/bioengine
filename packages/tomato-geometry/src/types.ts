@@ -89,7 +89,8 @@ export function createCylinderChunk(
   radiusBottom: number,
   height: number,
   radialSegs: number,
-  heightSegs: number
+  heightSegs: number,
+  capped = false,
 ): GeoChunk {
   const chunk = newChunk();
   const halfH = height / 2;
@@ -119,5 +120,50 @@ export function createCylinderChunk(
       chunk.indices.push(a, c, b, b, c, d);
     }
   }
+
+  // End caps — disk fan at each pole. Without these, a camera looking
+  // into the cylinder end sees an empty pipe (backface-culled interior).
+  // Required when the cylinder is rendered with a free end (e.g. leaf
+  // petiole base meeting the main stem, fruit pedicel meeting calyx).
+  if (capped) {
+    // Bottom cap (y = -halfH, normal -Y)
+    const bottomCenterIdx = chunk.positions.length / 3;
+    chunk.positions.push(0, -halfH, 0);
+    chunk.normals.push(0, -1, 0);
+    chunk.uvs.push(0.5, 0);
+    const bottomRingStart = chunk.positions.length / 3;
+    for (let col = 0; col < colCount; col++) {
+      const theta = (col / radialSegs) * Math.PI * 2;
+      const cx = Math.cos(theta);
+      const sx = Math.sin(theta);
+      chunk.positions.push(radiusBottom * cx, -halfH, radiusBottom * sx);
+      chunk.normals.push(0, -1, 0);
+      chunk.uvs.push((cx + 1) * 0.5, (sx + 1) * 0.5);
+    }
+    for (let col = 0; col < radialSegs; col++) {
+      // CCW from below (-Y look direction): center, col+1, col
+      chunk.indices.push(bottomCenterIdx, bottomRingStart + col + 1, bottomRingStart + col);
+    }
+
+    // Top cap (y = +halfH, normal +Y)
+    const topCenterIdx = chunk.positions.length / 3;
+    chunk.positions.push(0, halfH, 0);
+    chunk.normals.push(0, 1, 0);
+    chunk.uvs.push(0.5, 1);
+    const topRingStart = chunk.positions.length / 3;
+    for (let col = 0; col < colCount; col++) {
+      const theta = (col / radialSegs) * Math.PI * 2;
+      const cx = Math.cos(theta);
+      const sx = Math.sin(theta);
+      chunk.positions.push(radiusTop * cx, halfH, radiusTop * sx);
+      chunk.normals.push(0, 1, 0);
+      chunk.uvs.push((cx + 1) * 0.5, (sx + 1) * 0.5);
+    }
+    for (let col = 0; col < radialSegs; col++) {
+      // CCW from above (+Y look direction): center, col, col+1
+      chunk.indices.push(topCenterIdx, topRingStart + col, topRingStart + col + 1);
+    }
+  }
+
   return chunk;
 }

@@ -92,9 +92,14 @@ export function buildLeafChunk(paramsArg: LeafBuildParams, rng: SeededRandom): G
   // Petiole — gravity arch (young) → sag (old)
   const petioleBaseRadius = 0.0018 * sizeFactor;
   const petioleTipRadius = 0.0012 * sizeFactor;
-  const petiole = createCylinderChunk(petioleTipRadius, petioleBaseRadius, petioleLen, 5, 6);
+  // capped: end disks prevent the "empty pipe" look when camera sees the
+  // open end at the stem junction. embedDepth shifts the base ~3mm into
+  // the parent stem so the bottom cap is hidden inside the stem mesh
+  // (avoids a visible disk floating on the stem surface).
+  const petioleEmbedDepth = 0.003;
+  const petiole = createCylinderChunk(petioleTipRadius, petioleBaseRadius, petioleLen, 5, 6, true);
   rotateChunkZ(petiole, -Math.PI / 2);
-  translateChunk(petiole, petioleLen / 2, 0, 0);
+  translateChunk(petiole, petioleLen / 2 - petioleEmbedDepth, 0, 0);
 
   for (let v = 0; v < petiole.positions.length; v += 3) {
     const x = petiole.positions[v];
@@ -110,7 +115,7 @@ export function buildLeafChunk(paramsArg: LeafBuildParams, rng: SeededRandom): G
   // Rachis — droop increases with age + leaflet weight
   const rachisBaseRadius = 0.0010 * sizeFactor;
   const rachisTipRadius = 0.0005 * sizeFactor;
-  const rachis = createCylinderChunk(rachisTipRadius, rachisBaseRadius, rachisLen, 4, 8);
+  const rachis = createCylinderChunk(rachisTipRadius, rachisBaseRadius, rachisLen, 4, 8, true);
   rotateChunkZ(rachis, -Math.PI / 2);
   translateChunk(rachis, petioleLen + rachisLen / 2, 0, 0);
   const rachisDroopFactor = 0.12 + af * 0.45;
@@ -173,7 +178,8 @@ export function buildLeafChunk(paramsArg: LeafBuildParams, rng: SeededRandom): G
           0.0006 * sizeFactor,
           petioluleLen,
           3,
-          1
+          1,
+          true,
         );
         rotateChunkX(petiolule, Math.PI / 2);
         translateChunk(petiolule, posAlongRachis, yOff, side * petioluleLen * 0.5);

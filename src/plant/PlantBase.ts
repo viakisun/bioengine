@@ -109,6 +109,11 @@ export interface LeafBase {
   yellowing: number;
   /** Computed once; used by skeleton petiole wire AND lush leaf mesh. */
   petioleLengthM: number;
+  /** Petiole centerline (4-cp Catmull-Rom). attach → tip with droop arch.
+   *  [0]=attachPosition (sticks to stem), [3]=tip (leaf base). Both
+   *  SkeletonOverlay and any future lush petiole tube must consume this
+   *  same curve so the two views agree on curvature. */
+  petioleCurve: { x: number; y: number; z: number }[];
 
   // Material hints (passed through from PlantState)
   waterStress: number;
@@ -426,6 +431,26 @@ function buildLeafBase(
   // in the engine-side leafSizeFactor).
   const petioleLengthM = 0.12 * Math.max(0.3, node.leafSizeFactor);
 
+  // Petiole 4-cp Catmull-Rom centerline. attach → arched tip. Mirrors
+  // SkeletonOverlay drawPetiole's prior inline computation so both views
+  // agree by construction.
+  const cos = Math.cos(azimuthRad);
+  const sin = Math.sin(azimuthRad);
+  const tipY = -petioleLengthM * Math.sin(droopRad * 0.6);
+  const tipR = petioleLengthM * Math.cos(droopRad * 0.6);
+  const tip = { x: attachPos.x + cos * tipR, y: attachPos.y + tipY, z: attachPos.z + sin * tipR };
+  const c1 = {
+    x: attachPos.x + cos * tipR * 0.35,
+    y: attachPos.y + Math.max(0, -tipY * 0.15) + 0.005,
+    z: attachPos.z + sin * tipR * 0.35,
+  };
+  const c2 = {
+    x: attachPos.x + cos * tipR * 0.70,
+    y: attachPos.y + tipY * 0.55,
+    z: attachPos.z + sin * tipR * 0.70,
+  };
+  const petioleCurve = [{ ...attachPos }, c1, c2, tip];
+
   return {
     nodeIdx: node.index,
     visibility: leafVisibility(node),
@@ -436,6 +461,7 @@ function buildLeafBase(
     leafletCount: node.leafletCount,
     yellowing: node.yellowing,
     petioleLengthM,
+    petioleCurve,
     waterStress: node.waterStress,
     diseaseLoad: node.diseaseLoad,
   };
@@ -508,7 +534,7 @@ function buildTrussBase(
     z: forwardDir.z * Math.cos(ped.downAngleRad),
   };
   const peduncleEnd: V3 = vadd(worldOrigin, vscale(pedTangent, ped.lengthM));
-  const peduncleCurve = parabolicArc(worldOrigin, peduncleEnd, 0.08);
+  const peduncleCurve = parabolicArc(worldOrigin, peduncleEnd, 0.18);
 
   // Step 3: Rachis (Tier 2) — cymose with zigzag + phyllotactic rotation.
   const rachis = anatomy.rachis;
@@ -564,7 +590,7 @@ function buildTrussBase(
       z: outwardDir.z * Math.cos(pedicel.downAngleRad) + downDir.z * Math.sin(pedicel.downAngleRad),
     });
     const fruitTop: V3 = vadd(knuckle, vscale(pedicelTangent, pedicel.lengthM));
-    const pedicelCurve = parabolicArc(knuckle, fruitTop, 0.12);
+    const pedicelCurve = parabolicArc(knuckle, fruitTop, 0.25);
     const t = pedicel.abscissionZoneFrac;
     // Cubic bezier approx — linear blend through the 4 control pts at t.
     const abscissionPosition: V3 = vadd(
