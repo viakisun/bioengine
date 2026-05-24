@@ -514,6 +514,12 @@ interface TwinState {
   singlePlantChartWindow: '1d' | '7d' | '30d' | 'all';
   /** Camera preset in the single-plant viewport. */
   singlePlantCamera: 'free' | 'truss' | 'fruit' | 'top';
+  /** HUD-refactor: top-bar filter pill ('전체|잎|화방|과실|작업|환경').
+   *  Wiring is reserved — toggling the active filter is supported but
+   *  downstream rendering hooks are Phase E+. */
+  singlePlantTopFilter: 'all' | 'leaf' | 'truss' | 'fruit' | 'work' | 'env';
+  /** HUD-refactor: collapsible MetricsTray (TimelineChart wrapper). */
+  singlePlantMetricsOpen: boolean;
   /** Which inspector sections are expanded. */
   singlePlantInspectorOpen: {
     cultivar: boolean;
@@ -548,6 +554,8 @@ interface TwinState {
   setSinglePlantChartVar: (v: SinglePlantChartVar) => void;
   setSinglePlantChartWindow: (w: '1d' | '7d' | '30d' | 'all') => void;
   setSinglePlantCamera: (c: 'free' | 'truss' | 'fruit' | 'top') => void;
+  setSinglePlantTopFilter: (f: 'all' | 'leaf' | 'truss' | 'fruit' | 'work' | 'env') => void;
+  toggleSinglePlantMetrics: () => void;
   toggleSinglePlantInspector: (key: 'cultivar' | 'state' | 'truss' | 'phenology' | 'genome') => void;
 
   // -- Boot progress + notifications + live log + env --
@@ -793,6 +801,8 @@ export const useTwinStore = create<TwinState>((set) => ({
   singlePlantChartVar: 'LAI',
   singlePlantChartWindow: '7d',
   singlePlantCamera: 'free',
+  singlePlantTopFilter: 'all',
+  singlePlantMetricsOpen: false,
   singlePlantInspectorOpen: { cultivar: true, state: true, truss: true, phenology: true, genome: false },
   showSkeleton: false,
   setShowSkeleton: (v) => set({ showSkeleton: v }),
@@ -812,6 +822,9 @@ export const useTwinStore = create<TwinState>((set) => ({
   setSinglePlantChartVar: (v) => set({ singlePlantChartVar: v }),
   setSinglePlantChartWindow: (w) => set({ singlePlantChartWindow: w }),
   setSinglePlantCamera: (c) => set({ singlePlantCamera: c }),
+  setSinglePlantTopFilter: (f) => set({ singlePlantTopFilter: f }),
+  toggleSinglePlantMetrics: () =>
+    set((s) => ({ singlePlantMetricsOpen: !s.singlePlantMetricsOpen })),
   toggleSinglePlantInspector: (key) =>
     set((s) => ({
       singlePlantInspectorOpen: { ...s.singlePlantInspectorOpen, [key]: !s.singlePlantInspectorOpen[key] },

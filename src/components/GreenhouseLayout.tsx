@@ -33,31 +33,34 @@ export function GreenhouseLayout() {
       {/* Main 3D view + scene-overlay UI */}
       <div className="app-scene-cell">
         <SceneCanvas />
-        <TopBar />
-        <LabelOverlay />
-        <LayerDock />
+        {!isSinglePlant && <TopBar />}
+        {!isSinglePlant && <LabelOverlay />}
+        {!isSinglePlant && <LayerDock />}
 
-        {/* Back-to-lobby chip — always visible, top-left, low-key */}
-        <button
-          type="button"
-          onClick={() => setMode('lobby')}
-          style={{
-            position: 'absolute',
-            top: 14,
-            left: 14,
-            zIndex: 50,
-            background: 'rgba(255, 255, 255, 0.92)',
-            border: '1px solid rgba(25, 30, 25, 0.18)',
-            borderRadius: 4,
-            padding: '6px 10px',
-            fontSize: 11,
-            fontFamily: 'ui-monospace, monospace',
-            cursor: 'pointer',
-            color: '#1a1d1a',
-          }}
-        >
-          ◂ Lobby
-        </button>
+        {/* Back-to-lobby chip — greenhouse 모드에서만. single-plant 는
+            FloatingTopBar 의 좌측 끝 ◂ Lobby 버튼이 대체. */}
+        {!isSinglePlant && (
+          <button
+            type="button"
+            onClick={() => setMode('lobby')}
+            style={{
+              position: 'absolute',
+              top: 14,
+              left: 14,
+              zIndex: 50,
+              background: 'rgba(255, 255, 255, 0.92)',
+              border: '1px solid rgba(25, 30, 25, 0.18)',
+              borderRadius: 4,
+              padding: '6px 10px',
+              fontSize: 11,
+              fontFamily: 'ui-monospace, monospace',
+              cursor: 'pointer',
+              color: '#1a1d1a',
+            }}
+          >
+            ◂ Lobby
+          </button>
+        )}
 
         {/* Dev-mode FPS / backend HUD — hidden visually but the id-bearing
             spans must stay so BabylonEngine.runRenderLoop's
@@ -70,12 +73,14 @@ export function GreenhouseLayout() {
           <span id="hud-robot">UWB --</span>
         </div>
 
-        <div className="app-brand">
-          <div className="app-brand-heading">
-            VIASOFT<span className="tag-ok">.AI</span>
+        {!isSinglePlant && (
+          <div className="app-brand">
+            <div className="app-brand-heading">
+              VIASOFT<span className="tag-ok">.AI</span>
+            </div>
+            스마트온실 디지털 트윈 PoC · 김제 스마트팜혁신밸리
           </div>
-          스마트온실 디지털 트윈 PoC · 김제 스마트팜혁신밸리
-        </div>
+        )}
       </div>
 
       {/* Right sidebar — tabs (구역 / 이벤트 / 환경) */}
@@ -85,7 +90,7 @@ export function GreenhouseLayout() {
         </aside>
       )}
 
-      {/* Bottom timeline panel — single-plant 모드는 자체 TimelineSlider 사용 */}
+      {/* Bottom timeline panel — single-plant 모드는 자체 BottomPlaybackBar 사용 */}
       {!isSinglePlant && (
         <footer className="app-timeline-row">
           <TimelinePanel />
