@@ -321,11 +321,17 @@ export function createSkeletonOverlay(
         // Truss-local → world transform: rotate around Y by trussAz, then
         // translate to nodePos. trussRoot is at nodePos.y - 0.02 in lush;
         // mirror that.
+        //
+        // Babylon left-handed Y rotation (column-major):
+        //   new_x = cos·x + sin·z
+        //   new_z = -sin·x + cos·z
+        // (Initial implementation flipped the sin sign, which produced a
+        // mirror-Z mismatch for trusses whose phyllotaxis points off-axis.)
         const trussWorldOrigin = new Vector3(nodePos.x, nodePos.y - 0.02, nodePos.z);
         const toWorld = (p: { x: number; y: number; z: number }): Vector3 => new Vector3(
-          trussWorldOrigin.x + cosAz * p.x - sinAz * p.z,
+          trussWorldOrigin.x + cosAz * p.x + sinAz * p.z,
           trussWorldOrigin.y + p.y,
-          trussWorldOrigin.z + sinAz * p.x + cosAz * p.z,
+          trussWorldOrigin.z - sinAz * p.x + cosAz * p.z,
         );
 
         const layout = layoutTruss(node.truss, lastGenome);
