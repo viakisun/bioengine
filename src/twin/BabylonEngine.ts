@@ -8,6 +8,8 @@ import { setupScene, type SceneSetupHandle } from './SceneSetup';
 import { applyRenderQuality } from './RenderQuality';
 import { setupCamera, type CameraRig } from './CameraRig';
 import { buildGreenhouseScene, type GreenhouseSceneHandle } from './GreenhouseScene';
+import { buildGreenhouseContent, type GreenhouseContentHandle } from './GreenhouseContent';
+import { createProgressiveLoad, type ProgressiveLoadHandle } from './ProgressiveLoad';
 import { useTwinStore, type LightingState } from '../store/twinStore';
 import { SCENARIO } from '../data/mockScenario';
 import { getSunState } from '@farmsim/tomato-engine';
@@ -189,6 +191,11 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
   scene.clearColor = new Color4(0.86, 0.87, 0.85, 1);
   scene.ambientColor = new Color3(0.22, 0.22, 0.22);
 
+  // dev 진단 편의 — playwright / DevTools 에서 scene/engine/store 접근 가능.
+  // ProgressiveLoad 의 console.log 와 함께 사용자가 직접 metric 확인.
+  (globalThis as { __farmsim?: unknown; __twinStore?: unknown }).__farmsim = { engine, scene };
+  (globalThis as { __twinStore?: unknown }).__twinStore = useTwinStore;
+
   const cameraRig = setupCamera(scene, canvas);
   cameraRig.setPreset(useTwinStore.getState().cameraPreset);
   console.log('[BabylonEngine] camera ready');
@@ -207,10 +214,11 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
 
   setBootStage('greenhouse', '온실 인프라 빌드 시작', 0);
   let greenhouse: GreenhouseSceneHandle | null = null;
+  // greenhouseContent — mode === 'greenhouse' 일 때만 build 되어 있음.
+  // mode === 'single-plant' 진입 시 dispose, null 로 set.
+  let greenhouseContent: GreenhouseContentHandle | null = null;
   try {
     greenhouse = await buildGreenhouseScene(scene);
-    // Expose this GrowthEngine + ShowcasePlant to the SinglePlant
-    // analysis panels — they read both from shared singleton refs.
     setSinglePlantEngineRef(greenhouse.growthEngine);
     setSinglePlantShowcaseRef(greenhouse.showcasePlant);
   } catch (err) {
@@ -218,9 +226,105 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
     notify.error('온실 빌드 실패', err instanceof Error ? err : String(err));
   }
 
-  // Apply the quality preset (level 10 by default) AFTER greenhouse is
-  // built so the shadow generator's caster list — recreated when we
-  // upgrade the shadow resolution — picks up every plant/structure mesh.
+  // ---------- applyMode — mode 진입 시 greenhouseContent build/dispose ----------
+  // 'greenhouse' 진입 시 build (cost: 수 초, BootOverlay 'plants' stage 표시).
+  // 'single-plant' 진입 시 dispose (cost: <500ms, 메모리 cleanup).
+  function sceneStats() {
+    return {
+      meshes: scene.meshes.length,
+      materials: scene.materials.length,
+      textures: scene.textures.length,
+      engineEntries: greenhouse?.growthEngine.plantCount ?? 0,
+    };
+  }
+  function diff(before: ReturnType<typeof sceneStats>): ReturnType<typeof sceneStats> {
+    const after = sceneStats();
+    return {
+      meshes: after.meshes - before.meshes,
+      materials: after.materials - before.materials,
+      textures: after.textures - before.textures,
+      engineEntries: after.engineEntries - before.engineEntries,
+    };
+  }
+  function logModeChange(label: string, signed: 'before-build' | 'before-dispose', before: ReturnType<typeof sceneStats>): void {
+    const d = diff(before);
+    const sign = signed === 'before-build' ? '+' : '';
+    console.log(
+      `[Mode] ${label}  meshes ${sign}${d.meshes}  materials ${sign}${d.materials}  textures ${sign}${d.textures}  engineEntries ${sign}${d.engineEntries}`
+    );
+  }
+
+  // Progressive load orchestrator — single-plant 모드 진입 시 환경 → skeleton →
+  // lush → quality 점진 표시 + console.log 측정 출력. lazy 생성.
+  // progressive.isRunning() === true 인 동안 발생하는 renderQuality 변경은
+  // orchestrator 자체의 setRenderQuality 호출로 간주 (user manual change 아님).
+  let progressive: ProgressiveLoadHandle | null = null;
+  // Single-plant 진입 시점에 저장한 사용자 quality. 복귀 시 복원.
+  let savedRenderQuality: number | null = null;
+
+  async function applyMode(mode: string): Promise<void> {
+    if (!greenhouse) return;
+    if (mode === 'greenhouse') {
+      if (!greenhouseContent) {
+        const before = sceneStats();
+        setBootStage('plants', 'Greenhouse content build', 0);
+        greenhouseContent = await buildGreenhouseContent(greenhouse.sharedEnv);
+        logModeChange('single-plant → greenhouse  build', 'before-build', before);
+        setBootStage('ready', undefined, 1);
+        // Wire zone picking → store (heatmap 이 이제 막 생성됨)
+        greenhouseContent.onZoneHover((zoneId) => {
+          useTwinStore.getState().hoverZone(zoneId);
+          greenhouseContent?.heatmap.setHoveredZone(zoneId);
+        });
+        greenhouseContent.onZoneClick((zoneId) => {
+          if (zoneId !== null) {
+            useTwinStore.getState().selectZone(zoneId);
+            greenhouseContent?.heatmap.setSelectedZone(zoneId);
+          }
+        });
+        // 현재 store flag 들 즉시 반영
+        const cur = useTwinStore.getState();
+        greenhouseContent.heatmap.setVisible(cur.heatmapVisible);
+        greenhouseContent.robot.setFovVisible(cur.fovVisible);
+        greenhouseContent.pathTrail.setVisible(cur.pathTrailVisible);
+      }
+      cameraRig.setPreset('overview');
+      // Progressive load 가 도는 중이면 abort + quality 복원.
+      // (abort 후 setRenderQuality 는 isRunning=false 이므로 subscribe 핸들러는
+      // 이를 user manual change 로 보지만, savedRenderQuality 가 null 이 되므로
+      // 안전 — 다시 single-plant 진입 시 다시 캡처.)
+      progressive?.abort('mode→greenhouse');
+      if (savedRenderQuality !== null) {
+        useTwinStore.getState().setRenderQuality(savedRenderQuality);
+        savedRenderQuality = null;
+      }
+    } else if (mode === 'single-plant') {
+      if (greenhouseContent) {
+        const before = sceneStats();
+        greenhouseContent.dispose();
+        greenhouseContent = null;
+        logModeChange('greenhouse → single-plant  dispose', 'before-dispose', before);
+      }
+      cameraRig.setPreset('single-plant');
+      // Progressive load 시작 — 사용자가 보고 있는 quality 를 saved 로 캡처 후
+      // q1 부터 점진 적용. orchestrator 가 setRenderQuality 를 자체 호출.
+      const cur = useTwinStore.getState();
+      savedRenderQuality = cur.renderQuality;
+      if (!progressive && engine) {
+        progressive = createProgressiveLoad({
+          scene,
+          engine,
+          showcase: greenhouse.showcasePlant,
+        });
+      }
+      if (!progressive) return;
+      progressive.start({ savedQuality: cur.renderQuality, currentDay: cur.currentDay });
+    }
+  }
+
+  // Apply the quality preset AFTER greenhouse is built so the shadow
+  // generator's caster list — recreated when we upgrade the shadow
+  // resolution — picks up every plant/structure mesh.
   if (sceneSetup) {
     setBootStage('quality', '렌더 품질 적용', 0);
     try {
@@ -232,26 +336,10 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
     }
   }
 
-  // Bridge zone picking → store
-  greenhouse?.onZoneHover((zoneId) => {
-    useTwinStore.getState().hoverZone(zoneId);
-    if (greenhouse) greenhouse.heatmap.setHoveredZone(zoneId);
-  });
-  greenhouse?.onZoneClick((zoneId) => {
-    if (zoneId !== null) {
-      useTwinStore.getState().selectZone(zoneId);
-      if (greenhouse) greenhouse.heatmap.setSelectedZone(zoneId);
-    }
-  });
-
-  // Phase 5 — savedRenderQuality holds the user's pre-boost quality
-  // so greenhouse-mode 복귀 시 복원할 수 있음. null = 아직 boost 안 됨.
-  let savedRenderQuality: number | null = null;
-
   // Store subscription — react to changes
   const unsubStore = useTwinStore.subscribe((s, prev) => {
-    if (s.selectedZoneId !== prev.selectedZoneId && greenhouse) {
-      greenhouse.heatmap.setSelectedZone(s.selectedZoneId);
+    if (s.selectedZoneId !== prev.selectedZoneId && greenhouseContent) {
+      greenhouseContent.heatmap.setSelectedZone(s.selectedZoneId);
       // Pan the camera to the selected zone's center so clicking a
       // zone card / chip in the UI immediately frames it in 3D.
       if (s.selectedZoneId !== null) {
@@ -259,14 +347,14 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
         if (zone) cameraRig.focusZone((zone.startX + zone.endX) / 2);
       }
     }
-    if (s.heatmapVisible !== prev.heatmapVisible && greenhouse) {
-      greenhouse.heatmap.setVisible(s.heatmapVisible);
+    if (s.heatmapVisible !== prev.heatmapVisible && greenhouseContent) {
+      greenhouseContent.heatmap.setVisible(s.heatmapVisible);
     }
-    if (s.fovVisible !== prev.fovVisible && greenhouse) {
-      greenhouse.robot.setFovVisible(s.fovVisible);
+    if (s.fovVisible !== prev.fovVisible && greenhouseContent) {
+      greenhouseContent.robot.setFovVisible(s.fovVisible);
     }
-    if (s.pathTrailVisible !== prev.pathTrailVisible && greenhouse) {
-      greenhouse.pathTrail.setVisible(s.pathTrailVisible);
+    if (s.pathTrailVisible !== prev.pathTrailVisible && greenhouseContent) {
+      greenhouseContent.pathTrail.setVisible(s.pathTrailVisible);
     }
     if (s.cameraPreset !== prev.cameraPreset) {
       cameraRig.setPreset(s.cameraPreset);
@@ -290,40 +378,30 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
         console.error('[BabylonEngine] applyRenderQuality failed:', err);
       }
     }
+    // 사용자가 직접 quality 슬라이더 만지면 progressive abort.
+    // progressive 가 도는 동안의 setRenderQuality 는 orchestrator 자체 호출
+    // (progressive.isRunning === true) 이므로 user manual change 와 구분.
+    if (
+      s.renderQuality !== prev.renderQuality &&
+      progressive &&
+      !progressive.isRunning()
+    ) {
+      // progressive 가 이미 끝났거나 시작 전 — 진짜 user manual change.
+      // 사용자가 새 quality 선택했으니 saved 도 그 값으로 갱신 (복귀 시 그대로 유지).
+      if (savedRenderQuality !== null) savedRenderQuality = s.renderQuality;
+    }
 
-    // App-mode handler — Phase 1 (Overlay) + Phase 5 (render boost).
-    // WebGPU 호환 partial-boost: DOF / MotionBlur 가 WebGPU PrePass
-    // 깨뜨리므로 RenderQuality.ts 안에서 자동 스킵 + notify.warn. 나머지
-    // FX (shadow 8192 / MSAA 8 / SSAO 32 / 모든 PBR / clearcoat / SSS /
-    // grain / glow 등) 는 Lv 10 그대로 활성.
-    // 자동 Lv 10 boost 는 제거 — 사용자 환경 (M-series Mac Safari/Chrome)
-    // 에서 shadow 8192 + MSAA 8 + hardwareScale 1.5 가 GPU 메모리 한도
-    // 초과로 renderer crash / page reload 유발. 품질은 LightingDrawer 의
-    // 슬라이더로 사용자가 직접 선택. (localStorage 에 저장됨.)
+    // App-mode handler — greenhouse content build/dispose orchestration.
     if (s.mode !== prev.mode && greenhouse) {
-      if (s.mode === 'single-plant') {
-        greenhouse.setSingleFocusMode(true);
-        cameraRig.setPreset('single-plant');
-      } else if (s.mode === 'greenhouse') {
-        greenhouse.setSingleFocusMode(false);
-        cameraRig.setPreset('overview');
-      }
+      void applyMode(s.mode);
     }
   });
 
-  // store.subscribe 는 *변경* 만 감지하므로 directURL (예: #single-plant)
-  // 으로 진입했을 때 initial mode 에 대한 핸들러는 fire 안 함. 따라서
-  // 부팅 직후 한 번 현재 mode 를 평가해서 setSingleFocusMode 적용.
+  // Direct URL entry (`#single-plant`, `#greenhouse`) — store.subscribe 는
+  // *변경* 만 감지하므로 initial mode 핸들러를 따로 발화시킴.
   if (greenhouse) {
     const initialState = useTwinStore.getState();
-    if (initialState.mode === 'single-plant') {
-      greenhouse.setSingleFocusMode(true);
-      cameraRig.setPreset('single-plant');
-      // 자동 Lv 10 boost 제거 — 메모리 초과 크래시 방지. 사용자가
-      // LightingDrawer 의 품질 슬라이더로 직접 선택. (보존됨.)
-    }
-    // Initial skeleton overlay state (Plan 3a) — subscribe only fires
-    // on change, so re-apply at boot.
+    await applyMode(initialState.mode);
     greenhouse.showcasePlant.setSkeletonConfig(initialState.skeleton);
     if (initialState.showSkeleton) {
       greenhouse.showcasePlant.setSkeletonMode(true);
@@ -412,10 +490,10 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
     // Robot contributes a continuous interaction while capturing —
     // the camera head's world position pushes leaves immediately
     // around it. While idle/returning the robot doesn't disturb plants.
-    if (greenhouse) {
-      const task = greenhouse.robot.currentTask();
+    if (greenhouseContent) {
+      const task = greenhouseContent.robot.currentTask();
       if (task === 'capturing') {
-        const rp = greenhouse.robot.currentPosition();
+        const rp = greenhouseContent.robot.currentPosition();
         useTwinStore.getState().addInteraction({
           position: [rp.x, rp.y + 0.6, rp.z],
           radius: 0.55,
@@ -428,8 +506,9 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
     useTwinStore.getState().tickInteractions(dtInter);
 
     // Phase D — LOD distance check (10Hz throttled internally).
-    if (greenhouse) {
-      greenhouse.plantLOD.update(cameraRig.camera.globalPosition);
+    // greenhouseContent === null 면 (single-plant 모드) skip — supporting 없음.
+    if (greenhouseContent) {
+      greenhouseContent.plantLOD.update(cameraRig.camera.globalPosition);
     }
 
     // Push wind + interaction uniforms each frame — WebGL2 only.
@@ -468,8 +547,7 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
     } else if (greenhouse) {
       // WebGPU fallback — gently rock the plant root TransformNodes so
       // the whole plant breathes. Only z-axis tilt (subtle) so leaves
-      // don't appear locked-frame static. Strength is scaled down vs
-      // shader path because we're rotating the whole hierarchy.
+      // don't appear locked-frame static.
       const t = now / 1000;
       const baseAmp = 0.012 * state.windStrength;
       const baseFreq = 0.7;
@@ -477,11 +555,14 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
       const showcaseSway = Math.sin(t * baseFreq + showcase.position.x * 0.3) * baseAmp;
       showcase.rotation.z = showcaseSway;
       showcase.rotation.x = Math.sin(t * baseFreq * 1.3 + showcase.position.z * 0.4) * baseAmp * 0.5;
-      for (const sp of greenhouse.supportingPlants) {
-        const r = sp.root;
-        const phase = r.position.x * 0.25 + r.position.z * 0.4;
-        r.rotation.z = Math.sin(t * baseFreq + phase) * baseAmp;
-        r.rotation.x = Math.sin(t * baseFreq * 1.3 + phase * 1.7) * baseAmp * 0.5;
+      // single-plant 모드에서는 greenhouseContent === null 이라 supporting loop 자동 skip.
+      if (greenhouseContent) {
+        for (const sp of greenhouseContent.supportingPlants) {
+          const r = sp.root;
+          const phase = r.position.x * 0.25 + r.position.z * 0.4;
+          r.rotation.z = Math.sin(t * baseFreq + phase) * baseAmp;
+          r.rotation.x = Math.sin(t * baseFreq * 1.3 + phase * 1.7) * baseAmp * 0.5;
+        }
       }
     }
 
@@ -498,15 +579,17 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
     lastPlayTime = now;
 
     if (greenhouse && Math.abs(state.currentDay - lastDayUpdate) > 0.05) {
-      greenhouse.update(state.currentDay);
+      // Showcase plant 는 mode 무관 항상 update — single-plant 와 greenhouse 모두 보임.
+      greenhouse.showcasePlant.update(state.currentDay);
+      // Greenhouse-only content (heatmap/robot/pathTrail + supporting plants) 는
+      // greenhouseContent 가 있을 때만 update.
+      greenhouseContent?.update(state.currentDay);
 
-      // Publish current label set (showcase plant + robot)
+      // Publish current label set (showcase plant + 선택적으로 robot)
       const labelHandleSet = getLabelOverlayHandle();
       if (labelHandleSet) {
         const showcaseState = greenhouse.showcasePlant.currentState();
         const showcasePos = greenhouse.showcasePlant.root.position;
-        const robotPos = greenhouse.robot.currentPosition();
-        const robotTask = greenhouse.robot.currentTask();
         const labels: Parameters<typeof labelHandleSet.setLabels>[0] = [];
         if (showcaseState) {
           labels.push({
@@ -518,18 +601,22 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
             color: '#6ee7b7',
           });
         }
-        labels.push({
-          id: 'robot',
-          worldX: robotPos.x,
-          worldY: 1.7,
-          worldZ: robotPos.z,
-          text: robotTask === 'capturing' ? '🎯 촬영 중'
-            : robotTask === 'returning' ? '↩ 복귀'
-              : '○ 대기',
-          color: robotTask === 'capturing' ? '#fbbf24'
-            : robotTask === 'returning' ? '#60a5fa'
-              : '#6ee7b7',
-        });
+        if (greenhouseContent) {
+          const robotPos = greenhouseContent.robot.currentPosition();
+          const robotTask = greenhouseContent.robot.currentTask();
+          labels.push({
+            id: 'robot',
+            worldX: robotPos.x,
+            worldY: 1.7,
+            worldZ: robotPos.z,
+            text: robotTask === 'capturing' ? '🎯 촬영 중'
+              : robotTask === 'returning' ? '↩ 복귀'
+                : '○ 대기',
+            color: robotTask === 'capturing' ? '#fbbf24'
+              : robotTask === 'returning' ? '#60a5fa'
+                : '#6ee7b7',
+          });
+        }
         labelHandleSet.setLabels(labels);
       }
 
@@ -545,16 +632,16 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
       const fps = engine!.getFps();
       const store = useTwinStore.getState();
       store.publishFps(fps);
-      if (greenhouse) {
-        const p = greenhouse.robot.currentPosition();
-        const task = greenhouse.robot.currentTask();
+      if (greenhouseContent) {
+        const p = greenhouseContent.robot.currentPosition();
+        const task = greenhouseContent.robot.currentTask();
         store.publishRobotState(p.x, p.z, task);
       }
       // Legacy hud spans — kept for old verify scripts. Cheap text writes.
       if (hudFps) hudFps.textContent = `${fps.toFixed(0)} fps`;
       if (hudDay) hudDay.textContent = `Day ${state.currentDay.toFixed(0)}`;
-      if (hudRobot && greenhouse) {
-        const p = greenhouse.robot.currentPosition();
+      if (hudRobot && greenhouseContent) {
+        const p = greenhouseContent.robot.currentPosition();
         hudRobot.textContent = `UWB x:${p.x.toFixed(2)}m z:${p.z.toFixed(2)}m`;
       }
       lastFpsUpdate = now;
