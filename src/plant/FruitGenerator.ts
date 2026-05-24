@@ -35,7 +35,8 @@ const SEGMENTS_HIGH = 36;     // hero (showcase) — smoother lobes, less facete
 const RINGS_HIGH = 22;        // hero — latitudinal rings (smoother shoulder)
 const SEGMENTS_LOW = 14;      // supporting — coarser but still lobed
 const RINGS_LOW = 10;         // supporting
-const CROWN_RECESSION = 0.10; // depth of well at stem-end (× radius)
+const CROWN_RECESSION = 0.18; // depth of stem-end socket (× radius) — pedicel tip lands here
+const SHOULDER_BULGE = 0.05;  // outward swell on ring just below socket — smooth transition
 
 // ---------------------------------------------------------------------------
 // Body mesh — oblate, ribbed, asymmetric, per-vertex colored
@@ -108,11 +109,21 @@ function buildFruitBodyVertexData(
         z *= ribFactor;
       }
 
-      // Crown recession: small dent at stem-end (top pole).
-      // Falls off within ~25% of top hemisphere.
-      if (cosP > 0.75) {
-        const recessSweep = (cosP - 0.75) / 0.25;  // 0..1
+      // Stem-end socket: deeper dent at top pole — the pedicel tip lands
+      // here, so a visible cavity (not a smooth dome) reads as a real
+      // stem scar. Falls off within ~15% of top hemisphere.
+      if (cosP > 0.85) {
+        const recessSweep = (cosP - 0.85) / 0.15;  // 0..1
         y -= CROWN_RECESSION * recessSweep;
+      } else if (cosP > 0.70) {
+        // Shoulder bulge: slight outward swell on the ring just below
+        // the socket — gives the stem-end → shoulder → body transition
+        // its rounded "tomato shoulders" silhouette instead of a flat
+        // dome rising directly to the dent.
+        const bulgeSweep = 1 - (cosP - 0.70) / 0.15;  // 1..0
+        const bulge = SHOULDER_BULGE * bulgeSweep;
+        x *= 1 + bulge;
+        z *= 1 + bulge;
       }
 
       // Per-vertex asymmetry — Gaussian noise scaled by the cultivar's
@@ -362,7 +373,7 @@ export function createFruitNode(
   scene: Scene,
   fruit: FruitState,
   rng: SeededRandom,        // legacy parameter — kept for compatibility
-  opts?: { lod?: 'high' | 'low' },
+  opts?: { lod?: 'high' | 'low'; skipCalyxAndStem?: boolean },
 ): TransformNode {
   void rng; // no longer used; per-fruit determinism comes from genome seeds
   const lod = opts?.lod ?? 'high';
@@ -403,7 +414,7 @@ export function createFruitNode(
   // Skip on `low` LOD to keep the supporting-canopy mesh count
   // manageable — 29 plants × 6 trusses × 5 fruits with full calyx +
   // stem stubs (~2600 extra meshes) wedges SwiftShader.
-  if (radiusM > 0.003 && lod === 'high') {
+  if (radiusM > 0.003 && lod === 'high' && !opts?.skipCalyxAndStem) {
     const calyx = new Mesh(`${name}_calyx`, scene);
     buildCalyxVertexData().applyToMesh(calyx);
     calyx.scaling = new Vector3(radiusM, radiusM, radiusM);

@@ -4,7 +4,7 @@ import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
 import { PBRMaterial } from '@babylonjs/core/Materials/PBR/pbrMaterial';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
-import { Vector3 } from '@babylonjs/core/Maths/math.vector';
+import { Vector3, Quaternion } from '@babylonjs/core/Maths/math.vector';
 import { SeededRandom } from '@farmsim/tomato-engine';
 import { createFruitNode } from './FruitGenerator';
 import { computeTrussDroop } from '@farmsim/tomato-engine';
@@ -429,12 +429,39 @@ export function createTrussNodeFromBase(
           };
           const fruitNode = createFruitNode(
             `${name}_fruit_${site.index}`, scene, fruitState, rng.fork(site.index + 1),
+            { skipCalyxAndStem: true },
           );
           fruitNode.parent = root;
           fruitNode.position = toV3(site.fruit.fruitCenter);
 
+          // body local +Y는 stem-end pole. fruitAxisDir은 fruitTop → fruitCenter
+          // 방향이므로, local +Y를 -fruitAxisDir(= fruitCenter → fruitTop)에 맞춰
+          // 회전. 그 축을 중심으로 golden-angle azimuth를 줘 시각적 반복 회피.
+          const targetUp = axisDirV.scale(-1).normalize();
+          const tilt = Quaternion.FromUnitVectorsToRef(
+            Vector3.Up(), targetUp, new Quaternion(),
+          );
+          const azimuth = Quaternion.RotationAxis(
+            targetUp, (site.index * 137.5 * Math.PI) / 180,
+          );
+          fruitNode.rotationQuaternion = tilt.multiply(azimuth);
+
+          // Dev-only orientation guard. Wrong quaternion product order or
+          // wrong axisDir interpretation can silently make things worse.
+          if (import.meta.env?.DEV && site.index === 0) {
+            const probe = Vector3.Up();
+            probe.applyRotationQuaternionInPlace(fruitNode.rotationQuaternion);
+            const dot = Vector3.Dot(probe.normalize(), targetUp);
+            if (dot < 0.999) {
+              console.warn(
+                `[fruit rotation] local +Y not aligned with -fruitAxisDir `
+                + `(dot=${dot.toFixed(4)}). Try azimuth.multiply(tilt).`,
+              );
+            }
+          }
+
           // Calyx star at fruit top — sepals reflex opposite fruitAxisDir.
-          const sepalDir = axisDirV.scale(-1).normalize();
+          const sepalDir = targetUp;
           addCalyxStar(
             scene, root, `${name}_calyx_${site.index}`,
             fruitTopV, sepalDir, site.fruit.diameterMm / 2 / 1000,

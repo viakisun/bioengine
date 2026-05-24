@@ -159,7 +159,7 @@
     // Fruit-to-top geometry: fruit body center sits below the calyx.
     // fruitCenter = fruitTop + fruitAxisDir × R × calyxOffsetFrac.
     "fruit": {
-      "calyxOffsetFrac": 0.65,
+      "calyxOffsetFrac": 0.85,          // was 0.65 — body top pole이 fruitTop 근처에 오도록 (heightWidthRatio 0.9에 매칭)
       "calyxReflexDeg": 25              // sepal reflex away from fruit
     },
     // Flower mesh dimensions for flower-stage rendering (anthesis).
