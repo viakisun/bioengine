@@ -159,9 +159,13 @@ export const SKELETON_DEFAULTS: SkeletonConfig = {
   axisOrder1Width: 0.004,
   axisOrder2Width: 0.003,
   petioleWidth: 0.003,
-  rachisWidth: 0.0045,
-  pedicelWidth: 0.0025,
-  calyxWidth: 0.0018,
+  // Truss anatomy thicknesses scaled so rachis ≈ 25% of main stem
+  // (real tomato peduncle ~3-5mm vs main stem ~20mm). Previously rachis
+  // read at 75% of main stem and skeleton viewers mistook trusses for
+  // side branches.
+  rachisWidth: 0.0018,
+  pedicelWidth: 0.0012,
+  calyxWidth: 0.0010,
 
   axisMainColor: '#e90b2c',
   axisOrder1Color: '#ff7a1a',

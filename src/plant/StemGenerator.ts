@@ -161,6 +161,54 @@ export function createStemMesh(
   return mesh;
 }
 
+/**
+ * v4.0 — same as createStemMesh but consumes PlantBase StemSegment[]
+ * (already-deflected world-space positions + radii). Used by the
+ * Showcase / Supporting renderers so both views and the skeleton wire
+ * read the exact same stem control points.
+ *
+ * Segments are { position, radius } only; jitter and physics deflection
+ * have already been applied upstream in computePlantGeometry.
+ */
+export function createStemMeshFromSegments(
+  name: string,
+  scene: Scene,
+  segments: ReadonlyArray<{ position: { x: number; y: number; z: number }; radius: number }>,
+  options: StemMeshOptions = {},
+): Mesh | null {
+  const radialSegments = Math.max(3, options.radialSegments ?? DEFAULT_RADIAL_SEGMENTS);
+  const nodeBulge = Math.max(0, options.nodeBulge ?? 0);
+  const stripeCount = Math.max(0, options.verticalStripeCount ?? 0);
+  const stripeDepth = Math.max(0, Math.min(1, options.stripeDepth ?? 0));
+
+  const originPoint: Vector3 | null = options.origin === undefined
+    ? new Vector3(0, 0, 0)
+    : options.origin === null
+      ? null
+      : new Vector3(options.origin.x, options.origin.y, options.origin.z);
+
+  const controlPoints: Vector3[] = [];
+  const controlRadii: number[] = [];
+  if (originPoint) {
+    controlPoints.push(originPoint);
+    controlRadii.push((segments[0]?.radius ?? 0.005) * 1.1);
+  }
+  for (const seg of segments) {
+    controlPoints.push(new Vector3(seg.position.x, seg.position.y, seg.position.z));
+    controlRadii.push(seg.radius);
+  }
+
+  const minPoints = originPoint ? 2 : 2;
+  if (controlPoints.length < minPoints) return null;
+
+  const curvePoints = catmullRomPath(controlPoints, DIVISIONS_PER_NODE);
+  const curveRadii = sampleRadiiBetween(curvePoints.length, controlRadii, DIVISIONS_PER_NODE, nodeBulge);
+  const vd = sweepTube(curvePoints, curveRadii, radialSegments, stripeCount, stripeDepth);
+  const mesh = new Mesh(name, scene);
+  vd.applyToMesh(mesh);
+  return mesh;
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // Internals
 // ─────────────────────────────────────────────────────────────────────────

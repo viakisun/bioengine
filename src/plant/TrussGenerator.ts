@@ -8,6 +8,7 @@ import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { SeededRandom } from '@farmsim/tomato-engine';
 import { createFruitNode } from './FruitGenerator';
 import { computeTrussDroop } from '@farmsim/tomato-engine';
+import { ACTIVE_MODEL } from '@farmsim/tomato-engine/ModelRegistry';
 import type { TrussState } from '@farmsim/tomato-engine';
 import type { PlantGenome } from '@farmsim/tomato-engine';
 import { createCurvedTube } from './StemGenerator';
@@ -117,7 +118,9 @@ export interface TrussLayout {
  */
 export function layoutTruss(truss: TrussState, genome: PlantGenome): TrussLayout {
   const totalItems = truss.fruits.length + truss.flowers.length;
-  const peduncleLen = 0.10 + Math.min(0.10, totalItems * 0.012);
+  // Real tomato truss peduncle 5-15cm. Previous 10-20cm + thick wireframe
+  // made trusses read as side branches in skeleton view.
+  const peduncleLen = 0.06 + Math.min(0.05, totalItems * 0.006);
   const totalDroop = truss.fruits.length > 0
     ? computeTrussDroop(truss, genome)
     : 0.01;
@@ -137,7 +140,7 @@ export function layoutTruss(truss: TrussState, genome: PlantGenome): TrussLayout
     ...truss.flowers.map((_, i) => ({ kind: 'flower' as const, index: i })),
   ];
 
-  const ITEM_GAP_M = 0.008;        // 8mm minimum clear between adjacent fruits
+  const ITEM_GAP_M = 0.004;        // 4mm minimum clear between adjacent fruits
   let prevX = 0;
   let prevR = 0;
 
@@ -147,17 +150,22 @@ export function layoutTruss(truss: TrussState, genome: PlantGenome): TrussLayout
       ? truss.fruits[it.index].diameterMm / 2 / 1000
       : 0.006;
 
-    // Desired position from equal distribution along the peduncle.
+    // Desired position — fruits/flowers spaced from 40% to 100% along
+    // the peduncle so the first fruit sits well past the calyx base
+    // and the last fruit reaches the tip. Real trusses are linear
+    // arrays, not end-clusters.
     const tDesired = sortedItems.length === 1
-      ? 0.6
-      : 0.3 + 0.7 * (slot / (sortedItems.length - 1));
+      ? 0.7
+      : 0.4 + 0.6 * (slot / (sortedItems.length - 1));
     let xAlong = peduncleLen * tDesired;
-    // Cumulative-spacing collision avoidance.
     if (slot > 0) {
       const minX = prevX + prevR + fruitR + ITEM_GAP_M;
       if (xAlong < minX) xAlong = minX;
     }
-    if (xAlong > peduncleLen * 0.95) xAlong = peduncleLen * 0.95;
+    // Allow the last fruit to extend past the peduncle tip via its
+    // pedicel rather than being mashed against 95% — real trusses
+    // hang fruit from a short rachis stub past the last branch point.
+    if (xAlong > peduncleLen) xAlong = peduncleLen;
 
     // Z-jitter — alternate sides so adjacent fruits read separated.
     const sideJit = (slot % 2 === 0 ? 1 : -1) * fruitR * 0.5;
@@ -305,6 +313,144 @@ export function createTrussNode(
       );
       flowerNode.parent = root;
       flowerNode.position = attachVec;
+    }
+  }
+
+  return root;
+}
+
+/**
+ * v4.1 — build a lush truss mesh from a PlantBase TrussBase. Uses the
+ * 3-tier cymose geometry (peduncle / rachis / per-site pedicel + organ)
+ * computed once in PlantBase, so Skeleton + Lush + Supporting render
+ * identical world positions. Replaces createTrussNode's reliance on
+ * layoutTruss / PlantState directly.
+ */
+export function createTrussNodeFromBase(
+  name: string,
+  scene: Scene,
+  trussBase: import('./PlantBase').TrussBase,
+  rng: SeededRandom,
+): TransformNode {
+  const root = new TransformNode(name, scene);
+  if (!trussBase.peduncleCurve || !trussBase.rachisCurve || !trussBase.floralSites) {
+    return root;
+  }
+
+  const anatomy = ACTIVE_MODEL.trussAnatomy;
+  const toV3 = (p: { x: number; y: number; z: number }) => new Vector3(p.x, p.y, p.z);
+
+  // Tier 1: peduncle.
+  const pedRadii = [
+    anatomy.peduncle.radiusM,
+    anatomy.peduncle.radiusM * 0.92,
+    anatomy.peduncle.radiusM * 0.82,
+    anatomy.rachis.radiusBaseM,
+  ];
+  const peduncleMesh = createCurvedTube(
+    `${name}_peduncle`, scene, trussBase.peduncleCurve.map(toV3), pedRadii,
+    { radialSegments: 8, color: PEDUNCLE_RGB },
+  );
+  if (peduncleMesh) {
+    peduncleMesh.parent = root;
+    peduncleMesh.material = getPeduncleMat(scene);
+  }
+
+  // Tier 2: rachis (cymose zigzag).
+  const rachisRadii = trussBase.rachisCurve.map((_, i, arr) => {
+    const t = arr.length <= 1 ? 0 : i / (arr.length - 1);
+    return anatomy.rachis.radiusBaseM * (1 - t) + anatomy.rachis.radiusTipM * t;
+  });
+  const rachisMesh = createCurvedTube(
+    `${name}_rachis`, scene, trussBase.rachisCurve.map(toV3), rachisRadii,
+    { radialSegments: 6, color: PEDUNCLE_RGB },
+  );
+  if (rachisMesh) {
+    rachisMesh.parent = root;
+    rachisMesh.material = getPeduncleMat(scene);
+  }
+
+  // Tier 3: per floral site.
+  const pedicelRadii = [
+    anatomy.pedicel.radiusBaseM,
+    anatomy.pedicel.radiusBaseM * 0.85,
+    anatomy.pedicel.radiusBaseM * 0.7,
+    anatomy.pedicel.radiusTipM,
+  ];
+  for (const site of trussBase.floralSites) {
+    // v4.2 — aborted: no anatomy at all. harvested: pedicel-only (empty
+    // peduncle stub, no fruit body / calyx). All other stages render fully.
+    if (site.stage === 'aborted') continue;
+
+    // Pedicel mesh — drawn for every non-aborted stage including harvested.
+    if (site.pedicelCurve.length >= 4) {
+      const pedicelMesh = createCurvedTube(
+        `${name}_pedicel_${site.index}`, scene,
+        site.pedicelCurve.map(toV3), pedicelRadii,
+        { radialSegments: 6, color: PEDICEL_RGB },
+      );
+      if (pedicelMesh) {
+        pedicelMesh.parent = root;
+        pedicelMesh.material = getPedicelMat(scene);
+      }
+    }
+
+    if (site.stage === 'harvested') continue;  // pedicel-only marker.
+
+    const fruitTopV = toV3(site.fruitTop);
+    const axisDirV = toV3(site.fruitAxisDir);
+
+    // Stage-driven organ mesh.
+    switch (site.stage) {
+      case 'bud':
+      case 'flowering':
+      case 'petal-drop': {
+        if (!site.flower) break;
+        const flowerNode = createFlowerNode(
+          `${name}_flower_${site.index}`, scene,
+          site.flower.bloomProgress, site.flower.petalDrop, site.flower.ovarySwell,
+        );
+        flowerNode.parent = root;
+        flowerNode.position = fruitTopV;
+        break;
+      }
+      case 'fruit-set':
+      case 'fruit-growing':
+      case 'ripening': {
+        if (site.fruit && site.fruit.diameterMm > 0) {
+          const fruitState: import('@farmsim/tomato-engine').FruitState = {
+            index: site.index,
+            diameterMm: site.fruit.diameterMm,
+            ripenStage: site.fruit.ripenStage,
+            ripenFraction: site.fruit.ripenFraction,
+            color: site.fruit.color,
+            age: 0,
+            cultivarGenome: site.fruit.cultivarGenome,
+          };
+          const fruitNode = createFruitNode(
+            `${name}_fruit_${site.index}`, scene, fruitState, rng.fork(site.index + 1),
+          );
+          fruitNode.parent = root;
+          fruitNode.position = toV3(site.fruit.fruitCenter);
+
+          // Calyx star at fruit top — sepals reflex opposite fruitAxisDir.
+          const sepalDir = axisDirV.scale(-1).normalize();
+          addCalyxStar(
+            scene, root, `${name}_calyx_${site.index}`,
+            fruitTopV, sepalDir, site.fruit.diameterMm / 2 / 1000,
+          );
+        }
+        // fruit-set: also render small petal remnants if flower data present.
+        if (site.stage === 'fruit-set' && site.flower) {
+          const flowerNode = createFlowerNode(
+            `${name}_petal_remnant_${site.index}`, scene,
+            site.flower.bloomProgress, site.flower.petalDrop, site.flower.ovarySwell,
+          );
+          flowerNode.parent = root;
+          flowerNode.position = fruitTopV;
+        }
+        break;
+      }
     }
   }
 
