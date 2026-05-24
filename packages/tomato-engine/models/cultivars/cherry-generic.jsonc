@@ -27,6 +27,10 @@
   "potentialFruitMassG": { "mu": 18, "sigma": 4 },
 
   "morphology": {
+    "firstTrussNodeIdx": { "mu": 8, "sigma": 1.0 },
+    "trussIntervalNodes": 3,
+    // Transitional. Cherry 18g ≈ 30 mm equatorial.
+    "fruitMaxDiameterMm": { "mu": 30, "sigma": 3 },
     "loculeCount": { "mu": 2.0, "sigma": 0.3 },
     // Cherry tomatoes are near-spherical (H:W ~ 1.0)
     "heightWidthRatio": { "mu": 0.96, "sigma": 0.04 },
@@ -56,5 +60,23 @@
     },
     "gompertzRateB": 0.06,
     "gompertzInflectionC": 0.45
+  },
+
+  "reproductive": {
+    "trussOrderProfile": [
+      { "minOrder": 1, "maxOrder": null,
+        "flowersPerTruss": { "mu": 12, "sigma": 3 },
+        "targetFruitCount": 10, "potentialMassMultiplier": 1.0 }
+    ]
+  },
+  "scenarios": {
+    "commercial-standard": {
+      "metadata": { "label": "Commercial cluster", "intendedUse": "production_like", "notForYieldPrediction": false },
+      "management": {
+        "fruitPruning":  { "enabled": true },
+        "defoliation":   { "enabled": true, "keepTrussesAboveRedTopmost": 3, "keepLeavesPerTruss": 0 },
+        "harvest":       { "enabled": true, "atRipenStage": 5 }
+      }
+    }
   }
 }

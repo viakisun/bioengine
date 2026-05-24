@@ -22,13 +22,14 @@
 // reads them.
 
 import type { Cultivar, CultivarSample } from './Cultivar';
-import { sampleCultivarGenome } from './Cultivar';
+import { sampleCultivarGenome, getScenario, trussOrderRule } from './Cultivar';
 import { SeededRandom } from './SeededRandom';
 import { dailyNetDM, hourlyNetDM } from './Photosynthesis';
 import { diurnalEnv, type HourlyClimate } from './DiurnalEnv';
 import { ACTIVE_MODEL } from './ModelRegistry';
 import { allocateDM } from './SinkAllocation';
 import { acropetalGDDOffset, potentialDailyGrowthFW, updateAbortionTracker } from './FruitGrowth';
+import { phytomerCountFromTT } from './SimulationContext';
 
 // ---------------------------------------------------------------------------
 // Environment input
@@ -92,6 +93,11 @@ export interface FruitCohort {
 
   /** True if this fruit was aborted (assimilate competition). */
   aborted: boolean;
+
+  /** True if this fruit was picked off the truss (scenario.management
+   *  .harvest). Harvested fruit no longer grow and are hidden from the
+   *  visual. v3.0 Phase 4C. */
+  harvested: boolean;
 
   /** Rolling count of days the fruit failed to meet 25% of potential
    *  growth (Marcelis 1996 abortion threshold). Aborts when this hits
@@ -184,33 +190,40 @@ function emergeTruss(
   cultivar: Cultivar,
 ): void {
   const trussIdx = state.trusses.length;
+  const order1 = trussIdx + 1;
   const rng = trussRng(state.seed, trussIdx);
 
-  // Flower count — Gaussian draw, clamped to ≥3
+  // v3.0 Phase 4B — flower count comes from the active scenario's
+  // trussOrderProfile rule for this truss order; falls back to the
+  // cultivar baseline if no profile match.
+  const scenario = getScenario(cultivar);
+  const rule = trussOrderRule(scenario, order1);
+  const flowersDist = rule?.flowersPerTruss ?? cultivar.flowersPerTruss;
   const flowerCount = Math.max(
     3,
-    Math.round(cultivar.flowersPerTruss.mu + cultivar.flowersPerTruss.sigma * gaussian(rng)),
+    Math.round(flowersDist.mu + flowersDist.sigma * gaussian(rng)),
   );
 
-  // Stem height of this truss — internode ≈ 25 cm at peak, so each truss
-  // sits ~25cm × (every 3 leaves) above the previous one.
+  // Stem height of this truss — internode ≈ 25 cm at peak.
   const stemHeight_m = 0.4 + trussIdx * 0.27;
 
   // Anthesis happens ~50 GDD after truss emergence (rough approximation).
   const anthesisTT = state.TT + 50;
 
-  // Pre-allocate flower slots as fruits "in waiting"; only the ones that
-  // set fruit get a real CultivarSample drawn at fertilization TT.
+  // Per-truss potential mass multiplier (scenario-driven).
+  const massMul = rule?.potentialMassMultiplier ?? 1.0;
+
   const fruits: FruitCohort[] = [];
   for (let i = 0; i < flowerCount; i++) {
-    // Apply per-fruit acropetal anthesis spread (basal opens first).
     const positionFrac = flowerCount > 1 ? i / (flowerCount - 1) : 0;
     const flowerAnthesisTT = anthesisTT + positionFrac * (cultivar.trussRipeningSpreadGDD * 0.3);
+    const fruitGenome = sampleCultivarGenome(cultivar, rng);
+    fruitGenome.potentialMassG = fruitGenome.potentialMassG * massMul;
 
     fruits.push({
       index: i,
       anthesisTT: flowerAnthesisTT,
-      fertilizationTT: -1,    // not yet set
+      fertilizationTT: -1,
       cellDivisionEndTT: -1,
       ripenStartTT: -1,
       W_fruit_dry: 0,
@@ -218,8 +231,9 @@ function emergeTruss(
       diameter: 0,
       ripenStage: 0,
       ripenFraction: 0,
-      genome: sampleCultivarGenome(cultivar, rng), // sampled per-fruit, deterministic by truss RNG
+      genome: fruitGenome,
       aborted: false,
+      harvested: false,
       starvedDays: 0,
     });
   }
@@ -230,7 +244,7 @@ function emergeTruss(
     anthesisTT,
     stemHeight_m,
     flowerCount,
-    fruitCount: 0,    // becomes nonzero after fertilization step
+    fruitCount: 0,
     fruits,
   });
 
@@ -300,7 +314,7 @@ export function stepMinutely(
   // 3. Per-truss processing — fruit set / phase boundaries / ripening
   for (const truss of state.trusses) {
     for (const fruit of truss.fruits) {
-      if (fruit.aborted) continue;
+      if (fruit.aborted || fruit.harvested) continue;
 
       // Fruit set (Phase I → II) at anthesis + a short lag
       if (fruit.fertilizationTT < 0 && state.TT >= fruit.anthesisTT) {
@@ -344,17 +358,47 @@ export function stepMinutely(
     const allDecided = truss.fruits.every(
       (f) => f.aborted || f.fertilizationTT > 0,
     );
-    if (allDecided && cultivar.trussTargetFruitCount > 0) {
-      const live = truss.fruits.filter((f) => !f.aborted);
-      if (live.length > cultivar.trussTargetFruitCount) {
-        live.sort((a, b) => a.index - b.index);
-        for (let k = cultivar.trussTargetFruitCount; k < live.length; k++) {
-          live[k].aborted = true;
+    if (allDecided) {
+      // v3.0 Phase 4B — fruit pruning is scenario- and order-aware.
+      // The active scenario's trussOrderProfile gives a per-order
+      // targetFruitCount; if management.fruitPruning.enabled is false
+      // we skip pruning entirely so only natural abortion regulates set.
+      const scenario = getScenario(cultivar);
+      if (scenario.management.fruitPruning.enabled) {
+        const rule = trussOrderRule(scenario, truss.index + 1);
+        const target = rule?.targetFruitCount ?? cultivar.trussTargetFruitCount;
+        if (target > 0) {
+          const live = truss.fruits.filter((f) => !f.aborted);
+          if (live.length > target) {
+            live.sort((a, b) => a.index - b.index);
+            for (let k = target; k < live.length; k++) live[k].aborted = true;
+          }
         }
       }
     }
 
-    truss.fruitCount = truss.fruits.filter((f) => !f.aborted && f.fertilizationTT > 0).length;
+    truss.fruitCount = truss.fruits.filter(
+      (f) => !f.aborted && !f.harvested && f.fertilizationTT > 0,
+    ).length;
+  }
+
+  // 3b. Harvest (v3.0 Phase 4C) — scenario-driven. Once a fruit hits
+  // the configured ripenStage we mark it harvested; downstream steps
+  // (allocation, abortion tracker, visual layer) treat it as gone.
+  {
+    const scenario = getScenario(cultivar);
+    if (scenario.management.harvest.enabled) {
+      const stageThreshold = scenario.management.harvest.atRipenStage;
+      for (const truss of state.trusses) {
+        for (const fruit of truss.fruits) {
+          if (fruit.aborted || fruit.harvested) continue;
+          if (fruit.fertilizationTT < 0) continue;
+          if (fruit.ripenStage >= stageThreshold) {
+            fruit.harvested = true;
+          }
+        }
+      }
+    }
   }
 
   // 4. Photosynthesis → net new DM for this minute (= 1/60 of hourly).
@@ -368,7 +412,7 @@ export function stepMinutely(
       const truss = state.trusses[ti];
       for (let fi = 0; fi < truss.fruits.length; fi++) {
         const fruit = truss.fruits[fi];
-        if (fruit.aborted || fruit.fertilizationTT < 0) continue;
+        if (fruit.aborted || fruit.harvested || fruit.fertilizationTT < 0) continue;
         const allocatedStep = alloc.trussFruitsG[ti][fi];
 
         // Abortion tracker — time-resolution-invariant: starvedDays
@@ -406,7 +450,7 @@ export function stepMinutely(
   let matureFruitDry = 0;
   for (const truss of state.trusses) {
     for (const fruit of truss.fruits) {
-      if (fruit.aborted) continue;
+      if (fruit.aborted || fruit.harvested) continue;
       totalFruitDry += fruit.W_fruit_dry;
       if (fruit.ripenStage >= 4) matureFruitDry += fruit.W_fruit_dry;
     }
@@ -414,8 +458,12 @@ export function stepMinutely(
   state.W_f = totalFruitDry;
   state.W_m = matureFruitDry;
 
-  // 7-8. Node count + height — derived from truss count
-  state.N = 6 + state.trusses.length * 3;
+  // 7. Node count — phyllochron-driven (Heuvelink 1996). N is the
+  // running phytomer count; it advances independently of how many
+  // trusses have emerged so non-truss-bearing internodes are counted too.
+  state.N = Math.min(50, Math.floor(phytomerCountFromTT(state.TT, cultivar)));
+
+  // 8. Height — internode ~25 cm with ~3 internodes per truss + base.
   state.heightCm = 30 + state.trusses.length * 27;
 }
 
@@ -575,7 +623,7 @@ function _legacyStepDaily(
       const truss = state.trusses[ti];
       for (let fi = 0; fi < truss.fruits.length; fi++) {
         const fruit = truss.fruits[fi];
-        if (fruit.aborted || fruit.fertilizationTT < 0) continue;
+        if (fruit.aborted || fruit.harvested || fruit.fertilizationTT < 0) continue;
         const allocatedToday = alloc.trussFruitsG[ti][fi];
 
         // Compute potential daily growth (Gompertz) for abortion check
@@ -619,7 +667,7 @@ function _legacyStepDaily(
   let matureFruitDry = 0;
   for (const truss of state.trusses) {
     for (const fruit of truss.fruits) {
-      if (fruit.aborted) continue;
+      if (fruit.aborted || fruit.harvested) continue;
       totalFruitDry += fruit.W_fruit_dry;
       if (fruit.ripenStage >= 4) matureFruitDry += fruit.W_fruit_dry;
     }
@@ -627,8 +675,8 @@ function _legacyStepDaily(
   state.W_f = totalFruitDry;
   state.W_m = matureFruitDry;
 
-  // 7. Node count — 3 leaves between successive trusses on the main stem
-  state.N = 6 + state.trusses.length * 3;
+  // 7. Node count — phyllochron-driven (Heuvelink 1996).
+  state.N = Math.min(50, Math.floor(phytomerCountFromTT(state.TT, cultivar)));
 
   // 8. Height — internode ~25cm with ~3 internodes per truss + base
   state.heightCm = 30 + state.trusses.length * 27;

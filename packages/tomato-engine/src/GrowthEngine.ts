@@ -12,7 +12,7 @@
 
 import { type PlantGenome, generateGenome } from './PlantGenome';
 import { computePlantState, type PlantState, type PlantStressInputs } from './GrowthModel';
-import { type Cultivar, getCultivar } from './Cultivar';
+import { type Cultivar, getCultivar, getScenario } from './Cultivar';
 import {
   createPlant,
   stepMinutely,
@@ -22,6 +22,7 @@ import {
   DEFAULT_CLIMATE,
 } from './CoreModel';
 import { diurnalEnv } from './DiurnalEnv';
+import { approximateTT, type SimulationContext } from './SimulationContext';
 
 /**
  * Greenhouse environment parameters that modulate growth and physics.
@@ -128,9 +129,52 @@ export function applyEnvironmentToGenome(
     heightSigmoidK: genome.heightSigmoidK * (0.7 + 0.3 * stress),
     leafSizeMultiplier: genome.leafSizeMultiplier * (0.6 + 0.4 * stress),
     leafExpansionRate: genome.leafExpansionRate * (0.7 + 0.3 * stress),
-    fruitMaxDiameterMm: genome.fruitMaxDiameterMm * (0.75 + 0.25 * stress),
-    nodeInterval: genome.nodeInterval / (0.7 + 0.3 * stress),
+    // v3.0 Phase 2: fruit max diameter moved from PlantGenome to
+    // cultivar (sampled per-plant). v3.0 Phase 1: node interval moved
+    // from PlantGenome to phyllochron (sampled from TT). Environment
+    // stress reaches the fruit through CoreModel's source-sink + the
+    // diameter cap in cultivar.morphology.fruitMaxDiameterMm.
   };
+}
+
+/**
+ * v4.2 — Monotonic post-processor. Once `bottomUpHeight` defoliation
+ * picks a node (y ≤ removeBelowHeightM && age ≥ minLeafAgeDaysAtRemoval),
+ * that node enters `entry.removedLeafNodes` for life. Subsequent frames
+ * always force the node's leafMaturity to 0 even if the boundary moves
+ * (avoids defoliation-oscillation).
+ *
+ * Also clamps `state.geometryMode` so once a plant has hit
+ * `wire_compressed` it never reverts to `free`.
+ *
+ * This is renderer / management-persistence state — NOT physiology.
+ * Resets when `resetPhysiology` or `removePlant` is called.
+ */
+function applyMonotonicLeafRemoval(state: PlantState, entry: PlantEntry): void {
+  const defo = getScenario(entry.cultivar).management.defoliation;
+  if (defo.enabled && defo.policy === 'bottomUpHeight' && state.day >= defo.startDay) {
+    for (const node of state.nodes) {
+      if (entry.removedLeafNodes.has(node.index)) continue;
+      if (node.position.y <= defo.removeBelowHeightM &&
+          node.age >= defo.minLeafAgeDaysAtRemoval) {
+        entry.removedLeafNodes.add(node.index);
+      }
+    }
+  }
+  // Apply set — monotonic.
+  for (const node of state.nodes) {
+    if (entry.removedLeafNodes.has(node.index)) {
+      node.leafMaturity = 0;
+      node.leafAreaCm2 = 0;
+    }
+  }
+  // Geometry-mode lock.
+  if (state.geometryMode === 'wire_compressed') {
+    entry.geometryModeLocked = 'wire_compressed';
+  }
+  if (entry.geometryModeLocked === 'wire_compressed') {
+    state.geometryMode = 'wire_compressed';
+  }
 }
 
 interface PlantEntry {
@@ -140,6 +184,17 @@ interface PlantEntry {
   physiology: PlantPhysiologyState | null;
   /** Total minutes since transplant the physiology state was advanced to. */
   simulatedToMinute: number;
+  /**
+   * v4.2 — Monotonic set of node indices that management has defoliated.
+   * Once a node enters this set it stays senescent for the lifetime of
+   * the plant (resetPhysiology / removePlant clear it). Renderer / model
+   * boundary state — NOT part of the physiology model. */
+  removedLeafNodes: Set<number>;
+  /**
+   * v4.2 — Once the geometry mode has been `wire_compressed`, it stays
+   * there even if a later frame's height check would say `free`. Avoids
+   * compressing → relaxing → compressing oscillation. */
+  geometryModeLocked: 'free' | 'wire_compressed' | null;
 }
 
 /**
@@ -182,6 +237,8 @@ export class GrowthEngine {
       cultivar,
       physiology: null,
       simulatedToMinute: -1,
+      removedLeafNodes: new Set<number>(),
+      geometryModeLocked: null,
     });
     return genome;
   }
@@ -252,7 +309,33 @@ export class GrowthEngine {
 
     const effectiveGenome = applyEnvironmentToGenome(entry.genome, env);
     const effectiveDay = Math.max(0, day - effectiveGenome.plantingDayOffset);
-    return computePlantState(effectiveDay, effectiveGenome, autoStress, entry.cultivar);
+
+    // SimulationContext: TT from env temperature (multi-plant fast path
+    // has no live CoreModel) or from the live physiology state if a
+    // CoreModel simulation has been advanced for this seed.
+    const TT =
+      entry.physiology != null
+        ? entry.physiology.TT
+        : approximateTT(effectiveDay, env.temperatureC, entry.cultivar);
+    const simContext: SimulationContext = {
+      day: effectiveDay,
+      TT,
+      cultivar: entry.cultivar,
+      physiologyState: entry.physiology ?? undefined,
+    };
+
+    const state = computePlantState(
+      effectiveDay,
+      effectiveGenome,
+      autoStress,
+      entry.cultivar,
+      simContext,
+    );
+
+    // v4.2 — apply monotonic defoliation + geometry-mode lock.
+    applyMonotonicLeafRemoval(state, entry);
+
+    return state;
   }
 
   /** Public read of a plant's cultivar (for callers that need its name). */
@@ -325,6 +408,9 @@ export class GrowthEngine {
     if (!entry) return;
     entry.physiology = null;
     entry.simulatedToMinute = -1;
+    // v4.2 — management-state must also reset when the physiology rewinds.
+    entry.removedLeafNodes.clear();
+    entry.geometryModeLocked = null;
   }
 
   /** Compute states for every registered plant at a given day. */
@@ -371,6 +457,8 @@ export class GrowthEngine {
         cultivar: getCultivar('round-generic'),
         physiology: null,
         simulatedToMinute: -1,
+        removedLeafNodes: new Set<number>(),
+        geometryModeLocked: null,
       });
     }
     return engine;

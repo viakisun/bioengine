@@ -99,6 +99,9 @@ export type { SunState } from './SunPosition';
 
 export { SeededRandom } from './SeededRandom';
 
+export { ACTIVE_ENGINE_MODE, setEngineMode } from './EngineMode';
+export type { EngineMode } from './EngineMode';
+
 export { LeafStage, getLeafStage } from './LeafStage';
 export type { LeafStageInfo } from './LeafStage';
 

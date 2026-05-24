@@ -71,6 +71,35 @@
   },
 
   // ----------------------------------------------------------------
+  // Organogenesis — phytomer emergence rate (Heuvelink 1996, Ann. Bot. 77)
+  // Tomato leaves emerge on a strict thermal-time clock. One leaf
+  // (= one phytomer = one node + internode + axillary bud + leaf)
+  // every phyllochronGDD of accumulated GDD above T_base.
+  // ----------------------------------------------------------------
+  "organogenesis": {
+    // Phytomer emergence interval, GDD/leaf. Heuvelink 1996 reports
+    // 38 GDD/leaf for tomato at T_base=10°C; range 32-45 across
+    // cultivars and conditions.
+    //
+    // Calibrated to 40 so that structural truss cadence
+    // (trussIntervalNodes × phyllochron = 3 × 40 = 120 GDD) matches
+    // the physiology cadence (GDD_per_truss = 120 for all cultivars).
+    // With matched cadence, hybridFspmMode renders 1 visible truss per
+    // physiology truss instead of structural outrunning physiology.
+    //
+    // Per-cultivar override via cultivars/*.jsonc .organogenesis.phyllochronGDD.
+    "phyllochronGDD": 40,
+
+    // Visible node count at transplant. K-smartfarm transplants are
+    // 4-6 week seedlings with 5 true leaves (CoreModel.createPlant N=5).
+    "initialNodeCountAtTransplant": 5,
+
+    // TT at which the transplant clock starts (usually 0 — seedling
+    // arrives with its own pre-transplant phytomer count).
+    "TT_at_transplant": 0
+  },
+
+  // ----------------------------------------------------------------
   // Fruit abortion — Marcelis 1996 / Frontiers 2015
   // ----------------------------------------------------------------
   "abortion": {
@@ -93,6 +122,53 @@
     // Dry-matter fraction of fresh fruit weight. Heuvelink 1996 reports
     // 5-7% typical for protected-culture tomato.
     "DM_percent": 0.06
+  },
+
+  // ----------------------------------------------------------------
+  // Truss anatomy — v4.1 botanically accurate cymose inflorescence.
+  // 3-tier: peduncle → rachis (zigzag knuckles) → pedicel per floral site.
+  // References: Park 2012 Nat Genetics 44:1417, Lippman 2001 Plant Cell
+  // 13:2143, Heuvelink 2005 Tomato (CABI) ch.4.
+  // ----------------------------------------------------------------
+  "trussAnatomy": {
+    // Tier 1 — Peduncle: main stem → cyme base axis (5-15cm).
+    "peduncle": {
+      "lengthM": 0.07,                  // 7cm, range 5-15cm. v4.1 — was 12cm
+      "radiusM": 0.0025,                // 2.5mm
+      "downAngleRad": 0.6109,           // 35° below horizontal
+      "stiffnessRelativeToStem": 0.5    // softer than main stem
+    },
+    // Tier 2 — Rachis: cyme axis with zigzag + 3D phyllotactic rotation.
+    // One knuckle per floral site; each fruit branches from a knuckle.
+    "rachis": {
+      "knuckleSpacingM": 0.022,         // 22mm — Tomimaru measured
+      "zigzagAmplitudeM": 0.008,        // ±8mm side jitter
+      "downTiltPerKnuckleM": 0.004,     // 4mm gentle droop per knuckle
+      "phyllotacticAngleDeg": 137.5,    // golden — 3D cluster spread
+      "radiusBaseM": 0.0020,            // 2mm at peduncle attach
+      "radiusTipM": 0.0012              // 1.2mm at rachis tip
+    },
+    // Tier 3 — Pedicel: per-floral-site stalk from knuckle → fruit top.
+    "pedicel": {
+      "lengthM": 0.022,                 // 22mm — real tomato 15-30mm
+      "downAngleRad": 0.7854,           // 45° below horizontal
+      "abscissionZoneFrac": 0.65,       // joint at 65% along pedicel
+      "radiusBaseM": 0.0014,
+      "radiusTipM": 0.0010
+    },
+    // Fruit-to-top geometry: fruit body center sits below the calyx.
+    // fruitCenter = fruitTop + fruitAxisDir × R × calyxOffsetFrac.
+    "fruit": {
+      "calyxOffsetFrac": 0.65,
+      "calyxReflexDeg": 25              // sepal reflex away from fruit
+    },
+    // Flower mesh dimensions for flower-stage rendering (anthesis).
+    "flower": {
+      "petalSpanM": 0.018,              // 18mm open flower diameter
+      "petalCount": 6,
+      "antherConeHeightM": 0.004,
+      "petalColorRGB": [255, 215, 0]    // canary yellow
+    }
   },
 
   // ----------------------------------------------------------------

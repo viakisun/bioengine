@@ -1,0 +1,1402 @@
+{
+  "metadata": {
+    "id": "farmsim-tomato-growth-model-expert-review",
+    "version": "0.1.0-review",
+    "generatedDate": "2026-05-24",
+    "format": "strict-json-postgres-jsonb-compatible",
+    "intendedUse": [
+      "expert review of tomato growth, organogenesis, truss anatomy, cultivar assumptions, and remaining model gaps",
+      "baseline source for future JSONC schema expansion in packages/tomato-engine/models",
+      "audit packet for deciding which currently hardcoded biological parameters should move into model data"
+    ],
+    "unitsPolicy": {
+      "length": "cm for plant height and internodes, mm for organ anatomy, m for rendered world geometry where noted",
+      "mass": "g fresh weight or g dry matter as stated per field",
+      "temperature": "degrees Celsius",
+      "thermalTime": "growing degree-days above cultivar/base threshold",
+      "angles": "degrees unless a field explicitly says radians",
+      "rates": "per day, per truss, or fraction 0-1 as stated"
+    },
+    "notes": [
+      "This file summarizes the current implemented model plus proposed schema-level review fields. It does not claim all parameters are already consumed by code.",
+      "Values marked confidence=draft or needsReview=true are intentionally exposed for agronomist and crop-model expert review.",
+      "Existing engine source JSONC files remain the current runtime source of truth until implementation wiring is completed."
+    ]
+  },
+  "references": [
+    {
+      "id": "heuvelink-1996-tomsim",
+      "title": "Dry Matter Partitioning in Tomato: Validation of a Dynamic Simulation Model",
+      "url": "https://academic.oup.com/aob/article-pdf/77/1/71/7982404/770071.pdf",
+      "usedFor": [
+        "TOMSIM dry-matter partitioning",
+        "truss sink strength",
+        "individual fruit trusses as sinks",
+        "fruit number per truss as a key feedback still requiring model support"
+      ],
+      "confidence": "high"
+    },
+    {
+      "id": "tomimaru-paramount-vendor",
+      "title": "Tomimaru Muchoo F1 Beefsteak Tomato vendor specification",
+      "url": "https://paramountseeds.com/products/tomimaru-muchoo-beefsteak-tomato",
+      "usedFor": [
+        "Tomimaru type",
+        "pink beef tomato",
+        "average fruit weight 160-180 g",
+        "Brix 5-7",
+        "loose harvest habit"
+      ],
+      "confidence": "medium"
+    },
+    {
+      "id": "jeju-extension-tomato",
+      "title": "Jeju agricultural extension tomato cultivation PDF",
+      "url": "https://agri.jeju.go.kr/files/board/%EA%B3%BC%EC%B1%84%EB%A5%98%28%ED%86%A0%EB%A7%88%ED%86%A0%29.pdf",
+      "usedFor": [
+        "Korean greenhouse cropping notes",
+        "ripened tomato and cherry tomato categories",
+        "pinching and defoliation practices",
+        "flower-cluster treatment timing",
+        "determinate vs indeterminate cultivar groups"
+      ],
+      "confidence": "medium"
+    },
+    {
+      "id": "truss-architecture-bft",
+      "title": "BIFURCATE FLOWER TRUSS: tomato inflorescence architecture",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5920302/",
+      "usedFor": [
+        "truss architecture definition",
+        "peduncle length, branch points, and flower number as determinants of potential fruit number"
+      ],
+      "confidence": "high"
+    },
+    {
+      "id": "gillaspy-1993-fruit-growth",
+      "title": "A developmental perspective of tomato fruit growth",
+      "url": "https://doi.org/10.1105/tpc.5.10.1439",
+      "usedFor": [
+        "three-phase fruit growth concept",
+        "cell division, cell expansion, ripening phases"
+      ],
+      "confidence": "high"
+    },
+    {
+      "id": "marcelis-1996-sink-abortion",
+      "title": "Sink strength and assimilate competition in tomato",
+      "url": "https://doi.org/10.1111/j.1399-3054.1996.tb00597.x",
+      "usedFor": [
+        "sink strength concept",
+        "assimilate competition",
+        "fruit abortion under insufficient growth"
+      ],
+      "confidence": "high"
+    }
+  ],
+  "globalModel": {
+    "sourceRuntimeFile": "packages/tomato-engine/models/tomgro-v1.jsonc",
+    "metadata": {
+      "id": "tomgro-v1",
+      "version": "1.0.0",
+      "description": "Reduced TOMGRO 5-state plus TOMSIM photosynthesis, Gillaspy fruit growth, Marcelis abortion, and Korean smart-farm pruning baseline"
+    },
+    "photosynthesis": {
+      "LUE_gDM_per_mol_PAR": {
+        "value": 3.5,
+        "unit": "g dry matter per mol PAR absorbed",
+        "source": "heuvelink-1996-tomsim",
+        "confidence": "medium",
+        "notes": "Runtime value. Comment states this is calibrated to protected-culture tomato and Korean smart-farm yields."
+      },
+      "beerLambert_k": {
+        "value": 0.7,
+        "unit": "dimensionless",
+        "source": "goudriaan-van-laar-1994",
+        "confidence": "medium"
+      },
+      "Q10": {
+        "value": 2,
+        "unit": "dimensionless",
+        "source": "goudriaan-van-laar-1994",
+        "confidence": "medium"
+      },
+      "maintenance_m_ref_per_day": {
+        "value": 0.015,
+        "unit": "g dry matter per g dry matter per day at 20 C",
+        "source": "heuvelink-1996-tomsim",
+        "confidence": "medium"
+      },
+      "Cf_conversion_efficiency": {
+        "value": 0.7,
+        "unit": "fraction",
+        "source": "heuvelink-1996-tomsim",
+        "confidence": "medium"
+      },
+      "plantFootprintM2": {
+        "value": 0.4,
+        "unit": "m2 per plant",
+        "source": "k-smartfarm-density-assumption",
+        "confidence": "draft",
+        "needsReview": true
+      }
+    },
+    "thermalTime": {
+      "T_base_C": {
+        "value": 10,
+        "unit": "C",
+        "source": "CROPGRO-Tomato convention",
+        "confidence": "medium"
+      },
+      "T_max_dev_C": {
+        "value": 32,
+        "unit": "C",
+        "source": "CROPGRO upper development limit",
+        "confidence": "medium"
+      }
+    },
+    "abortion": {
+      "threshold_ratio": {
+        "value": 0.25,
+        "unit": "actual growth divided by potential growth",
+        "source": "marcelis-1996-sink-abortion",
+        "confidence": "medium"
+      },
+      "lag_days": {
+        "value": 4,
+        "unit": "days",
+        "source": "marcelis-1996-sink-abortion",
+        "confidence": "medium"
+      }
+    },
+    "fruitGrowth": {
+      "density_g_per_cm3": {
+        "value": 1.04,
+        "unit": "g per cm3",
+        "source": "tomato fruit density literature assumption",
+        "confidence": "medium"
+      },
+      "DM_percent": {
+        "value": 0.06,
+        "unit": "fresh weight fraction",
+        "source": "heuvelink-1996-tomsim",
+        "confidence": "medium"
+      }
+    },
+    "diurnal": {
+      "temp_amplitude_C": {
+        "value": 6,
+        "unit": "C",
+        "source": "greenhouse typical assumption",
+        "confidence": "draft",
+        "needsReview": true
+      },
+      "phase_offset_hours": {
+        "value": 8,
+        "unit": "hours",
+        "source": "greenhouse day-night envelope assumption",
+        "confidence": "draft",
+        "notes": "Runtime comment says min temperature around 02:00 and max around 14:00."
+      }
+    },
+    "lai": {
+      "defoliation_cap_base": {
+        "value": 3.6,
+        "unit": "m2 leaf area per m2 ground",
+        "source": "heuvelink-1996-tomsim",
+        "confidence": "medium"
+      },
+      "defoliation_aggressiveness_factor": {
+        "value": 1.2,
+        "unit": "dimensionless",
+        "source": "calibration",
+        "confidence": "draft",
+        "needsReview": true
+      }
+    },
+    "rngWarmup": {
+      "discard_first_n": {
+        "value": 3,
+        "unit": "rng draws",
+        "source": "implementation quality control",
+        "confidence": "algorithmic"
+      }
+    }
+  },
+  "organogenesis": {
+    "sourceRuntimeFiles": [
+      "packages/tomato-engine/src/PlantGenome.ts",
+      "packages/tomato-engine/src/GrowthModel.ts",
+      "packages/tomato-engine/src/LeafStage.ts"
+    ],
+    "shootApicalMeristem": {
+      "nodeStartDay": {
+        "distribution": "gaussian",
+        "mu": 5,
+        "sigma": 0.5,
+        "clamp": [
+          3.5,
+          6.5
+        ],
+        "unit": "days after transplant",
+        "runtimeField": "PlantGenome.nodeStartDay",
+        "confidence": "draft",
+        "needsReview": true
+      },
+      "nodeInterval": {
+        "distribution": "gaussian",
+        "mu": 2.3,
+        "sigma": 0.2,
+        "clamp": [
+          1.8,
+          2.8
+        ],
+        "unit": "days per node",
+        "runtimeField": "PlantGenome.nodeInterval",
+        "confidence": "draft",
+        "needsReview": true
+      },
+      "maxNodeCountInSigmoidPath": {
+        "value": 50,
+        "unit": "nodes",
+        "runtimeLocation": "GrowthModel.computePlantState",
+        "confidence": "implementation-limit",
+        "notes": "Protects renderer/model from unbounded node creation; should become model scenario parameter if long-season simulation is required."
+      }
+    },
+    "phyllotaxis": {
+      "goldenAngleDeg": {
+        "value": 137.508,
+        "unit": "degrees",
+        "runtimeLocation": "GrowthModel.GOLDEN_ANGLE",
+        "source": "tomato phyllotaxis assumption",
+        "confidence": "medium"
+      },
+      "perPlantJitterDeg": {
+        "distribution": "gaussian",
+        "mu": 0,
+        "sigma": 8,
+        "unit": "degrees",
+        "runtimeField": "PlantGenome.phyllotaxisJitter",
+        "confidence": "draft"
+      }
+    },
+    "internodeElongation": {
+      "baseInternodeLenCm": {
+        "distribution": "gaussian",
+        "mu": 6.5,
+        "sigma": 0.8,
+        "clamp": [
+          4.5,
+          8.5
+        ],
+        "unit": "cm",
+        "runtimeField": "PlantGenome.internodeLenCm",
+        "confidence": "medium",
+        "needsReview": true
+      },
+      "elongationDelayDays": {
+        "distribution": "gaussian",
+        "mu": 4,
+        "sigma": 0.5,
+        "clamp": [
+          3,
+          6
+        ],
+        "unit": "days",
+        "runtimeField": "PlantGenome.internodeElongDelay",
+        "confidence": "draft"
+      },
+      "elongationMidDaysAfterDelay": {
+        "distribution": "gaussian",
+        "mu": 8,
+        "sigma": 1,
+        "clamp": [
+          6,
+          10
+        ],
+        "unit": "days",
+        "runtimeField": "PlantGenome.internodeElongMid",
+        "confidence": "draft"
+      },
+      "elongationSigmoidK": {
+        "value": 0.4,
+        "unit": "sigmoid steepness",
+        "runtimeLocation": "GrowthModel.ELONG_K",
+        "confidence": "draft",
+        "shouldMoveToJson": true
+      }
+    },
+    "leafDevelopment": {
+      "leafExpansionRate": {
+        "distribution": "gaussian",
+        "mu": 0.35,
+        "sigma": 0.04,
+        "clamp": [
+          0.25,
+          0.45
+        ],
+        "unit": "sigmoid steepness",
+        "runtimeField": "PlantGenome.leafExpansionRate",
+        "confidence": "draft",
+        "needsReview": true
+      },
+      "matureLeafAreaCm2": {
+        "value": 880,
+        "unit": "cm2 per mature compound leaf",
+        "runtimeLocation": "GrowthModel.BASE_LEAF_AREA_CM2",
+        "confidence": "draft",
+        "shouldMoveToJson": true
+      },
+      "leafStageThresholds": [
+        {
+          "stage": "pruned",
+          "condition": "leafMaturity < 0.05"
+        },
+        {
+          "stage": "senescent",
+          "condition": "yellowing > 0.3"
+        },
+        {
+          "stage": "cotyledon",
+          "condition": "plantAge < 15 && node.index == 0 && leafMaturity < 0.3"
+        },
+        {
+          "stage": "early_true",
+          "condition": "leafMaturity < 0.4"
+        },
+        {
+          "stage": "compound_developing",
+          "condition": "0.4 <= leafMaturity < 0.7"
+        },
+        {
+          "stage": "compound_mature",
+          "condition": "leafMaturity >= 0.7"
+        }
+      ],
+      "leafletCountProgression": {
+        "earlyTrue": "1 to 5",
+        "compound": "5 to 9",
+        "runtimeLocation": "LeafStage.getLeafStage",
+        "confidence": "draft",
+        "needsReview": true
+      },
+      "leafShapeGenome": {
+        "serrationDepth": {
+          "distribution": "gaussian",
+          "mu": 0.18,
+          "sigma": 0.03,
+          "clamp": [
+            0.1,
+            0.25
+          ],
+          "unit": "fraction of width"
+        },
+        "serrationFreq": {
+          "distribution": "gaussian",
+          "mu": 10,
+          "sigma": 1.5,
+          "clamp": [
+            7,
+            14
+          ],
+          "unit": "teeth per leaflet edge"
+        },
+        "lobeDepth": {
+          "distribution": "gaussian",
+          "mu": 0.08,
+          "sigma": 0.03,
+          "clamp": [
+            0,
+            0.15
+          ],
+          "unit": "fraction"
+        },
+        "waviness": {
+          "distribution": "gaussian",
+          "mu": 0.003,
+          "sigma": 0.001,
+          "clamp": [
+            0,
+            0.006
+          ],
+          "unit": "m surface perturbation"
+        },
+        "petioleLengthM": {
+          "distribution": "gaussian",
+          "mu": 0.1,
+          "sigma": 0.015,
+          "clamp": [
+            0.06,
+            0.14
+          ],
+          "unit": "m"
+        },
+        "confidence": "draft",
+        "needsReview": true
+      }
+    },
+    "axillaryBudActivation": {
+      "runtimeLocation": "GrowthModel.activateAndPruneBuds",
+      "baseBudChance": {
+        "value": 0.04,
+        "unit": "probability per simulated day loop",
+        "confidence": "draft",
+        "shouldMoveToJson": true
+      },
+      "apicalDominance": {
+        "value": 0.5,
+        "unit": "dimensionless",
+        "confidence": "draft",
+        "shouldMoveToJson": true
+      },
+      "sideShootDelayDays": {
+        "value": 5,
+        "unit": "days",
+        "confidence": "draft",
+        "shouldMoveToJson": true
+      },
+      "lightFactor": {
+        "value": 0.4,
+        "unit": "dimensionless",
+        "confidence": "draft",
+        "shouldMoveToJson": true
+      },
+      "pruneDailyMultiplier": {
+        "value": 0.03,
+        "unit": "probability multiplier times cultivar defoliationAggressiveness",
+        "confidence": "draft",
+        "shouldMoveToJson": true
+      },
+      "branchAngleDeg": {
+        "distribution": "gaussian",
+        "mu": 35,
+        "sigma": 8,
+        "unit": "degrees",
+        "confidence": "draft",
+        "needsReview": true
+      },
+      "currentFruitingStatus": {
+        "value": "side shoot nodes currently render leaves and stems but truss is null",
+        "needsReview": true,
+        "proposed": "add cultivar/training JSON fields for side-shoot fruiting enabled, first truss node, truss interval, retention probability, and pruning pressure"
+      }
+    }
+  },
+  "reproductiveDevelopment": {
+    "sourceRuntimeFiles": [
+      "packages/tomato-engine/src/PlantGenome.ts",
+      "packages/tomato-engine/src/GrowthModel.ts",
+      "packages/tomato-engine/src/CoreModel.ts",
+      "packages/tomato-engine/models/cultivars/*.jsonc"
+    ],
+    "trussEmergence": {
+      "firstTrussNode": {
+        "distribution": "gaussian",
+        "mu": 9,
+        "sigma": 1,
+        "clamp": [
+          7,
+          11
+        ],
+        "unit": "node index",
+        "runtimeField": "PlantGenome.trussStartNode",
+        "source": "current Tomimaru-calibrated runtime assumption",
+        "confidence": "draft",
+        "needsReview": true
+      },
+      "trussIntervalNodes": {
+        "value": 3,
+        "unit": "nodes",
+        "runtimeField": "PlantGenome.trussInterval",
+        "source": "current Tomimaru-calibrated runtime assumption",
+        "confidence": "medium",
+        "notes": "Previously stochastic 2/3 interval; now fixed 3 in runtime."
+      },
+      "GDD_per_truss": {
+        "value": 120,
+        "unit": "GDD",
+        "runtimeField": "Cultivar.GDD_per_truss",
+        "confidence": "medium"
+      }
+    },
+    "flowerDifferentiation": {
+      "currentSigmoidPath": {
+        "flowersPerTruss": {
+          "distribution": "gaussian",
+          "mu": 5,
+          "sigma": 1,
+          "clamp": [
+            3,
+            8
+          ],
+          "runtimeField": "PlantGenome.flowersPerTruss",
+          "confidence": "draft",
+          "needsReview": true
+        },
+        "withinTrussFlowerDelayDays": {
+          "value": 2,
+          "unit": "days per distal flower index",
+          "runtimeLocation": "GrowthModel flowerDelay = f * 2",
+          "confidence": "draft",
+          "shouldMoveToJson": true
+        }
+      },
+      "proposedReviewProfile": {
+        "description": "Truss-order-dependent profile to replace one global flowersPerTruss value.",
+        "defaultForTomimaru": [
+          {
+            "trussOrders": [
+              1,
+              2,
+              3
+            ],
+            "initialFlowers": {
+              "mu": 5,
+              "range": [
+                4,
+                6
+              ]
+            }
+          },
+          {
+            "trussOrders": [
+              4,
+              5,
+              6
+            ],
+            "initialFlowers": {
+              "mu": 8,
+              "range": [
+                7,
+                10
+              ]
+            },
+            "targetLiveFruits": {
+              "range": [
+                6,
+                8
+              ],
+              "needsReview": true
+            }
+          },
+          {
+            "trussOrders": [
+              7,
+              8,
+              9,
+              10
+            ],
+            "initialFlowers": {
+              "mu": 5,
+              "range": [
+                4,
+                7
+              ]
+            }
+          }
+        ],
+        "confidence": "draft",
+        "source": "user target plus TOMSIM need for fruit number per truss feedback"
+      }
+    },
+    "anthesisAndFruitSet": {
+      "anthesisToSetDelayDays": {
+        "currentValue": 12,
+        "proposedValue": 6,
+        "unit": "days",
+        "runtimeLocation": "GrowthModel fruitAge = flowerAge - 12",
+        "confidence": "draft",
+        "needsReview": true,
+        "shouldMoveToJson": true
+      },
+      "flowerFadeAfterSetDays": {
+        "value": 14,
+        "unit": "days",
+        "runtimeLocation": "GrowthModel fruitAge < 14",
+        "confidence": "draft",
+        "shouldMoveToJson": true
+      },
+      "fruitSetRate": {
+        "runtimeField": "Cultivar.fruitSetRate",
+        "unit": "fraction of flowers setting fruit",
+        "confidence": "cultivar-dependent",
+        "notes": "Current Tomimaru runtime value is 0.6; expert review requested for 6-8 live fruit target."
+      }
+    },
+    "fruitGrowthAndRipening": {
+      "growthFunction": {
+        "type": "Gompertz potential fresh weight plus sink-allocation dry matter",
+        "source": "gillaspy-1993-fruit-growth",
+        "runtimeFiles": [
+          "FruitGrowth.ts",
+          "CoreModel.ts",
+          "SinkAllocation.ts"
+        ],
+        "confidence": "medium"
+      },
+      "sigmoidVisualFallback": {
+        "fruitMaxDiameterMm": {
+          "distribution": "gaussian",
+          "mu": 75,
+          "sigma": 8,
+          "clamp": [
+            55,
+            95
+          ],
+          "runtimeField": "PlantGenome.fruitMaxDiameterMm",
+          "confidence": "draft"
+        },
+        "fruitSigmoidK": {
+          "distribution": "gaussian",
+          "mu": 0.12,
+          "sigma": 0.015,
+          "clamp": [
+            0.08,
+            0.16
+          ]
+        },
+        "fruitSigmoidMidDays": {
+          "distribution": "gaussian",
+          "mu": 18,
+          "sigma": 2,
+          "clamp": [
+            13,
+            23
+          ]
+        },
+        "ripenStartAgeDays": {
+          "distribution": "gaussian",
+          "mu": 25,
+          "sigma": 3,
+          "clamp": [
+            18,
+            32
+          ]
+        },
+        "ripenDurationDays": {
+          "distribution": "gaussian",
+          "mu": 18,
+          "sigma": 2,
+          "clamp": [
+            13,
+            23
+          ]
+        },
+        "notes": "Single-Plant mode overlays CoreModel physiology; greenhouse mode may still use this fallback."
+      },
+      "ripenStagePalette": {
+        "runtimeLocation": "GrowthModel.STAGE_COLORS",
+        "stages": [
+          "mature green",
+          "breaker",
+          "turning",
+          "pink",
+          "light red",
+          "red ripe"
+        ],
+        "confidence": "render-calibrated"
+      }
+    },
+    "abortionAndPruning": {
+      "fruitSetFailure": {
+        "runtimeLocation": "CoreModel.stepMinutely and stepDaily",
+        "rule": "if deterministic set RNG is >= cultivar.fruitSetRate then fruit.aborted = true",
+        "confidence": "medium"
+      },
+      "starvationAbortion": {
+        "runtimeLocation": "FruitGrowth.updateAbortionTracker",
+        "threshold_ratio": 0.25,
+        "lag_days": 4,
+        "confidence": "medium"
+      },
+      "trussTargetFruitCount": {
+        "runtimeField": "Cultivar.trussTargetFruitCount",
+        "currentTomimaruValue": 4,
+        "reviewTargetForPeakTomimaru": [
+          6,
+          8
+        ],
+        "unit": "retained live fruits per truss after natural set and pruning",
+        "needsReview": true
+      }
+    }
+  },
+  "architecture": {
+    "mainAxis": {
+      "growthForm": "indeterminate tomato skeleton with apical node initiation",
+      "currentImplementation": "mainAxis nodes are authoritative PlantState.nodes",
+      "positionGeneration": "direction synthesis from previous direction, upward tropism, light approximation, noise, and sag from mass",
+      "runtimeLocation": "GrowthModel.synthesizeGrowthDir and skeleton walk",
+      "confidence": "draft"
+    },
+    "sideShootFruiting": {
+      "currentImplementation": {
+        "status": "side shoots can activate and grow leaves/stems, but their truss field is currently null",
+        "runtimeLocation": "GrowthModel.populateSideShootChain",
+        "needsReview": true
+      },
+      "proposedJsonFields": {
+        "enabled": {
+          "value": true,
+          "unit": "boolean",
+          "confidence": "user-selected"
+        },
+        "firstTrussNodeOnSideShoot": {
+          "value": 5,
+          "unit": "side-shoot node index",
+          "confidence": "draft",
+          "needsReview": true
+        },
+        "trussIntervalNodes": {
+          "value": 3,
+          "unit": "nodes",
+          "confidence": "draft"
+        },
+        "retentionProbability": {
+          "value": 0.25,
+          "unit": "fraction of side-shoot trusses retained after pruning",
+          "confidence": "draft",
+          "needsReview": true
+        },
+        "pruningPressure": {
+          "value": 0.75,
+          "unit": "fraction or policy strength",
+          "confidence": "draft",
+          "needsReview": true
+        }
+      }
+    },
+    "greenhouseTraining": {
+      "wireAttachmentHeightM": {
+        "distribution": "gaussian",
+        "mu": 3.5,
+        "sigma": 0.1,
+        "clamp": [
+          3.3,
+          3.7
+        ],
+        "runtimeField": "PlantGenome.wireAttachmentHeight",
+        "confidence": "draft",
+        "needsReview": true
+      },
+      "trussAlignment": {
+        "currentImplementation": "renderer generally uses node.phyllotaxisAngle + 180 degrees",
+        "proposedBias": {
+          "value": 0.6,
+          "unit": "0 natural phyllotaxis, 1 target aisle direction",
+          "confidence": "draft",
+          "needsReview": true
+        },
+        "targetTrussAzimuthDeg": {
+          "value": 90,
+          "unit": "degrees",
+          "confidence": "scene-coordinate-assumption",
+          "needsReview": true
+        }
+      }
+    },
+    "structuralMechanics": {
+      "runtimeFile": "packages/tomato-engine/src/PhysicsModel.ts",
+      "fruitDensityKgPerM3": {
+        "value": 1050,
+        "unit": "kg per m3",
+        "confidence": "medium",
+        "shouldMoveToJson": true
+      },
+      "stemDensityKgPerM3": {
+        "value": 800,
+        "unit": "kg per m3",
+        "confidence": "draft",
+        "needsReview": true,
+        "shouldMoveToJson": true
+      },
+      "stemRadiusMm": {
+        "min": 2,
+        "max": 11.5,
+        "unit": "mm radius",
+        "confidence": "draft",
+        "needsReview": true
+      },
+      "cambialGrowthMm2PerDay": {
+        "value": 0.7,
+        "unit": "mm2 per day",
+        "confidence": "draft",
+        "needsReview": true,
+        "shouldMoveToJson": true
+      },
+      "trussMomentArmM": {
+        "value": 0.08,
+        "unit": "m",
+        "confidence": "draft",
+        "shouldMoveToJson": true
+      }
+    }
+  },
+  "cultivars": {
+    "tomimaru-muchoo": {
+      "sourceRuntimeFile": "packages/tomato-engine/models/cultivars/tomimaru-muchoo.jsonc",
+      "confidence": "medium",
+      "metadata": {
+        "type": "beefsteak",
+        "source": "vendor",
+        "supplier": "Sakata Seeds",
+        "notes": "Vendor source indicates pink beef tomato, average fruit weight 160-180 g, Brix 5-7. Current runtime potentialFruitMassG is 200 g and should be reviewed."
+      },
+      "phenology": {
+        "GDD_to_first_flower": 250,
+        "GDD_per_truss": 120,
+        "GDD_flower_to_red": 800,
+        "cellDivisionDurationGDD": 150,
+        "cellExpansionDurationGDD": 500,
+        "ripeningDurationGDD": 200,
+        "trussRipeningSpreadGDD": 100
+      },
+      "reproductive": {
+        "flowersPerTruss": {
+          "mu": 5,
+          "sigma": 1,
+          "currentRuntime": true,
+          "needsReview": true,
+          "notes": "Likely too low for requested peak truss visual target of 6-8 live fruits."
+        },
+        "fruitSetRate": 0.6,
+        "trussTargetFruitCount": {
+          "value": 4,
+          "currentRuntime": true,
+          "reviewTarget": [
+            6,
+            8
+          ],
+          "needsReview": true
+        },
+        "proposedTrussOrderProfile": [
+          {
+            "orders": "1-3",
+            "initialFlowersMu": 5,
+            "targetLiveFruitsRange": [
+              3,
+              5
+            ]
+          },
+          {
+            "orders": "4-6",
+            "initialFlowersMu": 8,
+            "targetLiveFruitsRange": [
+              6,
+              8
+            ],
+            "needsReview": true
+          },
+          {
+            "orders": "7+",
+            "initialFlowersMu": 5,
+            "targetLiveFruitsRange": [
+              3,
+              6
+            ]
+          }
+        ]
+      },
+      "fruitMorphology": {
+        "potentialFruitMassG": {
+          "mu": 200,
+          "sigma": 25,
+          "vendorReferenceRange": [
+            160,
+            180
+          ],
+          "needsReview": true
+        },
+        "loculeCount": {
+          "mu": 6,
+          "sigma": 1.2
+        },
+        "heightWidthRatio": {
+          "mu": 0.72,
+          "sigma": 0.09
+        },
+        "ribbingStrength": {
+          "mu": 0.22,
+          "sigma": 0.08
+        },
+        "asymmetryStrength": 0.07,
+        "fullRipeRGB": [
+          220,
+          90,
+          95
+        ],
+        "greenStageRGB": [
+          60,
+          130,
+          50
+        ],
+        "hueVariance": 0.05,
+        "brixRange": [
+          5,
+          7
+        ]
+      },
+      "training": {
+        "defoliationAggressiveness": 0.32,
+        "sideShootFruiting": "proposed-enabled-with-heavy-pruning"
+      }
+    },
+    "cherry-generic": {
+      "sourceRuntimeFile": "packages/tomato-engine/models/cultivars/cherry-generic.jsonc",
+      "confidence": "medium",
+      "metadata": {
+        "type": "cherry",
+        "source": "literature-generic"
+      },
+      "phenology": {
+        "GDD_to_first_flower": 250,
+        "GDD_per_truss": 120,
+        "GDD_flower_to_red": 800,
+        "cellDivisionDurationGDD": 150,
+        "cellExpansionDurationGDD": 500,
+        "ripeningDurationGDD": 200,
+        "trussRipeningSpreadGDD": 60
+      },
+      "reproductive": {
+        "flowersPerTruss": {
+          "mu": 12,
+          "sigma": 3
+        },
+        "fruitSetRate": 0.7,
+        "trussTargetFruitCount": 10
+      },
+      "fruitMorphology": {
+        "potentialFruitMassG": {
+          "mu": 18,
+          "sigma": 4
+        },
+        "loculeCount": {
+          "mu": 2,
+          "sigma": 0.3
+        },
+        "heightWidthRatio": {
+          "mu": 0.96,
+          "sigma": 0.04
+        },
+        "ribbingStrength": {
+          "mu": 0.05,
+          "sigma": 0.05
+        },
+        "asymmetryStrength": 0.05,
+        "fullRipeRGB": [
+          195,
+          30,
+          22
+        ]
+      },
+      "training": {
+        "defoliationAggressiveness": 0.4
+      }
+    },
+    "round-generic": {
+      "sourceRuntimeFile": "packages/tomato-engine/models/cultivars/round-generic.jsonc",
+      "confidence": "medium",
+      "metadata": {
+        "type": "round",
+        "source": "literature-generic"
+      },
+      "phenology": {
+        "GDD_to_first_flower": 250,
+        "GDD_per_truss": 120,
+        "GDD_flower_to_red": 800,
+        "cellDivisionDurationGDD": 150,
+        "cellExpansionDurationGDD": 500,
+        "ripeningDurationGDD": 200,
+        "trussRipeningSpreadGDD": 90
+      },
+      "reproductive": {
+        "flowersPerTruss": {
+          "mu": 6,
+          "sigma": 1.5
+        },
+        "fruitSetRate": 0.6,
+        "trussTargetFruitCount": 5
+      },
+      "fruitMorphology": {
+        "potentialFruitMassG": {
+          "mu": 130,
+          "sigma": 25
+        },
+        "loculeCount": {
+          "mu": 4,
+          "sigma": 0.8
+        },
+        "heightWidthRatio": {
+          "mu": 0.9,
+          "sigma": 0.05
+        },
+        "ribbingStrength": {
+          "mu": 0.18,
+          "sigma": 0.08
+        },
+        "asymmetryStrength": 0.08
+      },
+      "training": {
+        "defoliationAggressiveness": 0.35
+      }
+    },
+    "beefsteak-generic": {
+      "sourceRuntimeFile": "packages/tomato-engine/models/cultivars/beefsteak-generic.jsonc",
+      "confidence": "medium",
+      "metadata": {
+        "type": "beefsteak",
+        "source": "literature-generic"
+      },
+      "phenology": {
+        "GDD_to_first_flower": 250,
+        "GDD_per_truss": 120,
+        "GDD_flower_to_red": 800,
+        "cellDivisionDurationGDD": 150,
+        "cellExpansionDurationGDD": 500,
+        "ripeningDurationGDD": 200,
+        "trussRipeningSpreadGDD": 110
+      },
+      "reproductive": {
+        "flowersPerTruss": {
+          "mu": 5,
+          "sigma": 1.2
+        },
+        "fruitSetRate": 0.55,
+        "trussTargetFruitCount": 3
+      },
+      "fruitMorphology": {
+        "potentialFruitMassG": {
+          "mu": 280,
+          "sigma": 50
+        },
+        "loculeCount": {
+          "mu": 7,
+          "sigma": 1.5
+        },
+        "heightWidthRatio": {
+          "mu": 0.7,
+          "sigma": 0.06
+        },
+        "ribbingStrength": {
+          "mu": 0.55,
+          "sigma": 0.12
+        },
+        "asymmetryStrength": 0.12
+      },
+      "training": {
+        "defoliationAggressiveness": 0.3
+      }
+    },
+    "roma-generic": {
+      "sourceRuntimeFile": "packages/tomato-engine/models/cultivars/roma-generic.jsonc",
+      "confidence": "medium",
+      "metadata": {
+        "type": "roma",
+        "source": "literature-generic"
+      },
+      "phenology": {
+        "GDD_to_first_flower": 250,
+        "GDD_per_truss": 120,
+        "GDD_flower_to_red": 800,
+        "cellDivisionDurationGDD": 150,
+        "cellExpansionDurationGDD": 500,
+        "ripeningDurationGDD": 200,
+        "trussRipeningSpreadGDD": 75
+      },
+      "reproductive": {
+        "flowersPerTruss": {
+          "mu": 7,
+          "sigma": 1.5
+        },
+        "fruitSetRate": 0.7,
+        "trussTargetFruitCount": 6
+      },
+      "fruitMorphology": {
+        "potentialFruitMassG": {
+          "mu": 80,
+          "sigma": 15
+        },
+        "loculeCount": {
+          "mu": 2,
+          "sigma": 0.4
+        },
+        "heightWidthRatio": {
+          "mu": 1.6,
+          "sigma": 0.1
+        },
+        "ribbingStrength": {
+          "mu": 0.08,
+          "sigma": 0.05
+        },
+        "asymmetryStrength": 0.06
+      },
+      "training": {
+        "defoliationAggressiveness": 0.4
+      }
+    },
+    "korean-ripe-momotaro-draft": {
+      "sourceRuntimeFile": null,
+      "confidence": "draft",
+      "needsReview": true,
+      "metadata": {
+        "type": "round",
+        "source": "draft-from-korean-extension-category-and-user-request",
+        "supplier": "not specified",
+        "notes": "Represents Korean ripened tomato / Momotaro-line review placeholder. Not currently registered in runtime."
+      },
+      "phenology": {
+        "GDD_to_first_flower": 250,
+        "GDD_per_truss": 120,
+        "GDD_flower_to_red": 800,
+        "cellDivisionDurationGDD": 150,
+        "cellExpansionDurationGDD": 500,
+        "ripeningDurationGDD": 200,
+        "trussRipeningSpreadGDD": 90,
+        "needsReview": true
+      },
+      "reproductive": {
+        "flowersPerTruss": {
+          "mu": 6,
+          "sigma": 1.2,
+          "needsReview": true
+        },
+        "fruitSetRate": {
+          "value": 0.65,
+          "needsReview": true
+        },
+        "trussTargetFruitCount": {
+          "value": 5,
+          "rangeForReview": [
+            4,
+            6
+          ],
+          "needsReview": true
+        }
+      },
+      "fruitMorphology": {
+        "potentialFruitMassG": {
+          "mu": 180,
+          "sigma": 30,
+          "needsReview": true
+        },
+        "loculeCount": {
+          "mu": 4.5,
+          "sigma": 1,
+          "needsReview": true
+        },
+        "heightWidthRatio": {
+          "mu": 0.85,
+          "sigma": 0.06,
+          "needsReview": true
+        },
+        "ribbingStrength": {
+          "mu": 0.12,
+          "sigma": 0.06,
+          "needsReview": true
+        },
+        "asymmetryStrength": 0.06,
+        "fullRipeRGB": [
+          210,
+          45,
+          35
+        ],
+        "greenStageRGB": [
+          45,
+          120,
+          35
+        ]
+      },
+      "training": {
+        "defoliationAggressiveness": 0.35,
+        "sideShootFruiting": "review-required"
+      }
+    }
+  },
+  "visualAnatomy": {
+    "sourceRuntimeFiles": [
+      "src/plant/TrussGenerator.ts",
+      "src/twin/SkeletonOverlay.ts",
+      "src/plant/StemGenerator.ts"
+    ],
+    "trussLayout": {
+      "peduncleLengthM": {
+        "currentFormula": "0.10 + min(0.10, totalItems * 0.012)",
+        "unit": "m",
+        "runtimeLocation": "TrussGenerator.layoutTruss",
+        "confidence": "render-calibrated",
+        "shouldMoveToJson": true
+      },
+      "peduncleDroopM": {
+        "currentFormula": "computeTrussDroop, clamp 0.01 to 0.15",
+        "unit": "m",
+        "runtimeLocation": "PhysicsModel.computeTrussDroop",
+        "confidence": "draft"
+      },
+      "itemGapM": {
+        "value": 0.008,
+        "unit": "m",
+        "runtimeLocation": "TrussGenerator.ITEM_GAP_M",
+        "confidence": "render-calibrated"
+      },
+      "sideAlternation": {
+        "currentFormula": "slot parity times fruit radius * 0.5",
+        "purpose": "avoid string-of-beads fruit line",
+        "confidence": "render-calibrated"
+      },
+      "pedicelLengthM": {
+        "currentFormula": "0.025 + 0.015 for fruit",
+        "proposedTomimaruMm": [
+          3,
+          6
+        ],
+        "needsReview": true,
+        "shouldMoveToJson": true,
+        "notes": "Current visual pedicel can be too long relative to user reference photos."
+      },
+      "pedicelRadiusM": {
+        "currentBase": 0.0014,
+        "currentTip": 0.001,
+        "unit": "m",
+        "confidence": "render-calibrated",
+        "shouldMoveToJson": true
+      },
+      "rachisZigzagAmplitudeMm": {
+        "proposedValue": 8,
+        "unit": "mm",
+        "confidence": "draft",
+        "needsReview": true
+      },
+      "calyxReflexAngleDeg": {
+        "currentOutwardAngle": 25,
+        "proposedReflexRange": [
+          25,
+          60
+        ],
+        "unit": "degrees",
+        "confidence": "draft",
+        "needsReview": true
+      }
+    },
+    "stemSkeleton": {
+      "curveType": "Catmull-Rom through authoritative node positions",
+      "subdivisionsPerInternode": "UI-configurable",
+      "nodeBulge": {
+        "showcaseMain": 0.15,
+        "showcaseSideShoot": 0.1,
+        "unit": "radius multiplier"
+      },
+      "verticalStripeCount": 8,
+      "notes": "These are visual anatomy controls rather than growth biology, but they affect expert perception of whether the stem is a living organ or a straight stick."
+    }
+  },
+  "implementationMapping": [
+    {
+      "jsonPath": "globalModel.photosynthesis",
+      "runtimePath": "packages/tomato-engine/models/tomgro-v1.jsonc -> ModelRegistry.ACTIVE_MODEL -> Photosynthesis.ts",
+      "status": "implemented"
+    },
+    {
+      "jsonPath": "cultivars.*.phenology",
+      "runtimePath": "packages/tomato-engine/models/cultivars/*.jsonc -> Cultivar.ts -> CoreModel.ts",
+      "status": "implemented"
+    },
+    {
+      "jsonPath": "cultivars.*.reproductive.flowersPerTruss",
+      "runtimePath": "Cultivar.flowersPerTruss -> CoreModel.emergeTruss",
+      "status": "partially implemented",
+      "gap": "GrowthModel sigmoid path still uses PlantGenome.flowersPerTruss generated separately."
+    },
+    {
+      "jsonPath": "organogenesis.shootApicalMeristem",
+      "runtimePath": "PlantGenome.ts and GrowthModel.ts",
+      "status": "hardcoded/generated in TS",
+      "gap": "Needs schema expansion before experts can tune without code edits."
+    },
+    {
+      "jsonPath": "organogenesis.axillaryBudActivation",
+      "runtimePath": "GrowthModel.activateAndPruneBuds",
+      "status": "hardcoded in TS",
+      "gap": "Side-shoot activation/pruning coefficients should move to model JSON."
+    },
+    {
+      "jsonPath": "architecture.sideShootFruiting",
+      "runtimePath": "GrowthModel.populateSideShootChain",
+      "status": "not implemented",
+      "gap": "Side-shoot truss currently null."
+    },
+    {
+      "jsonPath": "visualAnatomy.trussLayout",
+      "runtimePath": "TrussGenerator.layoutTruss and SkeletonOverlay",
+      "status": "hardcoded visual anatomy",
+      "gap": "Move cultivar/training-dependent anatomy into JSON fields."
+    }
+  ],
+  "hardcodedRemaining": {
+    "scientificShouldMoveToJson": [
+      "GrowthModel.GOLDEN_ANGLE = 137.508 if cultivar-specific phyllotaxis is needed",
+      "GrowthModel nodeStartDay, nodeInterval, internode elongation thresholds and sigmoid K",
+      "GrowthModel BASE_LEAF_AREA_CM2 = 880",
+      "GrowthModel flowerDelay = f * 2",
+      "GrowthModel fruitAge = flowerAge - 12",
+      "GrowthModel side-shoot activation constants",
+      "PhysicsModel fruit density, stem density, radius clamps, cambial growth, truss moment arm",
+      "TrussGenerator peduncle length formula, pedicel length/radius, item spacing, calyx angle",
+      "SinkAllocation LAI_max = 3.5 and fruit fraction cap coefficients if they need model versioning"
+    ],
+    "algorithmicConstantOk": [
+      "Catmull-Rom interpolation coefficients",
+      "clamp helper min/max mechanics",
+      "Box-Muller Gaussian sampling math",
+      "vector normalization and coordinate transforms",
+      "mesh sweep radial seam closure"
+    ],
+    "renderOnlyOk": [
+      "PBR material roughness and metallic values",
+      "UI colors and skeleton line colors",
+      "shadow map, bloom, SSAO, hardware scale, and other render quality controls",
+      "robot, greenhouse frame, cocopeat texture decorative geometry"
+    ],
+    "needsSource": [
+      "Tomimaru truss target 6-8 live fruits in peak trusses",
+      "Tomimaru fruit mass discrepancy: runtime 200 g vs vendor 160-180 g",
+      "side-shoot fruiting retention probability under greenhouse pruning",
+      "pedicel 3-6 mm target and calyx reflex angle from photo-based anatomy",
+      "mature compound leaf area 880 cm2 and leaf mass 25 g in current runtime",
+      "stem cambial growth 0.7 mm2/day and max radius 11.5 mm"
+    ]
+  },
+  "uncertainties": [
+    {
+      "question": "Is Tomimaru peak truss live fruit count 6-8 agronomically valid for this training, pruning, and fruit size target?",
+      "priority": "high"
+    },
+    {
+      "question": "Should Tomimaru potential fruit mass be corrected from current runtime 200 g to vendor 160-180 g, or is 200 g valid for the user's target greenhouse scenario?",
+      "priority": "high"
+    },
+    {
+      "question": "What flower count and retained fruit count should Korean ripe tomato / Momotaro-line draft use by truss order?",
+      "priority": "high"
+    },
+    {
+      "question": "Should side-shoot fruiting be simulated as normal biology with pruning suppression, or as a separate grower-selected training scenario?",
+      "priority": "high"
+    },
+    {
+      "question": "Are current leaf area, internode, stem radius, and cambial growth assumptions within greenhouse tomato measurement ranges?",
+      "priority": "medium"
+    },
+    {
+      "question": "Are rachis zigzag, pedicel length, pedicel thickness, and calyx reflex parameters sufficient to match real truss photos?",
+      "priority": "medium"
+    }
+  ],
+  "expertReviewQuestions": [
+    "Tomimaru peak truss live fruit 6-8 target이 품종/재배관행상 타당한가?",
+    "한국 완숙토마토/모모타로계의 화방당 착과수, 과중, 화방 간격 기본값은 적절한가?",
+    "곁가지 착과를 허용하는 training scenario의 pruning pressure 값이 현실적인가?",
+    "Rachis/pedicel/calyx anatomy 수치가 사진 기반 검증에 충분한가?",
+    "현재 runtime JSONC와 이 review JSON 사이에서 우선적으로 실제 엔진에 반영해야 할 필드는 무엇인가?"
+  ]
+}

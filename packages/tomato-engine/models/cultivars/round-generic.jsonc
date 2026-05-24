@@ -24,6 +24,10 @@
   "potentialFruitMassG": { "mu": 130, "sigma": 25 },
 
   "morphology": {
+    "firstTrussNodeIdx": { "mu": 9, "sigma": 1.0 },
+    "trussIntervalNodes": 3,
+    // Transitional visual-sigmoid cap. Round 130g ≈ 67mm equatorial.
+    "fruitMaxDiameterMm": { "mu": 67, "sigma": 7 },
     "loculeCount": { "mu": 4.0, "sigma": 0.8 },
     "heightWidthRatio": { "mu": 0.9, "sigma": 0.05 },
     "ribbingStrength": { "mu": 0.18, "sigma": 0.08 },
@@ -47,5 +51,23 @@
     "sinkStrength": { "leaf": 0.35, "stem": 0.15, "root": 0.07 },
     "gompertzRateB": 0.06,
     "gompertzInflectionC": 0.45
+  },
+
+  "reproductive": {
+    "trussOrderProfile": [
+      { "minOrder": 1, "maxOrder": null,
+        "flowersPerTruss": { "mu": 6, "sigma": 1.5 },
+        "targetFruitCount": 5, "potentialMassMultiplier": 1.0 }
+    ]
+  },
+  "scenarios": {
+    "commercial-standard": {
+      "metadata": { "label": "Commercial pruned", "intendedUse": "production_like", "notForYieldPrediction": false },
+      "management": {
+        "fruitPruning":  { "enabled": true },
+        "defoliation":   { "enabled": true, "keepTrussesAboveRedTopmost": 3, "keepLeavesPerTruss": 0 },
+        "harvest":       { "enabled": true, "atRipenStage": 5 }
+      }
+    }
   }
 }

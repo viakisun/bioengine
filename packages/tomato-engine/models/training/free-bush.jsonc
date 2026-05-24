@@ -1,0 +1,40 @@
+// free-bush — home/garden cultivation. Minimal pruning, lateral shoots
+// allowed to develop. Used as a comparison baseline against the
+// commercial single-stem regime.
+
+{
+  "metadata": {
+    "id": "free-bush",
+    "label": "Free-bush (lateral shoots retained)",
+    "description": "Determinate-style free growth; minimal pruning; side shoots fruit."
+  },
+
+  "axillaryBud": {
+    "baseActivationChance": 0.08,
+    "apicalDominance": 0.3,
+    "delayDays": 4,
+    "lightFactor": 0.4
+  },
+
+  "pruning": {
+    // Almost no operator pruning — only the very weakest get culled.
+    // Per-day rate compounds over the lifecycle, so 0.005 → ~40% of
+    // activated shoots survive a 100-day run.
+    "dailyPruneRate": 0.005,
+    "manualPruneToLength": 8
+  },
+
+  "sideShoot": {
+    "leafScale": 0.7,
+    "internodeLenCm": { "mu": 5, "sigma": 0.8 },
+    "firstTrussNodeIdx": 4,
+    "trussIntervalNodes": 2,
+    // Phase 6: free-bush retains lateral inflorescences. Single-stem
+    // operators remove these by hand (the cultivar JSONC for the
+    // high-wire training keeps it false).
+    "fruitingEnabled": true
+  },
+
+  // Bushy plants are kept shorter (often pinched / topped).
+  "maxPlantHeightCm": 180
+}

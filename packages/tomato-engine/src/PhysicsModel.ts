@@ -3,9 +3,15 @@
 
 import type { PlantGenome } from './PlantGenome';
 import type { NodeState } from './GrowthModel';
+import { ACTIVE_MODEL } from './ModelRegistry';
 
 const GRAVITY = 9.81; // m/s²
-const TOMATO_FRUIT_DENSITY = 1050; // kg/m³ (≈ water)
+// v3.0 Phase 7 — fruit density unified with ACTIVE_MODEL.fruitGrowth
+// (was a separate 1050 kg/m³ here; tomgro-v1.jsonc says 1.04 g/cm³ =
+// 1040 kg/m³). One number, one place.
+function fruitDensityKgPerM3(): number {
+  return ACTIVE_MODEL.fruitGrowth.density_g_per_cm3 * 1000;
+}
 const STEM_DENSITY = 800; // kg/m³ (green stem tissue)
 // Leaf mass is now computed per-node from leafMassG field (science-based)
 const LEAF_MASS_FALLBACK_KG = 0.025; // fallback ~25g if leafMassG not available
@@ -60,7 +66,7 @@ export function computePhysics(
       for (const fruit of node.truss.fruits) {
         const radiusM = (fruit.diameterMm / 2) / 1000;
         const volume = (4 / 3) * Math.PI * radiusM * radiusM * radiusM;
-        nodeMass += TOMATO_FRUIT_DENSITY * volume;
+        nodeMass += fruitDensityKgPerM3() * volume;
       }
       // Flower mass negligible
     }
@@ -118,7 +124,7 @@ export function computePhysics(
     let trussMass = 0;
     for (const fruit of node.truss.fruits) {
       const r = (fruit.diameterMm / 2) / 1000;
-      trussMass += TOMATO_FRUIT_DENSITY * (4 / 3) * Math.PI * r * r * r;
+      trussMass += fruitDensityKgPerM3() * (4 / 3) * Math.PI * r * r * r;
     }
 
     const moment = trussMass * GRAVITY * armLength;
@@ -165,20 +171,21 @@ export function computeTrussDroop(
   let totalMass = 0;
   for (const fruit of truss.fruits) {
     const r = (fruit.diameterMm / 2) / 1000;
-    totalMass += TOMATO_FRUIT_DENSITY * (4 / 3) * Math.PI * r * r * r;
+    totalMass += fruitDensityKgPerM3() * (4 / 3) * Math.PI * r * r * r;
   }
 
-  // Peduncle as cantilever beam
-  const pedRadiusM = 0.003; // 3mm peduncle
-  const pedLenM = 0.12;
-  const I = (Math.PI / 4) * Math.pow(pedRadiusM, 4);
-  const E = ((genome.stemYoungsModulusMPa ?? 10) * 1e6) * 0.5; // peduncle is softer than main stem
+  // Peduncle as cantilever beam (v3.0 Phase 7 — geometry from JSONC).
+  const ped = ACTIVE_MODEL.trussAnatomy.peduncle;
+  const I = (Math.PI / 4) * Math.pow(ped.radiusM, 4);
+  const E = ((genome.stemYoungsModulusMPa ?? 10) * 1e6) * ped.stiffnessRelativeToStem;
 
   // Tip deflection of cantilever: δ = F × L³ / (3 × E × I)
   const F = totalMass * GRAVITY;
-  const deflection = (F * Math.pow(pedLenM, 3)) / (3 * E * I);
+  const deflection = (F * Math.pow(ped.lengthM, 3)) / (3 * E * I);
 
-  return clamp(deflection, 0.01, 0.15); // min 1cm, max 15cm droop
+  // Real truss droop is modest (1-5cm) — cap at 6cm. Previous 15cm cap
+  // made fully-loaded trusses arc almost like a side branch.
+  return clamp(deflection, 0.01, 0.06);
 }
 
 function clamp(v: number, min: number, max: number): number {

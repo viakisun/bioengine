@@ -12,7 +12,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "tsc:engine": "tsc -p packages/tomato-engine --noEmit",
-    "tsc:geometry": "tsc -p packages/tomato-geometry --noEmit"
+    "tsc:geometry": "tsc -p packages/tomato-geometry --noEmit",
+    "tomato:snapshot": "vite-node packages/tomato-engine/diagnostics/snapshot.ts --"
   },
   "dependencies": {
     "@babylonjs/core": "^9.8.0",

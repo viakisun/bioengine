@@ -1,0 +1,55 @@
+// single-stem-high-wire — Korean greenhouse standard (단간 하이와이어 적심).
+//
+// Apex is trained to a single main stem. Axillary buds are pruned
+// weekly; lateral shoots are essentially absent. Plant height is
+// capped by lowering / wire offset (v3.0 Phase 5.5 approximates with
+// maxPlantHeightCm + horizontal slide; true leaning-and-lowering is
+// a follow-up plan).
+
+{
+  "metadata": {
+    "id": "single-stem-high-wire",
+    "label": "단간 하이와이어 적심",
+    "description": "Single-stem indeterminate, weekly de-suckering, high-wire trained."
+  },
+
+  "axillaryBud": {
+    // Probability that a dormant axillary bud breaks dormancy per day,
+    // before apical-dominance / light modifiers. (Was hardcoded 0.04.)
+    "baseActivationChance": 0.04,
+    // 0..1 fraction by which apex suppresses nearby buds.
+    "apicalDominance": 0.5,
+    // Days a node must wait after emergence before its bud can activate.
+    "delayDays": 5,
+    // Upper-canopy buds activate faster (light/auxin gradient).
+    "lightFactor": 0.4
+  },
+
+  "pruning": {
+    // Daily probability that an already-growing side shoot is removed
+    // (operator de-suckering). 0.85 in single-stem high-wire matches
+    // the weekly walk-through (~6/7 ≈ 0.85 expected removal per week).
+    "dailyPruneRate": 0.85,
+    // Operator caps any retained shoot to this many leaves before
+    // topping it back. Phase 6 implementation (currently informational).
+    "manualPruneToLength": 2
+  },
+
+  "sideShoot": {
+    // Side-shoot leaves are ~60% the area of main-axis leaves
+    // (Marcelis observation).
+    "leafScale": 0.6,
+    "internodeLenCm": { "mu": 5, "sigma": 0.5 },
+    // If Phase 6 enables side-shoot fruiting, the first truss on a
+    // retained side shoot appears around the 4th node.
+    "firstTrussNodeIdx": 4,
+    "trussIntervalNodes": 2,
+    "fruitingEnabled": false
+  },
+
+  // v3.0 Phase 5.5 — vertical growth cap. Beyond this height the apex
+  // is "lowered" (sliding the stem horizontally along the wire);
+  // implemented as a vertical→horizontal redirect on new internodes so
+  // the plant doesn't pierce the greenhouse roof.
+  "maxPlantHeightCm": 250
+}

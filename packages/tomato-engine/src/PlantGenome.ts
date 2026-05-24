@@ -8,28 +8,16 @@ export interface PlantGenome {
   heightSigmoidK: number;
   heightSigmoidMid: number;
 
-  // Node creation
-  nodeStartDay: number;
-  nodeInterval: number;
-  phyllotaxisJitter: number; // degrees offset per plant
+  // Per-plant phyllotaxis jitter (degrees). Phytomer emergence rate
+  // itself is owned by cultivar.phyllochronGDD; this only twists the
+  // spiral angle for visual variation.
+  phyllotaxisJitter: number;
 
   // Leaves
   leafSizeMultiplier: number;
   leafletCountBias: number; // -1, 0, or +1
   leafDroopMultiplier: number;
   leafHueBias: number; // color variation
-
-  // Trusses / Fruits
-  trussStartNode: number;
-  trussInterval: number;
-  flowersPerTruss: number;
-  fruitMaxDiameterMm: number;
-  fruitSigmoidK: number;
-  fruitSigmoidMid: number;
-
-  // Ripening
-  ripenStartAge: number;
-  ripenDuration: number;
 
   // Visual
   stemRadiusMultiplier: number;
@@ -76,9 +64,6 @@ export function generateGenome(seed: number): PlantGenome {
     heightSigmoidK: clamp(rng.gaussian(0.07, 0.008), 0.04, 0.10),
     heightSigmoidMid: clamp(rng.gaussian(45, 4), 35, 55),
 
-    // Node creation
-    nodeStartDay: clamp(rng.gaussian(5, 0.5), 3.5, 6.5),
-    nodeInterval: clamp(rng.gaussian(2.3, 0.2), 1.8, 2.8),
     phyllotaxisJitter: rng.gaussian(0, 8),
 
     // Leaves
@@ -87,20 +72,10 @@ export function generateGenome(seed: number): PlantGenome {
     leafDroopMultiplier: clamp(rng.gaussian(1.0, 0.15), 0.6, 1.4),
     leafHueBias: rng.gaussian(0, 0.05),
 
-    // Trusses / Fruits
-    // Gap analysis P1 #5: mean 10 → 9 (range 7–11). First truss
-    // appears 1 node earlier so W4 has ≥0.5 trusses on average
-    // (was 0.05). Matches the 1–2 truss W4 standard.
-    trussStartNode: Math.round(clamp(rng.gaussian(9, 1), 7, 11)),
-    trussInterval: rng.next() < 0.15 ? 2 : 3, // 15% chance of 2-node interval
-    flowersPerTruss: Math.round(clamp(rng.gaussian(5, 1.0), 3, 8)),
-    fruitMaxDiameterMm: clamp(rng.gaussian(75, 8), 55, 95),
-    fruitSigmoidK: clamp(rng.gaussian(0.12, 0.015), 0.08, 0.16),
-    fruitSigmoidMid: clamp(rng.gaussian(18, 2), 13, 23),
-
-    // Ripening
-    ripenStartAge: clamp(rng.gaussian(25, 3), 18, 32),
-    ripenDuration: clamp(rng.gaussian(18, 2), 13, 23),
+    // Truss/fruit architecture and visual sigmoid params have moved
+    // from PlantGenome to cultivar (v3.0 Phase 2). Per-plant variation
+    // is now sampled from cultivar.morphology distributions via
+    // samplePlantArchitecture(cultivar, seed) in GrowthModel.
 
     // Visual
     stemRadiusMultiplier: clamp(rng.gaussian(1.0, 0.1), 0.75, 1.25),

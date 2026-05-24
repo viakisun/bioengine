@@ -41,6 +41,10 @@ export interface Cultivar {
   GDD_flower_to_red: number;
   /** GDD between successive truss appearances. ~120 (about 1 truss/week at 20°C). */
   GDD_per_truss: number;
+  /** GDD between successive phytomers (= one leaf + internode + bud).
+   *  Heuvelink 1996: 38 GDD/leaf for tomato; range 32-45. Loaded from
+   *  cultivar override or ACTIVE_MODEL.organogenesis.phyllochronGDD. */
+  phyllochronGDD: number;
 
   // --- Reproductive output ---
   flowersPerTruss: GaussianDist;
@@ -60,6 +64,17 @@ export interface Cultivar {
   gompertzRateB: number;
   /** Gompertz inflection ratio (0..1, fraction of expansion at max-rate). ~0.5. */
   gompertzInflectionC: number;
+
+  // --- Architecture (cultivar mean; per-plant sampled) ---
+  /** Phytomer index of the first inflorescence (truss). 0-based on
+   *  the main axis. Indeterminate tomato typically ~9 ± 1. */
+  firstTrussNodeIdx: GaussianDist;
+  /** Leaves between successive trusses on the main stem (3 for
+   *  3-leaf phyllotaxis, which most commercial tomato cultivars use). */
+  trussIntervalNodes: number;
+  /** Transitional (Phase 2 → Phase 3): cap diameter for the legacy
+   *  visual sigmoid path. Phase 3 deletes its use as authoritative. */
+  fruitMaxDiameterMm: GaussianDist;
 
   // --- Morphology (cultivar mean; per-fruit sampled from this) ---
   /** Locule count distribution (discrete). cherry≈2, round≈4, beefsteak≈7. */
@@ -95,6 +110,41 @@ export interface Cultivar {
   SLA: number;
   /** Time within a truss (in GDD) between basal and distal fruit ripening. */
   trussRipeningSpreadGDD: number;
+
+  // --- v3.0 Phase 4: reproductive truss-order profile + scenarios ---
+  reproductive: ReproductiveBundle;
+  scenarios: Record<string, CultivarScenario>;
+}
+
+export type { TrussOrderRule } from './ModelRegistry';
+
+export interface ReproductiveBundle {
+  trussOrderProfile: TrussOrderRule[];
+}
+
+export interface ManagementPolicy {
+  fruitPruning: { enabled: boolean };
+  defoliation: {
+    enabled: boolean;
+    /** v4.2 — 'bottomUpHeight' (default, Korean lower-leaf pruning) or 'ripeningAnchored' (legacy). */
+    policy: 'bottomUpHeight' | 'ripeningAnchored';
+    // bottomUpHeight policy fields
+    startDay: number;
+    removeBelowHeightM: number;
+    minLeafAgeDaysAtRemoval: number;
+    // ripeningAnchored legacy fields
+    keepTrussesAboveRedTopmost: number;
+    keepLeavesPerTruss: number;
+  };
+  harvest: { enabled: boolean; atRipenStage: 0 | 1 | 2 | 3 | 4 | 5 };
+}
+
+export interface CultivarScenario {
+  label: string;
+  intendedUse: 'production_like' | 'visual_validation_only' | 'comparison_baseline';
+  notForYieldPrediction: boolean;
+  reproductive: ReproductiveBundle;
+  management: ManagementPolicy;
 }
 
 // ---------------------------------------------------------------------------
@@ -107,7 +157,14 @@ export interface Cultivar {
 // engine + visual layer already consume.
 // ---------------------------------------------------------------------------
 
-import { CULTIVAR_JSONS, ACTIVE_MODEL, type CultivarJson } from './ModelRegistry';
+import {
+  CULTIVAR_JSONS,
+  ACTIVE_MODEL,
+  ACTIVE_SCENARIO,
+  type CultivarJson,
+  type TrussOrderRule,
+} from './ModelRegistry';
+import { SeededRandom } from './SeededRandom';
 
 function adaptCultivar(j: CultivarJson): Cultivar {
   return {
@@ -120,6 +177,7 @@ function adaptCultivar(j: CultivarJson): Cultivar {
     GDD_to_first_flower: j.phenology.GDD_to_first_flower,
     GDD_flower_to_red: j.phenology.GDD_flower_to_red,
     GDD_per_truss: j.phenology.GDD_per_truss,
+    phyllochronGDD: j.organogenesis?.phyllochronGDD ?? ACTIVE_MODEL.organogenesis.phyllochronGDD,
     cellDivisionDurationGDD: j.phenology.cellDivisionDurationGDD,
     cellExpansionDurationGDD: j.phenology.cellExpansionDurationGDD,
     ripeningDurationGDD: j.phenology.ripeningDurationGDD,
@@ -133,6 +191,11 @@ function adaptCultivar(j: CultivarJson): Cultivar {
     // Gompertz (still on cultivar.physiology in JSON)
     gompertzRateB: j.physiology.gompertzRateB,
     gompertzInflectionC: j.physiology.gompertzInflectionC,
+
+    // Architecture (v3.0 Phase 2)
+    firstTrussNodeIdx: j.morphology.firstTrussNodeIdx,
+    trussIntervalNodes: j.morphology.trussIntervalNodes,
+    fruitMaxDiameterMm: j.morphology.fruitMaxDiameterMm,
 
     // Morphology
     loculeCount: j.morphology.loculeCount,
@@ -157,7 +220,114 @@ function adaptCultivar(j: CultivarJson): Cultivar {
 
     // Misc
     SLA: j.physiology.SLA_m2_per_g,
+
+    // v3.0 Phase 4: reproductive profile + scenarios
+    reproductive: j.reproductive
+      ? { trussOrderProfile: j.reproductive.trussOrderProfile }
+      : {
+          // Fallback for cultivars without an explicit profile —
+          // synthesize a single uniform rule from existing fields.
+          trussOrderProfile: [
+            {
+              minOrder: 1,
+              maxOrder: null,
+              flowersPerTruss: j.flowersPerTruss,
+              targetFruitCount: j.pruning.trussTargetFruitCount,
+              potentialMassMultiplier: 1.0,
+            },
+          ],
+        },
+    scenarios: adaptScenarios(j),
   };
+}
+
+function adaptScenarios(j: CultivarJson): Record<string, CultivarScenario> {
+  const baseReproductive: ReproductiveBundle = j.reproductive
+    ? { trussOrderProfile: j.reproductive.trussOrderProfile }
+    : {
+        trussOrderProfile: [
+          {
+            minOrder: 1,
+            maxOrder: null,
+            flowersPerTruss: j.flowersPerTruss,
+            targetFruitCount: j.pruning.trussTargetFruitCount,
+            potentialMassMultiplier: 1.0,
+          },
+        ],
+      };
+
+  const out: Record<string, CultivarScenario> = {};
+  const rawScenarios = j.scenarios ?? {};
+  for (const [key, raw] of Object.entries(rawScenarios)) {
+    out[key] = {
+      label: raw.metadata?.label ?? key,
+      intendedUse: raw.metadata?.intendedUse ?? 'production_like',
+      notForYieldPrediction: raw.metadata?.notForYieldPrediction ?? false,
+      reproductive: raw.reproductive
+        ? { trussOrderProfile: raw.reproductive.trussOrderProfile }
+        : baseReproductive,
+      management: {
+        fruitPruning: { enabled: raw.management?.fruitPruning?.enabled ?? true },
+        defoliation: {
+          enabled: raw.management?.defoliation?.enabled ?? true,
+          policy: raw.management?.defoliation?.policy ?? 'bottomUpHeight',
+          startDay: raw.management?.defoliation?.startDay ?? 80,
+          removeBelowHeightM: raw.management?.defoliation?.removeBelowHeightM ?? 0.50,
+          minLeafAgeDaysAtRemoval: raw.management?.defoliation?.minLeafAgeDaysAtRemoval ?? 30,
+          keepTrussesAboveRedTopmost: raw.management?.defoliation?.keepTrussesAboveRedTopmost ?? 3,
+          keepLeavesPerTruss: raw.management?.defoliation?.keepLeavesPerTruss ?? 0,
+        },
+        harvest: {
+          enabled: raw.management?.harvest?.enabled ?? true,
+          atRipenStage: raw.management?.harvest?.atRipenStage ?? 5,
+        },
+      },
+    };
+  }
+
+  // Always ensure a 'commercial-standard' scenario exists as a safe fallback.
+  if (!out['commercial-standard']) {
+    out['commercial-standard'] = {
+      label: 'Commercial standard (default)',
+      intendedUse: 'production_like',
+      notForYieldPrediction: false,
+      reproductive: baseReproductive,
+      management: {
+        fruitPruning: { enabled: true },
+        defoliation: {
+          enabled: true,
+          policy: 'bottomUpHeight',
+          startDay: 80,
+          removeBelowHeightM: 0.50,
+          minLeafAgeDaysAtRemoval: 30,
+          keepTrussesAboveRedTopmost: 3,
+          keepLeavesPerTruss: 0,
+        },
+        harvest: { enabled: true, atRipenStage: 5 },
+      },
+    };
+  }
+  return out;
+}
+
+/** Resolve the active scenario for a cultivar. Falls back to
+ *  'commercial-standard' if the requested key is missing. */
+export function getScenario(cultivar: Cultivar, key: string = ACTIVE_SCENARIO): CultivarScenario {
+  return cultivar.scenarios[key] ?? cultivar.scenarios['commercial-standard'];
+}
+
+/** Pick the trussOrderProfile rule applicable to the given 1-based
+ *  truss order (1 = basal). First matching rule wins; null if none. */
+export function trussOrderRule(
+  scenario: CultivarScenario,
+  order1Based: number,
+): TrussOrderRule | null {
+  for (const rule of scenario.reproductive.trussOrderProfile) {
+    const okMin = rule.minOrder <= order1Based;
+    const okMax = rule.maxOrder == null || order1Based <= rule.maxOrder;
+    if (okMin && okMax) return rule;
+  }
+  return null;
 }
 
 // CULTIVARS map — derived from JSONC at module load.
@@ -198,6 +368,58 @@ export interface CultivarSample {
   blossomEndAdvanceFrac: number;
   /** Per-fruit asymmetry amplitude — Gaussian σ on vertex displacement (0..0.2). */
   asymmetryAmp: number;
+}
+
+// ---------------------------------------------------------------------------
+// Per-plant architecture sample (v3.0 Phase 2)
+// ---------------------------------------------------------------------------
+
+/** Per-plant architectural draw from the cultivar distribution. Same
+ *  seed produces the same sample — used to anchor the visible truss
+ *  layout to a specific plant instance. */
+export interface PlantArchitectureSample {
+  /** Phytomer index (0-based) of the first inflorescence on the main axis. */
+  firstTrussNodeIdx: number;
+  /** Leaves between successive trusses on the main stem. */
+  trussIntervalNodes: number;
+  /** Transitional (Phase 2 → Phase 3): cap diameter for the legacy
+   *  visual sigmoid path. Phase 3 deletes the consumer. */
+  fruitMaxDiameterMm: number;
+}
+
+export function samplePlantArchitecture(
+  cultivar: Cultivar,
+  seed: number,
+): PlantArchitectureSample {
+  const rng = new SeededRandom((seed * 2879 + 0xa55a5a) >>> 0);
+  rng.next(); rng.next(); rng.next(); // warmup (Lehmer LCG quirk)
+  const draw = (mu: number, sigma: number) => mu + sigma * boxMuller(rng);
+  const firstTrussF = draw(cultivar.firstTrussNodeIdx.mu, cultivar.firstTrussNodeIdx.sigma);
+  const firstTruss = Math.max(
+    Math.max(2, Math.round(cultivar.firstTrussNodeIdx.mu - 2 * cultivar.firstTrussNodeIdx.sigma)),
+    Math.min(
+      Math.round(cultivar.firstTrussNodeIdx.mu + 2 * cultivar.firstTrussNodeIdx.sigma),
+      Math.round(firstTrussF),
+    ),
+  );
+  const fruitDiamMm = Math.max(
+    cultivar.fruitMaxDiameterMm.mu * 0.65,
+    Math.min(
+      cultivar.fruitMaxDiameterMm.mu * 1.35,
+      draw(cultivar.fruitMaxDiameterMm.mu, cultivar.fruitMaxDiameterMm.sigma),
+    ),
+  );
+  return {
+    firstTrussNodeIdx: firstTruss,
+    trussIntervalNodes: cultivar.trussIntervalNodes,
+    fruitMaxDiameterMm: fruitDiamMm,
+  };
+}
+
+function boxMuller(rng: SeededRandom): number {
+  const u1 = Math.max(1e-9, rng.next());
+  const u2 = rng.next();
+  return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
 }
 
 /** Deterministic Gaussian draw using the linear-congruential SeededRandom. */

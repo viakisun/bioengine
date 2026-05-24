@@ -69,7 +69,7 @@ export function fruitSinkStrength(
   currentTT: number,
   cultivar: Cultivar,
 ): number {
-  if (fruit.aborted || fruit.fertilizationTT < 0) return 0;
+  if (fruit.aborted || fruit.harvested || fruit.fertilizationTT < 0) return 0;
   const peakTT =
     fruit.fertilizationTT +
     cultivar.cellDivisionDurationGDD +

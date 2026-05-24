@@ -4,8 +4,19 @@
 import type { PlantGenome } from './PlantGenome';
 import { computePhysics } from './PhysicsModel';
 import type { Cultivar } from './Cultivar';
-import { sampleCultivarGenome, getCultivar } from './Cultivar';
+import { sampleCultivarGenome, getCultivar, samplePlantArchitecture, getScenario } from './Cultivar';
 import { SeededRandom } from './SeededRandom';
+import { ACTIVE_MODEL, ACTIVE_TRAINING } from './ModelRegistry';
+import {
+  approximateTT,
+  phytomerCountFromTT,
+  type SimulationContext,
+} from './SimulationContext';
+import { ACTIVE_ENGINE_MODE, setEngineMode } from './EngineMode';
+
+// Phase 3: hybrid is now the default. Legacy sigmoid path remains as
+// fallback for paths that don't supply a physiology state.
+setEngineMode('hybridFspmMode');
 
 export const TOTAL_DAYS = 120;
 
@@ -144,6 +155,11 @@ export interface PlantState {
   mainAxis: StemAxis;
   /** Flat list of every axis (main + all side shoots, recursive). */
   allAxes: StemAxis[];
+
+  // ── Geometry mode (v3.0 Phase 5.5) ───────────────────────────────
+  /** 'free' = apex still growing upward; 'wire_compressed' = capped at
+   *  training.maxPlantHeightCm and sliding horizontally along the wire. */
+  geometryMode: 'free' | 'wire_compressed';
 }
 
 /** Per-plant stress inputs that the renderer / health-label system can pass in. */
@@ -211,8 +227,10 @@ export function overlayPhysiologyFruits(
     const physTruss = physiology.trusses[baseTrussIdx];
     if (!physTruss) return scaledNode;
 
-    // Map physiology fruits → FruitState. Filter out aborted fruits.
-    const liveFruits = physTruss.fruits.filter((f) => !f.aborted && f.fertilizationTT > 0);
+    // Map physiology fruits → FruitState. Filter out aborted + harvested.
+    const liveFruits = physTruss.fruits.filter(
+      (f) => !f.aborted && !f.harvested && f.fertilizationTT > 0,
+    );
     const newFruitsState: FruitState[] = liveFruits.map((f, i) => {
       // Interpolate stage color from base palette (STAGE_COLORS).
       const stageIdx = Math.max(0, Math.min(5, f.ripenStage));
@@ -330,21 +348,22 @@ function synthesizeGrowthDir(
 function activateAndPruneBuds(
   axes: StemAxis[],
   rng: SeededRandom,
-  defoliationAggressiveness: number,
   maxOrder: number,
 ): void {
-  // baseline params — should live in branching JSON eventually.
-  const BASE_BUD_CHANCE = 0.04;
-  const APICAL_DOMINANCE = 0.5;
-  const SIDE_SHOOT_DELAY = 5;
-  const LIGHT_FACTOR = 0.4;
-  const PRUNE_DAILY = defoliationAggressiveness * 0.03;
+  // v3.0 Phase 5 — all numeric thresholds come from the active training
+  // spec (models/training/*.jsonc) so single-stem high-wire vs free-bush
+  // produce visibly different canopies without a code change.
+  const t = ACTIVE_TRAINING;
+  const BASE_BUD_CHANCE = t.axillaryBud.baseActivationChance;
+  const APICAL_DOMINANCE = t.axillaryBud.apicalDominance;
+  const SIDE_SHOOT_DELAY = t.axillaryBud.delayDays;
+  const LIGHT_FACTOR = t.axillaryBud.lightFactor;
+  const PRUNE_DAILY = t.pruning.dailyPruneRate;
 
   for (const axis of axes) {
     if (axis.order >= maxOrder) continue;
     for (let i = 0; i < axis.nodes.length; i++) {
       const node = axis.nodes[i];
-      // Pruning: removes growing buds over time. Pruned ones stay dead.
       if (node.budState === 'growing' && rng.next() < PRUNE_DAILY) {
         node.budState = 'pruned';
         continue;
@@ -397,6 +416,7 @@ function populateSideShootChain(
   shoot: StemAxis,
   allAxes: StemAxis[],
   genome: PlantGenome,
+  cultivar: Cultivar,
   rng: SeededRandom,
   stress: { waterStress: number; diseaseLoad: number },
 ): void {
@@ -416,10 +436,12 @@ function populateSideShootChain(
   shoot.parentAxisIdx = 0;          // (currently only main has order=0)
   allAxes.push(shoot);
 
-  // Leaf-size scaling for side shoots — slightly smaller than main axis.
-  // 0.6× matches Marcelis et al. observation that lateral shoot leaves
-  // average ~60% of primary leaf area before pruning intervention.
-  const SHOOT_LEAF_SCALE = 0.6;
+  // v3.0 Phase 5 — side-shoot leaf size + internode now from training JSONC.
+  // Marcelis observation (~0.6 for single-stem high-wire) becomes the
+  // default; free-bush retains ~0.7.
+  const SHOOT_LEAF_SCALE = ACTIVE_TRAINING.sideShoot.leafScale;
+  const SHOOT_INTERNODE_MU_M = ACTIVE_TRAINING.sideShoot.internodeLenCm.mu / 100;
+  const SHOOT_INTERNODE_SIGMA_M = ACTIVE_TRAINING.sideShoot.internodeLenCm.sigma / 100;
 
   // Sigmoid params reused from main-axis biology.
   const leafExpK = genome.leafExpansionRate ?? 0.35;
@@ -428,8 +450,11 @@ function populateSideShootChain(
   let dir = startDir;
 
   for (let k = 0; k < Math.max(1, shootInternodes); k++) {
-    // Internode length — 4-6 cm with deterministic jitter.
-    const internodeM = 0.04 + rng.next() * 0.02;
+    // Internode length — training-spec driven (Gaussian about cultivar mu).
+    const internodeM = Math.max(
+      0.02,
+      SHOOT_INTERNODE_MU_M + (rng.next() - 0.5) * 2 * SHOOT_INTERNODE_SIGMA_M,
+    );
     pos = {
       x: pos.x + dir.x * internodeM,
       y: pos.y + dir.y * internodeM,
@@ -480,6 +505,29 @@ function populateSideShootChain(
     const stemRadiusMm = parentNode.stemRadiusMm * 0.6
       * Math.max(0.15, 1 - k / Math.max(1, shootInternodes));
 
+    // v3.0 Phase 6 — side-shoot trusses are gated on ACTIVE_TRAINING
+    // .sideShoot.fruitingEnabled. Single-stem high-wire keeps these off;
+    // free-bush lets them form. Truss content is synthetic (a small
+    // cluster of flowers) rather than wired to CoreModel — physiology
+    // doesn't yet track per-axis trusses.
+    let nodeTruss: TrussState | null = null;
+    const ssCfg = ACTIVE_TRAINING.sideShoot;
+    if (
+      ssCfg.fruitingEnabled &&
+      k >= ssCfg.firstTrussNodeIdx &&
+      (k - ssCfg.firstTrussNodeIdx) % ssCfg.trussIntervalNodes === 0
+    ) {
+      const flowerCount = Math.max(
+        3,
+        Math.min(8, Math.round(cultivar.flowersPerTruss.mu * 0.6)),
+      );
+      const sideFlowers: FlowerState[] = [];
+      for (let f = 0; f < flowerCount; f++) {
+        sideFlowers.push({ index: f, bloomProgress: Math.min(1, nodeAge / 14) });
+      }
+      nodeTruss = { flowers: sideFlowers, fruits: [] };
+    }
+
     shoot.nodes.push({
       index: k,
       heightCm: parentNode.heightCm + (pos.y - parentNode.position.y) * 100,
@@ -489,7 +537,7 @@ function populateSideShootChain(
       leafletCount,
       yellowing,
       droopExtra,
-      truss: null,                     // 곁가지 truss = Plan 3c+ scope
+      truss: nodeTruss,
       age: nodeAge,
       emergence: 1,
       leafAreaCm2,
@@ -517,25 +565,54 @@ export function computePlantState(
   genome: PlantGenome,
   stress: PlantStressInputs = {},
   cultivar: Cultivar = getCultivar('round-generic'),
+  simContext?: SimulationContext,
 ): PlantState {
   const waterStress = Math.max(0, Math.min(1, stress.waterStress ?? 0));
   const diseaseLoad = Math.max(0, Math.min(1, stress.diseaseLoad ?? 0));
   // ============================================================
-  // APEX-DRIVEN GROWTH MODEL
+  // APEX-DRIVEN GROWTH MODEL — phyllochron / TT-driven (v3.0)
   // ============================================================
-  // Real biology: shoot apical meristem (SAM) produces leaf primordia.
-  // Leaves expand → produce gibberellin (GA) → GA moves basipetally →
-  // internode BELOW the leaf elongates. Plant height = Σ(internode lengths).
-  //
-  // Result: early seedling is a rosette (compressed nodes, leaves stacked),
-  // visible stem appears only after internodes begin elongating (~day 20+).
+  // Real biology: shoot apical meristem (SAM) produces leaf primordia
+  // on a strict thermal-time schedule (Heuvelink 1996). One phytomer
+  // every cultivar.phyllochronGDD GDD above T_base. Leaves expand →
+  // produce gibberellin (GA) → GA moves basipetally → internode BELOW
+  // elongates. Plant height = Σ(internode lengths).
   // ============================================================
 
-  const rawNodeCount = day < genome.nodeStartDay
-    ? 0
-    : (day - genome.nodeStartDay) / genome.nodeInterval + 1;
+  // TT — from caller's SimulationContext when CoreModel is co-stepping,
+  // otherwise approximated from day under default greenhouse climate.
+  const TT = simContext?.TT ?? approximateTT(day, 23, cultivar);
+  const rawNodeCount = phytomerCountFromTT(TT, cultivar);
   const intNodeCount = Math.min(Math.floor(rawNodeCount), 50);
   const newestEmergence = rawNodeCount > 0 ? rawNodeCount - Math.floor(rawNodeCount) : 1;
+
+  // dailyGDD: average TT/day so far. Used to translate per-node
+  // emergence TT back to a "calendar age" for downstream biology
+  // (leaf expansion sigmoid, droop, senescence) that is still
+  // formulated in days.
+  const dailyGDD = day > 0 ? TT / day : 0;
+  const org = ACTIVE_MODEL.organogenesis;
+  const initialN = org.initialNodeCountAtTransplant;
+  const nodeDayOf = (i: number): number => {
+    if (i < initialN) return 0;
+    if (dailyGDD <= 0) return 0;
+    const emergenceTT = (i - initialN) * cultivar.phyllochronGDD + org.TT_at_transplant;
+    return emergenceTT / dailyGDD;
+  };
+
+  // Per-plant architecture sample — fixed first-truss index, truss
+  // interval, and (transitional) fruit max diameter cap. Derived
+  // deterministically from genome.seed + cultivar.
+  const arch = samplePlantArchitecture(cultivar, genome.seed);
+
+  // Legacy visual-sigmoid fruit parameters. Phase 3 deletes this whole
+  // block when fruit visual becomes a direct projection of CoreModel's
+  // FruitCohort. Kept here as in-function constants (not on PlantGenome)
+  // so the visual path keeps working until then.
+  const FRUIT_SIGMOID_K = 0.12;
+  const FRUIT_SIGMOID_MID = 18;
+  const RIPEN_START_AGE = 25;
+  const RIPEN_DURATION = 18;
 
   const baseInternode = genome.internodeLenCm ?? 6.5;
   const leafExpK = genome.leafExpansionRate ?? 0.35;
@@ -552,7 +629,7 @@ export function computePlantState(
   const internodeData: Array<{ finalLen: number; currentLen: number; elongation: number }> = [];
 
   for (let i = 0; i < intNodeCount; i++) {
-    const nodeDay = genome.nodeStartDay + i * genome.nodeInterval;
+    const nodeDay = nodeDayOf(i);
     const age = day - nodeDay;
     const nodeFrac = intNodeCount <= 1 ? 0 : i / (intNodeCount - 1);
 
@@ -607,7 +684,7 @@ export function computePlantState(
   let maxRipenStage = -1;
 
   for (let i = 0; i < intNodeCount; i++) {
-    const nodeDay = genome.nodeStartDay + i * genome.nodeInterval;
+    const nodeDay = nodeDayOf(i);
     const age = day - nodeDay;
     const isNewest = i === intNodeCount - 1 && intNodeCount > 0;
     const nodeFrac = intNodeCount <= 1 ? 0 : i / (intNodeCount - 1);
@@ -667,80 +744,140 @@ export function computePlantState(
     else if (biasedMaturity < 0.6) leafletCount = 7;
     else leafletCount = 9;
 
-    // Truss logic (unchanged)
+    // Truss logic — v3.0 Phase 3.
+    //
+    // Truss SLOT positioning is structural (cultivar firstTrussNodeIdx +
+    // trussIntervalNodes). Truss CONTENT (flowers, fruits, sizes,
+    // ripening) comes from one of two paths:
+    //   - hybridFspmMode + physiologyState present: physiology FruitCohort
+    //     is the single source of truth — fruit count, mass, diameter,
+    //     ripen stage all come from CoreModel.
+    //   - legacyGrowthMode (or no physiologyState): sigmoid fallback
+    //     for paths that don't co-step CoreModel.
     let truss: TrussState | null = null;
-    const isTrussNode = i >= genome.trussStartNode
-      && (i - genome.trussStartNode) % genome.trussInterval === 0;
+    const isTrussNode = i >= arch.firstTrussNodeIdx
+      && (i - arch.firstTrussNodeIdx) % arch.trussIntervalNodes === 0;
 
     if (isTrussNode) {
-      const trussAge = age - 5;
-      if (trussAge > 0) {
+      const structuralTrussIdx = Math.floor((i - arch.firstTrussNodeIdx) / arch.trussIntervalNodes);
+      const physTruss =
+        ACTIVE_ENGINE_MODE === 'hybridFspmMode' && simContext?.physiologyState
+          ? simContext.physiologyState.trusses[structuralTrussIdx] ?? null
+          : null;
+
+      if (physTruss) {
+        // Hybrid path — physiology drives everything.
         trussCount++;
-        const flowerCount = genome.flowersPerTruss;
         const flowers: FlowerState[] = [];
         const fruits: FruitState[] = [];
-
-        for (let f = 0; f < flowerCount; f++) {
-          const flowerDelay = f * 2;
-          const flowerAge = trussAge - flowerDelay;
-
-          if (flowerAge > 0) {
-            const bloomProgress = Math.min(1, flowerAge / 5);
-            const fruitAge = flowerAge - 12;
-
-            if (fruitAge > 0) {
-              const diameterMm = genome.fruitMaxDiameterMm
-                * sigmoid(fruitAge, genome.fruitSigmoidK, genome.fruitSigmoidMid);
-              let ripenStage = 0;
-              let ripenFraction = 0;
-
-              if (fruitAge > genome.ripenStartAge) {
-                const ripenProgress = (fruitAge - genome.ripenStartAge) / genome.ripenDuration;
-                const totalStageProgress = ripenProgress * 5;
-                ripenStage = Math.min(5, Math.floor(totalStageProgress));
-                ripenFraction = totalStageProgress - ripenStage;
-                if (ripenStage >= 5) ripenFraction = 1;
-              }
-
-              const c1 = STAGE_COLORS[ripenStage];
-              const c2 = STAGE_COLORS[Math.min(5, ripenStage + 1)];
-              const color = lerpColor(c1, c2, ripenFraction);
-
-              // Per-fruit cultivar sample (deterministic from genome.seed
-              // + truss node index + fruit index). This is what
-              // FruitGenerator reads to individualize geometry/color.
-              const fruitGenomeRng = new SeededRandom(
-                genome.seed * 7919 + i * 131 + f * 31 + 0x9e377,
-              );
-              // warm up
-              fruitGenomeRng.next(); fruitGenomeRng.next(); fruitGenomeRng.next();
-              const cultivarSample = sampleCultivarGenome(cultivar, () => fruitGenomeRng.next());
-
-              fruits.push({
-                index: f,
-                diameterMm,
-                ripenStage,
-                ripenFraction,
-                color,
-                age: fruitAge,
-                cultivarGenome: cultivarSample,
-              });
-              totalFruits++;
-              if (ripenStage > maxRipenStage) maxRipenStage = ripenStage;
-
-              // Gap analysis P1 #4: 8d → 14d. Real flowers + sepals
-              // remain visible (yellowing) for ~2 weeks after fruit set,
-              // overlapping with young green fruit on the same truss.
-              if (fruitAge < 14) {
-                const fadeProgress = 1 - (fruitAge / 14);
-                flowers.push({ index: f, bloomProgress: bloomProgress * fadeProgress });
-              }
-            } else {
-              flowers.push({ index: f, bloomProgress });
-            }
+        for (let f = 0; f < physTruss.fruits.length; f++) {
+          const phys = physTruss.fruits[f];
+          // Pre-anthesis: render as flower, no fruit yet.
+          if (phys.fertilizationTT < 0) {
+            if (!phys.aborted) flowers.push({ index: f, bloomProgress: 0.5 });
+            continue;
+          }
+          if (phys.aborted || phys.harvested) continue;
+          const stageIdx = Math.max(0, Math.min(5, phys.ripenStage));
+          const c1 = STAGE_COLORS[stageIdx];
+          const c2 = STAGE_COLORS[Math.min(5, stageIdx + 1)];
+          const color = lerpColor(c1, c2, phys.ripenFraction);
+          fruits.push({
+            index: f,
+            diameterMm: phys.diameter,
+            ripenStage: phys.ripenStage,
+            ripenFraction: phys.ripenFraction,
+            color,
+            age: 0,
+            cultivarGenome: phys.genome,
+          });
+          totalFruits++;
+          if (phys.ripenStage > maxRipenStage) maxRipenStage = phys.ripenStage;
+          // Recently-set fruits keep a fading flower next to them
+          // (calyx/sepals visible for ~2 weeks after fruit set).
+          const gddSinceFert = (simContext?.physiologyState?.TT ?? 0) - phys.fertilizationTT;
+          if (gddSinceFert > 0 && gddSinceFert < 14 * 12) {
+            const fadeProgress = 1 - gddSinceFert / (14 * 12);
+            flowers.push({ index: f, bloomProgress: 0.5 * fadeProgress });
           }
         }
         truss = { flowers, fruits };
+      } else {
+        // Legacy fallback — sigmoid-driven fruit visual.
+        const trussAge = age - 5;
+        if (trussAge > 0) {
+          trussCount++;
+          const trussRng = new SeededRandom(
+            (genome.seed * 7919 + i * 131 + 0x517a55) >>> 0,
+          );
+          trussRng.next(); trussRng.next(); trussRng.next();
+          const flowerCount = Math.max(
+            3,
+            Math.round(
+              cultivar.flowersPerTruss.mu +
+                cultivar.flowersPerTruss.sigma *
+                  Math.sqrt(-2 * Math.log(Math.max(1e-9, trussRng.next()))) *
+                  Math.cos(2 * Math.PI * trussRng.next()),
+            ),
+          );
+          const flowers: FlowerState[] = [];
+          const fruits: FruitState[] = [];
+
+          for (let f = 0; f < flowerCount; f++) {
+            const flowerDelay = f * 2;
+            const flowerAge = trussAge - flowerDelay;
+
+            if (flowerAge > 0) {
+              const bloomProgress = Math.min(1, flowerAge / 5);
+              const fruitAge = flowerAge - 12;
+
+              if (fruitAge > 0) {
+                const diameterMm = arch.fruitMaxDiameterMm
+                  * sigmoid(fruitAge, FRUIT_SIGMOID_K, FRUIT_SIGMOID_MID);
+                let ripenStage = 0;
+                let ripenFraction = 0;
+
+                if (fruitAge > RIPEN_START_AGE) {
+                  const ripenProgress = (fruitAge - RIPEN_START_AGE) / RIPEN_DURATION;
+                  const totalStageProgress = ripenProgress * 5;
+                  ripenStage = Math.min(5, Math.floor(totalStageProgress));
+                  ripenFraction = totalStageProgress - ripenStage;
+                  if (ripenStage >= 5) ripenFraction = 1;
+                }
+
+                const c1 = STAGE_COLORS[ripenStage];
+                const c2 = STAGE_COLORS[Math.min(5, ripenStage + 1)];
+                const color = lerpColor(c1, c2, ripenFraction);
+
+                const fruitGenomeRng = new SeededRandom(
+                  genome.seed * 7919 + i * 131 + f * 31 + 0x9e377,
+                );
+                fruitGenomeRng.next(); fruitGenomeRng.next(); fruitGenomeRng.next();
+                const cultivarSample = sampleCultivarGenome(cultivar, () => fruitGenomeRng.next());
+
+                fruits.push({
+                  index: f,
+                  diameterMm,
+                  ripenStage,
+                  ripenFraction,
+                  color,
+                  age: fruitAge,
+                  cultivarGenome: cultivarSample,
+                });
+                totalFruits++;
+                if (ripenStage > maxRipenStage) maxRipenStage = ripenStage;
+
+                if (fruitAge < 14) {
+                  const fadeProgress = 1 - (fruitAge / 14);
+                  flowers.push({ index: f, bloomProgress: bloomProgress * fadeProgress });
+                }
+              } else {
+                flowers.push({ index: f, bloomProgress });
+              }
+            }
+          }
+          truss = { flowers, fruits };
+        }
       }
     }
 
@@ -762,47 +899,8 @@ export function computePlantState(
     });
   }
 
-  // Leaf pruning — smooth, ripening-progress-tracked.
-  //
-  // Earlier implementation triggered binary on/off pruning the moment
-  // any truss hit ripenStage >= 4: ~9 leaves disappeared in one frame
-  // per plant, and because each plant had a different plantingDayOffset
-  // the discrete jumps happened at different days (79, 84, 85, 88, 90…)
-  // which made the canopy flicker as the user scrubbed the timeline.
-  //
-  // New rule, matching real grower practice BUT skewed for visual
-  // lushness (operator/demo use case):
-  //   • Trigger only at ripenStage >= 4 (담적색기 / 거의 완숙) instead of
-  //     the earlier >= 2 — much less aggressive. The earlier window
-  //     was biologically accurate but left the visible canopy too thin.
-  //   • Fade scales with ripening progress (0 at stage 4, 1 at stage 5).
-  //   • Distance-graduated over only 3 nodes (down from 5) so the prune
-  //     "shadow" is narrower and most of the stem keeps its leaves.
-  let highestRipenIdx = -1;
-  let highestRipenProgress = 0;
-  for (const node of nodes) {
-    if (!node.truss) continue;
-    for (const f of node.truss.fruits) {
-      if (f.ripenStage >= 4) {
-        const stageFrac = Math.max(0, Math.min(1, (f.ripenStage + f.ripenFraction - 4) / 1));
-        if (node.index > highestRipenIdx) {
-          highestRipenIdx = node.index;
-          highestRipenProgress = stageFrac;
-        } else if (node.index === highestRipenIdx && stageFrac > highestRipenProgress) {
-          highestRipenProgress = stageFrac;
-        }
-      }
-    }
-  }
-  if (highestRipenIdx > 0 && highestRipenProgress > 0) {
-    const FADE_NODE_RANGE = 3;
-    for (const node of nodes) {
-      const distBelow = highestRipenIdx - node.index;
-      if (distBelow <= 0) continue;
-      const localFade = Math.min(1, distBelow / FADE_NODE_RANGE) * highestRipenProgress;
-      node.leafMaturity *= Math.max(0, 1 - localFade);
-    }
-  }
+  // (v4.2: defoliation block moved below — needs walkSkeleton positions.)
+
   // Age-based senescence — leaves fade after age 80 and are fully
   // senesced by 115 days. Widened again to keep more low-canopy leaves
   // visible (user feedback: "무성해야돼" / should be lush). At day 92
@@ -838,8 +936,16 @@ export function computePlantState(
   // warm up — discard first few low-quality LCG values.
   skeletonRng.next(); skeletonRng.next(); skeletonRng.next();
 
+  // v3.0 Phase 5.5 — wire-compressed mode. Once cumulative height
+  // reaches ACTIVE_TRAINING.maxPlantHeightCm the apex is "lowered":
+  // new internodes redirect from vertical to horizontal-along-wire so
+  // the visible plant doesn't pierce the roof. This is a coarse stand-in
+  // for real leaning-and-lowering (a follow-up plan).
+  const maxHeightM = ACTIVE_TRAINING.maxPlantHeightCm / 100;
+  const HORIZONTAL_SLIDE_FRAC = 0.25; // fraction of internode length kept horizontally
+  let wireCompressed = false;
+
   if (nodes.length > 0) {
-    // First node: at hypocotyl top, direction straight up + tiny noise.
     nodes[0].position = { x: 0, y: hypocotylCm / 100, z: 0 };
     nodes[0].growthDir = synthesizeGrowthDir(
       { x: 0, y: 1, z: 0 },
@@ -848,20 +954,92 @@ export function computePlantState(
       skeletonRng,
     );
 
+    // Plant gets a deterministic wire-slide direction once compressed:
+    // points along +X with a tiny per-plant rotation.
+    const wireAz = ((genome.seed % 17) - 8) * 0.05; // ~±0.4 rad jitter
+    const wireDir = { x: Math.cos(wireAz), y: 0, z: Math.sin(wireAz) };
+
     for (let i = 1; i < nodes.length; i++) {
       const prev = nodes[i - 1];
       const internodeM = nodes[i].internodeLenCm / 100;
-      nodes[i].position = {
-        x: prev.position.x + prev.growthDir.x * internodeM,
-        y: prev.position.y + prev.growthDir.y * internodeM,
-        z: prev.position.z + prev.growthDir.z * internodeM,
-      };
-      nodes[i].growthDir = synthesizeGrowthDir(
-        prev.growthDir,
-        nodes[i].age,
-        nodes[i].massAboveKg,
-        skeletonRng,
-      );
+      const wouldExceed = prev.position.y >= maxHeightM;
+      if (wouldExceed) {
+        // Compressed: dump internode length into horizontal slide.
+        wireCompressed = true;
+        const slide = internodeM * HORIZONTAL_SLIDE_FRAC;
+        nodes[i].position = {
+          x: prev.position.x + wireDir.x * slide,
+          y: maxHeightM, // pinned to wire height
+          z: prev.position.z + wireDir.z * slide,
+        };
+        nodes[i].growthDir = wireDir;
+      } else {
+        nodes[i].position = {
+          x: prev.position.x + prev.growthDir.x * internodeM,
+          y: prev.position.y + prev.growthDir.y * internodeM,
+          z: prev.position.z + prev.growthDir.z * internodeM,
+        };
+        nodes[i].growthDir = synthesizeGrowthDir(
+          prev.growthDir,
+          nodes[i].age,
+          nodes[i].massAboveKg,
+          skeletonRng,
+        );
+      }
+    }
+  }
+  // Wire-compressed flag — pinned to PlantState below for snapshot
+  // diagnostics. Renderers can ignore it.
+
+  // v4.2 — defoliation (적엽). Runs AFTER walkSkeleton so node.position.y
+  // is valid.
+  //
+  //  bottomUpHeight (default — Korean commercial practice):
+  //    From `startDay` onward, leaves on stem nodes whose y ≤
+  //    `removeBelowHeightM` and `age >= minLeafAgeDaysAtRemoval` are
+  //    removed. Monotonic persistence lives in GrowthEngine.
+  //
+  //  ripeningAnchored (legacy v3.0):
+  //    Topmost truss with any ripenStage ≥ 4 plus
+  //    `keepTrussesAboveRedTopmost` trusses above it stays leafed.
+  {
+    const scenario = getScenario(cultivar);
+    const defo = scenario.management.defoliation;
+    if (defo.enabled) {
+      const policy = defo.policy ?? 'bottomUpHeight';
+      if (policy === 'bottomUpHeight') {
+        if (day >= defo.startDay) {
+          for (const node of nodes) {
+            if (node.position.y <= defo.removeBelowHeightM &&
+                node.age >= defo.minLeafAgeDaysAtRemoval) {
+              node.leafMaturity = 0;
+              node.leafAreaCm2 = 0;
+            }
+          }
+        }
+      } else if (policy === 'ripeningAnchored') {
+        let redTopmostNodeIdx = -1;
+        for (const node of nodes) {
+          if (!node.truss) continue;
+          for (const f of node.truss.fruits) {
+            if (f.ripenStage >= 4 && node.index > redTopmostNodeIdx) {
+              redTopmostNodeIdx = node.index;
+            }
+          }
+        }
+        if (redTopmostNodeIdx >= 0) {
+          const keepWindowNodes = defo.keepTrussesAboveRedTopmost * arch.trussIntervalNodes;
+          const keepBoundaryIdx = redTopmostNodeIdx + keepWindowNodes;
+          for (const node of nodes) {
+            if (node.index >= keepBoundaryIdx) continue;
+            const distBelow = keepBoundaryIdx - node.index;
+            const fadeT = Math.min(1, distBelow / Math.max(1, arch.trussIntervalNodes));
+            const floorFrac = defo.keepLeavesPerTruss > 0 ? 0.3 : 0.0;
+            node.leafMaturity *= Math.max(floorFrac, 1 - fadeT);
+            if (node.leafMaturity < floorFrac) node.leafMaturity = floorFrac;
+          }
+        }
+      }
     }
   }
 
@@ -876,11 +1054,10 @@ export function computePlantState(
   const allAxes: StemAxis[] = [mainAxis];
 
   // ── Bud activation + pruning ──────────────────────────────────────
-  // cultivar.pruning.defoliationAggressiveness drives pruning rate.
-  const defAgg = cultivar.defoliationAggressiveness ?? 0.3;
+  // ACTIVE_TRAINING drives pruning rate (v3.0 Phase 5).
   const maxOrder = 2;
   for (let d = 0; d < Math.floor(day); d++) {
-    activateAndPruneBuds(allAxes, skeletonRng, defAgg, maxOrder);
+    activateAndPruneBuds(allAxes, skeletonRng, maxOrder);
   }
 
   // Populate side-shoot axes' nodes — starter chain per activated bud.
@@ -896,18 +1073,58 @@ export function computePlantState(
       node.sideShoot,
       allAxes,
       genome,
+      cultivar,
       skeletonRng,
       { waterStress, diseaseLoad },
     );
   }
 
+  // ── Phase 3 hybrid: LAI-scaled leaf area + physiology heightCm ──
+  // When CoreModel is co-stepping, the visual canopy density should
+  // track physiology LAI (Heuvelink 1996 commercial cap = 3) rather
+  // than whatever the apex-driven sigmoid produced. Same idea that
+  // overlayPhysiologyFruits did externally — now in-line so callers
+  // get a coherent state from one call.
+  let effectiveHeightCm = heightCm;
+  if (ACTIVE_ENGINE_MODE === 'hybridFspmMode' && simContext?.physiologyState) {
+    const phys = simContext.physiologyState;
+
+    // 1. Scale leaf area to physiology LAI.
+    let currentLeafAreaCm2 = 0;
+    for (const n of nodes) {
+      if (!n.truss) currentLeafAreaCm2 += n.leafAreaCm2 * (1 - n.yellowing);
+    }
+    const targetLeafAreaCm2 = phys.LAI * ACTIVE_MODEL.photosynthesis.plantFootprintM2 * 10000;
+    const areaScale = currentLeafAreaCm2 > 1
+      ? targetLeafAreaCm2 / currentLeafAreaCm2
+      : 1;
+    const linearScale = Math.min(3.0, Math.max(0.5, Math.sqrt(areaScale)));
+    if (Math.abs(linearScale - 1) > 0.01) {
+      for (const n of nodes) {
+        n.leafSizeFactor *= linearScale;
+        n.leafAreaCm2 *= linearScale * linearScale;
+      }
+    }
+
+    // 2. Use physiology height as authoritative — but capped by the
+    //    active training spec (v3.0 Phase 5.5).
+    effectiveHeightCm = Math.min(phys.heightCm, ACTIVE_TRAINING.maxPlantHeightCm);
+  }
+  // Always cap structural height too — even when physiology isn't
+  // present the legacy sigmoid path should not pierce the wire.
+  if (effectiveHeightCm > ACTIVE_TRAINING.maxPlantHeightCm) {
+    effectiveHeightCm = ACTIVE_TRAINING.maxPlantHeightCm;
+    wireCompressed = true;
+  }
+
   return {
     seed: genome.seed,
-    day, heightCm, nodes, nodeCount: intNodeCount, leafCount, trussCount,
+    day, heightCm: effectiveHeightCm, nodes, nodeCount: intNodeCount, leafCount, trussCount,
     totalFruits, maxRipenStage, currentStage,
     hasCotyledons, cotyledonSize: Math.max(0, Math.min(1, cotyledonSize)),
     waterStress, diseaseLoad,
     mainAxis,
     allAxes,
+    geometryMode: wireCompressed ? 'wire_compressed' : 'free',
   };
 }

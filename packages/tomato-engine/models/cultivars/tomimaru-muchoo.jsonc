@@ -35,6 +35,20 @@
   "potentialFruitMassG": { "mu": 200, "sigma": 25 },
 
   "morphology": {
+    // Phytomer position of the first inflorescence (truss). Tomimaru
+    // is an indeterminate beefsteak — first truss typically appears
+    // around the 9th true leaf.
+    "firstTrussNodeIdx": { "mu": 9, "sigma": 1.0 },
+
+    // Successive trusses appear every 3 leaves (3-leaf phyllotaxis).
+    "trussIntervalNodes": 3,
+
+    // Transitional (Phase 2 → Phase 3): cap diameter for the legacy
+    // visual sigmoid path. Phase 3 replaces this with mass-derived
+    // diameter from CoreModel.freshMassToDiameter. Tomimaru 200g
+    // beefsteak ≈ 80 mm equatorial diameter.
+    "fruitMaxDiameterMm": { "mu": 82, "sigma": 8 },
+
     // Locule count — beefsteak ~6, range 4-10 (PMC10482247).
     "loculeCount": { "mu": 6.0, "sigma": 1.2 },
 
@@ -73,5 +87,79 @@
     },
     "gompertzRateB": 0.06,
     "gompertzInflectionC": 0.45
+  },
+
+  // ────────────────────────────────────────────────────────────────
+  // Reproductive truss-order profile + management scenarios (v3.0 Phase 4)
+  // ────────────────────────────────────────────────────────────────
+  //
+  // trussOrderProfile applies to each truss based on its 1-based
+  // order along the main stem. First match wins. minOrder/maxOrder
+  // are inclusive; maxOrder=null means "and above".
+  //
+  // scenarios.* override the cultivar baseline. ACTIVE_SCENARIO at
+  // ModelRegistry decides which one is in effect at boot.
+  "reproductive": {
+    "trussOrderProfile": [
+      { "minOrder": 1, "maxOrder": null,
+        "flowersPerTruss": { "mu": 5, "sigma": 1.0 },
+        "targetFruitCount": 4,
+        "potentialMassMultiplier": 1.0 }
+    ]
+  },
+  "scenarios": {
+    "commercial-standard": {
+      "metadata": {
+        "label": "상업 단축 (200g × 4 적과)",
+        "intendedUse": "production_like",
+        "notForYieldPrediction": false
+      },
+      "management": {
+        "fruitPruning":  { "enabled": true },
+        // v4.2 — Korean commercial practice: bottom-up lower-leaf pruning.
+        // Defoliation starts at D80, removes only y ≤ 0.50 m bed-near old leaves.
+        "defoliation":   { "enabled": true, "policy": "bottomUpHeight",
+                           "startDay": 80, "removeBelowHeightM": 0.50, "minLeafAgeDaysAtRemoval": 30 },
+        "harvest":       { "enabled": true, "atRipenStage": 5 }
+      }
+    },
+    "visualPeakTruss": {
+      "metadata": {
+        "label": "데모: peak truss 6-8 과실 시각용",
+        "intendedUse": "visual_validation_only",
+        "notForYieldPrediction": true,
+        "targetDays": [95, 100, 105]
+      },
+      "reproductive": {
+        "trussOrderProfile": [
+          { "minOrder": 1, "maxOrder": 3,
+            "flowersPerTruss": { "mu": 5, "sigma": 1.0 },
+            "targetFruitCount": 4, "potentialMassMultiplier": 1.0 },
+          { "minOrder": 4, "maxOrder": 6,
+            "flowersPerTruss": { "mu": 8, "sigma": 1.0 },
+            "targetFruitCount": 7, "potentialMassMultiplier": 0.82 },
+          { "minOrder": 7, "maxOrder": null,
+            "flowersPerTruss": { "mu": 5, "sigma": 1.0 },
+            "targetFruitCount": 4, "potentialMassMultiplier": 1.0 }
+        ]
+      },
+      "management": {
+        "fruitPruning":  { "enabled": false },
+        "defoliation":   { "enabled": true, "keepTrussesAboveRedTopmost": 5, "keepLeavesPerTruss": 1 },
+        "harvest":       { "enabled": false }
+      }
+    },
+    "natural-no-management": {
+      "metadata": {
+        "label": "비교 baseline (적과/적엽/수확 OFF)",
+        "intendedUse": "comparison_baseline",
+        "notForYieldPrediction": true
+      },
+      "management": {
+        "fruitPruning":  { "enabled": false },
+        "defoliation":   { "enabled": false },
+        "harvest":       { "enabled": false }
+      }
+    }
   }
 }

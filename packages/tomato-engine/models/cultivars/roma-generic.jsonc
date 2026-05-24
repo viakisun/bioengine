@@ -23,6 +23,10 @@
   "potentialFruitMassG": { "mu": 80, "sigma": 15 },
 
   "morphology": {
+    "firstTrussNodeIdx": { "mu": 9, "sigma": 1.0 },
+    "trussIntervalNodes": 3,
+    // Transitional. Roma 80g elongated ≈ 50mm equatorial (60mm length).
+    "fruitMaxDiameterMm": { "mu": 50, "sigma": 5 },
     "loculeCount": { "mu": 2.0, "sigma": 0.4 },
     // > 1 = elongated (paste-tomato character), NOT oblate
     "heightWidthRatio": { "mu": 1.6, "sigma": 0.1 },
@@ -47,5 +51,23 @@
     "sinkStrength": { "leaf": 0.35, "stem": 0.15, "root": 0.07 },
     "gompertzRateB": 0.06,
     "gompertzInflectionC": 0.45
+  },
+
+  "reproductive": {
+    "trussOrderProfile": [
+      { "minOrder": 1, "maxOrder": null,
+        "flowersPerTruss": { "mu": 7, "sigma": 1.5 },
+        "targetFruitCount": 6, "potentialMassMultiplier": 1.0 }
+    ]
+  },
+  "scenarios": {
+    "commercial-standard": {
+      "metadata": { "label": "Commercial paste", "intendedUse": "production_like", "notForYieldPrediction": false },
+      "management": {
+        "fruitPruning":  { "enabled": true },
+        "defoliation":   { "enabled": true, "keepTrussesAboveRedTopmost": 3, "keepLeavesPerTruss": 0 },
+        "harvest":       { "enabled": true, "atRipenStage": 5 }
+      }
+    }
   }
 }
