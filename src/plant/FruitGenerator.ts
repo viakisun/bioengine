@@ -88,20 +88,23 @@ function buildFruitBodyVertexData(
       // most viewing angles; cherry's lc=2 stays smooth because its
       // ribbingStrength is near zero in the cultivar registry.
       if (rib > 0) {
-        // Sweep weight: peaks slightly below the equator (cosP=-0.3),
-        // fades to ~0.15 at the stem-end and ~0.8 at the bottom pole.
-        // This matches real beefsteak — the lobes run nearly to the
-        // calyx, not just under the fruit.
+        // Sweep weight: peaks just below the shoulder (cosP ≈ +0.3),
+        // fades to near-zero at mid-body / bottom pole. Real-world tomato
+        // shoulder ribbing is localized to the top — bottom half is
+        // smooth. Previous distribution (peak at mid-body) read as
+        // generic "rumpled balloon" rather than tomato shoulder.
         let sweep: number;
-        if (cosP > 0.3) {
-          // Upper third — small residual ribbing near shoulder
-          sweep = 0.15 * Math.max(0, 1 - cosP * 1.2);
-        } else if (cosP < -0.7) {
-          // Bottom pole — taper to zero exactly at the pole
-          sweep = Math.pow(1 + cosP, 0.4) * 0.9;
+        if (cosP > 0.0) {
+          // Upper hemisphere — peak around cosP=0.3 (shoulder), fade
+          // toward stem-end (cosP=1.0) and equator (cosP=0).
+          // Sweep value: 0 at cosP=0, ~0.55 at cosP=0.3, ~0 at cosP=1.
+          sweep = 0.55 * Math.max(0, 1 - Math.abs(cosP - 0.3) * 2.5);
+        } else if (cosP > -0.3) {
+          // Mid-body upper — very subtle residual
+          sweep = 0.18 * Math.max(0, 1 + cosP / 0.3);
         } else {
-          // Mid-body — strongest, peaks around cosP=-0.3
-          sweep = 0.9 - Math.abs(cosP + 0.3) * 0.4;
+          // Mid-body lower + bottom pole — essentially smooth
+          sweep = 0.05;
         }
         const ribAmp = rib * 0.28 * sweep;
         const ribFactor = 1 - ribAmp * (0.5 + 0.5 * Math.cos(lc * theta));
