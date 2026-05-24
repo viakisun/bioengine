@@ -132,9 +132,10 @@ function buildFruitBodyVertexData(
       // Per-vertex asymmetry — Gaussian noise scaled by the cultivar's
       // (per-fruit-sampled) asymmetryAmp. The raw amp generates visible
       // lumpiness because every vertex picks an independent offset →
-      // bumpy normals → cauliflower under specular lighting. Damp to 30%
-      // of the cultivar value: still varies per fruit, no cauliflower.
-      const asymAmp = (genome.asymmetryAmp ?? 0.05) * 0.3;
+      // bumpy normals → cauliflower under specular lighting. Damp to 15%
+      // of the cultivar value (was 30%) — still varies per fruit, but
+      // silhouette stays smoothly round. Reduces "쭈글쭈글" perception.
+      const asymAmp = (genome.asymmetryAmp ?? 0.05) * 0.15;
       const ax = asymRng.gaussian(0, asymAmp);
       const ay = asymRng.gaussian(0, asymAmp * 0.8);
       const az = asymRng.gaussian(0, asymAmp);
@@ -173,8 +174,10 @@ function buildFruitBodyVertexData(
       const ripeG = Math.max(0, baseRGB[1] - shiftFrac * 0.25);
       const ripeB = Math.max(0, baseRGB[2] - shiftFrac * 0.05);
 
-      // Marbled mottling — per-vertex Gaussian color jitter
-      const mott = mottleRng.gaussian(0, 0.035);
+      // Marbled mottling — per-vertex Gaussian color jitter. σ 0.035 → 0.015
+      // 으로 축소: 이전엔 high-frequency speckle 이 표면 전체에 흩뿌려져
+      // "쭈글쭈글" 인상에 기여. 더 부드러운 변동만 유지.
+      const mott = mottleRng.gaussian(0, 0.015);
       const r2 = Math.max(0, Math.min(1, ripeR * (1 + mott)));
       const g2 = Math.max(0, Math.min(1, ripeG * (1 + mott * 0.7)));
       const b2 = Math.max(0, Math.min(1, ripeB * (1 + mott * 0.5)));
