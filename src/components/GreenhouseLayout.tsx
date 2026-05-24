@@ -27,6 +27,9 @@ export function GreenhouseLayout() {
       className="app-grid"
       style={{
         gridTemplateRows: `1fr ${consoleH}px`,
+        // Single-plant 모드는 우측 sidebar 자체가 없으므로 그리드도 단일
+        // 컬럼. 그렇지 않으면 빈 360px 컬럼이 회색 strip 으로 노출됨.
+        gridTemplateColumns: isSinglePlant ? '1fr' : undefined,
         ['--console-h' as string]: `${consoleH}px`,
       }}
     >

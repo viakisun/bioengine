@@ -23,6 +23,8 @@ export function RightBottomToggles() {
   const showSkeleton = useTwinStore((s) => s.showSkeleton);
   const setShowSkeleton = useTwinStore((s) => s.setShowSkeleton);
   const setOpenDrawer = useTwinStore((s) => s.setOpenDrawer);
+  const metricsOpen = useTwinStore((s) => s.singlePlantMetricsOpen);
+  const toggleMetrics = useTwinStore((s) => s.toggleSinglePlantMetrics);
 
   const [layerOpen, setLayerOpen] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
@@ -69,6 +71,14 @@ export function RightBottomToggles() {
 
       {/* Heatmap — disabled stub */}
       <Pill label="Heatmap" active={false} disabled title="Phase E+" />
+
+      {/* Metrics — chart panel toggle */}
+      <Pill
+        label="Metrics"
+        active={metricsOpen}
+        onClick={toggleMetrics}
+        title="LAI / H / Fruits 시계열 차트"
+      />
 
       {/* Camera — popover */}
       <PillWithPopover
