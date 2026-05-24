@@ -182,12 +182,15 @@ export const QUALITY_PRESETS: Record<number, QualityPreset> = {
       vignetteWeight: 2.2,
       ssaoStrength: 2.5,
     }),
+    // QualityProbe 측정 결과 (3 runs 평균): glow layer 가 q7→q8 폭락의 진짜
+    // 범인 (Δ -23.1 fps). PBR + bloom (q3+) 으로 빛 효과 이미 표현되므로
+    // 시각 손실 < cost 회복. q9/q10 의 glow 는 그대로 유지 — hardwareScale
+    // 1.25 가 비용 흡수.
     fx: { ...RENDER_FX_DEFAULTS,
       shadowResolution: 4096, shadowFilter: 'pcss',
       msaaSamples: 8,
       ssaoSamples: 24,
       taaEnabled: true, ssrEnabled: true, dofEnabled: true,
-      glowLayerEnabled: true,
       activeBedCount: 6,
     },
   },
