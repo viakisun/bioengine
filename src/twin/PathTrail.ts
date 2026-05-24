@@ -9,6 +9,8 @@ export interface PathTrailHandle {
   mesh: Mesh;
   update: (day: number) => void;
   setVisible: (v: boolean) => void;
+  /** Lines mesh 해제. After dispose 호출 금지. */
+  dispose: () => void;
 }
 
 export function createPathTrail(scene: Scene): PathTrailHandle {
@@ -47,6 +49,12 @@ export function createPathTrail(scene: Scene): PathTrailHandle {
     update(day) { rebuild(day); },
     setVisible(v) {
       if (mesh) mesh.setEnabled(v);
+    },
+    dispose() {
+      if (mesh) {
+        mesh.dispose();
+        mesh = null;
+      }
     },
   } as PathTrailHandle;
 }

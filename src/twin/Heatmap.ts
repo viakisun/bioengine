@@ -16,6 +16,8 @@ export interface HeatmapHandle {
   setVisible: (v: boolean) => void;
   setHoveredZone: (zoneId: number | null) => void;
   setSelectedZone: (zoneId: number | null) => void;
+  /** Release texture / material / mesh. After dispose 다른 메서드 호출 금지. */
+  dispose: () => void;
 }
 
 const TEX_WIDTH = 256;
@@ -133,6 +135,11 @@ export function createHeatmap(scene: Scene): HeatmapHandle {
     setSelectedZone(zoneId) {
       if (selectedZone === zoneId) return;
       selectedZone = zoneId;
+    },
+    dispose() {
+      tex.dispose();
+      mat.dispose();
+      mesh.dispose(false, false);
     },
   };
 }

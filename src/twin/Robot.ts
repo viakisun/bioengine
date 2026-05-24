@@ -15,6 +15,8 @@ export interface RobotHandle {
   setFovVisible: (v: boolean) => void;
   currentTask: () => RobotTask;
   currentPosition: () => Vector3;
+  /** Release all child meshes + materials. After dispose 호출 금지. */
+  dispose: () => void;
 }
 
 /**
@@ -290,5 +292,11 @@ export function createRobot(scene: Scene): RobotHandle {
     },
     currentTask: () => lastTask,
     currentPosition: () => currentPos,
+    dispose() {
+      // root descendants 전부 + 거기에 묶인 materials/textures 해제.
+      // fovCone 이 root child 인지 보장 안 되어 별도 dispose.
+      fovCone.dispose(false, true);
+      root.dispose(false, true);
+    },
   };
 }

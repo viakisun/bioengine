@@ -26,18 +26,20 @@ import {
   SeededRandom,
   STAGE_COLORS,
   getLeafStage,
+  getCultivar,
   type GrowthEngine,
   type PlantState,
   type EnvironmentParams,
   type PlantStressInputs,
 } from '@farmsim/tomato-engine';
+import { computePlantGeometry, type PlantBase } from '../plant/PlantBase';
 import type { HealthLabel } from '../data/mockScenario';
 import {
   buildLeafChunk,
   buildCotyledonChunk,
 } from '@farmsim/tomato-geometry';
 import { getLeafMaterial, getYellowLeafMaterial, getDiseasedLeafMaterial } from '../plant/LeafGenerator';
-import { createStemMesh, getStemMaterial } from '../plant/StemGenerator';
+import { createStemMesh, createStemMeshFromSegments, getStemMaterial } from '../plant/StemGenerator';
 import { getCalyxSourceMesh, getStemSourceMesh } from '../plant/FruitGenerator';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
 
@@ -46,6 +48,8 @@ export interface SupportingPlantHandle {
   update: (day: number, healthLabel?: HealthLabel, waterStressOverride?: number) => void;
   setVisible: (v: boolean) => void;
   currentState: () => PlantState | null;
+  /** 모든 mesh / truss TransformNode / root 해제. After dispose 호출 금지. */
+  dispose: () => void;
 }
 
 /** Map mockScenario healthLabel → engine env override + stress inputs. */
@@ -157,39 +161,36 @@ export function createSupportingPlant(
     currentTrussNodes = [];
   }
 
-  function buildFromState(state: PlantState) {
+  function buildFromState(state: PlantState, plantBase: PlantBase) {
     disposeAll();
     lastState = state;
 
     if (state.nodes.length === 0 && !state.hasCotyledons) return;
 
     const genome = engine.getGenome(seed)!;
+    const baseAxis = plantBase.mainAxis;
 
-    // Cotyledons — single quad each side, no alpha animation
-    if (state.hasCotyledons && state.cotyledonSize > 0.05) {
-      const cotSize = 0.03 * state.cotyledonSize;
-      const cotY = state.nodes.length > 0 ? (state.nodes[0].heightCm / 100) * 0.3 : 0.03;
-      for (const side of [-1, 1] as const) {
-        const chunk = buildCotyledonChunk({ size: cotSize, segments: 4 });
-        const vd = new VertexData();
-        vd.positions = chunk.positions;
-        vd.normals = chunk.normals;
-        vd.uvs = chunk.uvs;
-        vd.indices = chunk.indices;
-        const mesh = new Mesh(`support_cot_${seed}_${side}`, scene);
-        vd.applyToMesh(mesh);
-        mesh.parent = root;
-        mesh.position = new Vector3(side * cotSize * 0.5, cotY, 0);
-        mesh.rotation = new Vector3(-0.3 * side, side * 0.5, 0);
-        mesh.material = cotMat;
-        currentMeshes.push(mesh);
-      }
+    // Cotyledons — from PlantBase (single threshold, unified with main view).
+    for (const cot of plantBase.cotyledons) {
+      if (!cot.visibility.visible) continue;
+      const chunk = buildCotyledonChunk({ size: cot.sizeM, segments: 4 });
+      const vd = new VertexData();
+      vd.positions = chunk.positions;
+      vd.normals = chunk.normals;
+      vd.uvs = chunk.uvs;
+      vd.indices = chunk.indices;
+      const mesh = new Mesh(`support_cot_${seed}_${cot.side}`, scene);
+      vd.applyToMesh(mesh);
+      mesh.parent = root;
+      mesh.position = new Vector3(cot.position.x, cot.position.y, cot.position.z);
+      mesh.rotation = new Vector3(-0.3 * cot.side, cot.side * 0.5, 0);
+      mesh.material = cotMat;
+      currentMeshes.push(mesh);
     }
 
-    // Stem — same Frenet generator but on a coarser node subset
-    if (state.nodes.length >= 2) {
-      const stemRng = new SeededRandom(seed * 13);
-      const stem = createStemMesh(`support_stem_${seed}`, scene, state.nodes, stemRng);
+    // Stem — same Frenet generator but driven by PlantBase StemSegment[].
+    if (baseAxis.stemCurve.length >= 2) {
+      const stem = createStemMeshFromSegments(`support_stem_${seed}`, scene, baseAxis.stemCurve);
       if (stem) {
         stem.parent = root;
         stem.material = stemMat;
@@ -200,22 +201,22 @@ export function createSupportingPlant(
     const isDiseased = state.diseaseLoad > 0.3;
     const baseLeafMat = isDiseased ? diseasedLeafMat : leafMat;
 
-    // Leaves — every-other node (re-enabled after PLANT_COUNT 30 → 90
-    // tripled the load). 90 plants × every-node was pushing fps below
-    // 60; every-other-node × 90 plants is close to the previous
-    // 30 plants × every-node and the visual density is maintained
-    // because there are 3× more plants in the same bed length.
-    for (let i = 0; i < state.nodes.length; i += 2) {
-      const node = state.nodes[i];
-      if (node.leafMaturity < 0.1) continue;
+    // Leaves — every-other PlantBase leaf (LOD: sampling lives in the
+    // view, not in PlantBase). Visibility/position/azimuth from PlantBase.
+    for (let li = 0; li < baseAxis.leaves.length; li += 2) {
+      const leafBase = baseAxis.leaves[li];
+      // Supporting plant uses a stricter visibility floor than the main
+      // view because background canopy detail isn't worth the meshes.
+      if (!leafBase.visibility.visible) continue;
+      const node = state.nodes[leafBase.nodeIdx];
+      if (!node || node.leafMaturity < 0.1) continue;
 
-      // Plan 4 — skeleton-aware position. node.position 의 X/Y/Z 사용
-      // (이전엔 heightM 만, X/Z 0 절대좌표). lush mesh ↔ skeleton 일치.
-      const nodeX = node.position.x;
-      const nodeY = node.position.y;
-      const nodeZ = node.position.z;
-      const azimuthRad = (node.phyllotaxisAngle * Math.PI) / 180;
-      const droopRad = (node.droopExtra * Math.PI) / 180;
+      const nodeX = leafBase.attachPosition.x;
+      const nodeY = leafBase.attachPosition.y;
+      const nodeZ = leafBase.attachPosition.z;
+      const azimuthRad = leafBase.azimuthRad;
+      const droopRad = leafBase.droopRad;
+      const i = leafBase.nodeIdx;
 
       const stageInfo = getLeafStage(node, state.day);
 
@@ -255,115 +256,85 @@ export function createSupportingPlant(
       );
       currentMeshes.push(leaf);
 
-      // Truss — peduncle + clustered fruits.
-      //
-      // Earlier this rendered fruits in a straight line which read as a
-      // "string of beads"; tried full createTrussNode (peduncle + N
-      // pedicels + sepals + flowers per fruit) but at 12 trusses × 29
-      // plants × ~25 meshes/truss it dropped fps from 120 → 16.
-      //
-      // Middle path: one shared peduncle cylinder + fruits clustered in
-      // a small radial group around its tip. Costs ~ N fruits + 1 cyl
-      // per truss (was N spheres before, ~30× cheaper than full truss).
-      if (node.truss && node.truss.fruits.length > 0) {
-        const trussAz = azimuthRad + Math.PI;
-        const ripeFruits = node.truss.fruits.filter((f) => f.diameterMm >= 6);
-        if (ripeFruits.length > 0) {
-          // Peduncle: short cylinder lateral from stem, slight downward droop.
-          const pedLen = 0.06 + Math.min(0.05, ripeFruits.length * 0.008);
-          const peduncle = MeshBuilder.CreateCylinder(
-            `support_ped_${seed}_${i}`,
-            { height: pedLen, diameter: 0.005, tessellation: 5 },
-            scene
+      // (Truss rendering moved to a dedicated loop below — every-other
+      // leaf would have skipped some truss-bearing nodes.)
+    }
+
+    // === Trusses ===
+    // v4.1 LOD — PlantBase.floralSites 가 fruitCenter 등 정확한 world
+    // 위치 제공. SupportingPlant 는 peduncle 단순 cylinder + per-site
+    // fruit sphere + calyx instance. fruit 위치 = site.fruit.fruitCenter
+    // (계산 안 함, PlantBase 가 결정).
+    for (const trussBase of baseAxis.trusses) {
+      if (!trussBase.visibility.visible) continue;
+      const i = trussBase.nodeIdx;
+
+      // Peduncle: PlantBase 의 peduncleCurve 시작-끝만 잇는 cylinder LOD.
+      if (trussBase.peduncleCurve && trussBase.peduncleCurve.length >= 2) {
+        const ped0 = trussBase.peduncleCurve[0];
+        const pedN = trussBase.peduncleCurve[trussBase.peduncleCurve.length - 1];
+        const dx = pedN.x - ped0.x;
+        const dy = pedN.y - ped0.y;
+        const dz = pedN.z - ped0.z;
+        const pedLen = Math.hypot(dx, dy, dz);
+        const pedDir = new Vector3(dx / pedLen, dy / pedLen, dz / pedLen);
+        const peduncle = MeshBuilder.CreateCylinder(
+          `support_ped_${seed}_${i}`,
+          { height: pedLen, diameter: 0.005, tessellation: 5 },
+          scene,
+        );
+        peduncle.parent = root;
+        peduncle.material = peduncleMat;
+        peduncle.position = new Vector3((ped0.x + pedN.x) / 2, (ped0.y + pedN.y) / 2, (ped0.z + pedN.z) / 2);
+        const yAxis = new Vector3(0, 1, 0);
+        const dot = yAxis.x * pedDir.x + yAxis.y * pedDir.y + yAxis.z * pedDir.z;
+        if (Math.abs(dot) < 0.999) {
+          const rotAxis = Vector3.Cross(yAxis, pedDir).normalize();
+          const angle = Math.acos(Math.max(-1, Math.min(1, dot)));
+          peduncle.rotationQuaternion = Quaternion.RotationAxis(rotAxis, angle);
+        }
+        currentMeshes.push(peduncle);
+      }
+
+      // Per-site fruit (LOD): use PlantBase.floralSites direct world pos.
+      if (!trussBase.floralSites) continue;
+      const calyxSrc = getCalyxSourceMesh(scene);
+      const stemSrc = getStemSourceMesh(scene);
+      for (const site of trussBase.floralSites) {
+        if (!site.visibility.visible) continue;
+        if (!site.fruit || site.fruit.diameterMm < 6) continue; // LOD: small fruits/flowers 생략
+        const fruit = site.fruit;
+        const fruitMat = fruitMats[Math.min(5, fruit.ripenStage)];
+        const dia = fruit.diameterMm / 1000;
+        const radius = dia / 2;
+        const hw = fruit.cultivarGenome?.heightWidthRatio ?? 0.9;
+        const fruitMesh = MeshBuilder.CreateSphere(
+          `support_fruit_${seed}_${i}_s${site.index}`,
+          { diameter: dia, segments: 10 }, scene,
+        );
+        fruitMesh.parent = root;
+        fruitMesh.scaling = new Vector3(1, hw, 1);
+        fruitMesh.position = new Vector3(fruit.fruitCenter.x, fruit.fruitCenter.y, fruit.fruitCenter.z);
+        fruitMesh.material = fruitMat;
+        currentMeshes.push(fruitMesh);
+
+        if (radius > 0.003) {
+          const calyxInst = calyxSrc.createInstance(`support_calyx_${seed}_${i}_s${site.index}`);
+          calyxInst.parent = root;
+          calyxInst.scaling = new Vector3(radius, radius, radius);
+          calyxInst.position = new Vector3(site.fruitTop.x, site.fruitTop.y, site.fruitTop.z);
+          currentMeshes.push(calyxInst as unknown as Mesh);
+
+          const stemLenM = Math.min(0.018, Math.max(0.006, radius * 0.4));
+          const stemInst = stemSrc.createInstance(`support_stem_${seed}_${i}_s${site.index}`);
+          stemInst.parent = root;
+          stemInst.scaling = new Vector3(1, stemLenM, 1);
+          stemInst.position = new Vector3(
+            site.fruitTop.x,
+            site.fruitTop.y + radius * hw * 0.95 + stemLenM / 2,
+            site.fruitTop.z,
           );
-          peduncle.parent = root;
-          peduncle.material = peduncleMat;
-          peduncle.rotation.z = -Math.PI / 2 + 0.15;
-          peduncle.rotation.y = trussAz;
-          const pedMidR = pedLen / 2;
-          // Anchor peduncle at node's actual 3D position, not absolute Y.
-          peduncle.position = new Vector3(
-            nodeX + Math.cos(trussAz) * pedMidR,
-            nodeY - 0.03,
-            nodeZ + Math.sin(trussAz) * pedMidR,
-          );
-          currentMeshes.push(peduncle);
-
-          // Cluster fruits around peduncle tip with bounded radial offsets,
-          // not in a line. Seeded RNG so the layout is stable across rebuilds.
-          const fruitRng = new SeededRandom(seed * 7919 + i * 31);
-          const cx = nodeX + Math.cos(trussAz) * pedLen;
-          const cz = nodeZ + Math.sin(trussAz) * pedLen;
-          const cy = nodeY - 0.05 - pedLen * 0.15;
-          // Supporting plants use a lightweight sphere — 870 fruits
-          // total wedges SwiftShader with the full FruitGenerator path.
-          // We still apply the cultivar genome's H:W ratio (Y-scale)
-          // so beefsteak-vs-cherry shape diversity is visible at
-          // distance: flat beefsteaks vs round cherries.
-          // Source meshes for calyx + stem (shared across all fruits in
-          // the scene — they render as InstancedMesh, batched into one
-          // draw call each). Cheaper than per-fruit custom geometry.
-          const calyxSrc = getCalyxSourceMesh(scene);
-          const stemSrc = getStemSourceMesh(scene);
-          const fruitN = ripeFruits.length;
-          // Pre-compute the largest fruit radius — clustering distance
-          // scales with it so big beefsteaks don't overlap.
-          let maxR = 0;
-          for (const fr of ripeFruits) maxR = Math.max(maxR, fr.diameterMm / 2 / 1000);
-          for (let f = 0; f < fruitN; f++) {
-            const fruit = ripeFruits[f];
-            const fruitMat = fruitMats[Math.min(5, fruit.ripenStage)];
-            const dia = fruit.diameterMm / 1000;
-            const radius = dia / 2;
-            const hw = fruit.cultivarGenome?.heightWidthRatio ?? 0.9;
-            const fruitMesh = MeshBuilder.CreateSphere(
-              `support_fruit_${seed}_${i}_${f}`,
-              { diameter: dia, segments: 10 },
-              scene
-            );
-            fruitMesh.parent = root;
-            // Oblate: scale Y by H:W ratio (beefsteak ~0.72, cherry ~0.96)
-            fruitMesh.scaling = new Vector3(1, hw, 1);
-            // Evenly distributed angle (i / N · 2π) + small jitter for
-            // organic feel; radial distance scales with the largest
-            // fruit's radius so spacing is guaranteed even for big ones.
-            const baseAngle = fruitN > 1 ? (f / fruitN) * Math.PI * 2 : 0;
-            const localAngle = baseAngle + (fruitRng.next() - 0.5) * 0.6;
-            // Bring single-fruit + low-count clusters in toward the tip
-            // so they don't fly off into empty space.
-            const baseDistance = fruitN <= 1 ? 0 : Math.max(maxR * 1.15, dia * 0.5);
-            const localR = baseDistance + (fruitRng.next() - 0.5) * radius * 0.4;
-            const fx = cx + Math.cos(localAngle) * localR;
-            const fy = cy - fruitRng.next() * radius * 0.6;
-            const fz = cz + Math.sin(localAngle) * localR;
-            fruitMesh.position = new Vector3(fx, fy, fz);
-            fruitMesh.material = fruitMat;
-            currentMeshes.push(fruitMesh);
-
-            // Calyx instance — sits on top pole of the oblate fruit body.
-            // calyxSrc geometry is normalised; scale to per-fruit radius.
-            if (radius > 0.003) {
-              const calyxInst = calyxSrc.createInstance(`support_calyx_${seed}_${i}_${f}`);
-              calyxInst.parent = root;
-              calyxInst.scaling = new Vector3(radius, radius, radius);
-              // Calyx base sits at baseY=0.78 in source units; place at
-              // top pole of the oblate body (Y offset = hw * radius - radius * 0.22)
-              calyxInst.position = new Vector3(fx, fy, fz);
-              currentMeshes.push(calyxInst as unknown as Mesh);
-
-              // Stem stub instance — short cylinder above calyx
-              const stemLenM = Math.min(0.018, Math.max(0.006, radius * 0.4));
-              const stemInst = stemSrc.createInstance(`support_stem_${seed}_${i}_${f}`);
-              stemInst.parent = root;
-              stemInst.scaling = new Vector3(1, stemLenM, 1);
-              stemInst.position = new Vector3(
-                fx,
-                fy + radius * hw * 0.95 + stemLenM / 2,
-                fz,
-              );
-              currentMeshes.push(stemInst as unknown as Mesh);
-            }
-          }
+          currentMeshes.push(stemInst as unknown as Mesh);
         }
       }
     }
@@ -387,11 +358,23 @@ export function createSupportingPlant(
           ? { ...(stress ?? {}), waterStress: Math.max(stress?.waterStress ?? 0, waterStressOverride) }
           : stress;
       const state = engine.computeState(seed, day, envOverride, mergedStress);
-      buildFromState(state);
+      const cultivarName = engine.getCultivarFor(seed)?.name ?? 'tomimaru-muchoo';
+      const plantBase = computePlantGeometry(state, {
+        genome: engine.getGenome(seed)!,
+        cultivar: getCultivar(cultivarName),
+      });
+      buildFromState(state, plantBase);
     },
     setVisible(v) {
       root.setEnabled(v);
     },
     currentState: () => lastState,
+    dispose() {
+      // 모든 generated mesh + truss TransformNode 해제 후 root 자체도 해제.
+      // GrowthEngine.removePlant 는 호출자 책임 (GreenhouseContentHandle.dispose).
+      disposeAll();
+      root.dispose(false, false);
+      lastState = null;
+    },
   };
 }
