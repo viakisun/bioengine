@@ -1,19 +1,19 @@
-// SkeletonOverlay — wireframe + node-marker visualization of the plant's
-// growth skeleton (Plan 3a). GreasedLine for thick high-contrast lines
-// that pop against white training wires.
+// SkeletonOverlay — wireframe + node-marker visualization (v4.0 consumer
+// of PlantBase). No biological / world-transform logic lives here; all
+// position decisions arrive pre-baked in PlantBase via computePlantGeometry.
+//
+// Invariant: skeleton fruit/truss/petiole positions equal lush mesh
+// positions to within 1mm — they read the *same* PlantBase produced
+// upstream.
 //
 // Color palette (high-saturation red family, distinct from white wires):
-//   • Main axis     — hot red
+//   • Main axis      — hot red
 //   • 1st side shoot — orange-red
 //   • 2nd side shoot — amber
-//   • Petiole       — magenta
-//   • Rachis        — hot pink
-//   • Pedicel       — pink-red
-//   • Calyx         — lime (still green so sepal star reads as fruit organ)
-//
-// Invariant: no straight internodes. Each internode is rendered as a
-// segment between two consecutive node.position values (already wandering
-// from GrowthModel.synthesizeGrowthDir).
+//   • Petiole        — magenta
+//   • Rachis         — hot pink
+//   • Pedicel        — pink-red
+//   • Calyx          — lime
 
 import { Scene } from '@babylonjs/core/scene';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
@@ -25,14 +25,18 @@ import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import '@babylonjs/core/Meshes/Builders/sphereBuilder';
 import { catmullRomPath } from '../plant/StemGenerator';
-import { layoutTruss, pedicelControlPoints } from '../plant/TrussGenerator';
-import type { PlantState, StemAxis, NodeState } from '@farmsim/tomato-engine';
+import type {
+  PlantBase,
+  AxisBase,
+  LeafBase,
+  TrussBase,
+  StemSegment,
+  FloralSiteBase,
+} from '../plant/PlantBase';
 import type { SkeletonConfig } from '../store/twinStore';
 
 export interface SkeletonOverlayHandle {
-  /** Plan 3c-3 — genome 추가. truss layout 의 droop 계산에 필요
-   *  (computeTrussDroop). lush mesh 와 *동일 layout* 보장. */
-  update: (plant: PlantState, genome: import('@farmsim/tomato-engine').PlantGenome) => void;
+  update: (plantBase: PlantBase) => void;
   setVisible: (v: boolean) => void;
   setConfig: (config: SkeletonConfig) => void;
   dispose: () => void;
@@ -46,6 +50,9 @@ interface MatBucket {
   truss: StandardMaterial;
   leaf: StandardMaterial;
   fruit: StandardMaterial;
+  /** Faded variant for hidden (pruned/harvested/aborted) organs. */
+  fruitHidden: StandardMaterial;
+  leafHidden: StandardMaterial;
 }
 
 function makeMaterials(scene: Scene): MatBucket {
@@ -58,6 +65,11 @@ function makeMaterials(scene: Scene): MatBucket {
     mat.disableLighting = true;
     return mat;
   };
+  const faded = (name: string, hex: string): StandardMaterial => {
+    const mat = m(name, hex, 0.35);
+    mat.alpha = 0.45;
+    return mat;
+  };
   return {
     dotDormant: m('skel_dot_dormant', '#5fa8ff'),
     dotGrowing: m('skel_dot_growing', '#3fff5a'),
@@ -66,32 +78,19 @@ function makeMaterials(scene: Scene): MatBucket {
     truss: m('skel_truss', '#ff1040'),
     leaf: m('skel_leaf', '#3fff5a'),
     fruit: m('skel_fruit', '#ff3a3a'),
+    fruitHidden: faded('skel_fruit_hidden', '#ff3a3a'),
+    leafHidden: faded('skel_leaf_hidden', '#3fff5a'),
   };
-}
-
-// 색상 — 고채도 빨강-마젠타 계열로 통일. 흰 유인줄 위에서 즉시 식별.
-const COLOR_AXIS_MAIN = Color3.FromHexString('#e90b2c');     // hot red
-const COLOR_AXIS_O1 = Color3.FromHexString('#ff7a1a');       // orange-red
-const COLOR_AXIS_O2 = Color3.FromHexString('#ffcc00');       // amber
-const COLOR_PETIOLE = Color3.FromHexString('#ff20a0');       // magenta
-const COLOR_RACHIS = Color3.FromHexString('#ff0080');        // hot pink
-const COLOR_PEDICEL = Color3.FromHexString('#e8408a');       // pink-red
-const COLOR_CALYX = Color3.FromHexString('#3fff5a');         // lime
-
-function axisColor(order: number): Color3 {
-  if (order === 0) return COLOR_AXIS_MAIN;
-  if (order === 1) return COLOR_AXIS_O1;
-  return COLOR_AXIS_O2;
 }
 
 function isFiniteVec(p: { x: number; y: number; z: number }): boolean {
   return Number.isFinite(p.x) && Number.isFinite(p.y) && Number.isFinite(p.z);
 }
 
-// Default config — store 가 아직 안 붙었을 때 fallback.
 const DEFAULT_CONFIG: SkeletonConfig = {
   axisMainWidth: 0.006, axisOrder1Width: 0.004, axisOrder2Width: 0.003,
-  petioleWidth: 0.003, rachisWidth: 0.0045, pedicelWidth: 0.0025, calyxWidth: 0.0018,
+  // Truss widths scaled so rachis ≈ 25% of main stem (real anatomy).
+  petioleWidth: 0.003, rachisWidth: 0.0018, pedicelWidth: 0.0012, calyxWidth: 0.0010,
   axisMainColor: '#e90b2c', axisOrder1Color: '#ff7a1a', axisOrder2Color: '#ffcc00',
   petioleColor: '#ff20a0', rachisColor: '#ff0080', pedicelColor: '#e8408a', calyxColor: '#3fff5a',
   subdivisionsPerInternode: 5,
@@ -102,9 +101,6 @@ const DEFAULT_CONFIG: SkeletonConfig = {
 
 export function createSkeletonOverlay(
   scene: Scene,
-  /** Parent TransformNode (showcase plant root). Skeleton overlay 가 그
-   *  child 로 부착되어 *동일 world transform* 상속 — wind sway 같이 받음.
-   *  ShowcasePlant 는 lush 만 따로 hide 하므로 parent disable 전파 문제 X. */
   parent: TransformNode | null = null,
 ): SkeletonOverlayHandle {
   let root: TransformNode | null = null;
@@ -112,13 +108,16 @@ export function createSkeletonOverlay(
   const meshes: Mesh[] = [];
   let visible = false;
   let cfg: SkeletonConfig = { ...DEFAULT_CONFIG };
-  let lastPlantForRebuild: PlantState | null = null;
-  let lastGenome: import('@farmsim/tomato-engine').PlantGenome | null = null;
+  let lastPlantBase: PlantBase | null = null;
+
+  /** Show hidden (pruned/harvested/aborted) organs as faint debug markers.
+   *  Default off; can be wired to a store toggle later. */
+  const showHiddenOrgans = false;
 
   function ensureInit() {
     if (root) return;
     root = new TransformNode('skeletonOverlayRoot', scene);
-    if (parent) root.parent = parent;       // 상속: position + rotation
+    if (parent) root.parent = parent;
     mats = makeMaterials(scene);
     root.setEnabled(false);
   }
@@ -128,12 +127,10 @@ export function createSkeletonOverlay(
     meshes.length = 0;
   }
 
-  function nodeWorld(node: NodeState): Vector3 {
-    return new Vector3(node.position.x, node.position.y, node.position.z);
+  function v(p: { x: number; y: number; z: number }): Vector3 {
+    return new Vector3(p.x, p.y, p.z);
   }
 
-  // GreasedLine 헬퍼 — width 는 *월드 유닛 (m)* 단위. 토마토 plant
-  // (~3m tall) 기준 mm 단위로 설계.
   function thickLine(name: string, points: Vector3[], color: Color3, widthM: number): Mesh {
     const m = CreateGreasedLine(
       name,
@@ -145,97 +142,54 @@ export function createSkeletonOverlay(
     return m;
   }
 
-  // Per-vertex width 버전 — taper + node bulge. widths 배열은 points 와
-  // 같은 길이. GreasedLine 내부 distribution 알고리즘이 mesh 의 양 side
-  // width 를 자동 적용.
-  function thickLineVar(name: string, points: Vector3[], color: Color3, widths: number[]): Mesh {
-    const m = CreateGreasedLine(
-      name,
-      { points, widths },
-      { color, useDash: false },
-      scene,
-    ) as unknown as Mesh;
-    if (root) m.parent = root;
-    return m;
+  function axisWidthFor(order: number): number {
+    if (order === 0) return cfg.axisMainWidth;
+    if (order === 1) return cfg.axisOrder1Width;
+    return cfg.axisOrder2Width;
+  }
+  function axisColorHex(order: number): string {
+    if (order === 0) return cfg.axisMainColor;
+    if (order === 1) return cfg.axisOrder1Color;
+    return cfg.axisOrder2Color;
   }
 
-  /**
-   * Catmull-Rom subsample + per-vertex width 계산.
-   *
-   * controlRadii: 각 control point 의 base radius (m). 곡선 sample 점은
-   * 인접 control radius 간 선형 보간하되, control point 근방에서 bulge
-   * 증가 (마디감 표현). 결과 widths.length === curve.length.
-   */
-  function curveWithWidths(
-    controlPoints: Vector3[],
-    controlRadii: number[],
-    divisions: number,
-    bulge = 0.18,
-  ): { curve: Vector3[]; widths: number[] } {
-    if (controlPoints.length < 2) {
-      return { curve: controlPoints.slice(), widths: controlRadii.slice() };
-    }
-    const curve = catmullRomPath(controlPoints, divisions);
-    // Map each curve point's index → fractional control-point index.
-    // catmullRomPath: for segments 0..N-2 each produces `divisions` points,
-    // last segment also pushes the final point (divisions+1 entries).
-    const widths: number[] = [];
-    const N = controlRadii.length;
-    for (let k = 0; k < curve.length; k++) {
-      const f = k / divisions;                 // 0..N-1 (final point = N-1)
-      const lo = Math.min(N - 1, Math.floor(f));
-      const hi = Math.min(N - 1, lo + 1);
-      const frac = Math.max(0, Math.min(1, f - lo));
-      const rBase = controlRadii[lo] * (1 - frac) + controlRadii[hi] * frac;
-      // Bulge — peaks at frac=0 (control point), zero at midpoint.
-      const distFromCtrl = Math.min(frac, 1 - frac);   // 0..0.5
-      const bulgeAmt = (1 - distFromCtrl * 2) * bulge; // 1 at ctrl, 0 at mid
-      widths.push(rBase * (1 + bulgeAmt));
-    }
-    return { curve, widths };
-  }
+  function drawAxisStem(axis: AxisBase, axisIdx: number): void {
+    if (!root) return;
+    const stemSegs = axis.stemCurve;
+    if (stemSegs.length < 1) return;
 
-  function drawAxis(axis: StemAxis, axisIdx: number) {
-    if (!axis || !axis.nodes || axis.nodes.length < 1) return;
-    if (!root || !mats) return;
-
-    // Catmull-Rom subsample 로 wandering curve. control points 는 nodes
-    // 의 position. 메인 stem 은 ground (0,0,0) 도 prepend.
+    // Main axis prepends ground origin so the basal line touches the bed.
     const controlPoints: Vector3[] = [];
-    if (axis.order === 0) {
-      controlPoints.push(new Vector3(0, 0, 0));
+    if (axis.order === 0) controlPoints.push(new Vector3(0, 0, 0));
+    for (const s of stemSegs) {
+      if (!isFiniteVec(s.position)) continue;
+      controlPoints.push(v(s.position));
     }
-    for (const n of axis.nodes) {
-      if (!n.position || !isFiniteVec(n.position)) continue;
-      controlPoints.push(nodeWorld(n));
-    }
-    if (controlPoints.length >= 2) {
-      const curve = catmullRomPath(controlPoints, Math.max(1, cfg.subdivisionsPerInternode));
-      const axisWidth =
-        axis.order === 0 ? cfg.axisMainWidth
-        : axis.order === 1 ? cfg.axisOrder1Width
-        : cfg.axisOrder2Width;
-      const colorHex =
-        axis.order === 0 ? cfg.axisMainColor
-        : axis.order === 1 ? cfg.axisOrder1Color
-        : cfg.axisOrder2Color;
-      meshes.push(thickLine(
-        `skel_axis_a${axisIdx}`, curve, Color3.FromHexString(colorHex), axisWidth,
-      ));
-    }
+    if (controlPoints.length < 2) return;
 
-    // Per-node markers + leaf petiole + truss anatomy
-    const lastIdx = axis.nodes.length - 1;
-    for (let i = 0; i < axis.nodes.length; i++) {
-      const node = axis.nodes[i];
-      if (!node.position || !isFiniteVec(node.position)) continue;
+    const curve = catmullRomPath(controlPoints, Math.max(1, cfg.subdivisionsPerInternode));
+    meshes.push(thickLine(
+      `skel_axis_a${axisIdx}`,
+      curve,
+      Color3.FromHexString(axisColorHex(axis.order)),
+      axisWidthFor(axis.order),
+    ));
+  }
+
+  function drawNodeMarkers(axis: AxisBase, axisIdx: number): void {
+    if (!root || !mats) return;
+    const stemSegs = axis.stemCurve;
+    const buds = axis.buds;
+    const lastIdx = stemSegs.length - 1;
+
+    for (let i = 0; i < stemSegs.length; i++) {
+      const seg = stemSegs[i];
+      const bud = buds[i];
       const isApex = i === lastIdx;
-      const isTruss = node.truss !== null;
 
-      // budState 별 visibility skip
-      if (!isApex) {
-        if (node.budState === 'dormant' && !cfg.showDormantBuds) continue;
-        if (node.budState === 'pruned' && !cfg.showPrunedBuds) continue;
+      if (!isApex && bud) {
+        if (bud.state === 'dormant' && !cfg.showDormantBuds) continue;
+        if (bud.state === 'pruned' && !cfg.showPrunedBuds) continue;
       }
 
       let dotMat: StandardMaterial;
@@ -244,7 +198,7 @@ export function createSkeletonOverlay(
         dotMat = mats.apex;
         radius = cfg.apexMarkerSize;
       } else {
-        switch (node.budState) {
+        switch (bud?.state) {
           case 'growing': dotMat = mats.dotGrowing; radius = cfg.nodeMarkerSize; break;
           case 'pruned':  dotMat = mats.dotPruned;  radius = cfg.nodeMarkerSize * 0.7; break;
           default:        dotMat = mats.dotDormant; radius = cfg.nodeMarkerSize * 0.7;
@@ -253,172 +207,309 @@ export function createSkeletonOverlay(
 
       const sphere = MeshBuilder.CreateSphere(
         `skel_node_a${axisIdx}_n${i}`,
-        { diameter: radius * 2, segments: 6 },
-        scene,
+        { diameter: radius * 2, segments: 6 }, scene,
       );
-      const nodePos = nodeWorld(node);
-      sphere.position = nodePos;
+      sphere.position = v(seg.position);
       sphere.material = dotMat;
       sphere.parent = root;
       meshes.push(sphere);
+    }
+  }
 
-      // ── Petiole — arching curve in leaf's azimuth.
-      //   nodePos → arch up slightly → curve down to drooped tip.
-      //   Catmull-Rom 으로 매끈한 droop. *직선 금지*.
-      if (cfg.showPetiole && node.leafMaturity > 0.05 && axis.order === 0) {
-        const leafAzimuth = (node.phyllotaxisAngle * Math.PI) / 180;
-        const droopRad = (node.droopExtra * Math.PI) / 180;
-        const petLen = 0.12 * Math.max(0.3, node.leafSizeFactor);
-        const cos = Math.cos(leafAzimuth);
-        const sin = Math.sin(leafAzimuth);
-        // Arch: tip 이 droopRad 만큼 아래로 처지되, 중간은 약간 위로
-        // 솟구치는 cantilever shape.
-        const tipY = -petLen * Math.sin(droopRad * 0.6);
-        const tipR = petLen * Math.cos(droopRad * 0.6);
-        const tip = new Vector3(
-          nodePos.x + cos * tipR,
-          nodePos.y + tipY,
-          nodePos.z + sin * tipR,
-        );
-        // 2 intermediate control points — slight up-arch at 35%, level at 70%
-        const c1 = new Vector3(
-          nodePos.x + cos * tipR * 0.35,
-          nodePos.y + Math.max(0, -tipY * 0.15) + 0.005,
-          nodePos.z + sin * tipR * 0.35,
-        );
-        const c2 = new Vector3(
-          nodePos.x + cos * tipR * 0.70,
-          nodePos.y + tipY * 0.55,
-          nodePos.z + sin * tipR * 0.70,
-        );
-        const petCurve = catmullRomPath([nodePos, c1, c2, tip], 4);
-        meshes.push(thickLine(
-          `skel_pet_a${axisIdx}_n${i}`, petCurve,
-          Color3.FromHexString(cfg.petioleColor), cfg.petioleWidth,
-        ));
-        const leafDot = MeshBuilder.CreateSphere(
-          `skel_leafdot_a${axisIdx}_n${i}`,
-          { diameter: 0.012, segments: 6 },
-          scene,
-        );
-        leafDot.position = tip;
-        leafDot.material = mats.leaf;
-        leafDot.parent = root;
-        meshes.push(leafDot);
-      }
+  function drawPetiole(axis: AxisBase, axisIdx: number, leaf: LeafBase): void {
+    if (!root || !mats) return;
+    if (!cfg.showPetiole) return;
+    if (!leaf.visibility.visible && !showHiddenOrgans) return;
+    if (!isFiniteVec(leaf.attachPosition)) return;
 
-      // ── Truss — Phase 3c-3: shared layoutTruss() = lush mesh 와 *동일*
-      //     fruit / pedicel / calyx 위치. truss 는 main axis only.
-      if (cfg.showTruss && isTruss && node.truss && axis.order === 0 && lastGenome) {
-        const trussAz = (node.phyllotaxisAngle * Math.PI) / 180 + Math.PI;
-        const cosAz = Math.cos(trussAz);
-        const sinAz = Math.sin(trussAz);
+    const attach = v(leaf.attachPosition);
+    const cos = Math.cos(leaf.azimuthRad);
+    const sin = Math.sin(leaf.azimuthRad);
+    // Tip at petLen × (cos azimuth, ...) with droop component, arched curve.
+    const tipY = -leaf.petioleLengthM * Math.sin(leaf.droopRad * 0.6);
+    const tipR = leaf.petioleLengthM * Math.cos(leaf.droopRad * 0.6);
+    const tip = new Vector3(attach.x + cos * tipR, attach.y + tipY, attach.z + sin * tipR);
+    const c1 = new Vector3(
+      attach.x + cos * tipR * 0.35,
+      attach.y + Math.max(0, -tipY * 0.15) + 0.005,
+      attach.z + sin * tipR * 0.35,
+    );
+    const c2 = new Vector3(
+      attach.x + cos * tipR * 0.70,
+      attach.y + tipY * 0.55,
+      attach.z + sin * tipR * 0.70,
+    );
+    const petCurve = catmullRomPath([attach, c1, c2, tip], 4);
+    meshes.push(thickLine(
+      `skel_pet_a${axisIdx}_n${leaf.nodeIdx}`, petCurve,
+      Color3.FromHexString(cfg.petioleColor), cfg.petioleWidth,
+    ));
+    const leafDot = MeshBuilder.CreateSphere(
+      `skel_leafdot_a${axisIdx}_n${leaf.nodeIdx}`,
+      { diameter: 0.012, segments: 6 }, scene,
+    );
+    leafDot.position = tip;
+    leafDot.material = leaf.visibility.visible ? mats.leaf : mats.leafHidden;
+    leafDot.parent = root;
+    meshes.push(leafDot);
+  }
 
-        // Truss-local → world transform: rotate around Y by trussAz, then
-        // translate to nodePos. trussRoot is at nodePos.y - 0.02 in lush;
-        // mirror that.
-        //
-        // Babylon left-handed Y rotation (column-major):
-        //   new_x = cos·x + sin·z
-        //   new_z = -sin·x + cos·z
-        // (Initial implementation flipped the sin sign, which produced a
-        // mirror-Z mismatch for trusses whose phyllotaxis points off-axis.)
-        const trussWorldOrigin = new Vector3(nodePos.x, nodePos.y - 0.02, nodePos.z);
-        const toWorld = (p: { x: number; y: number; z: number }): Vector3 => new Vector3(
-          trussWorldOrigin.x + cosAz * p.x + sinAz * p.z,
-          trussWorldOrigin.y + p.y,
-          trussWorldOrigin.z - sinAz * p.x + cosAz * p.z,
-        );
+  function drawTruss(axis: AxisBase, axisIdx: number, truss: TrussBase): void {
+    if (!root || !mats) return;
+    if (!cfg.showTruss) return;
+    if (!truss.visibility.visible && !showHiddenOrgans) return;
+    if (!isFiniteVec(truss.worldOrigin)) return;
 
-        const layout = layoutTruss(node.truss, lastGenome);
+    // v4.1 — prefer the new 3-tier schema (peduncleCurve / rachisCurve /
+    // floralSites). Fallback to legacy fruits[]/rachisCurveWorld only when
+    // PlantBase Phase B hasn't populated the new fields.
+    const useV41 = !!truss.floralSites && !!truss.peduncleCurve && !!truss.rachisCurve;
 
-        // Rachis curve (peduncle polyline).
-        const rachisCurveWorld = catmullRomPath(
-          layout.rachisControlPoints.map(toWorld),
-          4,
-        );
-        meshes.push(thickLine(
-          `skel_rachis_a${axisIdx}_n${i}`, rachisCurveWorld,
-          Color3.FromHexString(cfg.rachisColor), cfg.rachisWidth,
-        ));
+    if (useV41) {
+      drawTrussV41(axis, axisIdx, truss);
+      return;
+    }
 
-        // Truss base marker (where rachis meets stem).
-        const trMarker = MeshBuilder.CreateSphere(
-          `skel_truss_a${axisIdx}_n${i}`,
-          { diameter: 0.010, segments: 6 }, scene,
-        );
-        trMarker.position = trussWorldOrigin;
-        trMarker.material = mats.truss;
-        trMarker.parent = root;
-        meshes.push(trMarker);
+    // ── Legacy fallback (Phase F removes) ────────────────────────────
+    const origin = v(truss.worldOrigin);
+    const rachisCurve = catmullRomPath(truss.rachisCurveWorld.map(v), 4);
+    meshes.push(thickLine(
+      `skel_rachis_a${axisIdx}_n${truss.nodeIdx}`, rachisCurve,
+      Color3.FromHexString(cfg.rachisColor), cfg.rachisWidth,
+    ));
 
-        // Per-item pedicel + fruit dot + calyx star.
-        for (let f = 0; f < layout.items.length; f++) {
-          const item = layout.items[f];
-          if (item.kind !== 'fruit') continue;          // skeleton 은 fruit 만
-          const pedPtsLocal = pedicelControlPoints(item);
-          const pedCurveWorld = catmullRomPath(pedPtsLocal.map(toWorld), 3);
+    const trMarker = MeshBuilder.CreateSphere(
+      `skel_truss_a${axisIdx}_n${truss.nodeIdx}`,
+      { diameter: 0.010, segments: 6 }, scene,
+    );
+    trMarker.position = origin;
+    trMarker.material = mats.truss;
+    trMarker.parent = root;
+    meshes.push(trMarker);
 
+    for (let f = 0; f < truss.fruits.length; f++) {
+      const fruit = truss.fruits[f];
+      if (!fruit.visibility.visible && !showHiddenOrgans) continue;
+      if (fruit.pedicelCurve.length < 4) continue;
+      const fadeOnly = !fruit.visibility.visible;
+
+      const pedCurve = catmullRomPath(fruit.pedicelCurve.map(v), 3);
+      meshes.push(thickLine(
+        `skel_ped_a${axisIdx}_n${truss.nodeIdx}_f${f}`, pedCurve,
+        Color3.FromHexString(cfg.pedicelColor), cfg.pedicelWidth,
+      ));
+
+      const abscissPos = v(fruit.pedicelCurve[2]);
+      const absciss = MeshBuilder.CreateSphere(
+        `skel_abs_a${axisIdx}_n${truss.nodeIdx}_f${f}`,
+        { diameter: 0.005, segments: 4 }, scene,
+      );
+      absciss.position = abscissPos;
+      absciss.material = mats.truss;
+      absciss.parent = root;
+      meshes.push(absciss);
+
+      const fruitPos = v(fruit.worldPosition);
+
+      if (cfg.showCalyx) {
+        const calyxLen = 0.012;
+        const lastPed = v(fruit.pedicelCurve[3]);
+        const prevPed = v(fruit.pedicelCurve[2]);
+        const downDir = lastPed.subtract(prevPed).normalize();
+        const perp = Math.abs(downDir.y) < 0.95
+          ? Vector3.Cross(downDir, new Vector3(0, 1, 0)).normalize()
+          : new Vector3(1, 0, 0);
+        const perp2 = Vector3.Cross(downDir, perp).normalize();
+        for (let s = 0; s < 5; s++) {
+          const theta = (s / 5) * Math.PI * 2;
+          const outward = Math.sin((25 * Math.PI) / 180);
+          const dir = downDir.scale(-Math.cos((25 * Math.PI) / 180))
+            .add(perp.scale(Math.cos(theta) * outward))
+            .add(perp2.scale(Math.sin(theta) * outward))
+            .normalize();
+          const tip = fruitPos.add(dir.scale(calyxLen));
           meshes.push(thickLine(
-            `skel_ped_a${axisIdx}_n${i}_f${f}`,
-            pedCurveWorld,
-            Color3.FromHexString(cfg.pedicelColor), cfg.pedicelWidth,
+            `skel_calyx_a${axisIdx}_n${truss.nodeIdx}_f${f}_s${s}`,
+            [fruitPos, tip],
+            Color3.FromHexString(cfg.calyxColor), cfg.calyxWidth,
           ));
-
-          // Abscission joint dot — 3rd control point of pedicel curve.
-          const abscissPos = toWorld(pedPtsLocal[2]);
-          const absciss = MeshBuilder.CreateSphere(
-            `skel_abs_a${axisIdx}_n${i}_f${f}`,
-            { diameter: 0.005, segments: 4 }, scene,
-          );
-          absciss.position = abscissPos;
-          absciss.material = mats.truss;
-          absciss.parent = root;
-          meshes.push(absciss);
-
-          const fruitPos = toWorld(item.attachPos);
-
-          // Calyx 5-ray star — pedicel last-segment direction.
-          if (cfg.showCalyx) {
-            const calyxLen = 0.012;
-            const lastPed = toWorld(pedPtsLocal[3]);
-            const prevPed = toWorld(pedPtsLocal[2]);
-            const downDir = lastPed.subtract(prevPed).normalize();
-            const perp = Math.abs(downDir.y) < 0.95
-              ? Vector3.Cross(downDir, new Vector3(0, 1, 0)).normalize()
-              : new Vector3(1, 0, 0);
-            const perp2 = Vector3.Cross(downDir, perp).normalize();
-            for (let s = 0; s < 5; s++) {
-              const theta = (s / 5) * Math.PI * 2;
-              const outward = Math.sin((25 * Math.PI) / 180);
-              const dir = downDir.scale(-Math.cos((25 * Math.PI) / 180))
-                .add(perp.scale(Math.cos(theta) * outward))
-                .add(perp2.scale(Math.sin(theta) * outward))
-                .normalize();
-              const tip = fruitPos.add(dir.scale(calyxLen));
-              meshes.push(thickLine(
-                `skel_calyx_a${axisIdx}_n${i}_f${f}_s${s}`,
-                [fruitPos, tip],
-                Color3.FromHexString(cfg.calyxColor), cfg.calyxWidth,
-              ));
-            }
-          }
-
-          if (cfg.showFruitDots) {
-            const dia = (node.truss.fruits[item.index].diameterMm ?? 30);
-            const fruitDiam = (0.010 + 0.014 * Math.min(1, dia / 60)) * cfg.fruitMarkerScale;
-            const fr = MeshBuilder.CreateSphere(
-              `skel_fr_a${axisIdx}_n${i}_f${f}`,
-              { diameter: fruitDiam, segments: 6 }, scene,
-            );
-            fr.position = fruitPos;
-            fr.material = mats.fruit;
-            fr.parent = root;
-            meshes.push(fr);
-          }
         }
       }
+
+      if (cfg.showFruitDots) {
+        const fruitDiam =
+          (0.010 + 0.014 * Math.min(1, fruit.diameterMm / 60)) * cfg.fruitMarkerScale;
+        const fr = MeshBuilder.CreateSphere(
+          `skel_fr_a${axisIdx}_n${truss.nodeIdx}_f${f}`,
+          { diameter: fruitDiam, segments: 6 }, scene,
+        );
+        fr.position = fruitPos;
+        fr.material = fadeOnly ? mats.fruitHidden : mats.fruit;
+        fr.parent = root;
+        meshes.push(fr);
+      }
     }
+  }
+
+  /** v4.1 — 3-tier draw: peduncle, rachis, per-site (pedicel + organ).
+   *  Each tier is its own polyline / mesh so they read as distinct anatomy. */
+  function drawTrussV41(axis: AxisBase, axisIdx: number, truss: TrussBase): void {
+    if (!root || !mats) return;
+    if (!truss.peduncleCurve || !truss.rachisCurve || !truss.floralSites) return;
+
+    // Tier 1: peduncle (slightly thicker than rachis to read as base).
+    const peduncleWorld = truss.peduncleCurve.map(v);
+    const peduncleCurve = catmullRomPath(peduncleWorld, 3);
+    meshes.push(thickLine(
+      `skel_ped_a${axisIdx}_n${truss.nodeIdx}`, peduncleCurve,
+      Color3.FromHexString(cfg.rachisColor), cfg.rachisWidth * 1.4,
+    ));
+
+    // Truss attach marker at worldOrigin (main-stem attach).
+    const originMarker = MeshBuilder.CreateSphere(
+      `skel_truss_a${axisIdx}_n${truss.nodeIdx}`,
+      { diameter: 0.010, segments: 6 }, scene,
+    );
+    originMarker.position = v(truss.worldOrigin);
+    originMarker.material = mats.truss;
+    originMarker.parent = root;
+    meshes.push(originMarker);
+
+    // Tier 2: rachis (cymose zigzag polyline through knuckles).
+    const rachisWorld = truss.rachisCurve.map(v);
+    const rachisCurve = catmullRomPath(rachisWorld, 3);
+    meshes.push(thickLine(
+      `skel_rachis_a${axisIdx}_n${truss.nodeIdx}`, rachisCurve,
+      Color3.FromHexString(cfg.rachisColor), cfg.rachisWidth,
+    ));
+
+    // Knuckle markers (small spheres at each branch point).
+    for (let k = 0; k < truss.floralSites.length; k++) {
+      const knuckle = MeshBuilder.CreateSphere(
+        `skel_knuckle_a${axisIdx}_n${truss.nodeIdx}_k${k}`,
+        { diameter: 0.0055, segments: 4 }, scene,
+      );
+      knuckle.position = v(truss.floralSites[k].knuckle);
+      knuckle.material = mats.truss;
+      knuckle.parent = root;
+      meshes.push(knuckle);
+    }
+
+    // Tier 3: per-site pedicel + organ marker.
+    for (const site of truss.floralSites) {
+      drawFloralSite(axisIdx, truss.nodeIdx, site);
+    }
+  }
+
+  function drawFloralSite(
+    axisIdx: number,
+    nodeIdx: number,
+    site: FloralSiteBase,
+  ): void {
+    if (!root || !mats) return;
+    const isHidden = !site.visibility.visible;
+    if (isHidden && !showHiddenOrgans) return;
+
+    // Pedicel wire.
+    if (site.pedicelCurve.length >= 4) {
+      const pedCurve = catmullRomPath(site.pedicelCurve.map(v), 3);
+      meshes.push(thickLine(
+        `skel_pedicel_a${axisIdx}_n${nodeIdx}_s${site.index}`, pedCurve,
+        Color3.FromHexString(cfg.pedicelColor), cfg.pedicelWidth,
+      ));
+
+      // Abscission marker (joint / knee).
+      const absciss = MeshBuilder.CreateSphere(
+        `skel_abs_a${axisIdx}_n${nodeIdx}_s${site.index}`,
+        { diameter: 0.005, segments: 4 }, scene,
+      );
+      absciss.position = v(site.abscissionPosition);
+      absciss.material = mats.truss;
+      absciss.parent = root;
+      meshes.push(absciss);
+    }
+
+    // Organ marker — driven by stage.
+    const topPos = v(site.fruitTop);
+    switch (site.stage) {
+      case 'bud':
+      case 'flowering':
+      case 'petal-drop': {
+        // Tiny yellow icon at fruitTop (open-flower hint).
+        const flowerDot = MeshBuilder.CreateSphere(
+          `skel_flower_a${axisIdx}_n${nodeIdx}_s${site.index}`,
+          { diameter: 0.010, segments: 6 }, scene,
+        );
+        flowerDot.position = topPos;
+        // Reuse leaf/apex materials (yellow-ish) since palette is limited.
+        flowerDot.material = mats.apex;
+        flowerDot.parent = root;
+        meshes.push(flowerDot);
+        break;
+      }
+      case 'fruit-set':
+      case 'fruit-growing':
+      case 'ripening': {
+        // Red dot at fruitCenter + calyx 5-star at fruitTop.
+        if (site.fruit) {
+          const fruitDiam =
+            (0.010 + 0.014 * Math.min(1, site.fruit.diameterMm / 60)) * cfg.fruitMarkerScale;
+          const fr = MeshBuilder.CreateSphere(
+            `skel_fr_a${axisIdx}_n${nodeIdx}_s${site.index}`,
+            { diameter: fruitDiam, segments: 6 }, scene,
+          );
+          fr.position = v(site.fruit.fruitCenter);
+          fr.material = isHidden ? mats.fruitHidden : mats.fruit;
+          fr.parent = root;
+          meshes.push(fr);
+        }
+        if (cfg.showCalyx) {
+          // 5-ray star at fruitTop along fruitAxisDir.
+          const axisV = v(site.fruitAxisDir);
+          const calyxLen = 0.012;
+          const perp = Math.abs(axisV.y) < 0.95
+            ? Vector3.Cross(axisV, new Vector3(0, 1, 0)).normalize()
+            : new Vector3(1, 0, 0);
+          const perp2 = Vector3.Cross(axisV, perp).normalize();
+          for (let s = 0; s < 5; s++) {
+            const theta = (s / 5) * Math.PI * 2;
+            const outward = Math.sin((25 * Math.PI) / 180);
+            // Sepals reflex AWAY from fruit (opposite fruitAxisDir).
+            const dir = axisV.scale(-Math.cos((25 * Math.PI) / 180))
+              .add(perp.scale(Math.cos(theta) * outward))
+              .add(perp2.scale(Math.sin(theta) * outward))
+              .normalize();
+            const tip = topPos.add(dir.scale(calyxLen));
+            meshes.push(thickLine(
+              `skel_calyx_a${axisIdx}_n${nodeIdx}_s${site.index}_r${s}`,
+              [topPos, tip],
+              Color3.FromHexString(cfg.calyxColor), cfg.calyxWidth,
+            ));
+          }
+        }
+        break;
+      }
+      case 'harvested':
+      case 'aborted': {
+        // Faint marker only when showHiddenOrgans is enabled.
+        const dot = MeshBuilder.CreateSphere(
+          `skel_hidden_a${axisIdx}_n${nodeIdx}_s${site.index}`,
+          { diameter: 0.006, segments: 4 }, scene,
+        );
+        dot.position = topPos;
+        dot.material = mats.fruitHidden;
+        dot.parent = root;
+        meshes.push(dot);
+        break;
+      }
+    }
+  }
+
+  function drawAxisAll(axis: AxisBase, axisIdx: number): void {
+    drawAxisStem(axis, axisIdx);
+    drawNodeMarkers(axis, axisIdx);
+    for (const leaf of axis.leaves) drawPetiole(axis, axisIdx, leaf);
+    for (const truss of axis.trusses) drawTruss(axis, axisIdx, truss);
   }
 
   function rebuild() {
@@ -426,15 +517,16 @@ export function createSkeletonOverlay(
       if (meshes.length > 0) clearMeshes();
       return;
     }
-    const plant = lastPlantForRebuild;
-    if (!plant || !plant.allAxes || plant.allAxes.length === 0) {
+    const pb = lastPlantBase;
+    if (!pb) {
       clearMeshes();
       return;
     }
     clearMeshes();
     try {
-      for (let i = 0; i < plant.allAxes.length; i++) {
-        drawAxis(plant.allAxes[i], i);
+      drawAxisAll(pb.mainAxis, 0);
+      for (let i = 0; i < pb.sideShoots.length; i++) {
+        drawAxisAll(pb.sideShoots[i], i + 1);
       }
     } catch (err) {
       console.error('[SkeletonOverlay] draw failed:', err);
@@ -443,17 +535,15 @@ export function createSkeletonOverlay(
   }
 
   return {
-    update(plant: PlantState, genome: import('@farmsim/tomato-engine').PlantGenome) {
-      lastPlantForRebuild = plant;
-      lastGenome = genome;
+    update(plantBase: PlantBase) {
+      lastPlantBase = plantBase;
       rebuild();
     },
     setVisible(v: boolean) {
       visible = v;
       if (v) ensureInit();
       if (root) root.setEnabled(v);
-      // 토글 ON 시점에 lastPlant 있으면 즉시 그림.
-      if (v && lastPlantForRebuild) rebuild();
+      if (v && lastPlantBase) rebuild();
     },
     setConfig(next: SkeletonConfig) {
       cfg = next;
@@ -473,6 +563,8 @@ export function createSkeletonOverlay(
         mats.truss.dispose();
         mats.leaf.dispose();
         mats.fruit.dispose();
+        mats.fruitHidden.dispose();
+        mats.leafHidden.dispose();
         mats = null;
       }
     },

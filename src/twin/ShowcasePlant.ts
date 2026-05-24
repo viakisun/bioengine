@@ -6,15 +6,16 @@ import { Vector3, Quaternion } from '@babylonjs/core/Maths/math.vector';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { PBRMaterial } from '@babylonjs/core/Materials/PBR/pbrMaterial';
 import { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData';
-import { SeededRandom, overlayPhysiologyFruits } from '@farmsim/tomato-engine';
+import { SeededRandom, overlayPhysiologyFruits, getCultivar } from '@farmsim/tomato-engine';
+import { computePlantGeometry, type PlantBase, type AxisBase } from '../plant/PlantBase';
 import {
   createLeafMeshFromNode,
   getLeafMaterial,
   getYellowLeafMaterial,
   getDiseasedLeafMaterial,
 } from '../plant/LeafGenerator';
-import { createStemMesh, getStemMaterial } from '../plant/StemGenerator';
-import { createTrussNode } from '../plant/TrussGenerator';
+import { createStemMesh, createStemMeshFromSegments, getStemMaterial } from '../plant/StemGenerator';
+import { createTrussNode, createTrussNodeFromBase } from '../plant/TrussGenerator';
 import { buildCotyledonChunk } from '@farmsim/tomato-geometry';
 import type { GrowthEngine, PlantState } from '@farmsim/tomato-engine';
 import { createSkeletonOverlay, type SkeletonOverlayHandle } from './SkeletonOverlay';
@@ -48,9 +49,14 @@ export interface ShowcasePlantHandle {
   setVisible: (v: boolean) => void;
   setSegmentationMode: (on: boolean) => void;
   /** Plan 3a — toggle wireframe + node-marker skeleton view. While ON,
-   *  the lush mesh is hidden so the user can verify the biology (apex,
-   *  node bulge, side shoots, pruning) without visual noise. */
+   *  the lush mesh is hidden so the user can verify the biology.
+   *  Equivalent to `setSkeletonEnabled(on) + setLushEnabled(!on)`. */
   setSkeletonMode: (on: boolean) => void;
+  /** ProgressiveLoad 용 — lush mesh visibility 만 독립 토글. */
+  setLushEnabled: (v: boolean) => void;
+  /** ProgressiveLoad 용 — skeleton overlay visibility 만 독립 토글.
+   *  ON 시 plantBase 가 lastState 로부터 계산되어 skeleton 에 push. */
+  setSkeletonEnabled: (v: boolean) => void;
   /** Plan 3a Phase ζ — push new SkeletonConfig (thickness/color/toggles). */
   setSkeletonConfig: (cfg: import('../store/twinStore').SkeletonConfig) => void;
   currentState: () => PlantState | null;
@@ -200,7 +206,7 @@ export function createShowcasePlant(
     highlight.removeAllMeshes();
   }
 
-  function buildFromState(state: PlantState) {
+  function buildFromState(state: PlantState, plantBase: PlantBase) {
     disposeAll();
     lastState = state;
 
@@ -241,8 +247,16 @@ export function createShowcasePlant(
     const isDiseased = state.diseaseLoad > 0.3;
     const leafMatForPlant = isDiseased ? diseasedLeafMat : leafMat;
 
+    // v4.0 — every position / azimuth / visibility decision comes from
+    // PlantBase. The NodeState lookup is for genome/RNG-driven mesh
+    // construction details only (LeafGenerator, TrussGenerator), not
+    // for placement.
+    const rawAxes = state.allAxes ?? [state.mainAxis];
+    const baseAxes: AxisBase[] = [plantBase.mainAxis, ...plantBase.sideShoots];
+
     const buildAxisVisuals = (
-      axis: import('@farmsim/tomato-engine').StemAxis,
+      axisBase: AxisBase,
+      rawAxis: import('@farmsim/tomato-engine').StemAxis,
       axisIdx: number,
     ) => {
       const isMain = axisIdx === 0;
@@ -250,26 +264,14 @@ export function createShowcasePlant(
         ? { radialSegments: 12, nodeBulge: 0.15, verticalStripeCount: 8, stripeDepth: 0.06 }
         : { radialSegments: 10, nodeBulge: 0.10, verticalStripeCount: 8, stripeDepth: 0.05 };
 
-      // Resolve stem origin — main = ground (default), side = parent's node position.
-      let origin: { x: number; y: number; z: number } | undefined | null;
-      if (isMain) {
-        origin = undefined;  // ground (0,0,0) prefix
-      } else {
-        const parentAxis = state.allAxes[axis.parentAxisIdx ?? 0];
-        const parentNode = parentAxis?.nodes[axis.parentNodeIdx ?? 0];
-        origin = parentNode?.position
-          ? { x: parentNode.position.x, y: parentNode.position.y, z: parentNode.position.z }
-          : null;
-      }
+      const origin = isMain ? undefined : null;
 
-      // === Stem ===
-      if (axis.nodes.length >= (isMain ? 2 : 1)) {
-        const stemRng = new SeededRandom(seed * 13 + axisIdx * 101);
-        const stem = createStemMesh(
+      // === Stem === — PlantBase StemSegment[] drives both lush and skeleton.
+      if (axisBase.stemCurve.length >= (isMain ? 2 : 1)) {
+        const stem = createStemMeshFromSegments(
           `showcase_stem_${seed}_a${axisIdx}`,
           scene,
-          axis.nodes,
-          stemRng,
+          axisBase.stemCurve,
           { ...stemOpts, origin },
         );
         if (stem) {
@@ -280,66 +282,82 @@ export function createShowcasePlant(
         }
       }
 
-      // === Leaves + trusses per node ===
-      for (const node of axis.nodes) {
-        if (node.leafMaturity < 0.05) continue;
-
-        const azimuthRad = (node.phyllotaxisAngle * Math.PI) / 180;
-        const droopRad = (node.droopExtra * Math.PI) / 180;
-
-        // Seed mixes axisIdx so each side shoot has distinct leaf RNG.
-        const leafRng = new SeededRandom(seed * 1000 + axisIdx * 99991 + node.index * 13 + 7);
+      // === Leaves === — visibility/position from PlantBase, mesh from NodeState.
+      for (const leafBase of axisBase.leaves) {
+        if (!leafBase.visibility.visible) continue;
+        const rawNode = rawAxis.nodes[leafBase.nodeIdx];
+        if (!rawNode) continue;
+        const leafRng = new SeededRandom(seed * 1000 + axisIdx * 99991 + leafBase.nodeIdx * 13 + 7);
         const leaf = createLeafMeshFromNode(
-          `showcase_leaf_${seed}_a${axisIdx}_n${node.index}`,
+          `showcase_leaf_${seed}_a${axisIdx}_n${leafBase.nodeIdx}`,
           scene,
-          node,
+          rawNode,
           genome,
           state.day,
           leafRng,
         );
-        leaf.material = node.yellowing > 0.4 ? yellowLeafMat : leafMatForPlant;
+        leaf.material = leafBase.yellowing > 0.4 ? yellowLeafMat : leafMatForPlant;
         leaf.parent = lushGroup;
-        leaf.position = new Vector3(node.position.x, node.position.y, node.position.z);
-
-        const q = Quaternion.RotationAxis(Vector3.Up(), azimuthRad).multiply(
-          Quaternion.RotationAxis(new Vector3(0, 0, 1), -droopRad),
+        leaf.position = new Vector3(
+          leafBase.attachPosition.x,
+          leafBase.attachPosition.y,
+          leafBase.attachPosition.z,
+        );
+        const q = Quaternion.RotationAxis(Vector3.Up(), leafBase.azimuthRad).multiply(
+          Quaternion.RotationAxis(new Vector3(0, 0, 1), -leafBase.droopRad),
         );
         leaf.rotationQuaternion = q;
         currentMeshes.push(leaf);
         currentParts.leaves.push(leaf);
+      }
 
-        // Truss — currently only main-axis nodes carry trusses (Plan 3c+
-        // could add side-shoot trusses if growers don't prune).
-        if (node.truss && (node.truss.fruits.length > 0 || node.truss.flowers.length > 0)) {
-          const trussRng = new SeededRandom(seed * 7919 + axisIdx * 88883 + node.index * 31);
-          const trussNode = createTrussNode(
-            `showcase_truss_${seed}_a${axisIdx}_n${node.index}`,
-            scene,
-            node.truss,
-            genome,
-            azimuthRad + Math.PI,
-            trussRng,
+      // === Trusses === — v4.1 3-tier cymose. visibility/positions/stage
+      // 모두 PlantBase 의 floralSites 에서. Mesh 생성은 TrussGenerator
+      // .createTrussNodeFromBase 가 peduncle / rachis / per-site pedicel
+      // + organ 을 모두 처리. legacy createTrussNode 는 fallback.
+      for (const trussBase of axisBase.trusses) {
+        if (!trussBase.visibility.visible) continue;
+        const trussRng = new SeededRandom(seed * 7919 + axisIdx * 88883 + trussBase.nodeIdx * 31);
+
+        const useV41 = !!trussBase.floralSites && !!trussBase.peduncleCurve && !!trussBase.rachisCurve;
+        let trussNode;
+        if (useV41) {
+          // v4.1 — single source of truth, no positioning here.
+          trussNode = createTrussNodeFromBase(
+            `showcase_truss_${seed}_a${axisIdx}_n${trussBase.nodeIdx}`,
+            scene, trussBase, trussRng,
+          );
+          trussNode.parent = lushGroup;
+          // PlantBase pre-baked world coords, no extra positioning.
+        } else {
+          // Legacy fallback (Phase F removes).
+          const rawNode = rawAxis.nodes[trussBase.nodeIdx];
+          if (!rawNode || !rawNode.truss) continue;
+          trussNode = createTrussNode(
+            `showcase_truss_${seed}_a${axisIdx}_n${trussBase.nodeIdx}`,
+            scene, rawNode.truss, genome, trussBase.azimuthRad, trussRng,
           );
           trussNode.parent = lushGroup;
           trussNode.position = new Vector3(
-            node.position.x,
-            node.position.y - 0.02,
-            node.position.z,
+            trussBase.worldOrigin.x,
+            trussBase.worldOrigin.y,
+            trussBase.worldOrigin.z,
           );
-          trussNode.getChildMeshes().forEach((m) => {
-            if (m.name.includes('_body')) {
-              currentParts.fruits.push(m as Mesh);
-            }
-          });
-          currentTransformNodes.push(trussNode);
         }
+        trussNode.getChildMeshes().forEach((m) => {
+          if (m.name.includes('_body')) {
+            currentParts.fruits.push(m as Mesh);
+          }
+        });
+        currentTransformNodes.push(trussNode);
       }
     };
 
-    // Drive buildAxisVisuals across all axes — main + each side shoot.
-    const axes = state.allAxes ?? [state.mainAxis];
-    for (let a = 0; a < axes.length; a++) {
-      buildAxisVisuals(axes[a], a);
+    // Drive across PlantBase axes — main + each side shoot.
+    for (let a = 0; a < baseAxes.length; a++) {
+      const raw = rawAxes[a];
+      if (!raw) continue;
+      buildAxisVisuals(baseAxes[a], raw, a);
     }
 
     applySegmentationHighlights();
@@ -362,10 +380,17 @@ export function createShowcasePlant(
         // Overlay TOMGRO truss/fruit data onto the sigmoid base state.
         state = overlayPhysiologyFruits(state, physiology);
       }
-      buildFromState(state);
-      // Keep skeleton overlay in sync with current plant data + genome
-      // (for layoutTruss → computeTrussDroop).
-      skeleton.update(state, engine.getGenome(seed)!);
+      // v4.0 — compute PlantBase once (geometric truth) and feed both
+      // the lush mesh build and the skeleton overlay. Identical world
+      // coords on both views by construction.
+      const cultivarName = engine.getCultivarFor(seed)?.name ?? 'tomimaru-muchoo';
+      const plantBase = computePlantGeometry(state, {
+        genome: engine.getGenome(seed)!,
+        cultivar: getCultivar(cultivarName),
+        physiologyState: physiology,
+      });
+      buildFromState(state, plantBase);
+      skeleton.update(plantBase);
 
       if (diag()) {
         const apex = state.nodes[state.nodes.length - 1];
@@ -383,35 +408,34 @@ export function createShowcasePlant(
       segmentationOn = on;
       applySegmentationHighlights();
     },
-    setSkeletonMode(on) {
-      if (skeletonOn === on) return;
-      skeletonOn = on;
-      // Ensure skeleton has the latest genome reference (needed for layout
-      // computation during rebuild).
-      if (on && lastState) {
-        skeleton.update(lastState, engine.getGenome(seed)!);
+    setLushEnabled(v) {
+      // lushGroup 만 토글. skeleton 은 영향 없음.
+      // root 자체는 변경 X — wind sway 와 worldPosition 은 lush/skeleton 양쪽이
+      // 공유해야 하므로 root 가 아닌 lushGroup 으로 hide.
+      lushGroup.setEnabled(v);
+    },
+    setSkeletonEnabled(v) {
+      if (skeletonOn === v) return;
+      skeletonOn = v;
+      // ON 시 plantBase 를 lastState 로부터 계산해서 skeleton 에 push.
+      if (v && lastState) {
+        const cultivarName = engine.getCultivarFor(seed)?.name ?? 'tomimaru-muchoo';
+        const physiology = engine.getPhysiologyState(seed) ?? undefined;
+        const plantBase = computePlantGeometry(lastState, {
+          genome: engine.getGenome(seed)!,
+          cultivar: getCultivar(cultivarName),
+          physiologyState: physiology,
+        });
+        skeleton.update(plantBase);
       }
+      skeleton.setVisible(v);
+    },
+    setSkeletonMode(on) {
+      // Legacy combined toggle — skeleton ON 일 때 lush OFF.
+      this.setSkeletonEnabled(on);
+      this.setLushEnabled(!on);
       if (diag()) {
         console.log(`[diag:2] setSkeletonMode(${on})`);
-        const p = root.position;
-        console.log(`[diag:2]   ShowcasePlant.root.position = (${p.x.toFixed(3)}, ${p.y.toFixed(3)}, ${p.z.toFixed(3)})`);
-        const sn = scene.transformNodes.find((n) => n.name === 'skeletonOverlayRoot');
-        if (sn) {
-          console.log(`[diag:2]   SkeletonOverlay.root.position(local) = (${sn.position.x.toFixed(3)}, ${sn.position.y.toFixed(3)}, ${sn.position.z.toFixed(3)})`);
-          console.log(`[diag:2]   SkeletonOverlay.root.parent = ${sn.parent?.name ?? 'null'}`);
-        } else {
-          console.log(`[diag:2]   SkeletonOverlay.root: not yet created (lazy)`);
-        }
-      }
-      // Hide lush mesh while skeleton is on so user can verify biology.
-      // lushGroup (not root) — root holds shared transform (wind sway,
-      // worldPosition) inherited by *both* lush and skeleton overlay.
-      lushGroup.setEnabled(!on);
-      skeleton.setVisible(on);
-      // skeleton.update 호출은 위 setSkeletonMode 분기 (lastState + genome)
-      // 에서 이미 진행됨. setVisible(on) 직후 rebuild trigger 없음.
-
-      if (diag()) {
         const lushStem = scene.meshes.filter(
           (m) => m.name.startsWith('showcase_stem_') || m.name.startsWith('showcase_sidestem_'),
         );
