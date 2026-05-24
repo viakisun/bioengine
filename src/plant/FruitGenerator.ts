@@ -155,21 +155,37 @@ function buildFruitBodyVertexData(
         fruit.color[2] / 255,
       ];
 
-      let gradStrength = 0;
+      // Spatial ripening — turning 단계 (2-4) 에서 한 fruit 내에 색 혼합:
+      //   blossom-end (y<0) advance — 먼저 red
+      //   stem-end (y>0) retention  — 더 오래 green
+      // 두 영역 모두 stage-strength 가 stage 2.5 에서 peak, stage 1/5
+      // 에서 0 으로 falls. (uniform green stage<2, uniform red stage>4)
+      let stageStrength = 0;
       if (fruit.ripenStage >= 2 && fruit.ripenStage <= 4) {
         const fromStage2 = (fruit.ripenStage - 2) + fruit.ripenFraction;
-        // Peaks at stage 2.5, falls to 0 at stage 1 or 5
-        gradStrength = (genome.blossomEndAdvanceFrac ?? 0.4)
-          * Math.max(0, 1 - Math.abs(fromStage2 - 1) * 0.7);
+        stageStrength = Math.max(0, 1 - Math.abs(fromStage2 - 1) * 0.7);
+      }
+      const advanceFrac = genome.blossomEndAdvanceFrac ?? 0.4;
+      // stem-end green retention frac — body 상단 (cosP > 0) 영역에 적용.
+      // 실제 토마토의 shoulder 가 가장 오래 green 유지하는 관찰 일치.
+      // 미래 task: cultivar genome 별 분배 (beefsteak 더 강하게 등).
+      const STEM_END_GREEN_RETENTION_FRAC = 0.4;
+
+      // shiftFrac > 0 → push toward riper (more red); < 0 → toward green.
+      // y is in cultivar-relative units (-h..+h). Negative y = blossom-end.
+      const yNorm = y / Math.max(0.1, h);  // -1..+1
+      let shiftFrac: number;
+      if (yNorm < 0) {
+        // Blossom-end (bottom) — advance ripening: positive shift.
+        shiftFrac = (-yNorm) * advanceFrac * stageStrength;
+      } else {
+        // Stem-end (top) — retain green: negative shift.
+        shiftFrac = (-yNorm) * STEM_END_GREEN_RETENTION_FRAC * stageStrength;
       }
 
-      // shiftFrac > 0 → push toward riper (more red); < 0 → less ripe.
-      // y is in cultivar-relative units (-h..+h). Negative y = blossom-end.
-      const shiftFrac = -y / Math.max(0.1, h) * gradStrength;
-      // Blend toward fully-ripe red (cultivar fullRipeRGB approximated
-      // by `[195/255, 30/255, 22/255]` baseline since FruitState
-      // doesn't carry cultivar RGB. The visual layer reads what's
-      // already computed in fruit.color and just shifts hue.
+      // Blend toward fully-ripe red. shiftFrac > 0 → more red; < 0 → more green.
+      // FruitState 가 cultivar full-ripe RGB 를 따로 전달 안 하므로 baseline
+      // 으로 [195/255, 30/255, 22/255] 가정 (color array 의 stage 5 와 일치).
       const ripeR = Math.min(1, baseRGB[0] + shiftFrac * 0.25);
       const ripeG = Math.max(0, baseRGB[1] - shiftFrac * 0.25);
       const ripeB = Math.max(0, baseRGB[2] - shiftFrac * 0.05);
