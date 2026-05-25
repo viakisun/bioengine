@@ -114,6 +114,15 @@ export interface Cultivar {
   // --- v3.0 Phase 4: reproductive truss-order profile + scenarios ---
   reproductive: ReproductiveBundle;
   scenarios: Record<string, CultivarScenario>;
+
+  // --- v0.8 botanical layer (botanical.v1) -----------------------------
+  // Resolved at adapt time = base ACTIVE_BOTANICAL[crop] deep-merged with
+  // any cultivar.botanicalOverride from the JSONC. Phase 1: declared but
+  // not yet consumed by GrowthModel / FruitGrowth (those still read from
+  // hardcoded-equivalent paths). Phase 2+ engine_logic plans switch the
+  // consumers over (e.g. FruitGrowth → resolvedBotanical.fruitDevelopment.
+  // gompertz instead of cultivar.gompertzRateB/InflectionC).
+  resolvedBotanical: BotanicalSpec;
 }
 
 export type { TrussOrderRule } from './ModelRegistry';
@@ -161,9 +170,11 @@ import {
   CULTIVAR_JSONS,
   ACTIVE_MODEL,
   ACTIVE_SCENARIO,
+  ACTIVE_BOTANICAL,
   type CultivarJson,
   type TrussOrderRule,
 } from './ModelRegistry';
+import { resolveBotanical, type BotanicalSpec } from './BotanicalSpec';
 import { SeededRandom } from './SeededRandom';
 
 function adaptCultivar(j: CultivarJson): Cultivar {
@@ -238,6 +249,10 @@ function adaptCultivar(j: CultivarJson): Cultivar {
           ],
         },
     scenarios: adaptScenarios(j),
+
+    // v0.8 botanical: resolve base + override at load time. 5-step strict
+    // validation guards typos in cultivar.botanicalOverride paths.
+    resolvedBotanical: resolveBotanical(ACTIVE_BOTANICAL.tomato, j.botanicalOverride),
   };
 }
 

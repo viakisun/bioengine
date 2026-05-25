@@ -40,7 +40,7 @@ export {
 } from './GrowthModel';
 
 export type { PlantGenome } from './PlantGenome';
-export { generateGenome } from './PlantGenome';
+export { generateGenome, generateGenomeWithBotanical } from './PlantGenome';
 
 // Scientific tomato model (Phase 1 of plan a-drifting-wigderson.md)
 // Reduced TOMGRO 5-state + Cultivar registry + 3-phase fruit growth.
@@ -115,5 +115,25 @@ export {
 export type { LeafColorRGB } from './LeafColors';
 
 // Cultivar JSON registry (incl. leafShape v1) — Plant Morphology Engine v0.1.
-export { CULTIVAR_JSONS, ACTIVE_MODEL, ACTIVE_SCENARIO } from './ModelRegistry';
+export { CULTIVAR_JSONS, ACTIVE_MODEL, ACTIVE_SCENARIO, ACTIVE_BOTANICAL } from './ModelRegistry';
 export type { CultivarJson, LeafShapeJson } from './ModelRegistry';
+
+// Botanical layer (botanical.v1) — Phase 1 migration.
+export {
+  resolveBotanical,
+  loadBotanical,
+  validateFull as validateBotanicalFull,
+  validatePartial as validateBotanicalPartial,
+  BotanicalValidationError,
+} from './BotanicalSpec';
+export type {
+  BotanicalSpec,
+  BotanicalPartial,
+  BotanicalCrop,
+  StemGrowthSpec,
+  FruitDevelopmentSpec,
+  Provenance,
+  MuSigma,
+  ClampedMuSigma,
+  EnforcementStatus,
+} from './BotanicalSpec';

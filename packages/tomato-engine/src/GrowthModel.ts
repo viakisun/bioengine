@@ -6,7 +6,7 @@ import { computePhysics } from './PhysicsModel';
 import type { Cultivar } from './Cultivar';
 import { sampleCultivarGenome, getCultivar, samplePlantArchitecture, getScenario } from './Cultivar';
 import { SeededRandom } from './SeededRandom';
-import { ACTIVE_MODEL, ACTIVE_TRAINING } from './ModelRegistry';
+import { ACTIVE_MODEL, ACTIVE_TRAINING, ACTIVE_BOTANICAL } from './ModelRegistry';
 import {
   approximateTT,
   phytomerCountFromTT,
@@ -593,6 +593,12 @@ export function computePlantState(
   const dailyGDD = day > 0 ? TT / day : 0;
   const org = ACTIVE_MODEL.organogenesis;
   const initialN = org.initialNodeCountAtTransplant;
+  // Phase D: botanical reads (stem growth). Phase F will switch to
+  // resolveBotanical(ACTIVE_BOTANICAL[crop], cultivar.botanicalOverride);
+  // for now the default tomato botanical is byte-identical to the
+  // previous hardcoded values.
+  const bot = ACTIVE_BOTANICAL.tomato;
+  const stem = bot.stemGrowth;
   const nodeDayOf = (i: number): number => {
     if (i < initialN) {
       // PROBE A.1 (2026-05-25): Initial transplant nodes were emerged
@@ -601,12 +607,7 @@ export function computePlantState(
       // stuck at compressed primordia (Day 0 height = 0.15cm vs ref 15-25cm).
       // Fix: distribute initial N nodes evenly back through the 28-day
       // seedling period so they are fully elongated at day 0.
-      // Real biology: 4-week-old transplant has 5-7 leaves, all internodes
-      // 1.5-4cm fully expanded.
-      // All N initial nodes should be FULLY elongated at day 0. Sigmoid
-      // elongation hits >99% at age > elongMid(8) + 3/k(0.4) = ~16d.
-      // Use 30-day base offset; small per-node 0.5d spread preserves order.
-      return -30 + i * 0.5;                 // i=0 → -30, i=4 → -28
+      return stem.initialStateOffsetDays + i * stem.initialStateSpread;
     }
     if (dailyGDD <= 0) return 0;
     const emergenceTT = (i - initialN) * cultivar.phyllochronGDD + org.TT_at_transplant;
@@ -620,24 +621,48 @@ export function computePlantState(
 
   // Legacy visual-sigmoid fruit parameters. Phase 3 deletes this whole
   // block when fruit visual becomes a direct projection of CoreModel's
-  // FruitCohort. Kept here as in-function constants (not on PlantGenome)
-  // so the visual path keeps working until then.
-  const FRUIT_SIGMOID_K = 0.12;
-  const FRUIT_SIGMOID_MID = 18;
-  const RIPEN_START_AGE = 25;
-  const RIPEN_DURATION = 18;
+  // FruitCohort. Phase 1 botanical migration: read from botanical layer
+  // (fruitDevelopment.visualSigmoid + ripening).
+  const FRUIT_SIGMOID_K = bot.fruitDevelopment.visualSigmoid.steepness;
+  const FRUIT_SIGMOID_MID = bot.fruitDevelopment.visualSigmoid.midpointDays;
+  const RIPEN_START_AGE = bot.fruitDevelopment.ripening.startAgeDays;
+  const RIPEN_DURATION = bot.fruitDevelopment.ripening.durationDays;
+  // Flowering (botanical-sourced). NOTE: setDelayDays is currently inactive
+  // in the legacy fallback path (engine sets fruit at flowerAge - 12).
+  const FLOWER_DELAY_PER_POS = bot.fruitDevelopment.flowering.delayPerPositionDays;
+  const BLOOM_DURATION = bot.fruitDevelopment.flowering.bloomDurationDays;
+  const SET_DELAY = bot.fruitDevelopment.flowering.setDelayDays;
 
-  const baseInternode = genome.internodeLenCm ?? 6.5;
+  const baseInternode = genome.internodeLenCm ?? stem.matureInternode.lengthDistribution.mu;
   const leafExpK = genome.leafExpansionRate ?? 0.35;
 
-  // Internode elongation parameters (GA-mediated delay)
-  const elongDelay = genome.internodeElongDelay ?? 4;
-  const elongMid = genome.internodeElongMid ?? 8;
-  const ELONG_K = 0.4; // sigmoid steepness for internode elongation
+  // Internode elongation parameters (GA-mediated delay) — botanical-sourced
+  const elongDelay = genome.internodeElongDelay ?? stem.elongation.delayDays.mu;
+  const elongMid = genome.internodeElongMid ?? stem.elongation.midpointDays.mu;
+  const ELONG_K = stem.elongation.steepness;
+  const PRE_ELONG = stem.elongation.preElongFactor;
+
+  // Hypocotyl growth (botanical-sourced)
+  const hypoEmergeDay = stem.hypocotyl.emergenceDay;
+  const hypoMax = stem.hypocotyl.maxCm;
+  const hypoRate = stem.hypocotyl.growthRateCmPerDay;
+
+  // Seedling internode pattern (botanical-sourced)
+  const seedFirstLen = stem.seedlingInternode.firstLenCm;
+  const seedSlope = stem.seedlingInternode.slopePerNode;
+  const seedCount = stem.seedlingInternode.count;
+
+  // Mature internode vigor + taper (botanical-sourced)
+  const vigorFloor = stem.matureInternode.vigorFloor;
+  const vigorRange = stem.matureInternode.vigorRange;
+  const taperStart = stem.matureInternode.taperStartFrac;
+  const taperSlope = stem.matureInternode.taperSlope;
 
   // --- Pass 1: Compute final internode length + current elongation for each node ---
   // Hypocotyl: the stem below cotyledons (emerges day 5-7, reaches ~4cm)
-  const hypocotylCm = day < 5 ? 0 : Math.min(4, (day - 5) * 0.8);
+  const hypocotylCm = day < hypoEmergeDay
+    ? 0
+    : Math.min(hypoMax, (day - hypoEmergeDay) * hypoRate);
 
   const internodeData: Array<{ finalLen: number; currentLen: number; elongation: number }> = [];
 
@@ -649,20 +674,19 @@ export function computePlantState(
     // Final (potential) internode length — same biology as before
     let finalLen: number;
     if (i === 0) {
-      finalLen = 1.5; // first internode very short
-    } else if (i < 4) {
-      finalLen = 1.5 + i * 0.8; // seedling: 1.5, 2.3, 3.1, 3.9cm
+      finalLen = seedFirstLen; // first internode very short
+    } else if (i < seedCount) {
+      finalLen = seedFirstLen + i * seedSlope; // seedling: 1.5, 2.3, 3.1, 3.9cm
     } else {
       // Growth vigor = derivative of sigmoid height curve at node creation time
       const S = sigmoid(nodeDay, genome.heightSigmoidK, genome.heightSigmoidMid);
       const vigor = 4 * S * (1 - S); // normalized 0-1, peak at sigmoid midpoint
-      // Gap analysis P0 #1: floor 0.5 → 0.75 so off-peak nodes still
-      // elongate to ~75% of baseInternode (was dropping to 50%).
-      // Real beefsteak indeterminate keeps 6–10cm internodes nearly
-      // whole-season; old curve produced ~3.25cm extremes.
-      finalLen = baseInternode * (0.75 + 0.5 * vigor);
-      if (nodeFrac > 0.8) {
-        finalLen *= 1.0 - (nodeFrac - 0.8) * 0.5;
+      // Gap analysis P0 #1: vigor floor 0.75 so off-peak nodes still
+      // elongate to ~75% of baseInternode. Real beefsteak indeterminate
+      // keeps 6–10cm internodes nearly whole-season.
+      finalLen = baseInternode * (vigorFloor + vigorRange * vigor);
+      if (nodeFrac > taperStart) {
+        finalLen *= 1.0 - (nodeFrac - taperStart) * taperSlope;
       }
     }
 
@@ -670,8 +694,8 @@ export function computePlantState(
     // Leaf must expand first → produce GA → internode below elongates
     const elongAge = age - elongDelay;
     const elongation = elongAge <= 0
-      ? 0.01  // pre-elongation: ~1% of final length (compressed primordium)
-      : Math.max(0.01, sigmoid(elongAge, ELONG_K, elongMid));
+      ? PRE_ELONG  // pre-elongation: ~1% of final length (compressed primordium)
+      : Math.max(PRE_ELONG, sigmoid(elongAge, ELONG_K, elongMid));
 
     const currentLen = finalLen * elongation;
     internodeData.push({ finalLen, currentLen, elongation });
@@ -837,12 +861,12 @@ export function computePlantState(
           const fruits: FruitState[] = [];
 
           for (let f = 0; f < flowerCount; f++) {
-            const flowerDelay = f * 2;
+            const flowerDelay = f * FLOWER_DELAY_PER_POS;
             const flowerAge = trussAge - flowerDelay;
 
             if (flowerAge > 0) {
-              const bloomProgress = Math.min(1, flowerAge / 5);
-              const fruitAge = flowerAge - 12;
+              const bloomProgress = Math.min(1, flowerAge / BLOOM_DURATION);
+              const fruitAge = flowerAge - SET_DELAY;
 
               if (fruitAge > 0) {
                 const diameterMm = arch.fruitMaxDiameterMm

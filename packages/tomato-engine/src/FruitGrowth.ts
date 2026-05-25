@@ -24,6 +24,7 @@
 
 import type { Cultivar, CultivarSample } from './Cultivar';
 import type { FruitCohort, TrussCohort } from './CoreModel';
+import { ACTIVE_BOTANICAL } from './ModelRegistry';
 
 /** Potential fruit fresh weight as a function of GDD since fertilization.
  *
@@ -48,7 +49,8 @@ export function potentialFreshWeight(
   const b = cultivar.gompertzRateB * genome.ripeningSpeedFactor;
   const totalGrowthGDD = cultivar.cellDivisionDurationGDD + cultivar.cellExpansionDurationGDD;
   const tau = totalGrowthGDD * cultivar.gompertzInflectionC;
-  return a * Math.exp(-Math.exp(-b * (gddSinceFert - tau) * 0.01));
+  const exponentScale = ACTIVE_BOTANICAL.tomato.fruitDevelopment.gompertz.exponentScaling;
+  return a * Math.exp(-Math.exp(-b * (gddSinceFert - tau) * exponentScale));
 }
 
 /** Daily potential growth rate (g FW / day) at this point in the

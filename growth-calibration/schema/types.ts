@@ -337,7 +337,8 @@ export type SuggestedChangeType =
   | 'jsonc_parameter'                             // JSONC 값만 변경
   | 'engine_logic'                                // 엔진 코드 escalation
   | 'schema_only'                                 // schema field만 도입 (forward-compat)
-  | 'engine_logic_or_jsonc_parameter';            // 둘 다 후보
+  | 'engine_logic_or_jsonc_parameter'             // 둘 다 후보
+  | 'refactor';                                   // SSOT #33 — value/meaning 불변, location/loading path만 이동. functional no-op.
 
 export interface ComparisonResult {
   schemaVersion: CalibrationSchemaVersion;

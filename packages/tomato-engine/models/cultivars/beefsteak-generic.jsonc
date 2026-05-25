@@ -97,5 +97,9 @@
     },
     "rachisLengthM": 0.42,
     "leafletAspect": 1.5
-  }
+  },
+
+  // Botanical layer override (botanical.v1). Phase 1: empty — beefsteak uses
+  // the default tomato botanical (ACTIVE_BOTANICAL.tomato) as-is.
+  "botanicalOverride": {}
 }

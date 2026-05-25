@@ -106,5 +106,10 @@
     },
     "rachisLengthM": 0.22,
     "leafletAspect": 2.2
-  }
+  },
+
+  // Botanical layer override (botanical.v1). Phase 1: empty — cherry uses
+  // the default tomato botanical (ACTIVE_BOTANICAL.tomato) as-is. Future
+  // calibration can populate fields here without touching engine code.
+  "botanicalOverride": {}
 }
