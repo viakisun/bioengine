@@ -23,6 +23,14 @@ import romaText from '../models/cultivars/roma-generic.jsonc?raw';
 import tomimaruText from '../models/cultivars/tomimaru-muchoo.jsonc?raw';
 import singleStemText from '../models/training/single-stem-high-wire.jsonc?raw';
 import freeBushText from '../models/training/free-bush.jsonc?raw';
+// Phase B: botanical layer (botanical.v1 family)
+import tomatoBotanicalText from '../models/botanical/tomato.jsonc?raw';
+import {
+  loadBotanical,
+  type BotanicalSpec,
+  type BotanicalPartial,
+  type BotanicalCrop,
+} from './BotanicalSpec';
 
 // ---------------------------------------------------------------------
 // Types — strict shape so accidental missing fields fail at boot
@@ -233,6 +241,13 @@ export interface CultivarJson {
   // interface kept here to avoid cross-package import; the leaf module
   // validates schemaVersion + provenance at resolve time.
   leafShape?: LeafShapeJson;
+
+  // ── Botanical layer override (botanical.v1) ────────────────────────
+  // Optional partial override of crop botanical defaults. Resolver is
+  // resolveBotanical(base, override) — 5-step strict validation
+  // (additionalProperties:false on each merge step). Missing → use
+  // ACTIVE_BOTANICAL[crop] as-is.
+  botanicalOverride?: BotanicalPartial;
 }
 
 /** Structural mirror of LeafShapePartial (src/plant/leaf/LeafShapeSchema.ts).
@@ -347,6 +362,18 @@ export const CULTIVAR_JSONS: Record<string, CultivarJson> = {
   'roma-generic': loadCultivarJson(romaText, 'roma-generic'),
   'tomimaru-muchoo': loadCultivarJson(tomimaruText, 'tomimaru-muchoo'),
 };
+
+// ---------------------------------------------------------------------
+// ACTIVE_BOTANICAL — botanical.v1 defaults per crop.
+// Parsed + validated at module load. Cultivar overrides merge via
+// resolveBotanical(base, cultivar.botanicalOverride).
+// ---------------------------------------------------------------------
+
+export const ACTIVE_BOTANICAL: Record<BotanicalCrop, BotanicalSpec> = {
+  tomato: loadBotanical(parseJsonc<unknown>(tomatoBotanicalText, 'botanical/tomato'), 'tomato'),
+} as Record<BotanicalCrop, BotanicalSpec>;
+
+export type { BotanicalSpec, BotanicalPartial, BotanicalCrop };
 
 // ---------------------------------------------------------------------
 // ACTIVE_SCENARIO — pick one scenario name to use across the engine.

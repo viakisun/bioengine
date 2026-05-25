@@ -1,0 +1,254 @@
+// Tomato Botanical Parameters — botanical.v1 family
+//
+// 본 파일은 모든 tomato cultivar 공통 botanical parameter default.
+// cultivar는 cultivars/*.jsonc 의 botanicalOverride 로 partial override만.
+//
+// SSOT #26 (botanical layer separation):
+//   Engine 코드(.ts)에 hardcoded numeric literal 금지.
+//   모든 작물별 botanical/physiological parameter는 본 파일에서.
+//
+// SSOT #29 (layer boundary):
+//   - botanical (this file): stem geometry / internode / fruit growth curve / leaf morphology
+//   - phenology (cultivar.phenology): GDD_to_first_flower, GDD_per_truss, etc.
+//   - canopy physiology (tomgro-v1.jsonc): photosynthesis, LUE, sink, LAI cap
+//   - physics (separate): stem radius, cambial growth
+//
+// SSOT #30 (per-field enforcement):
+//   각 field의 active/pending_engine_logic/deprecated 상태를 enforcementStatus에 명시.
+//   inactive field 도 spec에 포함하되 enforcementStatus: 'pending_engine_logic' 필수.
+//
+// References (provenance):
+//   - Heuvelink E. (2018) Tomato 2nd ed. CABI
+//   - De Koning ANM (1994) PhD thesis, Wageningen
+//   - Gillaspy G. et al. (1993) Plant Cell 5:1439-1451 (Fruit growth phases)
+//   - Marcelis LFM & Heuvelink E. (1996) sink strength
+//   - RDA 농촌진흥청 토마토 표준재배지침 (2020)
+//   - Anaya-Ramirez (2024) Gompertz fruit growth fits
+
+{
+  "schemaVersion": "botanical.v1",
+  "crop": "tomato",
+
+  "provenance": {
+    "sourceLevel": "literature",
+    "confidence": "medium",
+    "sourceRefs": [
+      "Heuvelink 2018 Tomato 2nd ed. CABI",
+      "De Koning 1994 PhD Wageningen",
+      "Gillaspy 1993 Plant Cell 5:1439-1451",
+      "Marcelis Heuvelink 1996",
+      "RDA 2020 토마토 표준재배지침",
+      "Anaya-Ramirez 2024 Gompertz fits",
+      "Migrated from packages/tomato-engine/src/GrowthModel.ts:617-700 (commit e0b688e baseline)",
+      "Migrated from packages/tomato-engine/src/PlantGenome.ts:63-110",
+      "Migrated from packages/tomato-engine/src/FruitGrowth.ts:51"
+    ],
+    "notes": "Phase 1 migration (2026-05-25). 25 hardcoded values moved from engine code to JSONC. Functional equivalence maintained — values are exact mirror of baseline. Future calibration via JSONC override (cultivar.botanicalOverride).",
+    "lastReviewed": "2026-05-25"
+  },
+
+  // ============================================================
+  // STEM GROWTH (Table 1, 17 values)
+  // ============================================================
+  "stemGrowth": {
+
+    // -- Hypocotyl (싹의 줄기 부분, 발아 후 신장) --------------
+    // GrowthModel.ts:640: hypocotylCm = day < 5 ? 0 : Math.min(4, (day - 5) * 0.8)
+    "hypocotyl": {
+      "emergenceDay": 5,                    // 발아 5일 후 신장 시작
+      "maxCm": 4,                            // 4cm 도달 후 정지
+      "growthRateCmPerDay": 0.8              // Heuvelink 2018 Ch.4
+    },
+
+    // -- Seedling internode (어린 절간 패턴) -----------------------
+    // GrowthModel.ts:652-654:
+    //   if (i === 0) finalLen = 1.5
+    //   else if (i < 4) finalLen = 1.5 + i * 0.8
+    "seedlingInternode": {
+      "count": 4,                            // 첫 4개 노드는 정해진 패턴
+      "firstLenCm": 1.5,                     // 절간 0 = 1.5cm
+      "slopePerNode": 0.8                    // i × 0.8cm 증가 (i=1→2.3, i=2→3.1, i=3→3.9)
+    },
+
+    // -- Mature internode (성숙 절간, vigor + taper) ----------------
+    // GrowthModel.ts:663-665:
+    //   finalLen = baseInternode * (0.75 + 0.5 * vigor)
+    //   if (nodeFrac > 0.8) finalLen *= 1.0 - (nodeFrac - 0.8) * 0.5
+    // PlantGenome.ts:101 (current latest, after height fix):
+    //   internodeLenCm: clamp(rng.gaussian(8.0, 0.8), 6.0, 10.5)
+    "matureInternode": {
+      "vigorFloor": 0.75,                    // off-peak 노드도 75% elongation (P0 fix)
+      "vigorRange": 0.5,                     // peak에서 1.25× 도달
+      "taperStartFrac": 0.8,                 // 상부 80% 위 노드부터 taper
+      "taperSlope": 0.5,                     // taper 시 절간 길이 50% 감소
+      "lengthDistribution": {                // PlantGenome internodeLenCm gaussian
+        "mu": 8.0,                           // Reference Pack 285cm/34nodes ≈ 8.4cm/internode
+        "sigma": 0.8,
+        "min": 6.0,
+        "max": 10.5
+      }
+    },
+
+    // -- Elongation (GA-mediated delayed sigmoid) -----------------
+    // GrowthModel.ts:636,658-661:
+    //   ELONG_K = 0.4
+    //   elongation = elongAge <= 0 ? 0.01 : sigmoid(elongAge, ELONG_K, elongMid)
+    // PlantGenome.ts:106-108:
+    //   internodeElongDelay: clamp(rng.gaussian(4.0, 0.5), 3, 6)
+    //   internodeElongMid: clamp(rng.gaussian(8, 1.0), 6, 10)
+    "elongation": {
+      "steepness": 0.4,                      // sigmoid k
+      "delayDays": {                         // 잎 신장 → GA → 절간 신장 lag
+        "mu": 4.0,
+        "sigma": 0.5,
+        "min": 3,
+        "max": 6
+      },
+      "midpointDays": {                      // sigmoid 중간점 (~8일 후 50% elongation)
+        "mu": 8.0,
+        "sigma": 1.0,
+        "min": 6,
+        "max": 10
+      },
+      "preElongFactor": 0.01                 // pre-elongation factor (~1% of finalLen 압축 primordium)
+    },
+
+    // -- Height curve (overall plant height sigmoid) ----------------
+    // PlantGenome.ts:63-65:
+    //   heightMaxCm: clamp(rng.gaussian(200, 15), 160, 240)
+    //   heightSigmoidK: clamp(rng.gaussian(0.07, 0.008), 0.04, 0.10)
+    //   heightSigmoidMid: clamp(rng.gaussian(45, 4), 35, 55)
+    "heightCurve": {
+      "sigmoidK": {
+        "mu": 0.07,
+        "sigma": 0.008
+      },
+      "sigmoidMid": {
+        "mu": 45,
+        "sigma": 4
+      },
+      "maxCm": {
+        "mu": 200,
+        "sigma": 15,
+        "min": 160,
+        "max": 240
+      }
+    },
+
+    // -- Initial state (정식묘 nodeDayOf offset) -------------------
+    // GrowthModel.ts:609 (height fix commit e0b688e):
+    //   if (i < initialN) return -30 + i * 0.5
+    // 4주 묘 정식 = 5-7 leaf 모두 expanded. 5개 초기 node를 -30~-28일로 spread → 모두 elongated at day 0.
+    "initialStateOffsetDays": -30,
+    "initialStateSpread": 0.5                // i=0 → -30, i=4 → -28
+  },
+
+  // ============================================================
+  // FRUIT DEVELOPMENT (Table 3, 8 values)
+  // ============================================================
+  "fruitDevelopment": {
+
+    // -- Visual sigmoid (legacy visual fruit path) ----------------
+    // GrowthModel.ts:625-626:
+    //   FRUIT_SIGMOID_K = 0.12
+    //   FRUIT_SIGMOID_MID = 18
+    "visualSigmoid": {
+      "steepness": 0.12,
+      "midpointDays": 18
+    },
+
+    // -- Ripening (성숙 단계) -------------------------------------
+    // GrowthModel.ts:627-628:
+    //   RIPEN_START_AGE = 25
+    //   RIPEN_DURATION = 18
+    "ripening": {
+      "startAgeDays": 25,                    // 착과 후 25일에 ripening 시작
+      "durationDays": 18                     // breaker → red 18일
+    },
+
+    // -- Flowering (꽃 → 착과 timing) -----------------------------
+    // GrowthModel.ts:840-845:
+    //   flower delay per position = 2 (truss 안 꽃 간격)
+    //   flower bloom time = 5
+    //   fruit set delay post-bloom = 12
+    "flowering": {
+      "delayPerPositionDays": 2,             // 같은 truss 안 꽃 발생 간격
+      "bloomDurationDays": 5,                // 개화 지속
+      // NOTE: setDelayDays(12)는 현재 엔진(CoreModel.ts:320-327)이 anthesis 즉시
+      // set 처리. inactive value. Phase 1은 location migration만, 실제 enforcement는
+      // 별도 Iter 1B engine_logic plan에서. enforcementStatus 참조.
+      "setDelayDays": 12
+    },
+
+    // -- Gompertz fruit growth curve -----------------------------
+    // Gillaspy 1993 3-phase fruit growth + Gompertz fit.
+    // FruitGrowth.ts:51: exponent scaling 0.01
+    // cultivar.physiology.gompertz* (이동 대상, tomimaru는 0.05/0.55):
+    //   rateB: 0.06
+    //   inflectionC: 0.45
+    "gompertz": {
+      "rateB": {                             // 1/GDD, growth rate parameter
+        "mu": 0.06,
+        "sigma": 0.01
+      },
+      "inflectionC": {                       // ratio, τ/total inflection point
+        "mu": 0.45,
+        "sigma": 0.05
+      },
+      "exponentScaling": 0.01                // FruitGrowth.ts:51
+    }
+  },
+
+  // ============================================================
+  // Lite field-level provenance (parameterNotes) — 사용자 검토 #4
+  // ============================================================
+  "parameterNotes": {
+    "stemGrowth.matureInternode.lengthDistribution":
+      "Migrated from PlantGenome.ts:101 (height fix commit e0b688e). mu 6.5→8.0 tuned against Reference Pack v0.1 (285cm/34nodes ≈ 8.4cm/internode).",
+    "stemGrowth.initialStateOffsetDays":
+      "Height fix (commit e0b688e). 정식묘 5 nodes를 -30 ~ -28일 spread해서 day 0에 fully elongated 상태로 시작.",
+    "stemGrowth.heightCurve.maxCm":
+      "Migrated from PlantGenome.ts:63. cultivar별 calibration 가능 (cherry는 작고 beefsteak는 큼).",
+    "fruitDevelopment.flowering.setDelayDays":
+      "INACTIVE — 엔진(CoreModel.ts:320-327)이 anthesis 즉시 set 처리. 별도 Iter 1B engine_logic plan에서 enforcement.",
+    "fruitDevelopment.gompertz":
+      "Gillaspy 1993 3-phase fruit growth Gompertz fit. cultivar.botanicalOverride.fruitDevelopment.gompertz로 cultivar 보정 가능 (tomimaru 0.05/0.55 등)."
+  },
+
+  // ============================================================
+  // Per-field enforcement status — 사용자 검토 #2
+  // ============================================================
+  "enforcementStatus": {
+    "stemGrowth.hypocotyl.emergenceDay": "active",
+    "stemGrowth.hypocotyl.maxCm": "active",
+    "stemGrowth.hypocotyl.growthRateCmPerDay": "active",
+    "stemGrowth.seedlingInternode.count": "active",
+    "stemGrowth.seedlingInternode.firstLenCm": "active",
+    "stemGrowth.seedlingInternode.slopePerNode": "active",
+    "stemGrowth.matureInternode.vigorFloor": "active",
+    "stemGrowth.matureInternode.vigorRange": "active",
+    "stemGrowth.matureInternode.taperStartFrac": "active",
+    "stemGrowth.matureInternode.taperSlope": "active",
+    "stemGrowth.matureInternode.lengthDistribution": "active",
+    "stemGrowth.elongation.steepness": "active",
+    "stemGrowth.elongation.delayDays": "active",
+    "stemGrowth.elongation.midpointDays": "active",
+    "stemGrowth.elongation.preElongFactor": "active",
+    "stemGrowth.heightCurve.sigmoidK": "active",
+    "stemGrowth.heightCurve.sigmoidMid": "active",
+    "stemGrowth.heightCurve.maxCm": "active",
+    "stemGrowth.initialStateOffsetDays": "active",
+    "stemGrowth.initialStateSpread": "active",
+
+    "fruitDevelopment.visualSigmoid.steepness": "active",
+    "fruitDevelopment.visualSigmoid.midpointDays": "active",
+    "fruitDevelopment.ripening.startAgeDays": "active",
+    "fruitDevelopment.ripening.durationDays": "active",
+    "fruitDevelopment.flowering.delayPerPositionDays": "active",
+    "fruitDevelopment.flowering.bloomDurationDays": "active",
+    "fruitDevelopment.flowering.setDelayDays": "pending_engine_logic",
+    "fruitDevelopment.gompertz.rateB": "active",
+    "fruitDevelopment.gompertz.inflectionC": "active",
+    "fruitDevelopment.gompertz.exponentScaling": "active"
+  }
+}
