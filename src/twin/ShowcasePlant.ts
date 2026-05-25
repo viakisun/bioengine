@@ -14,7 +14,7 @@ import {
   getYellowLeafMaterial,
   getDiseasedLeafMaterial,
 } from '../plant/LeafGenerator';
-import { createStemMesh, createStemMeshFromSegments, getStemMaterial } from '../plant/StemGenerator';
+import { createStemMesh, createStemMeshFromSegments, getStemMaterial, createCurvedTube } from '../plant/StemGenerator';
 import { createTrussNode, createTrussNodeFromBase } from '../plant/TrussGenerator';
 import { buildCotyledonChunk } from '@farmsim/tomato-geometry';
 import type { GrowthEngine, PlantState } from '@farmsim/tomato-engine';
@@ -287,6 +287,31 @@ export function createShowcasePlant(
         if (!leafBase.visibility.visible) continue;
         const rawNode = rawAxis.nodes[leafBase.nodeIdx];
         if (!rawNode) continue;
+
+        // Petiole tube — petioleCurve (PlantBase.ts buildLeafBase) 의 4 control
+        // points 따라 catmull-rom tube. lush mesh 에 petiole 자체를 시각화
+        // (이전엔 skeleton overlay 에서만 wire 로 보임). stem 표면 attachPos
+        // → arched tip 곡선.
+        if (leafBase.petioleCurve && leafBase.petioleCurve.length >= 4) {
+          const petCps = leafBase.petioleCurve.map((p) => new Vector3(p.x, p.y, p.z));
+          // Petiole 굵기 — 잎 크기에 비례. base 1mm → tip 0.6mm 정도.
+          const petBase = 0.0010 + 0.0006 * Math.max(0, Math.min(1, leafBase.sizeFactor));
+          const petTip = petBase * 0.6;
+          const petRadii = [petBase, petBase * 0.85, petBase * 0.7, petTip];
+          const petioleMesh = createCurvedTube(
+            `showcase_petiole_${seed}_a${axisIdx}_n${leafBase.nodeIdx}`,
+            scene,
+            petCps,
+            petRadii,
+            { radialSegments: 5 },
+          );
+          if (petioleMesh) {
+            petioleMesh.material = stemMat;
+            petioleMesh.parent = lushGroup;
+            currentMeshes.push(petioleMesh);
+          }
+        }
+
         const leafRng = new SeededRandom(seed * 1000 + axisIdx * 99991 + leafBase.nodeIdx * 13 + 7);
         const leaf = createLeafMeshFromNode(
           `showcase_leaf_${seed}_a${axisIdx}_n${leafBase.nodeIdx}`,
@@ -298,11 +323,13 @@ export function createShowcasePlant(
         );
         leaf.material = leafBase.yellowing > 0.4 ? yellowLeafMat : leafMatForPlant;
         leaf.parent = lushGroup;
-        leaf.position = new Vector3(
-          leafBase.attachPosition.x,
-          leafBase.attachPosition.y,
-          leafBase.attachPosition.z,
-        );
+        // Leaf blade 는 petiole tip 에서 시작. 이전엔 attachPosition (stem 표면)
+        // 에서 회전된 plane 이라 blade base 가 stem 근처에 박힌 듯한 시각.
+        // petiole tip 으로 옮기면 stem → petiole → blade 의 연결이 자연스러움.
+        const bladeAnchor = leafBase.petioleCurve && leafBase.petioleCurve.length > 0
+          ? leafBase.petioleCurve[leafBase.petioleCurve.length - 1]
+          : leafBase.attachPosition;
+        leaf.position = new Vector3(bladeAnchor.x, bladeAnchor.y, bladeAnchor.z);
         const q = Quaternion.RotationAxis(Vector3.Up(), leafBase.azimuthRad).multiply(
           Quaternion.RotationAxis(new Vector3(0, 0, 1), -leafBase.droopRad),
         );

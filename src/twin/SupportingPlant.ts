@@ -211,9 +211,15 @@ export function createSupportingPlant(
       const node = state.nodes[leafBase.nodeIdx];
       if (!node || node.leafMaturity < 0.1) continue;
 
-      const nodeX = leafBase.attachPosition.x;
-      const nodeY = leafBase.attachPosition.y;
-      const nodeZ = leafBase.attachPosition.z;
+      // Leaf blade 는 petiole tip 에서 시작 (lush mode 와 동일 시각).
+      // Supporting plant 는 LOD — petiole tube 는 생략하고 blade 위치만
+      // tip 으로 옮겨 stem → blade 의 자연 거리 확보 (mesh 수 동일).
+      const tip = leafBase.petioleCurve && leafBase.petioleCurve.length > 0
+        ? leafBase.petioleCurve[leafBase.petioleCurve.length - 1]
+        : leafBase.attachPosition;
+      const nodeX = tip.x;
+      const nodeY = tip.y;
+      const nodeZ = tip.z;
       const azimuthRad = leafBase.azimuthRad;
       const droopRad = leafBase.droopRad;
       const i = leafBase.nodeIdx;

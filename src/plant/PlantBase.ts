@@ -344,11 +344,29 @@ function buildAxisBase(
   const trusses: TrussBase[] = [];
   const buds: BudMarker[] = [];
 
+  // Build a quick lookup for stem radius per node (centerline → surface offset).
+  const stemRadiusByNodeIdx = new Map<number, number>();
+  for (const seg of stemCurve) stemRadiusByNodeIdx.set(seg.nodeIdx, seg.radius);
+
   for (let i = 0; i < axis.nodes.length; i++) {
     const node = axis.nodes[i];
-    const attachPos = stemPosByNodeIdx.get(node.index) ?? node.position;
+    const stemCenter = stemPosByNodeIdx.get(node.index) ?? node.position;
+    const stemR = stemRadiusByNodeIdx.get(node.index) ?? 0;
 
-    leaves.push(buildLeafBase(node, attachPos, genome));
+    // Leaf petiole 은 stem 표면점 (= centerline + radius × outward(azimuth))
+    // 에 부착. centerline 그대로면 petiole 가 stem 안쪽에서 출발해 잎이
+    // 떠 있는 시각. truss 는 별도 — pedicel 의 자체 droop 이 stem 안쪽
+    // attach 를 해소하므로 centerline 사용.
+    const az = (node.phyllotaxisAngle * Math.PI) / 180;
+    const leafAttachPos = stemR > 0
+      ? {
+          x: stemCenter.x + Math.cos(az) * stemR,
+          y: stemCenter.y,
+          z: stemCenter.z + Math.sin(az) * stemR,
+        }
+      : stemCenter;
+
+    leaves.push(buildLeafBase(node, leafAttachPos, genome));
 
     if (node.truss) {
       // trussOrderIdx = 0-based emergence order on this axis (main only
@@ -357,14 +375,14 @@ function buildAxisBase(
       const physTruss = physiologyState
         ? physiologyState.trusses.find((t) => t.index === trussOrderIdx)
         : undefined;
-      trusses.push(buildTrussBase(node, attachPos, genome, physTruss, physiologyState?.TT ?? 0));
+      trusses.push(buildTrussBase(node, stemCenter, genome, physTruss, physiologyState?.TT ?? 0));
     }
 
     buds.push({
       nodeIdx: node.index,
       visibility: budVisibility(node.budState),
       state: node.budState,
-      position: { ...attachPos },
+      position: { ...stemCenter },
     });
   }
 
@@ -431,22 +449,30 @@ function buildLeafBase(
   // in the engine-side leafSizeFactor).
   const petioleLengthM = 0.12 * Math.max(0.3, node.leafSizeFactor);
 
-  // Petiole 4-cp Catmull-Rom centerline. attach → arched tip. Mirrors
-  // SkeletonOverlay drawPetiole's prior inline computation so both views
-  // agree by construction.
+  // Petiole 4-cp Catmull-Rom centerline. attach → arched tip with
+  // weight-based cantilever sag. droopRad 가 노드 mass × 80 (+age/stress)
+  // 의 함수이므로 잎 무게가 증가하면 tip 이 더 처짐.
+  //
+  // 이전엔 tip 만 sin(droopRad × 0.6) 으로 처지고 mid control points 는
+  // 거의 horizontal — cantilever 곡선이라기보다 단순 회전. mid 의 sag 를
+  // 추가해 진짜 beam-deflection 곡선 시각화.
   const cos = Math.cos(azimuthRad);
   const sin = Math.sin(azimuthRad);
-  const tipY = -petioleLengthM * Math.sin(droopRad * 0.6);
-  const tipR = petioleLengthM * Math.cos(droopRad * 0.6);
+  const tipY = -petioleLengthM * Math.sin(droopRad);
+  const tipR = petioleLengthM * Math.cos(droopRad);
   const tip = { x: attachPos.x + cos * tipR, y: attachPos.y + tipY, z: attachPos.z + sin * tipR };
+  // Mid sag — parabolic profile. tip y 의 0.65 × parabolic(t) 만큼 추가
+  // 처짐. c1 (t=0.35) 와 c2 (t=0.70) 의 y 를 cantilever 곡선에 맞춤.
+  const sagAt = (t: number): number => 4 * t * (1 - t);  // parabolic, peak=1 at t=0.5
+  const midSagBase = tipY * 0.5;  // mid 에서 tip 의 50% 까지 처짐 baseline
   const c1 = {
     x: attachPos.x + cos * tipR * 0.35,
-    y: attachPos.y + Math.max(0, -tipY * 0.15) + 0.005,
+    y: attachPos.y + midSagBase * sagAt(0.35),
     z: attachPos.z + sin * tipR * 0.35,
   };
   const c2 = {
     x: attachPos.x + cos * tipR * 0.70,
-    y: attachPos.y + tipY * 0.55,
+    y: attachPos.y + midSagBase * sagAt(0.70) + tipY * 0.4,
     z: attachPos.z + sin * tipR * 0.70,
   };
   const petioleCurve = [{ ...attachPos }, c1, c2, tip];
