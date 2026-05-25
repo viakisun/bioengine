@@ -37,6 +37,9 @@ interface CliArgs {
   /** Iter 6d — cohort generation sweep axes (optional, SSOT #53). */
   flowersPerTrussMu?: number[];
   fruitSetRate?: number[];
+  /** Iter 6f — abortion sweep axes (optional, SSOT #61). */
+  abortionThresholdRatio?: number[];
+  abortionLagDays?: number[];
   seed: number;
   days: number[];
   cultivar: string;
@@ -70,6 +73,8 @@ function parseArgs(argv: string[]): CliArgs {
     cellExpansionDurationGDD: opts.cellExpansionDurationGDD ? parseList(opts.cellExpansionDurationGDD, []) : undefined,
     flowersPerTrussMu: opts.flowersPerTrussMu ? parseList(opts.flowersPerTrussMu, []) : undefined,
     fruitSetRate: opts.fruitSetRate ? parseList(opts.fruitSetRate, []) : undefined,
+    abortionThresholdRatio: opts.abortionThresholdRatio ? parseList(opts.abortionThresholdRatio, []) : undefined,
+    abortionLagDays: opts.abortionLagDays ? parseList(opts.abortionLagDays, []) : undefined,
     seed: opts.seed ? Number(opts.seed) : 20260525,
     days: parseList(opts.days, [30, 33, 60, 90]),
     cultivar: opts.cultivar ?? 'tomimaru-muchoo',
@@ -90,6 +95,9 @@ interface Variant {
   // Iter 6d — cohort generation (optional)
   flowersPerTrussMu?: number;
   fruitSetRate?: number;
+  // Iter 6f — abortion (optional)
+  abortionThresholdRatio?: number;
+  abortionLagDays?: number;
 }
 
 function genVariants(args: CliArgs): Variant[] {
@@ -98,6 +106,8 @@ function genVariants(args: CliArgs): Variant[] {
   const cedList = args.cellExpansionDurationGDD ?? [undefined];
   const fptList = args.flowersPerTrussMu ?? [undefined];
   const fsrList = args.fruitSetRate ?? [undefined];
+  const atrList = args.abortionThresholdRatio ?? [undefined];
+  const aldList = args.abortionLagDays ?? [undefined];
   for (const ic of args.inflectionC) {
     for (const rb of args.rateB) {
       for (const exp of args.exponentScaling) {
@@ -105,11 +115,16 @@ function genVariants(args: CliArgs): Variant[] {
           for (const ced of cedList) {
             for (const fpt of fptList) {
               for (const fsr of fsrList) {
-                out.push({
-                  inflectionC: ic, rateB: rb, exponentScaling: exp,
-                  cellDivisionDurationGDD: cdd, cellExpansionDurationGDD: ced,
-                  flowersPerTrussMu: fpt, fruitSetRate: fsr,
-                });
+                for (const atr of atrList) {
+                  for (const ald of aldList) {
+                    out.push({
+                      inflectionC: ic, rateB: rb, exponentScaling: exp,
+                      cellDivisionDurationGDD: cdd, cellExpansionDurationGDD: ced,
+                      flowersPerTrussMu: fpt, fruitSetRate: fsr,
+                      abortionThresholdRatio: atr, abortionLagDays: ald,
+                    });
+                  }
+                }
               }
             }
           }
@@ -167,6 +182,13 @@ function runVariant(args: CliArgs, runId: string, v: Variant): RunOutput {
     if (v.flowersPerTrussMu !== undefined) parts.push(`flowersPerTrussMu=${v.flowersPerTrussMu}`);
     if (v.fruitSetRate !== undefined) parts.push(`fruitSetRate=${v.fruitSetRate}`);
     cliArgs.push('--overrideCohort', parts.join(','));
+  }
+  // Iter 6f — abortion override (if variant has abortion fields)
+  if (v.abortionThresholdRatio !== undefined || v.abortionLagDays !== undefined) {
+    const parts: string[] = [];
+    if (v.abortionThresholdRatio !== undefined) parts.push(`thresholdRatio=${v.abortionThresholdRatio}`);
+    if (v.abortionLagDays !== undefined) parts.push(`lagDays=${v.abortionLagDays}`);
+    cliArgs.push('--overrideAbortion', parts.join(','));
   }
   const res = spawnSync('npx', cliArgs, { cwd: args.repoRoot, stdio: 'pipe', encoding: 'utf-8' });
 
@@ -296,6 +318,8 @@ function writeSweepSummary(args: CliArgs, ranked: RankedRun[]): void {
     lines.push(`- exponentScaling: **${best.variant.exponentScaling}**`);
     if (best.variant.flowersPerTrussMu !== undefined) lines.push(`- flowersPerTrussMu: **${best.variant.flowersPerTrussMu}**`);
     if (best.variant.fruitSetRate !== undefined) lines.push(`- fruitSetRate: **${best.variant.fruitSetRate}**`);
+    if (best.variant.abortionThresholdRatio !== undefined) lines.push(`- abortionThresholdRatio: **${best.variant.abortionThresholdRatio}**`);
+    if (best.variant.abortionLagDays !== undefined) lines.push(`- abortionLagDays: **${best.variant.abortionLagDays}**`);
     lines.push(`- Score: ${best.score.toFixed(1)}`);
     lines.push(`- Day 30: visible=${best.day30.visibleCount}, maxDiam=${best.day30.maxVisDiam.toFixed(1)}mm`);
     lines.push(`- Day 33: visible=${best.day33.visibleCount}, maxDiam=${best.day33.maxVisDiam.toFixed(1)}mm`);
@@ -305,11 +329,11 @@ function writeSweepSummary(args: CliArgs, ranked: RankedRun[]): void {
   }
   lines.push(`## Full Ranking (top 10)`);
   lines.push('');
-  lines.push('| Rank | runId | iC | rB | exp | fMu | fSR | Score | Day60 maxD | D60 cohort | D60 vis | Day90 maxD | D90 cohort | D90 vis |');
-  lines.push('|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|');
+  lines.push('| Rank | runId | iC | rB | exp | fMu | fSR | aThr | aLag | Score | Day60 maxD | D60 cohort | D60 vis | Day90 maxD | D90 cohort | D90 vis |');
+  lines.push('|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|');
   for (let i = 0; i < Math.min(10, ranked.length); i++) {
     const r = ranked[i];
-    lines.push(`| ${i + 1} | ${r.runId} | ${r.variant.inflectionC} | ${r.variant.rateB} | ${r.variant.exponentScaling} | ${r.variant.flowersPerTrussMu ?? '-'} | ${r.variant.fruitSetRate ?? '-'} | ${r.score.toFixed(1)} | ${r.day60.maxDiam.toFixed(1)} | ${r.day60.cohortCount} | ${r.day60.visibleCount} | ${r.day90.maxDiam.toFixed(1)} | ${r.day90.cohortCount} | ${r.day90.visibleCount} |`);
+    lines.push(`| ${i + 1} | ${r.runId} | ${r.variant.inflectionC} | ${r.variant.rateB} | ${r.variant.exponentScaling} | ${r.variant.flowersPerTrussMu ?? '-'} | ${r.variant.fruitSetRate ?? '-'} | ${r.variant.abortionThresholdRatio ?? '-'} | ${r.variant.abortionLagDays ?? '-'} | ${r.score.toFixed(1)} | ${r.day60.maxDiam.toFixed(1)} | ${r.day60.cohortCount} | ${r.day60.visibleCount} | ${r.day90.maxDiam.toFixed(1)} | ${r.day90.cohortCount} | ${r.day90.visibleCount} |`);
   }
   writeFileSync(join(outRoot, 'sweep_summary.md'), lines.join('\n') + '\n');
 }
@@ -330,6 +354,8 @@ function main(): void {
   if (args.cellExpansionDurationGDD) axes.push(`cellExp=${args.cellExpansionDurationGDD.length}`);
   if (args.flowersPerTrussMu) axes.push(`flowersMu=${args.flowersPerTrussMu.length}`);
   if (args.fruitSetRate) axes.push(`fruitSetRate=${args.fruitSetRate.length}`);
+  if (args.abortionThresholdRatio) axes.push(`abortThresh=${args.abortionThresholdRatio.length}`);
+  if (args.abortionLagDays) axes.push(`abortLag=${args.abortionLagDays.length}`);
   console.log(`  variants: ${variants.length} (${axes.join(' × ')})`);
   console.log(`  output: ${join(args.sweepRoot, args.sweepId)}`);
 
@@ -344,7 +370,9 @@ function main(): void {
       ? ` cellDiv=${v.cellDivisionDurationGDD ?? '-'} cellExp=${v.cellExpansionDurationGDD ?? '-'}` : '';
     const coStr = (v.flowersPerTrussMu !== undefined || v.fruitSetRate !== undefined)
       ? ` flowersMu=${v.flowersPerTrussMu ?? '-'} fsr=${v.fruitSetRate ?? '-'}` : '';
-    process.stdout.write(`  [${i + 1}/${variants.length}] ${runId} inflectionC=${v.inflectionC} rateB=${v.rateB} exp=${v.exponentScaling}${phStr}${coStr} ... `);
+    const abStr = (v.abortionThresholdRatio !== undefined || v.abortionLagDays !== undefined)
+      ? ` abortThresh=${v.abortionThresholdRatio ?? '-'} abortLag=${v.abortionLagDays ?? '-'}` : '';
+    process.stdout.write(`  [${i + 1}/${variants.length}] ${runId} inflectionC=${v.inflectionC} rateB=${v.rateB} exp=${v.exponentScaling}${phStr}${coStr}${abStr} ... `);
     const out = runVariant(args, runId, v);
     runs.push(out);
     console.log(out.ok ? '✓' : '✗');

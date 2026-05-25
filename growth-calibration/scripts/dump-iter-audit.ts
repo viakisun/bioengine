@@ -384,14 +384,16 @@ interface EvalCandidate {
     cellExpansionDurationGDD?: number;
     flowersPerTrussMu?: number;
     fruitSetRate?: number;
+    abortionThresholdRatio?: number;
+    abortionLagDays?: number;
   };
   S: number;
   PBand: number;
   diagnosis: Record<string, number>;
-  day30?: { maxVisDiam: number; visibleCount: number; cohortCount?: number };
-  day33?: { maxVisDiam: number; visibleCount: number; cohortCount?: number };
-  day60?: { maxDiam: number; visibleCount: number; cohortCount?: number };
-  day90?: { maxDiam: number; visibleCount: number; cohortCount?: number };
+  day30?: { maxVisDiam: number; visibleCount: number; cohortCount?: number; aborted?: number; fertilized?: number };
+  day33?: { maxVisDiam: number; visibleCount: number; cohortCount?: number; aborted?: number; fertilized?: number };
+  day60?: { maxDiam: number; visibleCount: number; cohortCount?: number; aborted?: number; fertilized?: number };
+  day90?: { maxDiam: number; visibleCount: number; cohortCount?: number; aborted?: number; fertilized?: number };
   rejectReason?: string | null;
   rejectCategory?: string | null;
   riskReasons?: string[];
@@ -475,12 +477,12 @@ function buildCohortSufficiencyTable(candCkpt: CheckpointSummary | null): string
 }
 
 // Section 10b — Top Candidate Re-score
-// Iter 6d: cohort + variant cohort fields + rejectCategory + riskReasons + verdict 모두 노출
+// Iter 6d/6f: cohort + abortion + rejectCategory + riskReasons + verdict + abortionRate 모두 노출
 function buildTopCandidateTable(evalSummary: EvalSummary | null): string {
   if (!evalSummary) return '_(eval_summary.json not found)_';
   const lines: string[] = [];
-  lines.push('| Run | fMu | fSR | S | P_band | D60 maxD | D90 maxD | D60 vis | D90 vis | D60 coh | D90 coh | too_behind | category | selected |');
-  lines.push('|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---|');
+  lines.push('| Run | fMu | fSR | aThr | aLag | S | P_band | D60 maxD | D90 maxD | D60 vis | D90 vis | D60 coh | D90 coh | D60 abortRate | D90 abortRate | too_behind | category | selected |');
+  lines.push('|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---|');
   for (const c of evalSummary.candidates) {
     const tooBehind = c.diagnosis['common_truss_status_too_behind'] ?? 0;
     const category = c.rejectReason
@@ -489,7 +491,15 @@ function buildTopCandidateTable(evalSummary: EvalSummary | null): string {
     const selected = c.runId === evalSummary.winner.runId ? '⭐' : (c.isBaseline ? '_baseline_' : '');
     const fMu = c.variant.flowersPerTrussMu ?? '-';
     const fSR = c.variant.fruitSetRate ?? '-';
-    lines.push(`| ${c.runId}${c.isBaseline ? ' (baseline)' : ''} | ${fMu} | ${fSR} | ${c.S.toFixed(3)} | ${c.PBand.toFixed(3)} | ${(c.day60?.maxDiam ?? 0).toFixed(1)} | ${(c.day90?.maxDiam ?? 0).toFixed(1)} | ${c.day60?.visibleCount ?? '-'} | ${c.day90?.visibleCount ?? '-'} | ${c.day60?.cohortCount ?? '-'} | ${c.day90?.cohortCount ?? '-'} | ${tooBehind} | ${category} | ${selected} |`);
+    const aThr = c.variant.abortionThresholdRatio ?? '-';
+    const aLag = c.variant.abortionLagDays ?? '-';
+    const f60 = c.day60?.fertilized ?? 0;
+    const a60 = c.day60?.aborted ?? 0;
+    const f90 = c.day90?.fertilized ?? 0;
+    const a90 = c.day90?.aborted ?? 0;
+    const ar60 = f60 > 0 ? `${((a60 / f60) * 100).toFixed(0)}%` : '-';
+    const ar90 = f90 > 0 ? `${((a90 / f90) * 100).toFixed(0)}%` : '-';
+    lines.push(`| ${c.runId}${c.isBaseline ? ' (baseline)' : ''} | ${fMu} | ${fSR} | ${aThr} | ${aLag} | ${c.S.toFixed(3)} | ${c.PBand.toFixed(3)} | ${(c.day60?.maxDiam ?? 0).toFixed(1)} | ${(c.day90?.maxDiam ?? 0).toFixed(1)} | ${c.day60?.visibleCount ?? '-'} | ${c.day90?.visibleCount ?? '-'} | ${c.day60?.cohortCount ?? '-'} | ${c.day90?.cohortCount ?? '-'} | ${ar60} | ${ar90} | ${tooBehind} | ${category} | ${selected} |`);
   }
   lines.push('');
   lines.push(`**Winner**: ${evalSummary.winner.runId} (verdict: ${evalSummary.winner.promoteVerdict ?? '-'})`);
@@ -619,11 +629,29 @@ function buildTrussCohortBreakdown(truss_rows: string[][]): string {
     }
     lines.push(`| **total** | **${sumBud}** | **${sumFert}** | **${sumAbort}** | **${sumHarv}** | **${sumCoh}** | **${sumVis}** | **${sumExp}** | **${sumStarv}** |`);
     lines.push('');
-    // 진단 힌트
-    const fertRate = sumBud > 0 ? (sumFert / sumBud) : 0;
-    const abortRate = sumFert > 0 ? (sumAbort / sumFert) : 0;
-    lines.push(`- fertilization rate: ${(fertRate * 100).toFixed(0)}% (${sumFert}/${sumBud})`);
-    lines.push(`- abortion rate (of fertilized): ${(abortRate * 100).toFixed(0)}% (${sumAbort}/${sumFert})`);
+    // Iter 6f (SSOT #63) — per-truss rate 표
+    lines.push('#### rate-based 진단 (Iter 6f, SSOT #63)');
+    lines.push('');
+    lines.push('| Truss | fertilizationRate | abortionRate | survivalRate | visibleRate |');
+    lines.push('|---|---:|---:|---:|---:|');
+    for (const r of rows) {
+      const ti = r[idx('truss_index')];
+      const bud = Number(r[idx('flower_bud_count')]);
+      const fert = Number(r[idx('fertilized_count')]);
+      const abort = Number(r[idx('aborted_count')]);
+      const coh = Number(r[idx('non_aborted_cohort')]);
+      const vis = Number(r[idx('visible_fruit_count')]);
+      const fRate = bud > 0 ? (fert / bud * 100).toFixed(0) + '%' : '-';
+      const aRate = fert > 0 ? (abort / fert * 100).toFixed(0) + '%' : '-';
+      const sRate = fert > 0 ? (coh / fert * 100).toFixed(0) + '%' : '-';
+      const vRate = coh > 0 ? (vis / coh * 100).toFixed(0) + '%' : '-';
+      lines.push(`| T${ti} | ${fRate} | ${aRate} | ${sRate} | ${vRate} |`);
+    }
+    const totalFRate = sumBud > 0 ? (sumFert / sumBud * 100).toFixed(0) + '%' : '-';
+    const totalARate = sumFert > 0 ? (sumAbort / sumFert * 100).toFixed(0) + '%' : '-';
+    const totalSRate = sumFert > 0 ? (sumCoh / sumFert * 100).toFixed(0) + '%' : '-';
+    const totalVRate = sumCoh > 0 ? (sumVis / sumCoh * 100).toFixed(0) + '%' : '-';
+    lines.push(`| **total** | **${totalFRate}** | **${totalARate}** | **${totalSRate}** | **${totalVRate}** |`);
     lines.push('');
   }
   return lines.join('\n');

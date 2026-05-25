@@ -222,6 +222,12 @@ export interface CultivarJson {
     defoliationAggressiveness: number;
     trussTargetFruitCount: number;
   };
+  /** Iter 6f (SSOT #61): cultivar-level abortion override.
+   *  Missing → adapter falls back to ACTIVE_MODEL.abortion (global). */
+  abortion?: {
+    thresholdRatio?: number;
+    lagDays?: number;
+  };
   physiology: {
     SLA_m2_per_g: number;
     sinkStrength: { leaf: number; stem: number; root: number };

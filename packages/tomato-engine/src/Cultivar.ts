@@ -111,6 +111,14 @@ export interface Cultivar {
   /** Time within a truss (in GDD) between basal and distal fruit ripening. */
   trussRipeningSpreadGDD: number;
 
+  // --- Iter 6f (SSOT #61): Abortion / starvation thresholds (cultivar-level) ---
+  /** Marcelis 1996 trigger: starvedDays++ if actualDM/potentialDM < this.
+   *  Tomato default ~0.25. Lower = more lenient (cohort↑, sink 분산 위험). */
+  abortionThresholdRatio: number;
+  /** Abort fires when starvedDays ≥ this. Tomato default ~4 days.
+   *  Higher = abortion 더 늦게 결정됨 (회복 기회↑). */
+  abortionLagDays: number;
+
   // --- v3.0 Phase 4: reproductive truss-order profile + scenarios ---
   reproductive: ReproductiveBundle;
   scenarios: Record<string, CultivarScenario>;
@@ -240,6 +248,10 @@ function adaptCultivar(j: CultivarJson): Cultivar {
 
     // Misc
     SLA: j.physiology.SLA_m2_per_g,
+
+    // Iter 6f (SSOT #61): abortion cultivar-level override with global fallback
+    abortionThresholdRatio: j.abortion?.thresholdRatio ?? ACTIVE_MODEL.abortion.threshold_ratio,
+    abortionLagDays: j.abortion?.lagDays ?? ACTIVE_MODEL.abortion.lag_days,
 
     // v3.0 Phase 4: reproductive profile + scenarios
     reproductive: j.reproductive

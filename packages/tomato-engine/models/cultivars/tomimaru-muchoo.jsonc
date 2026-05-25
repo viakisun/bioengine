@@ -89,6 +89,14 @@
     "trussTargetFruitCount": 4
   },
 
+  // Iter 6f (SSOT #61): cultivar-level abortion override.
+  // 현재 값은 ACTIVE_MODEL.abortion (Marcelis 1996) 기본값 명시.
+  // Iter 6f sweep winner로 갱신 시 이 두 값만 수정.
+  "abortion": {
+    "thresholdRatio": 0.25,
+    "lagDays": 4
+  },
+
   "physiology": {
     "SLA_m2_per_g": 0.028,
     // Per-organ sink strength (Marcelis 1996; fruit=1.0 baseline)

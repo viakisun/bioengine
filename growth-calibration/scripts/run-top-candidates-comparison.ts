@@ -75,6 +75,9 @@ interface SweepVariant {
   // Iter 6d — cohort generation (optional, SSOT #53)
   flowersPerTrussMu?: number;
   fruitSetRate?: number;
+  // Iter 6f — abortion (optional, SSOT #61)
+  abortionThresholdRatio?: number;
+  abortionLagDays?: number;
 }
 
 interface SweepRanking {
@@ -88,10 +91,10 @@ interface EvalCandidate {
   S: number;
   PBand: number;
   diagnosis: Record<string, number>;
-  day30?: { maxVisDiam: number; visibleCount: number; cohortCount?: number };
-  day33?: { maxVisDiam: number; visibleCount: number; cohortCount?: number };
-  day60?: { maxDiam: number; visibleCount: number; cohortCount?: number };
-  day90?: { maxDiam: number; visibleCount: number; cohortCount?: number };
+  day30?: { maxVisDiam: number; visibleCount: number; cohortCount?: number; aborted?: number; fertilized?: number };
+  day33?: { maxVisDiam: number; visibleCount: number; cohortCount?: number; aborted?: number; fertilized?: number };
+  day60?: { maxDiam: number; visibleCount: number; cohortCount?: number; aborted?: number; fertilized?: number };
+  day90?: { maxDiam: number; visibleCount: number; cohortCount?: number; aborted?: number; fertilized?: number };
   /** Iter 6c SSOT #52 — cohort sufficiency: target visible 가능한가? */
   cohortSufficiency?: { day60: 'ok' | 'insufficient'; day90: 'ok' | 'insufficient' };
   rejectReason?: string | null;
@@ -108,6 +111,7 @@ interface EvalCandidate {
     | 'cohort_did_not_increase'
     | 'cohort_insufficient'
     | 'composite_margin_insufficient'
+    | 'abortion_rate_insufficient'  // Iter 6f (SSOT #64)
     | 'process_failed'
     | null;
   /** Iter 6d (SSOT #60) — promote/conditional 후보 risk 표식. */
@@ -137,9 +141,17 @@ function evalCandidate(args: CliArgs, runId: string, v: SweepVariant): EvalCandi
         v.fruitSetRate !== undefined ? `fruitSetRate=${v.fruitSetRate}` : '',
       ].filter(Boolean).join(',')
     : undefined;
+  // Iter 6f — abortion override (if variant has abortion fields)
+  const abortionStr = (v.abortionThresholdRatio !== undefined || v.abortionLagDays !== undefined)
+    ? [
+        v.abortionThresholdRatio !== undefined ? `thresholdRatio=${v.abortionThresholdRatio}` : '',
+        v.abortionLagDays !== undefined ? `lagDays=${v.abortionLagDays}` : '',
+      ].filter(Boolean).join(',')
+    : undefined;
   const extraOverride = [
     ...(phenologyStr ? ['--overridePhenology', phenologyStr] : []),
     ...(cohortStr ? ['--overrideCohort', cohortStr] : []),
+    ...(abortionStr ? ['--overrideAbortion', abortionStr] : []),
   ];
 
   // 1. extract 220 (child process)
@@ -210,6 +222,9 @@ function evalCandidate(args: CliArgs, runId: string, v: SweepVariant): EvalCandi
       maxVisDiam: o.maxVisibleFruitDiameterMm ?? o.maxFruitDiameterMm ?? 0,
       visibleCount: o.visibleFruitCount ?? o.fruitCountTotal ?? 0,
       cohortCount: o.fruitCohortCount ?? 0,
+      // Iter 6f (SSOT #64) — abortionRate 계산용
+      aborted: o.abortedTotal ?? 0,
+      fertilized: o.fertilizedTotal ?? 0,
     };
   };
 
@@ -261,6 +276,16 @@ function hardGateReject(e: EvalCandidate, baseline: { S: number; PBand: number }
     return { reason: `S ${e.S.toFixed(3)} drop > 0.02`, category: 'sp_band_dropped' };
   if (e.PBand < baseline.PBand - 0.02)
     return { reason: `P_band ${e.PBand.toFixed(3)} drop > 0.02`, category: 'sp_band_dropped' };
+  // Iter 6f (SSOT #64) — abortion rate hard gate (Iter 6f 후보만)
+  const isAbortionVariant = e.variant.abortionThresholdRatio !== undefined || e.variant.abortionLagDays !== undefined;
+  if (isAbortionVariant) {
+    const fert90 = e.day90?.fertilized ?? 0;
+    const abort90 = e.day90?.aborted ?? 0;
+    const abortRate = fert90 > 0 ? abort90 / fert90 : 1;
+    if (abortRate > 0.60) {
+      return { reason: `Day 90 abortionRate ${(abortRate * 100).toFixed(0)}% > 60% (baseline 72% → target ≤60%)`, category: 'abortion_rate_insufficient' };
+    }
+  }
   return { reason: null, category: null };
 }
 
@@ -322,7 +347,13 @@ function main(): void {
       console.error(`  ${runId}: variant not found in sweep_summary`);
       continue;
     }
-    console.log(`  [eval] ${runId} (inflectionC=${v.inflectionC}, rateB=${v.rateB}, exp=${v.exponentScaling})`);
+    const extraStr = [
+      v.flowersPerTrussMu !== undefined ? `fMu=${v.flowersPerTrussMu}` : '',
+      v.fruitSetRate !== undefined ? `fSR=${v.fruitSetRate}` : '',
+      v.abortionThresholdRatio !== undefined ? `aThr=${v.abortionThresholdRatio}` : '',
+      v.abortionLagDays !== undefined ? `aLag=${v.abortionLagDays}` : '',
+    ].filter(Boolean).join(' ');
+    console.log(`  [eval] ${runId} (inflectionC=${v.inflectionC}, rateB=${v.rateB}, exp=${v.exponentScaling}${extraStr ? ' ' + extraStr : ''})`);
     const result = evalCandidate(args, runId, v);
     results.push(result);
   }
@@ -394,18 +425,26 @@ function main(): void {
       reasoning = `${top.runId} composite margin=${margin.toFixed(1)} 통과지만 채택조건 미달 → baseline 유지`;
     } else {
       winner = top;
-      // Iter 6d (SSOT #58) — 극단값 winner는 conditional_promote
+      // Iter 6d / 6f (SSOT #58) — 극단값 winner는 conditional_promote (lever별 정의)
       const fsr = top.variant.fruitSetRate ?? 0;
       const fmu = top.variant.flowersPerTrussMu ?? 0;
+      const atr = top.variant.abortionThresholdRatio ?? Infinity;
+      const ald = top.variant.abortionLagDays ?? 0;
       const extremeFsr = fsr >= 0.9;
       const extremeFmu = fmu >= 9;
-      promoteVerdict = (extremeFsr || extremeFmu) ? 'conditional_promote' : 'promote';
+      // Iter 6f boundary: <= 0.10 OR >= 10 (등호 포함, 사용자 검토)
+      const extremeAtr = atr <= 0.10;
+      const extremeAld = ald >= 10;
+      promoteVerdict = (extremeFsr || extremeFmu || extremeAtr || extremeAld) ? 'conditional_promote' : 'promote';
       top.promoteVerdict = promoteVerdict;
 
       // riskReasons 채우기 (SSOT #60)
       const risks: string[] = [];
       if (extremeFsr) risks.push('high_fruit_set_rate');
       if (extremeFmu) risks.push('high_flowers_per_truss');
+      // Iter 6f abortion risk reasons
+      if (extremeAtr) risks.push('low_abortion_threshold');
+      if (extremeAld) risks.push('high_abortion_lag');
       const d60d = top.day60?.maxDiam ?? 0;
       const d90d = top.day90?.maxDiam ?? 0;
       if (d60d > 0 && (d60d - 18) / 18 <= 0.05) risks.push('maxDiam_near_lower_bound');
@@ -452,7 +491,10 @@ function main(): void {
   for (const r of results) {
     const gate = r.rejectReason ? `✗ ${r.rejectCategory ?? '?'}: ${r.rejectReason}` : `✓ score=${(r.score ?? 0).toFixed(1)}`;
     const baseline_tag = r.isBaseline ? ' (baseline)' : '';
-    console.log(`  ${r.runId}${baseline_tag}: S=${r.S.toFixed(3)} P=${r.PBand.toFixed(3)} too_behind=${r.diagnosis['common_truss_status_too_behind'] ?? 0} D60vis=${r.day60?.visibleCount ?? '-'} D90vis=${r.day90?.visibleCount ?? '-'} D60coh=${r.day60?.cohortCount ?? '-'} D90coh=${r.day90?.cohortCount ?? '-'} | ${gate}`);
+    const f90 = r.day90?.fertilized ?? 0;
+    const a90 = r.day90?.aborted ?? 0;
+    const aRate90 = f90 > 0 ? `${((a90 / f90) * 100).toFixed(0)}%` : '-';
+    console.log(`  ${r.runId}${baseline_tag}: S=${r.S.toFixed(3)} P=${r.PBand.toFixed(3)} too_behind=${r.diagnosis['common_truss_status_too_behind'] ?? 0} D60vis=${r.day60?.visibleCount ?? '-'} D90vis=${r.day90?.visibleCount ?? '-'} D60coh=${r.day60?.cohortCount ?? '-'} D90coh=${r.day90?.cohortCount ?? '-'} D90abortRate=${aRate90} | ${gate}`);
   }
   console.log(`\nWinner: ${winner.runId} (verdict: ${winner.isBaseline ? 'reject' : promoteVerdict})`);
   console.log(`  ${reasoning}`);

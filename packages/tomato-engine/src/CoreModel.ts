@@ -489,7 +489,11 @@ export function stepMinutely(
         const gddSinceFert = state.TT - fruit.fertilizationTT;
         const potentialFW_day = potentialDailyGrowthFW(gddSinceFert, T_eff_day_equiv, fruit.genome, cultivar);
         const potentialDM_step = (potentialFW_day * ACTIVE_MODEL.fruitGrowth.DM_percent) * dtDays;
-        const tracker = updateAbortionTracker(allocatedStep, potentialDM_step, fruit.starvedDays, dtDays);
+        // Iter 6f (SSOT #61): abortion params read from cultivar (NOT ACTIVE_MODEL).
+        const tracker = updateAbortionTracker(
+          allocatedStep, potentialDM_step, fruit.starvedDays, dtDays,
+          { thresholdRatio: cultivar.abortionThresholdRatio, lagDays: cultivar.abortionLagDays },
+        );
         fruit.starvedDays = tracker.starvedDays;
         if (tracker.abort) {
           fruit.aborted = true;
@@ -745,7 +749,11 @@ function _legacyStepDaily(
         const potentialDM = potentialFW * ACTIVE_MODEL.fruitGrowth.DM_percent;
 
         // Update abortion tracker — abort if persistently starved
-        const tracker = updateAbortionTracker(allocatedToday, potentialDM, fruit.starvedDays);
+        // Iter 6f (SSOT #61): abortion params read from cultivar (NOT ACTIVE_MODEL).
+        const tracker = updateAbortionTracker(
+          allocatedToday, potentialDM, fruit.starvedDays, 1,
+          { thresholdRatio: cultivar.abortionThresholdRatio, lagDays: cultivar.abortionLagDays },
+        );
         fruit.starvedDays = tracker.starvedDays;
         if (tracker.abort) {
           fruit.aborted = true;

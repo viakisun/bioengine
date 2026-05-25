@@ -157,6 +157,9 @@ export interface AbortionState {
 // as constants for back-compat with callers that import these names.
 import { ACTIVE_MODEL } from './ModelRegistry';
 
+// Iter 6f (SSOT #61): ACTIVE_MODEL.abortion is the global fallback for
+// cultivar adapter only. CoreModel must read cultivar.abortion* directly
+// (never these legacy const exports). Kept exported for back-compat.
 export const ABORTION_THRESHOLD = ACTIVE_MODEL.abortion.threshold_ratio;
 export const ABORTION_LAG_DAYS = ACTIVE_MODEL.abortion.lag_days;
 
@@ -166,20 +169,27 @@ export const ABORTION_LAG_DAYS = ACTIVE_MODEL.abortion.lag_days;
  *  `dtDays` is the integration step size in days. Pass 1.0 for a daily
  *  step, 1/24 for hourly, 1/1440 for minutely. The counter still has
  *  units of days, so the abort threshold is time-resolution invariant.
+ *
+ *  Iter 6f (SSOT #61): `params` is REQUIRED — caller must pass
+ *  cultivar.abortionThresholdRatio + cultivar.abortionLagDays.
  */
 export function updateAbortionTracker(
   actualDM: number,
   potentialDM: number,
   previousStarved: number,
-  dtDays = 1,
+  dtDays: number,
+  params: { thresholdRatio: number; lagDays: number },
 ): { starvedDays: number; abort: boolean } {
+  // potentialDM=0 의도 (SSOT #61): pre-fruit / early flower OR phase
+  // transition 순간에 potential=0이면 "이번 step starvation 카운트 안 함"
+  // = ratio=1 fallback 의도. starvedDays 변동 없음.
   if (potentialDM <= 0) {
     return { starvedDays: previousStarved, abort: false };
   }
   const ratio = actualDM / potentialDM;
-  if (ratio < ABORTION_THRESHOLD) {
+  if (ratio < params.thresholdRatio) {
     const next = previousStarved + dtDays;
-    return { starvedDays: next, abort: next >= ABORTION_LAG_DAYS };
+    return { starvedDays: next, abort: next >= params.lagDays };
   }
   // Decay the starved counter when feeding is back to normal.
   // Decay rate matches the integration step so a single full day of

@@ -1,0 +1,120 @@
+{
+  "schemaVersion": "growthCalibration.v1",
+  "updateId": "growth_update_010",
+  "previousModelVersion": "growthModel.tomato.v0.11.1-stage-fixed",
+  "newModelVersion": "growthModel.tomato.v0.11.1-stage-fixed",
+  "status": "rejected",
+  "date": "2026-05-26",
+  "triggerComparisons": [
+    "(Iter 6d audit Section 5d: abortion rate baseline 72% → real lever 진단)"
+  ],
+  "triggerRuleIds": [
+    "common_truss_status_too_behind"
+  ],
+  "reason": [
+    "Iter 6f fruit abortion / starvation threshold calibration sweep: cultivar.abortionThresholdRatio × cultivar.abortionLagDays 2-axis (3×3=9 variants).",
+    "PARAM phase: abortion params를 ACTIVE_MODEL.abortion (global)에서 cultivar-level로 끌어냄 (SSOT #61). Cultivar interface + adapter + FruitGrowth.updateAbortionTracker signature + CoreModel 2 call site + tomimaru.jsonc 명시 override.",
+    "Preflight C 통과 (case A — PASS): baseline cohort 13 → extreme (0.10/10) cohort 15, abortion rate 72% → 60% (-12%p), maxDiam 54.96 → 54.86 (유지). lever 정확히 작동 확인.",
+    "9 runs sweep 후 top 4 (run_001 baseline + run_002 0.25/7 + run_006 0.18/10 + run_009 0.10/10) 220 comparison.",
+    "결과: run_002 abortion_rate_insufficient (64% > 60% hard gate), run_006/009 fruit_too_early_returned (Day 33 maxVisDiam 3.3mm > 3mm) — abortion 완화로 일부 fruit Day 33 visible threshold 진입.",
+    "selectBestForIter6f hard gate (abortion rate 60% 필수) + cohort sufficiency (Day 90 ≥ 20) 통과 후보 0 → SSOT #45 (rejected — no candidate passed) 정책 적용.",
+    "lever 효과 확인 (긍정적 발견): abortion lever 정확히 작동 (abortionRate -12%p, truss_too_behind -15), **maxDiam 유지** (Iter 6d cohort lever 와 결정적 차이 — sink 분산 없이 cohort 늘릴 수 있음).",
+    "한계: Day 90 cohort 13 → 15 saturate (target 20 미달), Day 90 visible 8 → 8 정체, Day 33 fruit_too_early hard gate가 abortion 완화 적극도 제한 → SSOT #66 발화 = Iter 6g (Gompertz + abortion 2-layer joint sweep) 정확히 가리킴."
+  ],
+  "parameterChanges": [
+    {
+      "parameter": "cultivar.abortionThresholdRatio + cultivar.abortionLagDays",
+      "oldValue": "ACTIVE_MODEL.abortion.threshold_ratio / lag_days (global only)",
+      "newValue": "cultivar-level override (SSOT #61 — c.abortionThresholdRatio / c.abortionLagDays) with global fallback",
+      "file": "packages/tomato-engine/src/Cultivar.ts + ModelRegistry.ts + tomimaru-muchoo.jsonc",
+      "unit": "schema",
+      "citation": "Iter 6f spec SSOT #61",
+      "reason": "abortion params를 cultivar-level로 끌어내야 sweep + per-cultivar tuning 가능. ACTIVE_MODEL.abortion은 global fallback / legacy compatibility 유지.",
+      "changeType": "engine_logic",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "FruitGrowth.updateAbortionTracker signature",
+      "oldValue": "(actualDM, potentialDM, prevStarved, dtDays=1)",
+      "newValue": "(actualDM, potentialDM, prevStarved, dtDays, params: { thresholdRatio, lagDays })",
+      "file": "packages/tomato-engine/src/FruitGrowth.ts",
+      "unit": "API",
+      "citation": "Iter 6f spec SSOT #61",
+      "reason": "internal logic에서 ACTIVE_MODEL.abortion const 대신 params로 전환. CoreModel call site에서 cultivar.abortion* 전달.",
+      "changeType": "engine_logic",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "CoreModel.ts updateAbortionTracker call sites (Site A minutely, Site B daily)",
+      "oldValue": "ACTIVE_MODEL.abortion 간접 read (FruitGrowth const)",
+      "newValue": "cultivar.abortionThresholdRatio + cultivar.abortionLagDays 직접 전달",
+      "file": "packages/tomato-engine/src/CoreModel.ts (line 492, 748)",
+      "unit": "logic",
+      "citation": "Iter 6f spec SSOT #61",
+      "reason": "역할 분리 (SSOT #61): CoreModel은 항상 cultivar.abortion* 만 read. ACTIVE_MODEL은 adapter fallback 전용. 후속 혼선 방지.",
+      "changeType": "engine_logic",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "dump-growth-checkpoints + extract-calibration-observations --overrideAbortion",
+      "oldValue": null,
+      "newValue": "process-local cultivar.abortionThresholdRatio + cultivar.abortionLagDays mutation (target cultivar only, SSOT #61)",
+      "file": "growth-calibration/scripts/dump-growth-checkpoints.ts + extract-calibration-observations.ts",
+      "unit": "CLI",
+      "citation": "Iter 6f spec",
+      "reason": "abortion layer sweep harness 지원. Iter 6c/6d 패턴 그대로 (target cultivar only).",
+      "changeType": "engine_logic",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "run-gompertz-sweep.ts variant + CLI 확장",
+      "oldValue": "Gompertz 3-axis + phenology 2-axis + cohort 2-axis",
+      "newValue": "+ abortion 2-axis (thresholdRatio/lagDays). 8중 nested loop.",
+      "file": "growth-calibration/scripts/run-gompertz-sweep.ts",
+      "unit": "logic",
+      "citation": "Iter 6f spec",
+      "reason": "sweep grid 일반화 — Gompertz + Phenology + Cohort + Abortion 동시 또는 단독 가능.",
+      "changeType": "engine_logic",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "run-top-candidates-comparison.ts selectBestForIter6f",
+      "oldValue": "Iter 6d selectBestForIter6d (cohort 필수)",
+      "newValue": "+ abortion rate hard gate (Day 90 abortionRate ≤ 60%, SSOT #64) + 극단값 conditional (thresholdRatio ≤ 0.10 OR lagDays ≥ 10) + rejectCategory 'abortion_rate_insufficient'",
+      "file": "growth-calibration/scripts/run-top-candidates-comparison.ts",
+      "unit": "logic",
+      "citation": "Iter 6f spec SSOT #64",
+      "reason": "Iter 6f의 정체성이 abortion path calibration이므로 hard gate에 abortion rate 감소 포함. cohort/visible만으로는 lever 가설 검증 안 됨.",
+      "changeType": "engine_logic",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "dump-iter-audit.ts Section 5d rate 표 + Section 10b abortion rate column",
+      "oldValue": "absolute count only",
+      "newValue": "+ rate-based 진단 (fertilization/abortion/survival/visible per truss + total) + D60/D90 abortRate column",
+      "file": "growth-calibration/scripts/dump-iter-audit.ts",
+      "unit": "schema",
+      "citation": "Iter 6f spec SSOT #63",
+      "reason": "abortion sweep의 진짜 측정 기준은 절대 count가 아닌 비율. cohort 흐름 (flowerBud → fertilized → cohort → visible) 각 단계 효율 자동 노출.",
+      "changeType": "schema_only",
+      "enforcementStatus": "active"
+    }
+  ],
+  "validationPlan": {
+    "replayDays": [0, 10, 20, 30, 33, 40, 50, 60, 70, 80, 90, 100],
+    "forwardDays": [],
+    "targetMetrics": ["common_truss_status_too_behind", "Day 90 abortionRate (target ≤ 60%)", "Day 90 cohortFruitCount (target ≥ 20)", "Day 90 visibleFruitCount"]
+  },
+  "outcome": {
+    "runDate": "2026-05-26",
+    "replayScoreDelta": 0,
+    "forwardScoreDelta": 0,
+    "verdict": "rejected — v0.11.1 유지 (SSOT #45 — no candidate passed hard gate, but lever 효과 정확히 확인됨)",
+    "notes": "Iter 6f abortion / starvation threshold calibration 인프라 모두 작동 (PARAM phase pass, Preflight C PASS case A, sweep + top-candidates + audit harness 일반화 with selectBestForIter6f + abortion rate hard gate + rate-based audit Section 5d). 9 runs sweep + 4 후보 220 comparison 결과 hard gate 통과 후보 0. 핵심 발견 (긍정적): abortion lever 정확히 작동 — abortionRate baseline 72% → run_006 60% (-12%p 정확), truss_too_behind 87 → 72 (-15) 큰 개선, **maxDiam 유지** (54.9~55.0, Iter 6d cohort lever 와 결정적 차이 — sink 분산 없음). 한계: Day 90 cohort 13 → 15 saturate (target 20 미달), Day 90 visible 8 → 8 정체, abortion 적극 완화 시 Day 33 fruit_too_early hard gate 위반 (3.3mm > 3mm). → SSOT #66 정확히 발화 = Iter 6g (Gompertz + abortion 2-layer joint sweep)가 다음 정확한 lever. early-stage 과실 크기/visibility AND survival 동시 제어로 trade-off 해결 시도."
+  },
+  "followUp": [
+    "Iter 6g (Gompertz + abortion 2-layer joint sweep) ⭐: Iter 6f가 가리킨 정확한 다음 방향. abortion 완화 (cohort 회복) + Gompertz early curve flatten (Day 30/33 cap)을 동시 sweep. early-stage 과실 크기/visibility AND survival 동시 제어로 fruit_too_early hard gate 안에서 abortion lever 더 적극적 활용 가능. 후보: abortion 2-axis × Gompertz inflectionC/exponentScaling 2-axis = 16~36 variants.",
+    "Iter 6e (surplusPolicy redistribute_to_vegetative): abortion path가 visible bottleneck 해결 못한 점이 가리키는 보완 lever. cohort 늘었지만 vegetative 부족으로 sink 못 받는 가능성. Iter 6g 결과 보고 결정.",
+    "Iter 7 (Stem calibration, Case D): abortion 작업과 무관하므로 병렬 진행 가능. Iter 6g와 분리 commit."
+  ]
+}

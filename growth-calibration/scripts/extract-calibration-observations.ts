@@ -62,6 +62,9 @@ interface CliArgs {
   /** Iter 6d — cohort override (target cultivar only, SSOT #53).
    *  format: "flowersPerTrussMu=7,fruitSetRate=0.75" */
   overrideCohort?: { flowersPerTrussMu?: number; fruitSetRate?: number };
+  /** Iter 6f — abortion override (target cultivar only, SSOT #61).
+   *  format: "thresholdRatio=0.18,lagDays=7" */
+  overrideAbortion?: { thresholdRatio?: number; lagDays?: number };
 }
 
 function parseOverride(s?: string): CliArgs['overrideGompertz'] {
@@ -104,6 +107,19 @@ function parseOverrideCohort(s?: string): CliArgs['overrideCohort'] {
   return out;
 }
 
+function parseOverrideAbortion(s?: string): CliArgs['overrideAbortion'] {
+  if (!s) return undefined;
+  const out: { thresholdRatio?: number; lagDays?: number } = {};
+  for (const pair of s.split(',')) {
+    const [k, v] = pair.split('=').map(t => t.trim());
+    const n = Number(v);
+    if (!Number.isFinite(n)) continue;
+    if (k === 'thresholdRatio') out.thresholdRatio = n;
+    else if (k === 'lagDays') out.lagDays = n;
+  }
+  return out;
+}
+
 function parseArgs(argv: string[]): CliArgs {
   const opts: Record<string, string> = {};
   for (let i = 0; i < argv.length; i++) {
@@ -128,6 +144,7 @@ function parseArgs(argv: string[]): CliArgs {
     overrideGompertz: parseOverride(opts.overrideGompertz),
     overridePhenology: parseOverridePhenology(opts.overridePhenology),
     overrideCohort: parseOverrideCohort(opts.overrideCohort),
+    overrideAbortion: parseOverrideAbortion(opts.overrideAbortion),
   };
 }
 
@@ -195,6 +212,20 @@ function applyOverrideCohort(args: CliArgs): void {
     }
   }
   console.log(`[extract override] cohort: cultivar=${args.cultivar} flowersPerTrussMu=${ov.flowersPerTrussMu ?? '-'}, fruitSetRate=${ov.fruitSetRate ?? '-'}`);
+}
+
+/** Iter 6f — abortion / starvation override (target cultivar only, SSOT #61). */
+function applyOverrideAbortion(args: CliArgs): void {
+  const ov = args.overrideAbortion;
+  if (!ov) return;
+  const c = CULTIVARS[args.cultivar];
+  if (!c) {
+    console.warn(`[extract override abortion] cultivar ${args.cultivar} not found — skip`);
+    return;
+  }
+  if (ov.thresholdRatio !== undefined) c.abortionThresholdRatio = ov.thresholdRatio;
+  if (ov.lagDays !== undefined) c.abortionLagDays = ov.lagDays;
+  console.log(`[extract override] abortion: cultivar=${args.cultivar} thresholdRatio=${ov.thresholdRatio ?? '-'}, lagDays=${ov.lagDays ?? '-'}`);
 }
 
 // ── Status mapping (engine → schema enum) ─────────────────────────────
@@ -506,6 +537,7 @@ function main(): void {
   applyOverrideGompertz(args);  // Iter 6b — child-process Gompertz mutation
   applyOverridePhenology(args); // Iter 6c — phenology mutation
   applyOverrideCohort(args);    // Iter 6d — cohort mutation
+  applyOverrideAbortion(args);  // Iter 6f — abortion mutation
   const simRoot = join(args.outRoot, args.experimentId, 'simulation', args.modelVersion);
 
   process.stdout.write(
