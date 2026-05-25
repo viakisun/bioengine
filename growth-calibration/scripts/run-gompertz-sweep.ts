@@ -43,6 +43,9 @@ interface CliArgs {
   /** Iter 6g (SSOT #73) — abortion pair-list. e.g. "0.18:7,0.18:10,0.10:10".
    *  If set, overrides abortionThresholdRatio/abortionLagDays cross-product. */
   abortionPairs?: Array<{ thresh: number; lag: number }>;
+  /** Iter 6h (SSOT #74) — visibility gate sweep axes (optional). */
+  visibilityGateMode?: Array<'diameter_only' | 'phase' | 'phase_and_gdd'>;
+  minFruitAgeGDDForVisible?: number[];
   seed: number;
   days: number[];
   cultivar: string;
@@ -90,6 +93,10 @@ function parseArgs(argv: string[]): CliArgs {
     abortionThresholdRatio: opts.abortionThresholdRatio ? parseList(opts.abortionThresholdRatio, []) : undefined,
     abortionLagDays: opts.abortionLagDays ? parseList(opts.abortionLagDays, []) : undefined,
     abortionPairs: parsePairList(opts.abortionPairs),
+    visibilityGateMode: opts.visibilityGateMode
+      ? (opts.visibilityGateMode.split(',').map(s => s.trim()).filter(s => s === 'diameter_only' || s === 'phase' || s === 'phase_and_gdd') as Array<'diameter_only' | 'phase' | 'phase_and_gdd'>)
+      : undefined,
+    minFruitAgeGDDForVisible: opts.minFruitAgeGDDForVisible ? parseList(opts.minFruitAgeGDDForVisible, []) : undefined,
     seed: opts.seed ? Number(opts.seed) : 20260525,
     days: parseList(opts.days, [30, 33, 60, 90]),
     cultivar: opts.cultivar ?? 'tomimaru-muchoo',
@@ -113,6 +120,9 @@ interface Variant {
   // Iter 6f — abortion (optional)
   abortionThresholdRatio?: number;
   abortionLagDays?: number;
+  // Iter 6h — visibility gate (optional)
+  visibilityGateMode?: 'diameter_only' | 'phase' | 'phase_and_gdd';
+  minFruitAgeGDDForVisible?: number;
 }
 
 function genVariants(args: CliArgs): Variant[] {
@@ -132,6 +142,9 @@ function genVariants(args: CliArgs): Variant[] {
           for (const t of atrList) for (const l of aldList) combos.push({ thresh: t, lag: l });
           return combos;
         })();
+  // Iter 6h (SSOT #74): visibility axes
+  const vgmList = args.visibilityGateMode ?? [undefined];
+  const vagList = args.minFruitAgeGDDForVisible ?? [undefined];
   for (const ic of args.inflectionC) {
     for (const rb of args.rateB) {
       for (const exp of args.exponentScaling) {
@@ -140,12 +153,17 @@ function genVariants(args: CliArgs): Variant[] {
             for (const fpt of fptList) {
               for (const fsr of fsrList) {
                 for (const ab of abortionCombos) {
-                  out.push({
-                    inflectionC: ic, rateB: rb, exponentScaling: exp,
-                    cellDivisionDurationGDD: cdd, cellExpansionDurationGDD: ced,
-                    flowersPerTrussMu: fpt, fruitSetRate: fsr,
-                    abortionThresholdRatio: ab.thresh, abortionLagDays: ab.lag,
-                  });
+                  for (const vgm of vgmList) {
+                    for (const vag of vagList) {
+                      out.push({
+                        inflectionC: ic, rateB: rb, exponentScaling: exp,
+                        cellDivisionDurationGDD: cdd, cellExpansionDurationGDD: ced,
+                        flowersPerTrussMu: fpt, fruitSetRate: fsr,
+                        abortionThresholdRatio: ab.thresh, abortionLagDays: ab.lag,
+                        visibilityGateMode: vgm, minFruitAgeGDDForVisible: vag,
+                      });
+                    }
+                  }
                 }
               }
             }
@@ -211,6 +229,13 @@ function runVariant(args: CliArgs, runId: string, v: Variant): RunOutput {
     if (v.abortionThresholdRatio !== undefined) parts.push(`thresholdRatio=${v.abortionThresholdRatio}`);
     if (v.abortionLagDays !== undefined) parts.push(`lagDays=${v.abortionLagDays}`);
     cliArgs.push('--overrideAbortion', parts.join(','));
+  }
+  // Iter 6h — visibility gate override (if variant has visibility fields)
+  if (v.visibilityGateMode !== undefined || v.minFruitAgeGDDForVisible !== undefined) {
+    const parts: string[] = [];
+    if (v.visibilityGateMode !== undefined) parts.push(`gateMode=${v.visibilityGateMode}`);
+    if (v.minFruitAgeGDDForVisible !== undefined) parts.push(`minFruitAgeGDDForVisible=${v.minFruitAgeGDDForVisible}`);
+    cliArgs.push('--overrideVisibility', parts.join(','));
   }
   const res = spawnSync('npx', cliArgs, { cwd: args.repoRoot, stdio: 'pipe', encoding: 'utf-8' });
 
@@ -382,6 +407,8 @@ function main(): void {
     if (args.abortionThresholdRatio) axes.push(`abortThresh=${args.abortionThresholdRatio.length}`);
     if (args.abortionLagDays) axes.push(`abortLag=${args.abortionLagDays.length}`);
   }
+  if (args.visibilityGateMode) axes.push(`visGateMode=${args.visibilityGateMode.length}`);
+  if (args.minFruitAgeGDDForVisible) axes.push(`visGDD=${args.minFruitAgeGDDForVisible.length}`);
   console.log(`  variants: ${variants.length} (${axes.join(' × ')})`);
   console.log(`  output: ${join(args.sweepRoot, args.sweepId)}`);
 
@@ -398,7 +425,9 @@ function main(): void {
       ? ` flowersMu=${v.flowersPerTrussMu ?? '-'} fsr=${v.fruitSetRate ?? '-'}` : '';
     const abStr = (v.abortionThresholdRatio !== undefined || v.abortionLagDays !== undefined)
       ? ` abortThresh=${v.abortionThresholdRatio ?? '-'} abortLag=${v.abortionLagDays ?? '-'}` : '';
-    process.stdout.write(`  [${i + 1}/${variants.length}] ${runId} inflectionC=${v.inflectionC} rateB=${v.rateB} exp=${v.exponentScaling}${phStr}${coStr}${abStr} ... `);
+    const viStr = (v.visibilityGateMode !== undefined || v.minFruitAgeGDDForVisible !== undefined)
+      ? ` visMode=${v.visibilityGateMode ?? '-'} visGDD=${v.minFruitAgeGDDForVisible ?? '-'}` : '';
+    process.stdout.write(`  [${i + 1}/${variants.length}] ${runId} inflectionC=${v.inflectionC} rateB=${v.rateB} exp=${v.exponentScaling}${phStr}${coStr}${abStr}${viStr} ... `);
     const out = runVariant(args, runId, v);
     runs.push(out);
     console.log(out.ok ? '✓' : '✗');

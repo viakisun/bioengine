@@ -65,6 +65,9 @@ interface CliArgs {
   /** Iter 6f — abortion override (target cultivar only, SSOT #61).
    *  format: "thresholdRatio=0.18,lagDays=7" */
   overrideAbortion?: { thresholdRatio?: number; lagDays?: number };
+  /** Iter 6h — visibility gate override (botanical-level, SSOT #74).
+   *  format: "gateMode=phase_and_gdd,minFruitAgeGDDForVisible=80" */
+  overrideVisibility?: { gateMode?: 'diameter_only' | 'phase' | 'phase_and_gdd'; minFruitAgeGDDForVisible?: number };
 }
 
 function parseOverride(s?: string): CliArgs['overrideGompertz'] {
@@ -120,6 +123,21 @@ function parseOverrideAbortion(s?: string): CliArgs['overrideAbortion'] {
   return out;
 }
 
+function parseOverrideVisibility(s?: string): CliArgs['overrideVisibility'] {
+  if (!s) return undefined;
+  const out: { gateMode?: 'diameter_only' | 'phase' | 'phase_and_gdd'; minFruitAgeGDDForVisible?: number } = {};
+  for (const pair of s.split(',')) {
+    const [k, v] = pair.split('=').map(t => t.trim());
+    if (k === 'gateMode') {
+      if (v === 'diameter_only' || v === 'phase' || v === 'phase_and_gdd') out.gateMode = v;
+    } else if (k === 'minFruitAgeGDDForVisible') {
+      const n = Number(v);
+      if (Number.isFinite(n)) out.minFruitAgeGDDForVisible = n;
+    }
+  }
+  return out;
+}
+
 function parseArgs(argv: string[]): CliArgs {
   const opts: Record<string, string> = {};
   for (let i = 0; i < argv.length; i++) {
@@ -145,6 +163,7 @@ function parseArgs(argv: string[]): CliArgs {
     overridePhenology: parseOverridePhenology(opts.overridePhenology),
     overrideCohort: parseOverrideCohort(opts.overrideCohort),
     overrideAbortion: parseOverrideAbortion(opts.overrideAbortion),
+    overrideVisibility: parseOverrideVisibility(opts.overrideVisibility),
   };
 }
 
@@ -226,6 +245,22 @@ function applyOverrideAbortion(args: CliArgs): void {
   if (ov.thresholdRatio !== undefined) c.abortionThresholdRatio = ov.thresholdRatio;
   if (ov.lagDays !== undefined) c.abortionLagDays = ov.lagDays;
   console.log(`[extract override] abortion: cultivar=${args.cultivar} thresholdRatio=${ov.thresholdRatio ?? '-'}, lagDays=${ov.lagDays ?? '-'}`);
+}
+
+/** Iter 6h — visibility gate override (botanical-level, SSOT #74/76).
+ *  ACTIVE_BOTANICAL + 모든 CULTIVARS.resolvedBotanical mutate (global, calibration-only). */
+function applyOverrideVisibility(args: CliArgs): void {
+  const ov = args.overrideVisibility;
+  if (!ov) return;
+  const mf = ACTIVE_BOTANICAL.tomato.fruitDevelopment.massFlow;
+  if (ov.gateMode !== undefined) mf.visibilityGateMode = ov.gateMode;
+  if (ov.minFruitAgeGDDForVisible !== undefined) mf.minFruitAgeGDDForVisible = ov.minFruitAgeGDDForVisible;
+  for (const c of Object.values(CULTIVARS)) {
+    const mf2 = c.resolvedBotanical.fruitDevelopment.massFlow;
+    if (ov.gateMode !== undefined) mf2.visibilityGateMode = ov.gateMode;
+    if (ov.minFruitAgeGDDForVisible !== undefined) mf2.minFruitAgeGDDForVisible = ov.minFruitAgeGDDForVisible;
+  }
+  console.log(`[extract override] visibility: gateMode=${ov.gateMode ?? '-'}, minFruitAgeGDDForVisible=${ov.minFruitAgeGDDForVisible ?? '-'}`);
 }
 
 // ── Status mapping (engine → schema enum) ─────────────────────────────
@@ -374,11 +409,24 @@ function buildObservation(args: BuildArgs): PlantObservation {
     // Iter 5b — visibility threshold from botanical massFlow
     const minVisibleDiameterMm =
       cultivar.resolvedBotanical?.fruitDevelopment.massFlow.minVisibleDiameterMm ?? 0;
+    // Iter 6h (SSOT #74) — 3-mode visibility gate
+    const visibilityGateMode =
+      cultivar.resolvedBotanical?.fruitDevelopment.massFlow.visibilityGateMode ?? 'diameter_only';
+    const minFruitAgeGDDForVisible =
+      cultivar.resolvedBotanical?.fruitDevelopment.massFlow.minFruitAgeGDDForVisible ?? 0;
 
     // Per-fruit observations
     for (let j = 0; j < t.fruits.length; j++) {
       const f = t.fruits[j];
-      const isVisible = !f.aborted && !f.harvested && f.diameter >= minVisibleDiameterMm;
+      let isVisible = !f.aborted && !f.harvested && f.diameter >= minVisibleDiameterMm;
+      if (isVisible && visibilityGateMode !== 'diameter_only') {
+        const phase = derivePhase(f, physiology.TT, cultivar.cellDivisionDurationGDD, cultivar.cellExpansionDurationGDD);
+        isVisible = phase !== 'cell_division' && phase !== 'pre_fertilization' && phase !== 'aborted';
+        if (isVisible && visibilityGateMode === 'phase_and_gdd') {
+          const gddSinceFert = physiology.TT - f.fertilizationTT;
+          isVisible = gddSinceFert >= minFruitAgeGDDForVisible;
+        }
+      }
       fruits.push({
         fruitId: `F${i + 1}_${j + 1}`,
         trussId,
@@ -538,6 +586,7 @@ function main(): void {
   applyOverridePhenology(args); // Iter 6c — phenology mutation
   applyOverrideCohort(args);    // Iter 6d — cohort mutation
   applyOverrideAbortion(args);  // Iter 6f — abortion mutation
+  applyOverrideVisibility(args); // Iter 6h — visibility gate mutation
   const simRoot = join(args.outRoot, args.experimentId, 'simulation', args.modelVersion);
 
   process.stdout.write(

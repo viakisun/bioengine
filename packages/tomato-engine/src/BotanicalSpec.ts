@@ -122,6 +122,14 @@ export interface MassFlowSpec {
    *  {cell_expansion, ripening_early, ripening_late} 조건 만족 시 expansion.
    *  diameter 단독이 아니라 phase도 함께 확인 (SSOT #6). 기본 10mm. */
   minExpandingDiameterMm: number;
+  /** Iter 6h (SSOT #74) — fruit visibility gate mode (calibration-only, SSOT #76).
+   *  diameter_only:   diameter >= minVisibleDiameterMm (현재 방식, 후방호환 default)
+   *  phase:           + phase != cell_division
+   *  phase_and_gdd:   + phase + gddSinceFruitSet >= minFruitAgeGDDForVisible */
+  visibilityGateMode: 'diameter_only' | 'phase' | 'phase_and_gdd';
+  /** Iter 6h (SSOT #74) — visibility gate에서 사용하는 GDD threshold.
+   *  visibilityGateMode='phase_and_gdd'일 때만 활성. 기본 80 GDD. */
+  minFruitAgeGDDForVisible: number;
   /** trajectory cap on/off. mode='gompertz_sink_limited'와 함께. */
   enableTrajectoryCap: boolean;
   /** per-fruit step demand clamp on/off (SinkAllocation 측). */
@@ -323,6 +331,15 @@ export function validateFull(spec: BotanicalSpec): void {
       `fruitDevelopment.massFlow.surplusPolicy invalid: ${String(fd.massFlow.surplusPolicy)}`,
     );
   }
+  // Iter 6h — visibility gate validators (SSOT #74)
+  if (fd.massFlow.visibilityGateMode !== 'diameter_only'
+   && fd.massFlow.visibilityGateMode !== 'phase'
+   && fd.massFlow.visibilityGateMode !== 'phase_and_gdd') {
+    throw new BotanicalValidationError(
+      `fruitDevelopment.massFlow.visibilityGateMode invalid: ${String(fd.massFlow.visibilityGateMode)}`,
+    );
+  }
+  requireFiniteNumber(fd.massFlow.minFruitAgeGDDForVisible, 'fruitDevelopment.massFlow.minFruitAgeGDDForVisible');
 }
 
 export function validatePartial(override: BotanicalPartial): void {

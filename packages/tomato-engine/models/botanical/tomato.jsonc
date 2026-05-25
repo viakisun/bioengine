@@ -226,7 +226,11 @@
       "enableTrajectoryCap": true,           // cumulative W_dry trajectory cap
       "enableStepDemandLimit": true,         // per-fruit per-step demand clamp
       "surplusPolicy": "unused_pool",        // clamp surplus는 vegetative로 안 흐름
-      "debug": true                          // snapshot에 debug fields 출력
+      "debug": true,                         // snapshot에 debug fields 출력
+      // Iter 6h (SSOT #74, #76): visibility gate — calibration-only.
+      //   diameter_only: 기본 (v0.11.1 후방호환). Iter 6h sweep으로 phase/phase_and_gdd 평가.
+      "visibilityGateMode": "diameter_only",
+      "minFruitAgeGDDForVisible": 80         // visibilityGateMode='phase_and_gdd'일 때만 활성
     }
   },
 
@@ -290,6 +294,8 @@
     "fruitDevelopment.massFlow.enableTrajectoryCap": "active",
     "fruitDevelopment.massFlow.enableStepDemandLimit": "active",
     "fruitDevelopment.massFlow.surplusPolicy": "active",
+    "fruitDevelopment.massFlow.visibilityGateMode": "active",
+    "fruitDevelopment.massFlow.minFruitAgeGDDForVisible": "active",
     "fruitDevelopment.massFlow.debug": "active"
   }
 }

@@ -65,6 +65,10 @@ interface CliArgs {
   /** Iter 6f — abortion / starvation override (cultivar-level, SSOT #61).
    *  format: "thresholdRatio=0.18,lagDays=7". Target cultivar (args.cultivar)만 mutate. */
   overrideAbortion?: { thresholdRatio?: number; lagDays?: number };
+  /** Iter 6h — visibility gate override (botanical-level, SSOT #74).
+   *  format: "gateMode=phase_and_gdd,minFruitAgeGDDForVisible=80".
+   *  ACTIVE_BOTANICAL + 모든 CULTIVARS의 resolvedBotanical mutate (global, calibration-only). */
+  overrideVisibility?: { gateMode?: 'diameter_only' | 'phase' | 'phase_and_gdd'; minFruitAgeGDDForVisible?: number };
 }
 
 function parseOverride(s?: string): CliArgs['overrideGompertz'] {
@@ -120,6 +124,21 @@ function parseOverrideAbortion(s?: string): CliArgs['overrideAbortion'] {
   return out;
 }
 
+function parseOverrideVisibility(s?: string): CliArgs['overrideVisibility'] {
+  if (!s) return undefined;
+  const out: { gateMode?: 'diameter_only' | 'phase' | 'phase_and_gdd'; minFruitAgeGDDForVisible?: number } = {};
+  for (const pair of s.split(',')) {
+    const [k, v] = pair.split('=').map(t => t.trim());
+    if (k === 'gateMode') {
+      if (v === 'diameter_only' || v === 'phase' || v === 'phase_and_gdd') out.gateMode = v;
+    } else if (k === 'minFruitAgeGDDForVisible') {
+      const n = Number(v);
+      if (Number.isFinite(n)) out.minFruitAgeGDDForVisible = n;
+    }
+  }
+  return out;
+}
+
 function parseArgs(argv: string[]): CliArgs {
   const opts: Record<string, string> = {};
   for (let i = 0; i < argv.length; i++) {
@@ -145,6 +164,7 @@ function parseArgs(argv: string[]): CliArgs {
     overridePhenology: parseOverridePhenology(opts.overridePhenology),
     overrideCohort: parseOverrideCohort(opts.overrideCohort),
     overrideAbortion: parseOverrideAbortion(opts.overrideAbortion),
+    overrideVisibility: parseOverrideVisibility(opts.overrideVisibility),
   };
 }
 
@@ -239,6 +259,24 @@ function applyOverrideAbortion(args: CliArgs): void {
   if (ov.thresholdRatio !== undefined) c.abortionThresholdRatio = ov.thresholdRatio;
   if (ov.lagDays !== undefined) c.abortionLagDays = ov.lagDays;
   console.log(`[override] abortion: cultivar=${args.cultivar} thresholdRatio=${ov.thresholdRatio ?? '-'}, lagDays=${ov.lagDays ?? '-'}`);
+}
+
+/** Iter 6h — visibility gate override (botanical-level, SSOT #74/76).
+ *  ACTIVE_BOTANICAL.tomato.fruitDevelopment.massFlow + 모든 CULTIVARS의
+ *  resolvedBotanical 동일 필드 mutate (global, calibration-only).
+ *  CoreModel은 visibility 사용 안 함 — dump/extract observation 영향만. */
+function applyOverrideVisibility(args: CliArgs): void {
+  const ov = args.overrideVisibility;
+  if (!ov) return;
+  const mf = ACTIVE_BOTANICAL.tomato.fruitDevelopment.massFlow;
+  if (ov.gateMode !== undefined) mf.visibilityGateMode = ov.gateMode;
+  if (ov.minFruitAgeGDDForVisible !== undefined) mf.minFruitAgeGDDForVisible = ov.minFruitAgeGDDForVisible;
+  for (const c of Object.values(CULTIVARS)) {
+    const mf2 = c.resolvedBotanical.fruitDevelopment.massFlow;
+    if (ov.gateMode !== undefined) mf2.visibilityGateMode = ov.gateMode;
+    if (ov.minFruitAgeGDDForVisible !== undefined) mf2.minFruitAgeGDDForVisible = ov.minFruitAgeGDDForVisible;
+  }
+  console.log(`[override] visibility: gateMode=${ov.gateMode ?? '-'}, minFruitAgeGDDForVisible=${ov.minFruitAgeGDDForVisible ?? '-'}`);
 }
 
 // ── Engine snapshot per day ───────────────────────────────────────────
@@ -372,6 +410,11 @@ function plantOverall(snap: DaySnapshot): PlantOverall {
   // Iter 6 — minExpandingDiameterMm from massFlow
   const minExpandingDiameterMm =
     snap.cultivar.resolvedBotanical?.fruitDevelopment.massFlow.minExpandingDiameterMm ?? 10;
+  // Iter 6h — visibility gate mode + GDD threshold (SSOT #74)
+  const visibilityGateMode =
+    snap.cultivar.resolvedBotanical?.fruitDevelopment.massFlow.visibilityGateMode ?? 'diameter_only';
+  const minFruitAgeGDDForVisible =
+    snap.cultivar.resolvedBotanical?.fruitDevelopment.massFlow.minFruitAgeGDDForVisible ?? 0;
 
   for (const t of physiology.trusses) {
     const status = mapTrussStatus(t, physiology.TT, snap.cultivar);
@@ -390,7 +433,16 @@ function plantOverall(snap: DaySnapshot): PlantOverall {
       if (f.fertilizationTT <= 0) continue;
       cohortCount++;
       totalFresh += f.W_fruit_fresh;
-      if (f.diameter >= minVisibleDiameterMm) {
+      // Iter 6h (SSOT #74) — 3-mode visibility gate
+      let isVisible = f.diameter >= minVisibleDiameterMm;
+      if (isVisible && visibilityGateMode !== 'diameter_only') {
+        const p = fruitPhase(f, physiology.TT, snap.cultivar);
+        isVisible = p.phase !== 'cell_division' && p.phase !== 'pre_fertilization' && p.phase !== 'aborted';
+        if (isVisible && visibilityGateMode === 'phase_and_gdd') {
+          isVisible = p.gddSinceFert >= minFruitAgeGDDForVisible;
+        }
+      }
+      if (isVisible) {
         visibleCount++;
         if (f.diameter > maxVisibleDiam) maxVisibleDiam = f.diameter;
       }
@@ -537,10 +589,23 @@ function buildTrussSummaryCsv(snapshots: DaySnapshot[]): string {
       snap.cultivar.resolvedBotanical?.fruitDevelopment.massFlow.minVisibleDiameterMm ?? 0;
     const minExpandingDiameterMm =
       snap.cultivar.resolvedBotanical?.fruitDevelopment.massFlow.minExpandingDiameterMm ?? 10;
+    // Iter 6h (SSOT #74) — 3-mode visibility gate
+    const visibilityGateMode =
+      snap.cultivar.resolvedBotanical?.fruitDevelopment.massFlow.visibilityGateMode ?? 'diameter_only';
+    const minFruitAgeGDDForVisible =
+      snap.cultivar.resolvedBotanical?.fruitDevelopment.massFlow.minFruitAgeGDDForVisible ?? 0;
+    const isVisibleFn = (f: typeof snap.physiology.trusses[0]['fruits'][0]): boolean => {
+      if (f.fertilizationTT <= 0 || f.diameter < minVisibleDiameterMm) return false;
+      if (visibilityGateMode === 'diameter_only') return true;
+      const p = fruitPhase(f, snap.physiology.TT, snap.cultivar);
+      if (p.phase === 'cell_division' || p.phase === 'pre_fertilization' || p.phase === 'aborted') return false;
+      if (visibilityGateMode === 'phase_and_gdd' && p.gddSinceFert < minFruitAgeGDDForVisible) return false;
+      return true;
+    };
     for (let i = 0; i < snap.physiology.trusses.length; i++) {
       const t = snap.physiology.trusses[i];
       const live = t.fruits.filter(f => !f.aborted && !f.harvested);
-      const visible = live.filter(f => f.fertilizationTT > 0 && f.diameter >= minVisibleDiameterMm);
+      const visible = live.filter(isVisibleFn);
       const maxDiam = visible.length > 0 ? Math.max(...visible.map(f => f.diameter)) : 0;
       const fertilized = t.fruits.filter(f => f.fertilizationTT > 0).length;
       const aborted = t.fruits.filter(f => f.aborted).length;
@@ -938,6 +1003,7 @@ function main() {
   applyOverridePhenology(args);  // Iter 6c
   applyOverrideCohort(args);     // Iter 6d
   applyOverrideAbortion(args);   // Iter 6f
+  applyOverrideVisibility(args); // Iter 6h
 
   const bundle = loadReferenceBundle(args.referenceBundle);
 

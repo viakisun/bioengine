@@ -1,0 +1,88 @@
+{
+  "schemaVersion": "growthCalibration.v1",
+  "updateId": "growth_update_012",
+  "previousModelVersion": "growthModel.tomato.v0.11.1-stage-fixed",
+  "newModelVersion": "growthModel.tomato.v0.11.1-stage-fixed",
+  "status": "rejected",
+  "date": "2026-05-26",
+  "triggerComparisons": [
+    "(Iter 6g audit SSOT #74 발화: fruit visibility를 fruit mass growth와 분리하는 layer 필요)"
+  ],
+  "triggerRuleIds": [
+    "common_truss_status_too_behind"
+  ],
+  "reason": [
+    "Iter 6h controlled exploration (SSOT #69) — 2 phase로 명확 분리: Phase A (Round 1) visibility-only 독립 검증 + Phase B (Round 2) abortion 결합 테스트.",
+    "PARAM phase: BotanicalSpec.MassFlowSpec에 visibilityGateMode enum ('diameter_only' | 'phase' | 'phase_and_gdd') + minFruitAgeGDDForVisible 필드 추가. tomato.jsonc default 'diameter_only' (후방호환). validator 추가.",
+    "calibration scripts (dump + extract + sweep + top-candidates) 모두 3-mode visibility filter + --overrideVisibility flag + --visibilityGateMode/--minFruitAgeGDDForVisible axes 지원.",
+    "Phase B Preflight E (2-step Gate, SSOT #72): V0 (diameter_only) vs V3 (phase_and_gdd, GDD 80) 완전 동일 — baseline visible fruit들이 이미 phase+GDD 조건 충족. PASS.",
+    "Phase C Round 1 — Visibility-only 5 variants (V0/V1/V2/V3/V4): 모두 baseline 동일 (cohort 13, visible 8, maxDiam 54.96, abortion 72%). → SSOT #76 Visibility layer 분리 가능 영구 검증 ⭐ (산출물 #5).",
+    "Phase D Round 2 — V3 (GDD 80) + abortion 3 후보 (0.18/7, 0.18/10, 0.10/10): 모두 Day 33 maxD 3.3mm > 3mm → fruit_too_early hard gate 위반. Round 2-2 — V4/V5/V6 (GDD 100/150/200) + abortion 3 = 9 runs도 모두 Day 33 maxD 3.308mm 동일 fail.",
+    "핵심 진단: abortion 완화가 살리는 fruit이 'cell_division 단계'가 아닌 '이미 cell_expansion 단계 진입한 fruit' (starvation은 후기 단계에서 누적). visibility gate (phase + GDD)로 차단 불가 — 모든 조건 충족 통과. → visibility gate는 cell_division → cell_expansion 전환 시점에 의존, late-stage abortion 완화 trade-off 해결 도구 아님.",
+    "Round 2/2-2 12 runs 모두 fail → SSOT #70 Case B/C 복합 → Round 3 미진행, reject 확정.",
+    "**핵심 영구 산출물**: Round 1 결과로 'fruit visibility ≠ fruit mass growth' 영구 검증 (Layer 분리 가능). Growth Engine v1 reproductive 5-layer 아키텍처 토대. v0.12 promote 여부와 별도로 영구 자산."
+  ],
+  "parameterChanges": [
+    {
+      "parameter": "BotanicalSpec.MassFlowSpec.visibilityGateMode (enum) + minFruitAgeGDDForVisible (number)",
+      "oldValue": "(field not defined)",
+      "newValue": "schema 확장: 'diameter_only' | 'phase' | 'phase_and_gdd' enum + number GDD threshold. default 'diameter_only' (후방호환)",
+      "file": "packages/tomato-engine/src/BotanicalSpec.ts + packages/tomato-engine/models/botanical/tomato.jsonc",
+      "unit": "schema",
+      "citation": "Iter 6h spec SSOT #74, #76",
+      "reason": "visibility layer 분리 검증을 위한 schema 도입. calibration-only (CoreModel 사용 안 함, SSOT #76).",
+      "changeType": "schema_only_calibration",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "dump + extract visibility filter 3-mode + --overrideVisibility flag",
+      "oldValue": "diameter only (f.diameter >= minVisibleDiameterMm)",
+      "newValue": "3-mode: diameter_only / phase / phase_and_gdd. --overrideVisibility 'gateMode=...,minFruitAgeGDDForVisible=...' (global botanical mutation)",
+      "file": "growth-calibration/scripts/dump-growth-checkpoints.ts + extract-calibration-observations.ts",
+      "unit": "logic + CLI",
+      "citation": "Iter 6h spec SSOT #74/76",
+      "reason": "visibility gate 3-mode toggle 지원 + sweep harness 통합.",
+      "changeType": "engine_logic",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "run-gompertz-sweep --visibilityGateMode + --minFruitAgeGDDForVisible axes + variant + spawn",
+      "oldValue": "Gompertz + phenology + cohort + abortion axes",
+      "newValue": "+ visibility 2-axis (gateMode 3 modes + GDD threshold list). 10중 nested loop.",
+      "file": "growth-calibration/scripts/run-gompertz-sweep.ts",
+      "unit": "logic",
+      "citation": "Iter 6h spec",
+      "reason": "sweep grid 일반화 — Gompertz + Phenology + Cohort + Abortion + Visibility 동시 또는 단독.",
+      "changeType": "engine_logic",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "run-top-candidates-comparison SweepVariant visibility fields + spawn",
+      "oldValue": "Gompertz + phenology + cohort + abortion fields only",
+      "newValue": "+ visibilityGateMode + minFruitAgeGDDForVisible variant fields + evalCandidate spawn --overrideVisibility 전달",
+      "file": "growth-calibration/scripts/run-top-candidates-comparison.ts",
+      "unit": "logic",
+      "citation": "Iter 6h spec",
+      "reason": "Round 3 220 comparison에서 visibility variant 검증 지원 (본 Iter는 Round 3 미진행이지만 후속 재사용).",
+      "changeType": "engine_logic",
+      "enforcementStatus": "active"
+    }
+  ],
+  "validationPlan": {
+    "replayDays": [30, 33, 60, 90],
+    "forwardDays": [],
+    "targetMetrics": ["visibility gate cohort/abortion 영향 = 0 (sanity)", "Day 30/33 visible = 0 유지", "Day 60/90 visible 회복 시도 (abortion 결합)"]
+  },
+  "outcome": {
+    "runDate": "2026-05-26",
+    "replayScoreDelta": 0,
+    "forwardScoreDelta": 0,
+    "verdict": "rejected — v0.11.1 유지 (SSOT #45). 그러나 Round 1 visibility layer 분리 검증은 영구 자산 (산출물 #5 — Growth Engine v1 reproductive 5-layer 아키텍처 토대).",
+    "notes": "Iter 6h 핵심 발견: (1) Round 1 — visibility layer가 cohort/abortion engine에 영향 없는 calibration-only layer임을 5 variants (V0-V4) 모두 baseline 동일로 영구 검증 (SSOT #76). 'fruit visibility ≠ fruit mass growth' 분리 가능 (SSOT #74). (2) Round 2/2-2 — V3-V6 (GDD 80/100/150/200) + abortion 3 후보 12 runs 모두 Day 33 maxD 3.308mm fail. visibility gate는 cell_division → cell_expansion 전환 시점에 의존, abortion 완화로 살리는 cell_expansion 단계 fruit는 차단 불가. (3) → abortion path가 진짜 lever 아닐 가능성 → 다음 Iter 6e (surplusPolicy redistribute_to_vegetative)가 source-sink 진짜 원인 확인 우선. visibility layer 분리 검증 자체는 v0.12 promote 여부와 별도로 reproductive module 5-layer 아키텍처 영구 자산."
+  },
+  "followUp": [
+    "Iter 6e (surplusPolicy redistribute_to_vegetative) ⭐: source-sink 전체 정책. abortion 완화가 살리는 fruit이 cell_expansion 단계라는 점은 source 부족 신호 가능. cohort 13→13 정체 + abortion lever 무력 결합 = source 부족 가설 검증.",
+    "Iter 6i (Stage transition rule 분리): cell_expansion fruit 자체 stage transition 제어. CoreModel 변경 필요 (visibility layer가 아닌 engine layer). 6e reject 후 시도.",
+    "Iter 7 (Stem calibration): 본 Iter 결과와 무관, 병렬 진행 가능."
+  ]
+}

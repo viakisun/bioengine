@@ -78,6 +78,9 @@ interface SweepVariant {
   // Iter 6f — abortion (optional, SSOT #61)
   abortionThresholdRatio?: number;
   abortionLagDays?: number;
+  // Iter 6h — visibility gate (optional, SSOT #74)
+  visibilityGateMode?: 'diameter_only' | 'phase' | 'phase_and_gdd';
+  minFruitAgeGDDForVisible?: number;
 }
 
 interface SweepRanking {
@@ -148,10 +151,18 @@ function evalCandidate(args: CliArgs, runId: string, v: SweepVariant): EvalCandi
         v.abortionLagDays !== undefined ? `lagDays=${v.abortionLagDays}` : '',
       ].filter(Boolean).join(',')
     : undefined;
+  // Iter 6h — visibility gate override (if variant has visibility fields)
+  const visibilityStr = (v.visibilityGateMode !== undefined || v.minFruitAgeGDDForVisible !== undefined)
+    ? [
+        v.visibilityGateMode !== undefined ? `gateMode=${v.visibilityGateMode}` : '',
+        v.minFruitAgeGDDForVisible !== undefined ? `minFruitAgeGDDForVisible=${v.minFruitAgeGDDForVisible}` : '',
+      ].filter(Boolean).join(',')
+    : undefined;
   const extraOverride = [
     ...(phenologyStr ? ['--overridePhenology', phenologyStr] : []),
     ...(cohortStr ? ['--overrideCohort', cohortStr] : []),
     ...(abortionStr ? ['--overrideAbortion', abortionStr] : []),
+    ...(visibilityStr ? ['--overrideVisibility', visibilityStr] : []),
   ];
 
   // 1. extract 220 (child process)
