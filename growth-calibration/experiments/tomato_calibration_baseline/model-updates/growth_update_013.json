@@ -1,0 +1,78 @@
+{
+  "schemaVersion": "growthCalibration.v1",
+  "updateId": "growth_update_013",
+  "previousModelVersion": "growthModel.tomato.v0.11.1-stage-fixed",
+  "newModelVersion": "growthModel.tomato.v0.11.1-stage-fixed",
+  "status": "rejected",
+  "date": "2026-05-26",
+  "triggerComparisons": [
+    "(Iter 6h audit SSOT #77 — visibility gate가 abortion trade-off 해결 못함 → source-sink 검증 필요)"
+  ],
+  "triggerRuleIds": [
+    "common_truss_status_too_behind"
+  ],
+  "reason": [
+    "Iter 6e controlled exploration loop (SSOT #69) — 최소 3-round 항상 진행 (조기 종료 없음, 사용자 검토). 도구/계측 실패만 STOP.",
+    "PARAM phase 산출물 #1 (영구 인프라): SinkAllocation.OrganAllocation 확장 (totalAvailableDmG, totalRawFruitDemandG, totalLimitedFruitDemandG, fruitDemandLimitedByCapG, totalVegetativeAllocatedG). PlantPhysiologyState daily 6 누적 필드 (SSOT #80). plant_summary.csv source-sink 7 신규 컬럼.",
+    "Override flag: --overrideMassFlow 'surplusPolicy=...' (global mutation, dump + extract).",
+    "Sweep harness: run-gompertz-sweep + run-top-candidates --surplusPolicy axis.",
+    "Phase B Preflight F PASS (계측 검증 only): unused_pool에서 cumulative_unused_assimilate 462g/Day 90 (source 43%) 측정. redistribute_to_vegetative에서 unused=0, vegetative_allocated 604g→1083g (+479g). 두 정책 명확히 다름. 계측 정상.",
+    "**핵심 진단 (산출물 #5)**: surplus 462g 100%가 Iter 5b Gompertz cap에 의해 막힌 fruit demand (cumulative_fruit_demand_limited_by_cap_g = 462g = unused). fruit이 받고 싶은 양을 못 받아 surplus 발생.",
+    "Phase C Round 1 (2 runs A vs B): 모든 fruit metric 완전 동일 (cohort 13→13, visible 8→8, maxDiam 54.96→54.87 noise). height/node 완전 동일 (32→32). vegetative biomass receives but doesn't grow (saturation). → H3 강한 신호 (vegetative redistribution이 fruit 문제 해결 안 함).",
+    "Phase D Round 2 Case 2 (4 runs surplus × abortion 강 결합): 모든 metric 동일 (D60 maxD ±0.1mm noise, cohort 15/15, visible 8/8). abortion 효과는 보이지만 surplusPolicy 효과는 0.",
+    "Phase E Round 3 (220 comparison 2 candidates): S=0.702 P=0.566 truss_too_behind=77 모두 동일. surplusPolicy는 fruit 영역 결과에 220 ensemble에서도 영구 무영향.",
+    "**H3 영구 확정**: vegetative redistribution이 fruit feedback 매커니즘 작동 안 함. 진짜 lever는 redistribute_to_unmet_sinks (Variant B fruit_priority_limited)."
+  ],
+  "parameterChanges": [
+    {
+      "parameter": "SinkAllocation.OrganAllocation + PlantPhysiologyState audit accumulators",
+      "oldValue": "(no source-sink audit fields)",
+      "newValue": "OrganAllocation: totalAvailableDmG/totalRawFruitDemandG/totalLimitedFruitDemandG/fruitDemandLimitedByCapG/totalVegetativeAllocatedG. PlantPhysiologyState: dailySourceG/dailyTotalRawFruitDemandG/dailyTotalLimitedFruitDemandG/dailyFruitDemandLimitedByCapG/dailyUnusedAssimilateG/dailyVegetativeAllocatedG.",
+      "file": "packages/tomato-engine/src/SinkAllocation.ts + CoreModel.ts",
+      "unit": "schema",
+      "citation": "Iter 6e spec SSOT #80",
+      "reason": "source-sink balance audit 영구 인프라. 모든 후속 Iter에서 자동 노출.",
+      "changeType": "schema_only_calibration",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "dump + extract --overrideMassFlow flag + plant_summary.csv source-sink 7 컬럼",
+      "oldValue": "(no source-sink audit + no override)",
+      "newValue": "--overrideMassFlow 'surplusPolicy=...' (global mutation). plant_summary.csv 신규 컬럼: cumulative_source_g, cumulative_raw_fruit_demand_g, cumulative_limited_fruit_demand_g, cumulative_fruit_demand_limited_by_cap_g, cumulative_unused_assimilate_g, cumulative_vegetative_allocated_g, surplus_fraction.",
+      "file": "growth-calibration/scripts/dump-growth-checkpoints.ts + extract-calibration-observations.ts",
+      "unit": "logic + CLI",
+      "citation": "Iter 6e spec SSOT #78/80",
+      "reason": "surplusPolicy sweep + source-sink audit CSV 영구 노출.",
+      "changeType": "engine_logic",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "run-gompertz-sweep --surplusPolicy axis + variant + spawn",
+      "oldValue": "(no surplusPolicy axis)",
+      "newValue": "--surplusPolicy 'unused_pool,redistribute_to_vegetative' + variant + spawn --overrideMassFlow",
+      "file": "growth-calibration/scripts/run-gompertz-sweep.ts + run-top-candidates-comparison.ts",
+      "unit": "logic",
+      "citation": "Iter 6e spec",
+      "reason": "surplusPolicy sweep grid 일반화. 11중 nested loop.",
+      "changeType": "engine_logic",
+      "enforcementStatus": "active"
+    }
+  ],
+  "validationPlan": {
+    "replayDays": [30, 33, 60, 90],
+    "forwardDays": [],
+    "targetMetrics": ["cumulative_unused_assimilate_g 측정", "redistribute_to_vegetative 시 fruit cohort/visible 변화", "vegetative biomass response (LAI/height/node)"]
+  },
+  "outcome": {
+    "runDate": "2026-05-26",
+    "replayScoreDelta": 0,
+    "forwardScoreDelta": 0,
+    "verdict": "rejected — v0.11.1 유지 (SSOT #45). 그러나 source-sink audit 인프라 + H3 영구 확정 = Growth Engine v1 Layer 6 partial verification (산출물 #5).",
+    "notes": "Iter 6e 핵심 발견: (1) Preflight F + Round 1/2/3 (220 comparison) 모두 일관된 H3 신호 — vegetative redistribution이 fruit cohort/visible/maxDiam에 영향 없음 (S/P/cohort/visible 0.001 차이도 없음). (2) vegetative biomass도 LAI/height/node 거의 변화 없이 sink로만 흡수 (saturation). (3) Source-sink unused_pool surplus 462g/Day 90 (source 43%)은 100% Iter 5b Gompertz cap 효과 — fruit이 받고 싶은 양을 못 받아 발생. (4) → 진짜 lever는 redistribute_to_unmet_sinks (Variant B fruit_priority_limited) — Iter 6e-2 신규 plan에서 검증. (5) Layer 6 surplusPolicy 영구 검증: enum 두 값 (unused_pool / redistribute_to_vegetative)으로는 fruit calibration 불가. unmet_sinks 도입 필수."
+  },
+  "followUp": [
+    "Iter 6e-2 (redistribute_to_unmet_sinks 신규 enum, Variant B fruit_priority_limited): 본 Iter가 가리킨 정확한 진짜 lever. fruit이 cap에 막힌 surplus 462g을 다른 fruit으로 priority 재분배. ~45 LOC SinkAllocation 확장 + FruitCohort unmetDemandG 추적.",
+    "Iter 6i (stage transition rule): cell_division 단계 fruit이 starvation 신호 받지 않게 abortion path 분리. 6e-2 reject 후 시도.",
+    "Iter 7 (Stem calibration): 본 Iter 결과와 무관, 병렬 진행 가능."
+  ]
+}

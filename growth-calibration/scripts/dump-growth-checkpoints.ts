@@ -69,6 +69,10 @@ interface CliArgs {
    *  format: "gateMode=phase_and_gdd,minFruitAgeGDDForVisible=80".
    *  ACTIVE_BOTANICAL + 모든 CULTIVARS의 resolvedBotanical mutate (global, calibration-only). */
   overrideVisibility?: { gateMode?: 'diameter_only' | 'phase' | 'phase_and_gdd'; minFruitAgeGDDForVisible?: number };
+  /** Iter 6e — massFlow override (botanical-level, SSOT #78).
+   *  format: "surplusPolicy=redistribute_to_vegetative".
+   *  ACTIVE_BOTANICAL + 모든 CULTIVARS mutate (global, engine-side via SinkAllocation.ts:244-251). */
+  overrideMassFlow?: { surplusPolicy?: 'unused_pool' | 'redistribute_to_vegetative' };
 }
 
 function parseOverride(s?: string): CliArgs['overrideGompertz'] {
@@ -139,6 +143,18 @@ function parseOverrideVisibility(s?: string): CliArgs['overrideVisibility'] {
   return out;
 }
 
+function parseOverrideMassFlow(s?: string): CliArgs['overrideMassFlow'] {
+  if (!s) return undefined;
+  const out: { surplusPolicy?: 'unused_pool' | 'redistribute_to_vegetative' } = {};
+  for (const pair of s.split(',')) {
+    const [k, v] = pair.split('=').map(t => t.trim());
+    if (k === 'surplusPolicy') {
+      if (v === 'unused_pool' || v === 'redistribute_to_vegetative') out.surplusPolicy = v;
+    }
+  }
+  return out;
+}
+
 function parseArgs(argv: string[]): CliArgs {
   const opts: Record<string, string> = {};
   for (let i = 0; i < argv.length; i++) {
@@ -165,6 +181,7 @@ function parseArgs(argv: string[]): CliArgs {
     overrideCohort: parseOverrideCohort(opts.overrideCohort),
     overrideAbortion: parseOverrideAbortion(opts.overrideAbortion),
     overrideVisibility: parseOverrideVisibility(opts.overrideVisibility),
+    overrideMassFlow: parseOverrideMassFlow(opts.overrideMassFlow),
   };
 }
 
@@ -279,6 +296,21 @@ function applyOverrideVisibility(args: CliArgs): void {
   console.log(`[override] visibility: gateMode=${ov.gateMode ?? '-'}, minFruitAgeGDDForVisible=${ov.minFruitAgeGDDForVisible ?? '-'}`);
 }
 
+/** Iter 6e — massFlow surplusPolicy override (botanical-level, SSOT #78).
+ *  ACTIVE_BOTANICAL + 모든 CULTIVARS.resolvedBotanical mutate (global, engine-side).
+ *  surplusPolicy는 SinkAllocation.allocateDM()에서 read (CoreModel 영향 있음). */
+function applyOverrideMassFlow(args: CliArgs): void {
+  const ov = args.overrideMassFlow;
+  if (!ov) return;
+  const mf = ACTIVE_BOTANICAL.tomato.fruitDevelopment.massFlow;
+  if (ov.surplusPolicy !== undefined) mf.surplusPolicy = ov.surplusPolicy;
+  for (const c of Object.values(CULTIVARS)) {
+    const mf2 = c.resolvedBotanical.fruitDevelopment.massFlow;
+    if (ov.surplusPolicy !== undefined) mf2.surplusPolicy = ov.surplusPolicy;
+  }
+  console.log(`[override] massFlow: surplusPolicy=${ov.surplusPolicy ?? '-'}`);
+}
+
 // ── Engine snapshot per day ───────────────────────────────────────────
 
 interface DaySnapshot {
@@ -332,6 +364,14 @@ interface PlantOverall {
   harvestedTotal: number;          // fruits with harvested=true
   nonAbortedCohortTotal: number;   // !aborted && !harvested (fertilized + pre-fertilization buds)
   starvedOngoingTotal: number;     // alive but starvedDays > 0 (at-risk, not yet aborted)
+  // Iter 6e — source-sink balance (cumulative since day 0, SSOT #80)
+  cumulativeSourceG: number;                  // 누적 newDM (simulation 시작부터)
+  cumulativeRawFruitDemandG: number;          // 누적 fruit raw demand
+  cumulativeLimitedFruitDemandG: number;      // 누적 fruit limited demand (after Iter 5b cap)
+  cumulativeFruitDemandLimitedByCapG: number; // 누적 cap 효과 (raw - limited)
+  cumulativeUnusedAssimilateG: number;        // 누적 unused (surplusPolicy 'unused_pool'일 때만)
+  cumulativeVegetativeAllocatedG: number;     // 누적 vegetative allocation
+  surplusFraction: number;                    // = unused / source (0~1)
   // Backward-compat aliases (= visible 기준)
   fruitCountTotal: number;             // = visibleFruitCount
   maxFruitDiameterMm: number;          // = maxVisibleFruitDiameterMm
@@ -456,6 +496,11 @@ function plantOverall(snap: DaySnapshot): PlantOverall {
     }
   }
 
+  // Iter 6e — source-sink cumulative metrics (from PlantPhysiologyState)
+  const cumSource = physiology.dailySourceG ?? 0;
+  const cumUnused = physiology.dailyUnusedAssimilateG ?? 0;
+  const surplusFraction = cumSource > 0 ? cumUnused / cumSource : 0;
+
   return {
     day,
     heightCm: state.heightCm,
@@ -476,6 +521,14 @@ function plantOverall(snap: DaySnapshot): PlantOverall {
     harvestedTotal,
     nonAbortedCohortTotal,
     starvedOngoingTotal,
+    // Iter 6e — source-sink cumulative
+    cumulativeSourceG: cumSource,
+    cumulativeRawFruitDemandG: physiology.dailyTotalRawFruitDemandG ?? 0,
+    cumulativeLimitedFruitDemandG: physiology.dailyTotalLimitedFruitDemandG ?? 0,
+    cumulativeFruitDemandLimitedByCapG: physiology.dailyFruitDemandLimitedByCapG ?? 0,
+    cumulativeUnusedAssimilateG: cumUnused,
+    cumulativeVegetativeAllocatedG: physiology.dailyVegetativeAllocatedG ?? 0,
+    surplusFraction,
     // Backward-compat aliases (= visible 기준 — Reference Pack과 비교)
     fruitCountTotal: visibleCount,
     maxFruitDiameterMm: maxVisibleDiam,
@@ -543,6 +596,11 @@ function buildPlantSummaryCsv(rows: PlantOverall[], bundle: ReferenceBundle): st
     // Iter 6d — cohort generation breakdown (SSOT #56)
     'flower_bud_total', 'fertilized_total', 'aborted_total', 'harvested_total',
     'non_aborted_cohort_total', 'starved_ongoing_total',
+    // Iter 6e — source-sink balance cumulative (SSOT #80)
+    'cumulative_source_g', 'cumulative_raw_fruit_demand_g',
+    'cumulative_limited_fruit_demand_g', 'cumulative_fruit_demand_limited_by_cap_g',
+    'cumulative_unused_assimilate_g', 'cumulative_vegetative_allocated_g',
+    'surplus_fraction',
     'height_band', 'height_in_band',
     'node_band', 'node_in_band',
     'truss_band', 'truss_in_band',
@@ -561,6 +619,10 @@ function buildPlantSummaryCsv(rows: PlantOverall[], bundle: ReferenceBundle): st
       r.totalFruitFreshMassG,
       r.flowerBudTotal, r.fertilizedTotal, r.abortedTotal, r.harvestedTotal,
       r.nonAbortedCohortTotal, r.starvedOngoingTotal,
+      r.cumulativeSourceG, r.cumulativeRawFruitDemandG,
+      r.cumulativeLimitedFruitDemandG, r.cumulativeFruitDemandLimitedByCapG,
+      r.cumulativeUnusedAssimilateG, r.cumulativeVegetativeAllocatedG,
+      r.surplusFraction,
       bandStr(pb?.height ?? null), pb?.height ? inBandFlag(r.heightCm, pb.height) : 'no_target',
       bandStr(pb?.nodeCount ?? null), pb?.nodeCount ? inBandFlag(r.nodeCount, pb.nodeCount) : 'no_target',
       bandStr(pb?.visibleTruss ?? null), pb?.visibleTruss ? inBandFlag(r.visibleTrussCount, pb.visibleTruss) : 'no_target',
@@ -1004,6 +1066,7 @@ function main() {
   applyOverrideCohort(args);     // Iter 6d
   applyOverrideAbortion(args);   // Iter 6f
   applyOverrideVisibility(args); // Iter 6h
+  applyOverrideMassFlow(args);   // Iter 6e
 
   const bundle = loadReferenceBundle(args.referenceBundle);
 

@@ -33,6 +33,12 @@ export interface OrganAllocation {
   unusedAssimilateG?: number;
   /** Iter 5b — per-truss/fruit raw sink demand (clamp 적용 전). debug 출력용. */
   trussFruitsGRaw?: number[][];
+  /** Iter 6e (SSOT #80) — source-sink audit metrics (per step). */
+  totalAvailableDmG: number;                // = newDM input
+  totalRawFruitDemandG: number;             // sum(trussFruitsGRaw) OR sum(trussFruitsG) if no cap
+  totalLimitedFruitDemandG: number;         // sum(trussFruitsG) after clamp
+  fruitDemandLimitedByCapG: number;         // = rawFruit - limitedFruit (Iter 5b cap 효과)
+  totalVegetativeAllocatedG: number;        // leafG + stemG + rootG (after surplus redistribution)
 }
 
 /** Iter 5b — allocateDM options. */
@@ -150,6 +156,12 @@ export function allocateDM(
       leafG: 0, stemG: 0, rootG: 0,
       trussG: state.trusses.map(() => 0),
       trussFruitsG: state.trusses.map((t) => t.fruits.map(() => 0)),
+      // Iter 6e audit fields — zeroed (no allocation event)
+      totalAvailableDmG: newDM,
+      totalRawFruitDemandG: 0,
+      totalLimitedFruitDemandG: 0,
+      fruitDemandLimitedByCapG: 0,
+      totalVegetativeAllocatedG: 0,
     };
   }
 
@@ -169,6 +181,12 @@ export function allocateDM(
       leafG: newDM / 3, stemG: newDM / 3, rootG: newDM / 3,
       trussG: state.trusses.map(() => 0),
       trussFruitsG: state.trusses.map((t) => t.fruits.map(() => 0)),
+      // Iter 6e audit fields
+      totalAvailableDmG: newDM,
+      totalRawFruitDemandG: 0,
+      totalLimitedFruitDemandG: 0,
+      fruitDemandLimitedByCapG: 0,
+      totalVegetativeAllocatedG: newDM,
     };
   }
 
@@ -253,9 +271,20 @@ export function allocateDM(
     // 'unused_pool': unusedAssimilateG에 남겨두고 어디로도 안 보냄
   }
 
+  // Iter 6e (SSOT #80) — audit metrics 계산
+  const sum2d = (arr: number[][]): number => arr.reduce((a, row) => a + row.reduce((b, v) => b + v, 0), 0);
+  const totalRawFruitDemandG = trussFruitsGRaw ? sum2d(trussFruitsGRaw) : sum2d(trussFruitsG);
+  const totalLimitedFruitDemandG = sum2d(trussFruitsG);
+  const fruitDemandLimitedByCapG = Math.max(0, totalRawFruitDemandG - totalLimitedFruitDemandG);
+
   return {
     leafG, stemG, rootG, trussG, trussFruitsG,
     unusedAssimilateG: perFruitMax ? unusedAssimilateG : undefined,
     trussFruitsGRaw,
+    totalAvailableDmG: newDM,
+    totalRawFruitDemandG,
+    totalLimitedFruitDemandG,
+    fruitDemandLimitedByCapG,
+    totalVegetativeAllocatedG: leafG + stemG + rootG,
   };
 }

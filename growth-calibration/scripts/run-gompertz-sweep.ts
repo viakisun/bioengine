@@ -46,6 +46,8 @@ interface CliArgs {
   /** Iter 6h (SSOT #74) — visibility gate sweep axes (optional). */
   visibilityGateMode?: Array<'diameter_only' | 'phase' | 'phase_and_gdd'>;
   minFruitAgeGDDForVisible?: number[];
+  /** Iter 6e (SSOT #78) — surplusPolicy sweep axis (optional). */
+  surplusPolicy?: Array<'unused_pool' | 'redistribute_to_vegetative'>;
   seed: number;
   days: number[];
   cultivar: string;
@@ -97,6 +99,9 @@ function parseArgs(argv: string[]): CliArgs {
       ? (opts.visibilityGateMode.split(',').map(s => s.trim()).filter(s => s === 'diameter_only' || s === 'phase' || s === 'phase_and_gdd') as Array<'diameter_only' | 'phase' | 'phase_and_gdd'>)
       : undefined,
     minFruitAgeGDDForVisible: opts.minFruitAgeGDDForVisible ? parseList(opts.minFruitAgeGDDForVisible, []) : undefined,
+    surplusPolicy: opts.surplusPolicy
+      ? (opts.surplusPolicy.split(',').map(s => s.trim()).filter(s => s === 'unused_pool' || s === 'redistribute_to_vegetative') as Array<'unused_pool' | 'redistribute_to_vegetative'>)
+      : undefined,
     seed: opts.seed ? Number(opts.seed) : 20260525,
     days: parseList(opts.days, [30, 33, 60, 90]),
     cultivar: opts.cultivar ?? 'tomimaru-muchoo',
@@ -123,6 +128,8 @@ interface Variant {
   // Iter 6h — visibility gate (optional)
   visibilityGateMode?: 'diameter_only' | 'phase' | 'phase_and_gdd';
   minFruitAgeGDDForVisible?: number;
+  // Iter 6e — surplusPolicy (optional)
+  surplusPolicy?: 'unused_pool' | 'redistribute_to_vegetative';
 }
 
 function genVariants(args: CliArgs): Variant[] {
@@ -145,6 +152,8 @@ function genVariants(args: CliArgs): Variant[] {
   // Iter 6h (SSOT #74): visibility axes
   const vgmList = args.visibilityGateMode ?? [undefined];
   const vagList = args.minFruitAgeGDDForVisible ?? [undefined];
+  // Iter 6e (SSOT #78): surplusPolicy axis
+  const spList = args.surplusPolicy ?? [undefined];
   for (const ic of args.inflectionC) {
     for (const rb of args.rateB) {
       for (const exp of args.exponentScaling) {
@@ -155,13 +164,16 @@ function genVariants(args: CliArgs): Variant[] {
                 for (const ab of abortionCombos) {
                   for (const vgm of vgmList) {
                     for (const vag of vagList) {
-                      out.push({
-                        inflectionC: ic, rateB: rb, exponentScaling: exp,
-                        cellDivisionDurationGDD: cdd, cellExpansionDurationGDD: ced,
-                        flowersPerTrussMu: fpt, fruitSetRate: fsr,
-                        abortionThresholdRatio: ab.thresh, abortionLagDays: ab.lag,
-                        visibilityGateMode: vgm, minFruitAgeGDDForVisible: vag,
-                      });
+                      for (const sp of spList) {
+                        out.push({
+                          inflectionC: ic, rateB: rb, exponentScaling: exp,
+                          cellDivisionDurationGDD: cdd, cellExpansionDurationGDD: ced,
+                          flowersPerTrussMu: fpt, fruitSetRate: fsr,
+                          abortionThresholdRatio: ab.thresh, abortionLagDays: ab.lag,
+                          visibilityGateMode: vgm, minFruitAgeGDDForVisible: vag,
+                          surplusPolicy: sp,
+                        });
+                      }
                     }
                   }
                 }
@@ -236,6 +248,10 @@ function runVariant(args: CliArgs, runId: string, v: Variant): RunOutput {
     if (v.visibilityGateMode !== undefined) parts.push(`gateMode=${v.visibilityGateMode}`);
     if (v.minFruitAgeGDDForVisible !== undefined) parts.push(`minFruitAgeGDDForVisible=${v.minFruitAgeGDDForVisible}`);
     cliArgs.push('--overrideVisibility', parts.join(','));
+  }
+  // Iter 6e — massFlow surplusPolicy override
+  if (v.surplusPolicy !== undefined) {
+    cliArgs.push('--overrideMassFlow', `surplusPolicy=${v.surplusPolicy}`);
   }
   const res = spawnSync('npx', cliArgs, { cwd: args.repoRoot, stdio: 'pipe', encoding: 'utf-8' });
 
@@ -409,6 +425,7 @@ function main(): void {
   }
   if (args.visibilityGateMode) axes.push(`visGateMode=${args.visibilityGateMode.length}`);
   if (args.minFruitAgeGDDForVisible) axes.push(`visGDD=${args.minFruitAgeGDDForVisible.length}`);
+  if (args.surplusPolicy) axes.push(`surplus=${args.surplusPolicy.length}`);
   console.log(`  variants: ${variants.length} (${axes.join(' × ')})`);
   console.log(`  output: ${join(args.sweepRoot, args.sweepId)}`);
 
@@ -427,7 +444,8 @@ function main(): void {
       ? ` abortThresh=${v.abortionThresholdRatio ?? '-'} abortLag=${v.abortionLagDays ?? '-'}` : '';
     const viStr = (v.visibilityGateMode !== undefined || v.minFruitAgeGDDForVisible !== undefined)
       ? ` visMode=${v.visibilityGateMode ?? '-'} visGDD=${v.minFruitAgeGDDForVisible ?? '-'}` : '';
-    process.stdout.write(`  [${i + 1}/${variants.length}] ${runId} inflectionC=${v.inflectionC} rateB=${v.rateB} exp=${v.exponentScaling}${phStr}${coStr}${abStr}${viStr} ... `);
+    const spStr = (v.surplusPolicy !== undefined) ? ` surplus=${v.surplusPolicy}` : '';
+    process.stdout.write(`  [${i + 1}/${variants.length}] ${runId} inflectionC=${v.inflectionC} rateB=${v.rateB} exp=${v.exponentScaling}${phStr}${coStr}${abStr}${viStr}${spStr} ... `);
     const out = runVariant(args, runId, v);
     runs.push(out);
     console.log(out.ok ? '✓' : '✗');

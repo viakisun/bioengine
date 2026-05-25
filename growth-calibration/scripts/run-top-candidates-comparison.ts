@@ -81,6 +81,8 @@ interface SweepVariant {
   // Iter 6h — visibility gate (optional, SSOT #74)
   visibilityGateMode?: 'diameter_only' | 'phase' | 'phase_and_gdd';
   minFruitAgeGDDForVisible?: number;
+  // Iter 6e — surplusPolicy (optional, SSOT #78)
+  surplusPolicy?: 'unused_pool' | 'redistribute_to_vegetative';
 }
 
 interface SweepRanking {
@@ -158,11 +160,14 @@ function evalCandidate(args: CliArgs, runId: string, v: SweepVariant): EvalCandi
         v.minFruitAgeGDDForVisible !== undefined ? `minFruitAgeGDDForVisible=${v.minFruitAgeGDDForVisible}` : '',
       ].filter(Boolean).join(',')
     : undefined;
+  // Iter 6e — massFlow override (if variant has surplusPolicy)
+  const massFlowStr = v.surplusPolicy !== undefined ? `surplusPolicy=${v.surplusPolicy}` : undefined;
   const extraOverride = [
     ...(phenologyStr ? ['--overridePhenology', phenologyStr] : []),
     ...(cohortStr ? ['--overrideCohort', cohortStr] : []),
     ...(abortionStr ? ['--overrideAbortion', abortionStr] : []),
     ...(visibilityStr ? ['--overrideVisibility', visibilityStr] : []),
+    ...(massFlowStr ? ['--overrideMassFlow', massFlowStr] : []),
   ];
 
   // 1. extract 220 (child process)

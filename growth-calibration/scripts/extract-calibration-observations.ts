@@ -68,6 +68,8 @@ interface CliArgs {
   /** Iter 6h — visibility gate override (botanical-level, SSOT #74).
    *  format: "gateMode=phase_and_gdd,minFruitAgeGDDForVisible=80" */
   overrideVisibility?: { gateMode?: 'diameter_only' | 'phase' | 'phase_and_gdd'; minFruitAgeGDDForVisible?: number };
+  /** Iter 6e — massFlow surplusPolicy override (botanical-level, SSOT #78). */
+  overrideMassFlow?: { surplusPolicy?: 'unused_pool' | 'redistribute_to_vegetative' };
 }
 
 function parseOverride(s?: string): CliArgs['overrideGompertz'] {
@@ -138,6 +140,18 @@ function parseOverrideVisibility(s?: string): CliArgs['overrideVisibility'] {
   return out;
 }
 
+function parseOverrideMassFlow(s?: string): CliArgs['overrideMassFlow'] {
+  if (!s) return undefined;
+  const out: { surplusPolicy?: 'unused_pool' | 'redistribute_to_vegetative' } = {};
+  for (const pair of s.split(',')) {
+    const [k, v] = pair.split('=').map(t => t.trim());
+    if (k === 'surplusPolicy') {
+      if (v === 'unused_pool' || v === 'redistribute_to_vegetative') out.surplusPolicy = v;
+    }
+  }
+  return out;
+}
+
 function parseArgs(argv: string[]): CliArgs {
   const opts: Record<string, string> = {};
   for (let i = 0; i < argv.length; i++) {
@@ -164,6 +178,7 @@ function parseArgs(argv: string[]): CliArgs {
     overrideCohort: parseOverrideCohort(opts.overrideCohort),
     overrideAbortion: parseOverrideAbortion(opts.overrideAbortion),
     overrideVisibility: parseOverrideVisibility(opts.overrideVisibility),
+    overrideMassFlow: parseOverrideMassFlow(opts.overrideMassFlow),
   };
 }
 
@@ -261,6 +276,19 @@ function applyOverrideVisibility(args: CliArgs): void {
     if (ov.minFruitAgeGDDForVisible !== undefined) mf2.minFruitAgeGDDForVisible = ov.minFruitAgeGDDForVisible;
   }
   console.log(`[extract override] visibility: gateMode=${ov.gateMode ?? '-'}, minFruitAgeGDDForVisible=${ov.minFruitAgeGDDForVisible ?? '-'}`);
+}
+
+/** Iter 6e — massFlow surplusPolicy override (botanical-level, SSOT #78). */
+function applyOverrideMassFlow(args: CliArgs): void {
+  const ov = args.overrideMassFlow;
+  if (!ov) return;
+  const mf = ACTIVE_BOTANICAL.tomato.fruitDevelopment.massFlow;
+  if (ov.surplusPolicy !== undefined) mf.surplusPolicy = ov.surplusPolicy;
+  for (const c of Object.values(CULTIVARS)) {
+    const mf2 = c.resolvedBotanical.fruitDevelopment.massFlow;
+    if (ov.surplusPolicy !== undefined) mf2.surplusPolicy = ov.surplusPolicy;
+  }
+  console.log(`[extract override] massFlow: surplusPolicy=${ov.surplusPolicy ?? '-'}`);
 }
 
 // ── Status mapping (engine → schema enum) ─────────────────────────────
@@ -587,6 +615,7 @@ function main(): void {
   applyOverrideCohort(args);    // Iter 6d — cohort mutation
   applyOverrideAbortion(args);  // Iter 6f — abortion mutation
   applyOverrideVisibility(args); // Iter 6h — visibility gate mutation
+  applyOverrideMassFlow(args);  // Iter 6e — surplusPolicy mutation
   const simRoot = join(args.outRoot, args.experimentId, 'simulation', args.modelVersion);
 
   process.stdout.write(

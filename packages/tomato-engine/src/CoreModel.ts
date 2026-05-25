@@ -204,6 +204,16 @@ export interface PlantPhysiologyState {
   trusses: TrussCohort[];
   /** RNG state for deterministic per-truss sampling. */
   rngCounter: number;
+
+  /** Iter 6e (SSOT #80) — daily source-sink balance audit accumulators.
+   *  매 step allocateDM 호출마다 누적. day boundary에서 dump되며 reset.
+   *  calibration-only — engine logic 영향 없음. */
+  dailySourceG: number;                 // sum of newDM per step (= dailyNetDM)
+  dailyTotalRawFruitDemandG: number;    // sum of alloc.totalRawFruitDemandG
+  dailyTotalLimitedFruitDemandG: number;// sum of alloc.totalLimitedFruitDemandG
+  dailyFruitDemandLimitedByCapG: number;// sum of alloc.fruitDemandLimitedByCapG
+  dailyUnusedAssimilateG: number;       // sum of alloc.unusedAssimilateG (unused_pool only)
+  dailyVegetativeAllocatedG: number;    // sum of alloc.totalVegetativeAllocatedG
 }
 
 // ---------------------------------------------------------------------------
@@ -226,6 +236,13 @@ export function createPlant(seed: number): PlantPhysiologyState {
     heightCm: 25,      // ~25 cm at transplant
     trusses: [],
     rngCounter: 1,
+    // Iter 6e source-sink audit accumulators
+    dailySourceG: 0,
+    dailyTotalRawFruitDemandG: 0,
+    dailyTotalLimitedFruitDemandG: 0,
+    dailyFruitDemandLimitedByCapG: 0,
+    dailyUnusedAssimilateG: 0,
+    dailyVegetativeAllocatedG: 0,
   };
 }
 
@@ -472,6 +489,13 @@ export function stepMinutely(
       perFruitMaxDemandG: perFruitMaxMin,
       surplusPolicy: massFlow.surplusPolicy,
     });
+    // Iter 6e (SSOT #80) — daily source-sink audit 누적 (Site A — minutely)
+    state.dailySourceG += alloc.totalAvailableDmG;
+    state.dailyTotalRawFruitDemandG += alloc.totalRawFruitDemandG;
+    state.dailyTotalLimitedFruitDemandG += alloc.totalLimitedFruitDemandG;
+    state.dailyFruitDemandLimitedByCapG += alloc.fruitDemandLimitedByCapG;
+    state.dailyUnusedAssimilateG += alloc.unusedAssimilateG ?? 0;
+    state.dailyVegetativeAllocatedG += alloc.totalVegetativeAllocatedG;
     const gp = gompertzParamsOf(cultivar);
 
     for (let ti = 0; ti < state.trusses.length; ti++) {
@@ -732,6 +756,13 @@ function _legacyStepDaily(
       perFruitMaxDemandG: perFruitMaxDaily,
       surplusPolicy: massFlow.surplusPolicy,
     });
+    // Iter 6e (SSOT #80) — daily source-sink audit 누적 (Site B — daily)
+    state.dailySourceG += alloc.totalAvailableDmG;
+    state.dailyTotalRawFruitDemandG += alloc.totalRawFruitDemandG;
+    state.dailyTotalLimitedFruitDemandG += alloc.totalLimitedFruitDemandG;
+    state.dailyFruitDemandLimitedByCapG += alloc.fruitDemandLimitedByCapG;
+    state.dailyUnusedAssimilateG += alloc.unusedAssimilateG ?? 0;
+    state.dailyVegetativeAllocatedG += alloc.totalVegetativeAllocatedG;
     const gp = gompertzParamsOf(cultivar);
 
     // Increment per-fruit dry weight, then derive fresh & diameter +
