@@ -190,15 +190,23 @@
     //   rateB: 0.06
     //   inflectionC: 0.45
     "gompertz": {
+      // Iter 6 (growth_update_006): sweep iter6_sweep2/run_003 best.
+      //   inflectionC.mu 0.45 → 1.00 (τ를 사실상 cellDivisionGDD + cellExpansionGDD 시점으로),
+      //   rateB.mu 0.06 → 0.05 (살짝 완화),
+      //   exponentScaling 0.01 → 0.12 (curve를 가파르게).
+      // 결과 (tomimaru, seed 20260525, day 30/60/90):
+      //   Day 30: 28.4mm → 0.0mm (target 0~3 ✓)
+      //   Day 60: 36.5mm → 27.7mm (target 22~32, 정중앙 ✓)
+      //   Day 90: 41.6mm → 56.2mm (target 50~65, 정중앙 ✓)
       "rateB": {                             // 1/GDD, growth rate parameter
-        "mu": 0.06,
+        "mu": 0.05,
         "sigma": 0.01
       },
       "inflectionC": {                       // ratio, τ/total inflection point
-        "mu": 0.45,
+        "mu": 1.00,
         "sigma": 0.05
       },
-      "exponentScaling": 0.01                // FruitGrowth.ts:51
+      "exponentScaling": 0.12                // FruitGrowth.ts (Iter 6 main lever)
     },
 
     // -- Mass flow policy (Iter 5b, growth_update_005) -----------
@@ -210,7 +218,10 @@
     "massFlow": {
       "mode": "gompertz_sink_limited",       // legacy_sink_unlimited 는 fallback
       "fruitDryMatterRatio": 0.06,           // Heuvelink 1996 0.05-0.07
-      "minVisibleDiameterMm": 2,             // visibleFruitCount 임계값
+      "minVisibleDiameterMm": 3,             // Iter 6: 2→3. visibleFruitCount 임계값.
+                                              //   SSOT #42 — calibration pass와 동일 값.
+      "minExpandingDiameterMm": 10,          // Iter 6 신규. truss 'fruit_expanding' 임계값.
+                                              //   phase ∈ {cell_expansion, ripening_*} 도 함께 확인.
       "enableTrajectoryCap": true,           // cumulative W_dry trajectory cap
       "enableStepDemandLimit": true,         // per-fruit per-step demand clamp
       "surplusPolicy": "unused_pool",        // clamp surplus는 vegetative로 안 흐름
@@ -274,6 +285,7 @@
     "fruitDevelopment.massFlow.mode": "active",
     "fruitDevelopment.massFlow.fruitDryMatterRatio": "active",
     "fruitDevelopment.massFlow.minVisibleDiameterMm": "active",
+    "fruitDevelopment.massFlow.minExpandingDiameterMm": "active",
     "fruitDevelopment.massFlow.enableTrajectoryCap": "active",
     "fruitDevelopment.massFlow.enableStepDemandLimit": "active",
     "fruitDevelopment.massFlow.surplusPolicy": "active",

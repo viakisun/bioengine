@@ -29,6 +29,10 @@ growth-calibration/checkpoints/
 # 의사결정 기록은 docs/calibration-checkpoint-reports/ 에 별도 tracked.
 growth-calibration/audits/
 
+# Gompertz parameter sweep outputs — regenerable via run-gompertz-sweep.ts.
+# sweep_summary.json/md만 audit md에 inline 포함 (자동 generation).
+growth-calibration/sweeps/
+
 # Playwright outputs — screenshots/videos/traces regenerable from spec files.
 test-results/
 playwright-report/

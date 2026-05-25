@@ -26,9 +26,10 @@ import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { GrowthEngine } from '../../packages/tomato-engine/src/GrowthEngine';
-import { getCultivar } from '../../packages/tomato-engine/src/Cultivar';
+import { getCultivar, CULTIVARS } from '../../packages/tomato-engine/src/Cultivar';
 import { DEFAULT_CLIMATE } from '../../packages/tomato-engine/src/CoreModel';
 import { potentialFreshMassG } from '../../packages/tomato-engine/src/FruitGrowth';
+import { ACTIVE_BOTANICAL } from '../../packages/tomato-engine/src/ModelRegistry';
 import { computePlantGeometry } from '../../src/plant/PlantBase';
 import {
   loadReferenceBundle,
@@ -49,6 +50,24 @@ interface CliArgs {
   modelVersion: string;
   referenceBundle: string;
   outRoot: string;
+  /** Iter 6 — sweep harness가 child-process로 호출할 때 Gompertz parameter
+   *  override. format: "inflectionC=0.60,rateB=0.05,exponentScaling=0.01".
+   *  Process-local mutation (다음 child에 안 새어나감). */
+  overrideGompertz?: { inflectionC?: number; rateB?: number; exponentScaling?: number };
+}
+
+function parseOverride(s?: string): CliArgs['overrideGompertz'] {
+  if (!s) return undefined;
+  const out: { inflectionC?: number; rateB?: number; exponentScaling?: number } = {};
+  for (const pair of s.split(',')) {
+    const [k, v] = pair.split('=').map(t => t.trim());
+    const n = Number(v);
+    if (!Number.isFinite(n)) continue;
+    if (k === 'inflectionC') out.inflectionC = n;
+    else if (k === 'rateB') out.rateB = n;
+    else if (k === 'exponentScaling') out.exponentScaling = n;
+  }
+  return out;
 }
 
 function parseArgs(argv: string[]): CliArgs {
@@ -72,7 +91,40 @@ function parseArgs(argv: string[]): CliArgs {
     referenceBundle: opts.referenceBundle
       ?? 'growth-calibration/reference/tomato/tomato_tomimaru_reference_v0.1',
     outRoot: opts.outRoot ?? join(__dirname, '..', 'checkpoints'),
+    overrideGompertz: parseOverride(opts.overrideGompertz),
   };
+}
+
+/** Iter 6 — process-local mutation. child process 안에서만 살아있음.
+ *  주의: tomimaru의 `botanicalOverride.fruitDevelopment.gompertz`가 base
+ *  mutation을 덮어쓰므로 (resolveBotanical merge에서 override 이김),
+ *  base만 mutate하면 효과 없음. cultivar의 derived field도 직접 mutate. */
+function applyOverrideGompertz(args: CliArgs): void {
+  const ov = args.overrideGompertz;
+  if (!ov) return;
+  // 1. ACTIVE_BOTANICAL.tomato base mutate
+  const fg = ACTIVE_BOTANICAL.tomato.fruitDevelopment.gompertz;
+  if (ov.inflectionC !== undefined) fg.inflectionC.mu = ov.inflectionC;
+  if (ov.rateB !== undefined) fg.rateB.mu = ov.rateB;
+  if (ov.exponentScaling !== undefined) fg.exponentScaling = ov.exponentScaling;
+
+  // 2. 모든 cultivar의 derived field 직접 mutate — cultivar.botanicalOverride
+  //    이 base를 덮어쓰는 것을 sweep 동안은 무력화. CULTIVARS[name] 객체
+  //    참조는 유지 (consumer가 이미 잡고 있음).
+  for (const c of Object.values(CULTIVARS)) {
+    if (ov.inflectionC !== undefined) {
+      c.gompertzInflectionC = ov.inflectionC;
+      c.resolvedBotanical.fruitDevelopment.gompertz.inflectionC.mu = ov.inflectionC;
+    }
+    if (ov.rateB !== undefined) {
+      c.gompertzRateB = ov.rateB;
+      c.resolvedBotanical.fruitDevelopment.gompertz.rateB.mu = ov.rateB;
+    }
+    if (ov.exponentScaling !== undefined) {
+      c.resolvedBotanical.fruitDevelopment.gompertz.exponentScaling = ov.exponentScaling;
+    }
+  }
+  console.log(`[override] gompertz: inflectionC=${ov.inflectionC ?? '-'}, rateB=${ov.rateB ?? '-'}, exponentScaling=${ov.exponentScaling ?? '-'}`);
 }
 
 // ── Engine snapshot per day ───────────────────────────────────────────
@@ -119,6 +171,8 @@ interface PlantOverall {
   fruitCohortCount: number;            // internal fruit objects (aborted/harvested 제외, fertilized only)
   visibleFruitCount: number;           // diameterMm >= massFlow.minVisibleDiameterMm
   maxVisibleFruitDiameterMm: number;   // visible fruits 중 최대 (없으면 0)
+  // Iter 6 — expansion 단계 fruit count (diameter + phase 둘 다 확인)
+  expandingFruitCount: number;
   // Backward-compat aliases (= visible 기준)
   fruitCountTotal: number;             // = visibleFruitCount
   maxFruitDiameterMm: number;          // = maxVisibleFruitDiameterMm
@@ -129,9 +183,11 @@ const FRUITING_STATUSES = new Set([
   'fruit_set', 'small_green', 'green_expanding', 'breaker', 'red', 'harvest_ready',
 ]);
 
+// Iter 6 — minExpandingDiameterMm from botanical + phase-aware
 function mapTrussStatus(
   t: { emergenceTT: number; fruits: ReadonlyArray<{ fertilizationTT: number; ripenStage: number; aborted: boolean; harvested: boolean; diameter: number }> },
   currentTT: number,
+  cultivar: ReturnType<typeof getCultivar>,
 ): string {
   const live = t.fruits.filter(f => !f.aborted && !f.harvested);
   if (currentTT < t.emergenceTT) return 'not_visible';
@@ -142,9 +198,18 @@ function mapTrussStatus(
   if (maxStage >= 5) return 'harvest_ready';
   if (maxStage >= 4) return 'red';
   if (maxStage >= 2) return 'breaker';
-  // expansion-by-diameter
+
+  // Iter 6 — botanical-driven expansion threshold + phase check
+  const minExpand = cultivar.resolvedBotanical.fruitDevelopment.massFlow.minExpandingDiameterMm;
   const maxDiam = Math.max(...live.map(f => f.diameter));
-  if (maxDiam >= 30) return 'green_expanding';
+  if (maxDiam >= minExpand) {
+    // expansion 후보 — phase 확인 (cell_expansion 이상이어야)
+    const expandingLive = live.filter(f => {
+      const p = fruitPhase(f, currentTT, cultivar);
+      return p.phase === 'cell_expansion' || p.phase === 'ripening_early' || p.phase === 'ripening_late';
+    });
+    if (expandingLive.length > 0) return 'green_expanding';
+  }
   if (maxDiam >= 10) return 'small_green';
   return 'fruit_set';
 }
@@ -170,14 +235,18 @@ function plantOverall(snap: DaySnapshot): PlantOverall {
   let fruiting = 0;
   let cohortCount = 0;
   let visibleCount = 0;
+  let expandingCount = 0;
   let maxVisibleDiam = 0;
   let totalFresh = 0;
   // Iter 5b — minVisibleDiameterMm from massFlow (default 0 if missing)
   const minVisibleDiameterMm =
     snap.cultivar.resolvedBotanical?.fruitDevelopment.massFlow.minVisibleDiameterMm ?? 0;
+  // Iter 6 — minExpandingDiameterMm from massFlow
+  const minExpandingDiameterMm =
+    snap.cultivar.resolvedBotanical?.fruitDevelopment.massFlow.minExpandingDiameterMm ?? 10;
 
   for (const t of physiology.trusses) {
-    const status = mapTrussStatus(t, physiology.TT);
+    const status = mapTrussStatus(t, physiology.TT, snap.cultivar);
     if (status === 'flowering') flowering++;
     if (FRUITING_STATUSES.has(status)) fruiting++;
     for (const f of t.fruits) {
@@ -188,6 +257,13 @@ function plantOverall(snap: DaySnapshot): PlantOverall {
       if (f.diameter >= minVisibleDiameterMm) {
         visibleCount++;
         if (f.diameter > maxVisibleDiam) maxVisibleDiam = f.diameter;
+      }
+      // Iter 6 — expansion: diameter + phase 둘 다
+      if (f.diameter >= minExpandingDiameterMm) {
+        const p = fruitPhase(f, physiology.TT, snap.cultivar);
+        if (p.phase === 'cell_expansion' || p.phase === 'ripening_early' || p.phase === 'ripening_late') {
+          expandingCount++;
+        }
       }
     }
   }
@@ -204,6 +280,7 @@ function plantOverall(snap: DaySnapshot): PlantOverall {
     fruitCohortCount: cohortCount,
     visibleFruitCount: visibleCount,
     maxVisibleFruitDiameterMm: maxVisibleDiam,
+    expandingFruitCount: expandingCount,
     // Backward-compat aliases (= visible 기준 — Reference Pack과 비교)
     fruitCountTotal: visibleCount,
     maxFruitDiameterMm: maxVisibleDiam,
@@ -264,7 +341,8 @@ function buildPlantSummaryCsv(rows: PlantOverall[], bundle: ReferenceBundle): st
   const header = [
     'day', 'height_cm', 'node_count', 'visible_leaf_count', 'expanded_leaf_count',
     'visible_truss_count', 'flowering_truss_count', 'fruiting_truss_count',
-    'fruit_cohort_count', 'visible_fruit_count', 'max_visible_fruit_diameter_mm',
+    'fruit_cohort_count', 'visible_fruit_count', 'expanding_fruit_count',  // Iter 6
+    'max_visible_fruit_diameter_mm',
     'fruit_count_total', 'max_fruit_diameter_mm',  // aliases (= visible)
     'total_fruit_fresh_mass_g',
     'height_band', 'height_in_band',
@@ -279,7 +357,8 @@ function buildPlantSummaryCsv(rows: PlantOverall[], bundle: ReferenceBundle): st
     lines.push(csvRow([
       r.day, r.heightCm, r.nodeCount, r.visibleLeafCount, r.expandedLeafCount,
       r.visibleTrussCount, r.floweringTrussCount, r.fruitingTrussCount,
-      r.fruitCohortCount, r.visibleFruitCount, r.maxVisibleFruitDiameterMm,
+      r.fruitCohortCount, r.visibleFruitCount, r.expandingFruitCount,
+      r.maxVisibleFruitDiameterMm,
       r.fruitCountTotal, r.maxFruitDiameterMm,
       r.totalFruitFreshMassG,
       bandStr(pb?.height ?? null), pb?.height ? inBandFlag(r.heightCm, pb.height) : 'no_target',
@@ -306,7 +385,7 @@ function buildTrussSummaryCsv(snapshots: DaySnapshot[]): string {
       const visible = live.filter(f => f.fertilizationTT > 0);
       const maxDiam = visible.length > 0 ? Math.max(...visible.map(f => f.diameter)) : 0;
       lines.push(csvRow([
-        snap.day, i + 1, mapTrussStatus(t, snap.physiology.TT), t.emergenceTT,
+        snap.day, i + 1, mapTrussStatus(t, snap.physiology.TT, snap.cultivar), t.emergenceTT,
         t.flowerCount,
         t.fruits.filter(f => f.fertilizationTT <= 0 && !f.aborted).length,
         t.fruits.filter(f => f.fertilizationTT > 0 && !f.aborted).length,
@@ -674,6 +753,9 @@ function userSummaryMd(
 function main() {
   const args = parseArgs(process.argv.slice(2));
   console.log(`[dump-growth-checkpoints] cultivar=${args.cultivar} seed=${args.seed} days=[${args.days.join(',')}] model=${args.modelVersion}`);
+
+  // Iter 6 — apply Gompertz override (child-process sweep harness가 호출)
+  applyOverrideGompertz(args);
 
   const bundle = loadReferenceBundle(args.referenceBundle);
 

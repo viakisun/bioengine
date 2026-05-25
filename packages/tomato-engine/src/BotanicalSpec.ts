@@ -113,8 +113,15 @@ export interface MassFlowSpec {
   /** Tomato fruit DM:FW ratio. Heuvelink 1996 ≈ 0.05-0.07. */
   fruitDryMatterRatio: number;
   /** visibleFruitCount 계산에만 사용. `visible = diameterMm >= this && !aborted && !harvested`.
-   *  fruitCohortCount는 별도 metric. 0이면 모든 비-abort fruit가 visible. */
+   *  fruitCohortCount는 별도 metric. 0이면 모든 비-abort fruit가 visible.
+   *  Iter 6 (growth_update_006): 2 → 3mm. SSOT #42 — calibration pass
+   *  maxVisibleFruitDiameterMm 임계값도 동일 (혼선 방지). */
   minVisibleDiameterMm: number;
+  /** Iter 6 신규 — `truss.status = 'fruit_expanding'` 판정 임계값.
+   *  visibleFruitCount > 0 AND maxDiameter >= this AND any fruit phase ∈
+   *  {cell_expansion, ripening_early, ripening_late} 조건 만족 시 expansion.
+   *  diameter 단독이 아니라 phase도 함께 확인 (SSOT #6). 기본 10mm. */
+  minExpandingDiameterMm: number;
   /** trajectory cap on/off. mode='gompertz_sink_limited'와 함께. */
   enableTrajectoryCap: boolean;
   /** per-fruit step demand clamp on/off (SinkAllocation 측). */
@@ -304,6 +311,7 @@ export function validateFull(spec: BotanicalSpec): void {
   }
   requireFiniteNumber(fd.massFlow.fruitDryMatterRatio, 'fruitDevelopment.massFlow.fruitDryMatterRatio');
   requireFiniteNumber(fd.massFlow.minVisibleDiameterMm, 'fruitDevelopment.massFlow.minVisibleDiameterMm');
+  requireFiniteNumber(fd.massFlow.minExpandingDiameterMm, 'fruitDevelopment.massFlow.minExpandingDiameterMm');
   if (typeof fd.massFlow.enableTrajectoryCap !== 'boolean'
    || typeof fd.massFlow.enableStepDemandLimit !== 'boolean'
    || typeof fd.massFlow.debug !== 'boolean') {

@@ -214,24 +214,11 @@
     "leafletAspect": 1.7
   },
 
-  // Botanical layer override (botanical.v1). Phase 1 migration:
-  //   - tomimaru's Gompertz fit (rateB=0.05, inflectionC=0.55) is declared
-  //     here as botanical-domain values. enforcementStatus = 'active' for
-  //     the override path, but the engine still reads the legacy
-  //     physiology.gompertzRateB/InflectionC for byte-identical functional
-  //     equivalence in this migration. A follow-up engine_logic plan
-  //     (Iter 1B) will switch FruitGrowth.potentialFreshWeight to read
-  //     from cultivar.resolvedBotanical.fruitDevelopment.gompertz and
-  //     delete the duplicate legacy keys.
-  //
-  // Values match cultivar.physiology.gompertz* exactly so when the engine
-  // does switch, no numerical change occurs.
-  "botanicalOverride": {
-    "fruitDevelopment": {
-      "gompertz": {
-        "rateB":       { "mu": 0.05 },
-        "inflectionC": { "mu": 0.55 }
-      }
-    }
-  }
+  // Botanical layer override (botanical.v1).
+  // Iter 6 (growth_update_006): gompertz override 제거.
+  //   이전: rateB.mu=0.05, inflectionC.mu=0.55 (Iter 1A 시점 값).
+  //   현재 base가 sweep-calibrated (rateB.mu=0.05, inflectionC.mu=1.00,
+  //   exponentScaling=0.12)이고 tomimaru-specific 보정이 sweep best와
+  //   일치하므로 override 불필요. base 그대로 read.
+  "botanicalOverride": {}
 }

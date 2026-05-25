@@ -81,23 +81,56 @@ function parseArgs(argv: string[]): CliArgs {
 
 // ── Status mapping (engine → schema enum) ─────────────────────────────
 
+/** Iter 6 — fruit phase derivation (SSOT #6: expansion 분기는 diameter + phase 둘 다).
+ *  CoreModel TT-based: fertilizationTT가 set된 후 gddSinceFert로 cell_division
+ *  → cell_expansion → ripening 단계 도출. */
+type FruitPhaseLite =
+  | 'aborted' | 'pre_fertilization' | 'cell_division'
+  | 'cell_expansion' | 'ripening_early' | 'ripening_late';
+
+function derivePhase(
+  f: { fertilizationTT: number; ripenStage: number; aborted: boolean; harvested: boolean },
+  currentTT: number,
+  cellDivisionDurationGDD: number,
+  cellExpansionDurationGDD: number,
+): FruitPhaseLite {
+  if (f.aborted) return 'aborted';
+  if (f.fertilizationTT < 0) return 'pre_fertilization';
+  const gddSinceFert = currentTT - f.fertilizationTT;
+  if (gddSinceFert < cellDivisionDurationGDD) return 'cell_division';
+  if (gddSinceFert < cellDivisionDurationGDD + cellExpansionDurationGDD) return 'cell_expansion';
+  if (f.ripenStage < 4) return 'ripening_early';
+  return 'ripening_late';
+}
+
+const EXPANSION_OR_LATER = new Set<FruitPhaseLite>(['cell_expansion', 'ripening_early', 'ripening_late']);
+
 /**
  * Map a physiology TrussCohort to TrussStatus.
- * Heuristic — uses physiology phase + per-fruit ripenStage to decide.
+ * Iter 6: minExpandingDiameterMm은 botanical에서 read, phase도 함께 검사.
  */
 function mapTrussStatus(
   t: { emergenceTT: number; fruits: ReadonlyArray<{ fertilizationTT: number; ripenStage: number; aborted: boolean; harvested: boolean; diameter: number }> },
   currentTT: number,
+  cultivar: { resolvedBotanical: { fruitDevelopment: { massFlow: { minExpandingDiameterMm: number } } }; cellDivisionDurationGDD: number; cellExpansionDurationGDD: number },
 ): TrussStatus {
   if (t.emergenceTT > currentTT) return 'not_visible';
   const liveFruits = t.fruits.filter(f => !f.aborted && !f.harvested);
   if (liveFruits.length === 0) {
-    // No fruit yet — either bud or flowering
     return currentTT - t.emergenceTT < 50 ? 'visible_bud' : 'flowering';
   }
-  // Has fruit — find dominant ripen stage
-  const setCount = liveFruits.filter(f => f.fertilizationTT > 0 && f.diameter < 10).length;
-  const expandingCount = liveFruits.filter(f => f.diameter >= 10 && f.ripenStage === 0).length;
+  const minExpand = cultivar.resolvedBotanical.fruitDevelopment.massFlow.minExpandingDiameterMm;
+
+  const setCount = liveFruits.filter(f =>
+    f.fertilizationTT > 0 && f.diameter < minExpand,
+  ).length;
+  // SSOT #6 — expansion 판정은 diameter + phase 둘 다
+  const expandingCount = liveFruits.filter(f => {
+    if (f.diameter < minExpand) return false;
+    if (f.ripenStage !== 0) return false;  // 이미 ripening은 별도 카운트
+    const phase = derivePhase(f, currentTT, cultivar.cellDivisionDurationGDD, cultivar.cellExpansionDurationGDD);
+    return EXPANSION_OR_LATER.has(phase);
+  }).length;
   const breakerCount = liveFruits.filter(f => f.ripenStage >= 1 && f.ripenStage < 4).length;
   const redCount = liveFruits.filter(f => f.ripenStage >= 4).length;
   const allHarvested = liveFruits.length === 0 && t.fruits.some(f => f.harvested);
@@ -173,7 +206,7 @@ function buildObservation(args: BuildArgs): PlantObservation {
       trussId,
       trussIndex: i + 1,
       attachedNodeIndex: 0,                          // not directly available — TODO Phase C
-      status: mapTrussStatus(t, physiology.TT),
+      status: mapTrussStatus(t, physiology.TT, cultivar),
       ageDays: physiology.TT > t.emergenceTT ? (physiology.TT - t.emergenceTT) / 12 : 0,
       peduncleLengthCm: 0,
       rachisLengthCm: 0,
@@ -263,6 +296,26 @@ function buildObservation(args: BuildArgs): PlantObservation {
   const fruitsVisible = fruits.filter(f => f.visibility.visible && !['flower'].includes(f.status));
   const maxFruitDiamMm = fruitsVisible.length > 0 ? Math.max(...fruitsVisible.map(f => f.diameterMm)) : 0;
 
+  // Iter 6 — cohort / expanding count (botanical threshold + phase-aware)
+  const minExpand = cultivar.resolvedBotanical.fruitDevelopment.massFlow.minExpandingDiameterMm;
+  let fruitCohortCount = 0;
+  let expandingFruitCount = 0;
+  for (const t of physiology.trusses) {
+    for (const f of t.fruits) {
+      if (f.aborted || f.harvested) continue;
+      if (f.fertilizationTT <= 0) continue;
+      fruitCohortCount++;
+      if (f.diameter >= minExpand) {
+        const phase = derivePhase(
+          f, physiology.TT,
+          cultivar.cellDivisionDurationGDD,
+          cultivar.cellExpansionDurationGDD,
+        );
+        if (EXPANSION_OR_LATER.has(phase)) expandingFruitCount++;
+      }
+    }
+  }
+
   const provenance: Provenance = {
     sourceType: 'simulation',
     confidence: 'high',                              // engine deterministic per seed
@@ -300,10 +353,13 @@ function buildObservation(args: BuildArgs): PlantObservation {
       visibleTrussCount: trusses.filter(t => t.status !== 'not_visible').length,
       floweringTrussCount: trussesFlowering,
       fruitingTrussCount: trussesFruiting,
-      fruitCountTotal: fruitsVisible.length,
+      fruitCountTotal: fruitsVisible.length,           // SSOT #40 — visible alias
       maxFruitDiameterMm: maxFruitDiamMm,
+      // Iter 6 — 분리 metric
+      fruitCohortCount,
+      expandingFruitCount,
       laiCanopy: physiology.LAI,
-    } as PlantObservation['overall'] & { maxFruitDiameterMm: number },
+    },
     phenology: {
       vegetativeStage: args.day < 10 ? 'germination' : args.day < 30 ? 'juvenile' : args.day < 90 ? 'active_growth' : 'mature',
       reproductiveStage: trussesFruiting > 0 ? 'fruit_expansion' : trussesFlowering > 0 ? 'flowering' : trusses.length > 0 ? 'truss_initiation' : 'none',

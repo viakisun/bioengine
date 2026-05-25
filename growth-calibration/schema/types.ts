@@ -153,7 +153,19 @@ export interface PlantOverall {
   visibleTrussCount: number;
   floweringTrussCount: number;
   fruitingTrussCount: number;
+  /** SSOT #40 — visible 기준 fruit count (= visibleFruitCount alias).
+   *  Reference Pack 비교 metric path. */
   fruitCountTotal: number;
+  /** Iter 6 신규 — visible fruit 중 최대 직경 (mm). Reference Pack
+   *  diagnostic rule (`tomato_day33_fruit_too_early`)이 read. */
+  maxFruitDiameterMm?: number;
+  /** Iter 6 신규 — internal fruit object 수 (aborted/harvested 제외, fertilized only).
+   *  진단/audit 보조 정보, Reference Pack 비교는 fruitCountTotal 사용. */
+  fruitCohortCount?: number;
+  /** Iter 6 신규 — expansion/ripening 단계 fruit 수.
+   *  visibleFruitCount > 0 AND maxDiameter >= minExpandingDiameterMm AND
+   *  any fruit phase ∈ {cell_expansion, ripening_early, ripening_late}. */
+  expandingFruitCount?: number;
   laiCanopy?: number;
 }
 

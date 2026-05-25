@@ -369,6 +369,19 @@ export function getCultivar(name: string): Cultivar {
   return CULTIVARS[DEFAULT_CULTIVAR_NAME];
 }
 
+/** Iter 6 — re-adapt all cultivars after ACTIVE_BOTANICAL mutation.
+ *  Sweep harness (child-process per run)에서 dump-growth-checkpoints가
+ *  --overrideGompertz로 ACTIVE_BOTANICAL.tomato.fruitDevelopment.gompertz를
+ *  mutate한 후 호출 → cultivar.resolvedBotanical + gompertzRateB/InflectionC
+ *  값이 새 base로 재계산됨. CULTIVARS object는 그대로 (consumer 참조 보존). */
+export function reAdaptAllCultivars(): void {
+  for (const [name, json] of Object.entries(CULTIVAR_JSONS)) {
+    const updated = adaptCultivar(json);
+    // In-place replacement (참조 유지)
+    Object.assign(CULTIVARS[name], updated);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Per-fruit genome sample (drawn from Cultivar at fruit-set time)
 // ---------------------------------------------------------------------------

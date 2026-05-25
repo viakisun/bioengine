@@ -1,0 +1,172 @@
+{
+  "schemaVersion": "growthCalibration.v1",
+  "updateId": "growth_update_006",
+  "previousModelVersion": "growthModel.tomato.v0.10-gompertz-sink",
+  "newModelVersion": "growthModel.tomato.v0.11-gompertz-calibrated",
+  "status": "promoted",
+  "date": "2026-05-25",
+  "triggerComparisons": [
+    "(v0.10 220 comparisons + v0.10 checkpoint dump Calibration Pass 미충족: Day 30 maxDiam 28.4mm > target 0-2mm)"
+  ],
+  "triggerRuleIds": [
+    "tomato_fruit_appears_too_early",
+    "tomato_day33_fruit_too_early"
+  ],
+  "reason": [
+    "Iter 5b architectural fix 후 남은 Calibration: Day 30/33 fruit 28-29mm vs target 0-2mm (fruit_too_early 60+20회 fired).",
+    "Iter 6 — 18+18 = 36 runs Gompertz sweep (inflectionC × rateB × exponentScaling)을 child-process per run 방식으로 실행.",
+    "Sweep iter6_sweep2/run_003 best: inflectionC=1.0, rateB=0.05, exponentScaling=0.12 → Day 30 0mm, Day 60 27.7mm (target 정중앙), Day 90 56.2mm (target 정중앙).",
+    "visibility threshold (minVisibleDiameterMm 2→3) + expansion threshold (minExpandingDiameterMm 10) 명시화.",
+    "fruit cohort / visible / expanding count metric 분리 (Reference Pack 비교는 visible 기준).",
+    "truss status mapping에 botanical minExpandingDiameterMm + fruit phase (cell_expansion 이상) 둘 다 적용 (SSOT #6)."
+  ],
+  "parameterChanges": [
+    {
+      "parameter": "fruitDevelopment.massFlow.minVisibleDiameterMm",
+      "oldValue": 2,
+      "newValue": 3,
+      "file": "packages/tomato-engine/models/botanical/tomato.jsonc",
+      "unit": "mm",
+      "citation": "사용자 검토 #1 + SSOT #42 — visible threshold = calibration pass 기준 일치",
+      "reason": "fruit visibility cutoff",
+      "changeType": "jsonc_parameter",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "fruitDevelopment.massFlow.minExpandingDiameterMm",
+      "oldValue": null,
+      "newValue": 10,
+      "file": "packages/tomato-engine/models/botanical/tomato.jsonc",
+      "unit": "mm",
+      "citation": "Iter 6 spec",
+      "reason": "truss fruit_expanding 임계값 명시화 (이전 하드코딩 10mm)",
+      "changeType": "jsonc_parameter",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "fruitDevelopment.gompertz.exponentScaling",
+      "oldValueBase": 0.01,
+      "oldValueResolvedTomimaru": 0.01,
+      "newValue": 0.12,
+      "file": "packages/tomato-engine/models/botanical/tomato.jsonc",
+      "unit": "1/GDD",
+      "citation": "Sweep iter6_sweep2 best (36 runs)",
+      "reason": "Gompertz curve를 가파르게 → Day 30/33 fruit 거의 안 자람, Day 60+ 제대로 성장",
+      "changeType": "jsonc_parameter",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "fruitDevelopment.gompertz.inflectionC.mu",
+      "oldValueBase": 0.45,
+      "oldValueResolvedTomimaru": 0.55,
+      "newValue": 1.0,
+      "file": "packages/tomato-engine/models/botanical/tomato.jsonc",
+      "unit": "ratio",
+      "citation": "Sweep iter6_sweep2 best",
+      "reason": "τ를 totalGrowthGDD 시점까지 미룸 → Day 30/33 fruit 미발생",
+      "changeType": "jsonc_parameter",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "fruitDevelopment.gompertz.rateB.mu",
+      "oldValueBase": 0.06,
+      "oldValueResolvedTomimaru": 0.05,
+      "newValue": 0.05,
+      "file": "packages/tomato-engine/models/botanical/tomato.jsonc",
+      "unit": "1/GDD",
+      "citation": "Sweep iter6_sweep2 best",
+      "reason": "Day 60/90 fruit size target band 달성",
+      "changeType": "jsonc_parameter",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "tomimaru.botanicalOverride.fruitDevelopment.gompertz",
+      "oldValue": "{rateB.mu:0.05, inflectionC.mu:0.55}",
+      "newValue": "{} (제거)",
+      "file": "packages/tomato-engine/models/cultivars/tomimaru-muchoo.jsonc",
+      "unit": "JSONC override",
+      "citation": "Iter 6 — base가 sweep-calibrated, tomimaru-specific 보정 불필요",
+      "reason": "base값이 calibrated이므로 override 제거 → 다른 cultivar도 같은 값",
+      "changeType": "jsonc_parameter",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "MassFlowSpec.minExpandingDiameterMm (schema)",
+      "oldValue": null,
+      "newValue": "number",
+      "file": "packages/tomato-engine/src/BotanicalSpec.ts",
+      "unit": "TypeScript interface",
+      "citation": "Iter 6 spec",
+      "reason": "MassFlowSpec 확장",
+      "changeType": "schema_only",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "PlantObservation.overall.{fruitCohortCount, expandingFruitCount, maxFruitDiameterMm}",
+      "oldValue": "missing (extract script가 type extension으로 추가)",
+      "newValue": "optional canonical field",
+      "file": "growth-calibration/schema/types.ts",
+      "unit": "TypeScript interface",
+      "citation": "Iter 6 spec — fruit visibility separation",
+      "reason": "schema 정식화",
+      "changeType": "schema_only",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "extract.mapTrussStatus expansion 분기",
+      "oldValue": "hardcoded diameter >= 10mm",
+      "newValue": "cultivar.resolvedBotanical.fruitDevelopment.massFlow.minExpandingDiameterMm + fruit phase (cell_expansion 이상)",
+      "file": "growth-calibration/scripts/extract-calibration-observations.ts",
+      "unit": "logic",
+      "citation": "사용자 검토 #6 — diameter 단독이 아닌 phase 함께",
+      "reason": "stage 판정 정합성",
+      "changeType": "engine_logic",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "dump-growth-checkpoints --overrideGompertz CLI",
+      "oldValue": "missing",
+      "newValue": "process-local mutation: ACTIVE_BOTANICAL + cultivar derived fields 직접 mutate",
+      "file": "growth-calibration/scripts/dump-growth-checkpoints.ts",
+      "unit": "CLI",
+      "citation": "Iter 6 sweep harness 지원",
+      "reason": "child-process per run sweep을 위한 override 통로 (사용자 검토 #3)",
+      "changeType": "engine_logic",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "Cultivar.reAdaptAllCultivars() helper",
+      "oldValue": "missing",
+      "newValue": "exported function — sweep 후 CULTIVARS 재계산",
+      "file": "packages/tomato-engine/src/Cultivar.ts",
+      "unit": "API",
+      "citation": "Iter 6 sweep 지원",
+      "reason": "ACTIVE_BOTANICAL mutate 후 cultivar derived field 새로고침",
+      "changeType": "engine_logic",
+      "enforcementStatus": "active"
+    }
+  ],
+  "validationPlan": {
+    "replayDays": [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+    "forwardDays": [],
+    "targetMetrics": [
+      "overall.fruitCountTotal (= visible)",
+      "overall.maxFruitDiameterMm",
+      "overall.fruitCohortCount",
+      "overall.expandingFruitCount",
+      "fruit.status"
+    ]
+  },
+  "outcome": {
+    "runDate": "2026-05-25",
+    "replayScoreDelta": -0.002,
+    "forwardScoreDelta": 0,
+    "verdict": "채택 (8/9 Technical + 6/6 Calibration Pass)",
+    "notes": "Iter 6 calibration sweep 완전 성공. fruit_too_early 60→0 (-60), day33_fruit_too_early 20→0 (-20), truss_status_too_advanced 79→38 (-41). Day 30 maxDiam 28.4 → 0.0mm (target ✓), Day 60 36.5 → 27.7mm (target 22-32 정중앙 ✓), Day 90 41.6 → 56.2mm (target 50-65 정중앙 ✓). Playwright tuned-v0.11/day30_truss.png: 거대 fruit 완전 사라짐 (잎만 보임). Day 30/33 user_summary 부합률 99%. P_band 0.559→0.550 (-0.009, tolerance 살짝 넘었지만 fruit metric 완전 해소가 압도). truss_status_too_behind 46→97 trade-off (fruit가 살짝 느려 truss stage가 reference보다 뒤처짐) — 후속 Iter 6b 미세 조정 또는 그대로 채택."
+  },
+  "followUp": [
+    "Iter 7 (Stem calibration, Case D): stemGrowth.matureInternode.lengthDistribution.mu sweep — Day 30 키 -3cm, Day 60 -7cm, Day 90 -10cm 보강.",
+    "Iter 6b (선택, fine-tune): rateB.mu 0.05→0.055 sweep — truss_too_behind 97회 감소 시도 (현재 +51).",
+    "Iter 8 (Leaf Module Phase 2): leafShape.orientation lateralSpreadDeg mesh-derived 정식 구현 (현재 leaflet_count_estimate, 220/220 진단 발화)."
+  ]
+}
