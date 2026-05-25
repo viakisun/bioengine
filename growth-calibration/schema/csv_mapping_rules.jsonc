@@ -1,0 +1,141 @@
+// csv_mapping_rules — Schema 8 (CSV ↔ JSON import binding).
+//
+// The csv-import tool consumes this file to transform incoming field CSVs
+// into typed PlantObservation / reference-pack records.
+//
+// Two CSV idioms are supported (both must be machine-parseable, no string ranges):
+//   1. SCALAR  — one column per metric (e.g. measured single value)
+//        height_cm: 62.4
+//   2. RANGE   — paired columns "_min" + "_max" (e.g. target band)
+//        height_cm_min: 65, height_cm_max: 85
+//
+// CSV authoring rules (cheatsheet — see csv-import/README.md):
+//   - String ranges like "-5 to -20" are FORBIDDEN.
+//   - Empty cell → JSON null.
+//   - Enum cells must match exact enum string (e.g. visible_bud, not "꽃봉오리").
+//   - Float columns accept "." decimal separator only.
+//   - Boolean columns accept "true" / "false" (case-insensitive) or "1" / "0".
+//
+// jsonPath uses [*] for "any index in array" — the importer resolves by
+// row context (e.g. truss_index column → trusses[i]).
+{
+  "schemaVersion": "growthCalibration.v1",
+  "mappingSets": {
+
+    // ── Field measurement CSVs ────────────────────────────────────────
+    "plant_snapshot_field": {
+      "appliesTo": "PlantObservation (single plant measurement)",
+      "rules": [
+        { "csvColumn": "experiment_id",          "jsonPath": "experimentId",                 "type": "string",  "required": true,  "nullable": false },
+        { "csvColumn": "plant_id",               "jsonPath": "plantId",                      "type": "string",  "required": true,  "nullable": false },
+        { "csvColumn": "day",                    "jsonPath": "day",                          "type": "integer", "required": true,  "nullable": false, "unit": "days" },
+        { "csvColumn": "observation_date",       "jsonPath": "observationDate",              "type": "string",  "required": true,  "nullable": false },
+        { "csvColumn": "height_cm",              "jsonPath": "overall.heightCm",             "type": "number",  "required": true,  "nullable": true, "unit": "cm" },
+        { "csvColumn": "stem_diameter_mm",       "jsonPath": "overall.mainStemDiameterMm",   "type": "number",  "required": false, "nullable": true, "unit": "mm" },
+        { "csvColumn": "node_count",             "jsonPath": "overall.nodeCount",            "type": "integer", "required": true,  "nullable": true },
+        { "csvColumn": "visible_leaf_count",     "jsonPath": "overall.visibleLeafCount",     "type": "integer", "required": true,  "nullable": true },
+        { "csvColumn": "expanded_leaf_count",    "jsonPath": "overall.expandedLeafCount",    "type": "integer", "required": false, "nullable": true },
+        { "csvColumn": "visible_truss_count",    "jsonPath": "overall.visibleTrussCount",    "type": "integer", "required": true,  "nullable": true },
+        { "csvColumn": "flowering_truss_count",  "jsonPath": "overall.floweringTrussCount",  "type": "integer", "required": false, "nullable": true },
+        { "csvColumn": "fruiting_truss_count",   "jsonPath": "overall.fruitingTrussCount",   "type": "integer", "required": false, "nullable": true },
+        { "csvColumn": "fruit_count_total",      "jsonPath": "overall.fruitCountTotal",      "type": "integer", "required": true,  "nullable": true }
+      ]
+    },
+
+    "truss_snapshot_field": {
+      "appliesTo": "TrussObservation rows (multiple trusses per plant)",
+      "rowKey": ["plant_id", "truss_id"],
+      "rules": [
+        { "csvColumn": "plant_id",                 "jsonPath": "$context.plantId",                      "type": "string",  "required": true,  "nullable": false },
+        { "csvColumn": "day",                      "jsonPath": "$context.day",                          "type": "integer", "required": true,  "nullable": false, "unit": "days" },
+        { "csvColumn": "truss_id",                 "jsonPath": "trussId",                               "type": "string",  "required": true,  "nullable": false },
+        { "csvColumn": "truss_index",              "jsonPath": "trussIndex",                            "type": "integer", "required": true,  "nullable": false },
+        { "csvColumn": "attached_node_index",      "jsonPath": "attachedNodeIndex",                     "type": "integer", "required": true,  "nullable": true },
+        { "csvColumn": "status",                   "jsonPath": "status",                                "type": "enum",    "required": true,  "nullable": false,
+          "enumValues": ["not_visible","visible_bud","flowering","fruit_set","small_green","green_expanding","fruit_expanding","breaker","ripening","red","harvest_ready","senescent"] },
+        { "csvColumn": "flower_bud_count",         "jsonPath": "flowerBudCount",                        "type": "integer", "required": false, "nullable": true },
+        { "csvColumn": "open_flower_count",        "jsonPath": "openFlowerCount",                       "type": "integer", "required": false, "nullable": true },
+        { "csvColumn": "fruit_set_count",          "jsonPath": "fruitSetCount",                         "type": "integer", "required": false, "nullable": true },
+        { "csvColumn": "visible_fruit_count",      "jsonPath": "visibleFruitCount",                     "type": "integer", "required": true,  "nullable": true },
+        { "csvColumn": "largest_fruit_diameter_mm","jsonPath": "largestFruitDiameterMm",                "type": "number",  "required": false, "nullable": true, "unit": "mm" }
+      ]
+    },
+
+    "leaf_snapshot_field": {
+      "appliesTo": "LeafObservation rows (multiple leaves per plant)",
+      "rowKey": ["plant_id", "leaf_id"],
+      "rules": [
+        { "csvColumn": "plant_id",          "jsonPath": "$context.plantId",       "type": "string",  "required": true,  "nullable": false },
+        { "csvColumn": "day",               "jsonPath": "$context.day",           "type": "integer", "required": true,  "nullable": false, "unit": "days" },
+        { "csvColumn": "leaf_id",           "jsonPath": "leafId",                 "type": "string",  "required": true,  "nullable": false },
+        { "csvColumn": "node_index",        "jsonPath": "nodeIndex",              "type": "integer", "required": true,  "nullable": false },
+        { "csvColumn": "status",            "jsonPath": "status",                 "type": "enum",    "required": true,  "nullable": false,
+          "enumValues": ["emerging","expanding","expanded","mature","senescing","shed"] },
+        { "csvColumn": "leaflet_count",     "jsonPath": "leafletCount",           "type": "integer", "required": true,  "nullable": true },
+        { "csvColumn": "petiole_length_cm", "jsonPath": "petioleLengthCm",        "type": "number",  "required": false, "nullable": true, "unit": "cm" },
+        { "csvColumn": "rachis_length_cm",  "jsonPath": "rachisLengthCm",         "type": "number",  "required": false, "nullable": true, "unit": "cm" },
+        { "csvColumn": "leaf_length_cm",    "jsonPath": "leafLengthCm",           "type": "number",  "required": false, "nullable": true, "unit": "cm" },
+        { "csvColumn": "leaf_width_cm",     "jsonPath": "leafWidthCm",            "type": "number",  "required": false, "nullable": true, "unit": "cm" },
+        { "csvColumn": "leaf_area_cm2",     "jsonPath": "leafAreaCm2",            "type": "number",  "required": false, "nullable": true, "unit": "cm²" },
+        { "csvColumn": "azimuth_deg",       "jsonPath": "orientation.azimuthDeg", "type": "number",  "required": false, "nullable": true, "unit": "deg" },
+        { "csvColumn": "elevation_deg",     "jsonPath": "orientation.elevationDeg","type": "number", "required": false, "nullable": true, "unit": "deg" },
+        { "csvColumn": "droop_angle_deg",   "jsonPath": "orientation.droopAngleDeg","type": "number","required": false, "nullable": true, "unit": "deg" }
+      ]
+    },
+
+    "fruit_snapshot_field": {
+      "appliesTo": "FruitObservation rows",
+      "rowKey": ["plant_id", "fruit_id"],
+      "rules": [
+        { "csvColumn": "plant_id",          "jsonPath": "$context.plantId",  "type": "string",  "required": true,  "nullable": false },
+        { "csvColumn": "day",               "jsonPath": "$context.day",      "type": "integer", "required": true,  "nullable": false, "unit": "days" },
+        { "csvColumn": "fruit_id",          "jsonPath": "fruitId",           "type": "string",  "required": true,  "nullable": false },
+        { "csvColumn": "truss_id",          "jsonPath": "trussId",           "type": "string",  "required": true,  "nullable": false },
+        { "csvColumn": "truss_index",       "jsonPath": "trussIndex",        "type": "integer", "required": true,  "nullable": false },
+        { "csvColumn": "position_in_truss", "jsonPath": "positionInTruss",   "type": "integer", "required": true,  "nullable": false },
+        { "csvColumn": "status",            "jsonPath": "status",            "type": "enum",    "required": true,  "nullable": false,
+          "enumValues": ["flower","fruit_set","small_green","green_expanding","breaker","turning","red","overripe","harvested","aborted"] },
+        { "csvColumn": "diameter_mm",       "jsonPath": "diameterMm",        "type": "number",  "required": true,  "nullable": true, "unit": "mm" },
+        { "csvColumn": "height_mm",         "jsonPath": "heightMm",          "type": "number",  "required": false, "nullable": true, "unit": "mm" },
+        { "csvColumn": "color_stage",       "jsonPath": "colorStage",        "type": "enum",    "required": false, "nullable": true,
+          "enumValues": ["green","green_yellow","turning","red","dark_red"] }
+      ]
+    },
+
+    // ── Reference Pack target CSVs (paired _min/_max columns) ─────────
+    "plant_timeline_target": {
+      "appliesTo": "Reference Pack 01_plant_timeline_target.csv",
+      "rowKey": ["day"],
+      "rules": [
+        { "csvColumn": "day",                          "jsonPath": "day",                                  "type": "integer", "required": true, "nullable": false },
+        { "csvColumn": "height_cm_min",                "jsonPath": "overall.heightCm",                     "type": "range",   "pairedColumn": "height_cm_max",                "required": true, "nullable": false, "unit": "cm" },
+        { "csvColumn": "node_count_min",               "jsonPath": "overall.nodeCount",                    "type": "range",   "pairedColumn": "node_count_max",               "required": true, "nullable": false },
+        { "csvColumn": "visible_leaf_min",             "jsonPath": "overall.visibleLeafCount",             "type": "range",   "pairedColumn": "visible_leaf_max",             "required": true, "nullable": false },
+        { "csvColumn": "expanded_leaf_min",            "jsonPath": "overall.expandedLeafCount",            "type": "range",   "pairedColumn": "expanded_leaf_max",            "required": true, "nullable": false },
+        { "csvColumn": "visible_truss_min",            "jsonPath": "overall.visibleTrussCount",            "type": "range",   "pairedColumn": "visible_truss_max",            "required": true, "nullable": false },
+        { "csvColumn": "flowering_truss_min",          "jsonPath": "overall.floweringTrussCount",          "type": "range",   "pairedColumn": "flowering_truss_max",          "required": true, "nullable": false },
+        { "csvColumn": "fruiting_truss_min",           "jsonPath": "overall.fruitingTrussCount",           "type": "range",   "pairedColumn": "fruiting_truss_max",           "required": true, "nullable": false },
+        { "csvColumn": "fruit_count_min",              "jsonPath": "overall.fruitCountTotal",              "type": "range",   "pairedColumn": "fruit_count_max",              "required": true, "nullable": false },
+        { "csvColumn": "max_fruit_diameter_mm_min",    "jsonPath": "overall.maxFruitDiameterMm",           "type": "range",   "pairedColumn": "max_fruit_diameter_mm_max",    "required": true, "nullable": false, "unit": "mm" },
+        { "csvColumn": "expected_stage",               "jsonPath": "expectedStage",                        "type": "string",  "required": true, "nullable": false }
+      ]
+    },
+
+    "leaf_timeline_target": {
+      "appliesTo": "Reference Pack 04_leaf_timeline_target.csv",
+      "rowKey": ["day"],
+      "rules": [
+        { "csvColumn": "day",                       "jsonPath": "day",                                 "type": "integer", "required": true, "nullable": false },
+        { "csvColumn": "visible_leaf_min",          "jsonPath": "visibleLeafCount",                    "type": "range",   "pairedColumn": "visible_leaf_max",          "required": true, "nullable": false },
+        { "csvColumn": "leaflet_count_min",         "jsonPath": "leafletCount",                        "type": "range",   "pairedColumn": "leaflet_count_max",         "required": true, "nullable": false },
+        { "csvColumn": "petiole_length_cm_min",     "jsonPath": "petioleLengthCm",                     "type": "range",   "pairedColumn": "petiole_length_cm_max",     "required": true, "nullable": false, "unit": "cm" },
+        { "csvColumn": "rachis_length_cm_min",      "jsonPath": "rachisLengthCm",                      "type": "range",   "pairedColumn": "rachis_length_cm_max",      "required": true, "nullable": false, "unit": "cm" },
+        { "csvColumn": "leaf_length_cm_min",        "jsonPath": "leafLengthCm",                        "type": "range",   "pairedColumn": "leaf_length_cm_max",        "required": true, "nullable": false, "unit": "cm" },
+        { "csvColumn": "leaf_width_cm_min",         "jsonPath": "leafWidthCm",                         "type": "range",   "pairedColumn": "leaf_width_cm_max",         "required": true, "nullable": false, "unit": "cm" },
+        { "csvColumn": "droop_angle_deg_min",       "jsonPath": "orientation.droopAngleDeg",           "type": "range",   "pairedColumn": "droop_angle_deg_max",       "required": true, "nullable": false, "unit": "deg" },
+        { "csvColumn": "lateral_spread_deg_min",    "jsonPath": "orientation.lateralSpreadDeg",        "type": "range",   "pairedColumn": "lateral_spread_deg_max",    "required": true, "nullable": false, "unit": "deg" },
+        { "csvColumn": "elevation_deg_min",         "jsonPath": "orientation.elevationDeg",            "type": "range",   "pairedColumn": "elevation_deg_max",         "required": true, "nullable": false, "unit": "deg" }
+      ]
+    }
+  }
+}

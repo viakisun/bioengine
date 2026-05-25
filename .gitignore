@@ -13,3 +13,9 @@ _ref/
 # `npm run plant:dump`. Scripts are tracked; outputs are not.
 packages/tomato-engine/diagnostics/snapshots/
 src/plant/__diag__/
+
+# Growth Calibration Platform — reproducible run outputs (regen via scripts).
+# Tracked: schema/ + reference/ + scripts/ + experiments/*/model-updates/
+# Not tracked: simulation/ + comparison/ (rebuildable from scripts).
+growth-calibration/experiments/*/simulation/
+growth-calibration/experiments/*/comparison/

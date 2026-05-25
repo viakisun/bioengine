@@ -1,0 +1,120 @@
+// Common diagnostic rules — applied to ALL crops/cultivars.
+// SSOT #21 (rule scope): every rule must declare scope; crop=null means
+// applies to every crop. Cultivar-specific rules live in {crop}.jsonc or
+// {crop_cultivar_day_specific}.jsonc files.
+//
+// SSOT #25 (ruleId required): every rule has a unique ruleId.
+//
+// The comparison engine evaluates rules in this order:
+//   1) common.jsonc
+//   2) {crop}.jsonc           (matches scope.crop)
+//   3) {crop}_{cultivar}_*.jsonc (matches scope.cultivar + dayRange)
+// Later-stage rules can override or supplement earlier ones.
+{
+  "schemaVersion": "growthCalibration.v1",
+  "rules": [
+    {
+      "ruleId": "common_truss_status_too_advanced",
+      "scope": { "crop": null },
+      "if": "trusses[*].stageDelta >= 2",
+      "diagnosis": "phenology_too_fast",
+      "severity": "medium",
+      "target": "trusses[*].status",
+      "suggestedParameters": [
+        "phenology.GDD_to_first_flower",
+        "phenology.GDD_per_truss"
+      ],
+      "suggestedChangeType": "jsonc_parameter",
+      "message": "Truss reached a stage at least 2 steps ahead of the reference (e.g. expected visible_bud but observed fruit_set)."
+    },
+    {
+      "ruleId": "common_truss_status_too_behind",
+      "scope": { "crop": null },
+      "if": "trusses[*].stageDelta <= -2",
+      "diagnosis": "phenology_too_slow",
+      "severity": "medium",
+      "target": "trusses[*].status",
+      "suggestedParameters": [
+        "phenology.GDD_to_first_flower",
+        "phenology.GDD_per_truss",
+        "photosynthesis.LUE_gDM_per_mol_PAR"
+      ],
+      "suggestedChangeType": "jsonc_parameter",
+      "message": "Truss is at least 2 stages behind the reference."
+    },
+    {
+      "ruleId": "common_fruit_status_too_advanced",
+      "scope": { "crop": null },
+      "if": "fruits[*].stageDelta >= 2",
+      "diagnosis": "fruit_too_early",
+      "severity": "high",
+      "target": "fruits[*].status",
+      "suggestedParameters": [
+        "physiology.gompertzInflectionC",
+        "physiology.gompertzRateB",
+        "fruitGrowth.cellDivisionDurationGDD",
+        "fruitGrowth.cellExpansionDurationGDD"
+      ],
+      "suggestedChangeType": "jsonc_parameter",
+      "message": "Fruit stage is at least 2 steps ahead of the reference (e.g. expected small_green but observed red)."
+    },
+    {
+      "ruleId": "common_fruit_status_too_behind",
+      "scope": { "crop": null },
+      "if": "fruits[*].stageDelta <= -2",
+      "diagnosis": "fruit_too_late",
+      "severity": "medium",
+      "target": "fruits[*].status",
+      "suggestedParameters": [
+        "physiology.gompertzInflectionC",
+        "physiology.gompertzRateB",
+        "photosynthesis.LUE_gDM_per_mol_PAR"
+      ],
+      "suggestedChangeType": "jsonc_parameter",
+      "message": "Fruit stage is at least 2 steps behind the reference."
+    },
+    {
+      "ruleId": "common_height_overestimated",
+      "scope": { "crop": null },
+      "if": "overall.heightCm.relativeError > 0.20 AND overall.heightCm.error > 0",
+      "diagnosis": "stem_height_overestimated",
+      "severity": "low",
+      "target": "overall.heightCm",
+      "suggestedParameters": [
+        "stemDevelopment.stemElongationRateCmPerDay",
+        "morphology.internodeLenCm"
+      ],
+      "suggestedChangeType": "jsonc_parameter",
+      "message": "Plant height exceeds reference upper band by more than 20%."
+    },
+    {
+      "ruleId": "common_leaf_count_overestimated",
+      "scope": { "crop": null },
+      "if": "overall.visibleLeafCount.error > 4 AND overall.visibleLeafCount.relativeError > 0.20",
+      "diagnosis": "leaf_count_overestimated",
+      "severity": "medium",
+      "target": "overall.visibleLeafCount",
+      "suggestedParameters": [
+        "organogenesis.phyllochronGDD",
+        "scenarios.commercial-standard.management.defoliation.startDay",
+        "scenarios.commercial-standard.management.defoliation.minLeafAgeDaysAtRemoval"
+      ],
+      "suggestedChangeType": "jsonc_parameter",
+      "message": "Visible leaf count exceeds reference by more than 4 leaves AND 20%."
+    },
+    {
+      "ruleId": "common_leaf_droop_too_much",
+      "scope": { "crop": null },
+      "if": "leaves[*].orientation.droopAngleDeg.error > 15",
+      "diagnosis": "leaf_droop_too_much",
+      "severity": "low",
+      "target": "leaves[*].orientation.droopAngleDeg",
+      "suggestedParameters": [
+        "leafShape.surfaceProfile.droopAmount",
+        "leafShape.orientation.supportStringInfluence"
+      ],
+      "suggestedChangeType": "engine_logic",
+      "message": "Leaf droop angle exceeds reference upper band by more than 15°."
+    }
+  ]
+}

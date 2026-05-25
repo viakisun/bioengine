@@ -1,0 +1,94 @@
+{
+  "schemaVersion": "growthCalibration.v1",
+  "provenance": {
+    "sourceType": "user_target",
+    "confidence": "low",
+    "sourceRefs": ["schema cross-crop reuse smoke test"],
+    "notes": "Paprika example — verifies schema works for crops without truss/fruit clusters (uses cropSpecific.paprika.fruitsPerNode instead)."
+  },
+  "experimentId": "paprika_schema_smoke_001",
+  "plantId": "P001",
+  "day": 60,
+  "observationDate": "2026-07-30",
+  "plantAgeDays": 60,
+  "thermalTime": {
+    "baseTemperatureC": 10,
+    "dailyGdd": 12,
+    "accumulatedGdd": 720,
+    "method": "simple_average"
+  },
+  "overall": {
+    "heightCm": 95.0,
+    "mainStemLengthCm": 98.0,
+    "mainStemDiameterMm": 9.5,
+    "nodeCount": 16,
+    "visibleLeafCount": 22,
+    "expandedLeafCount": 20,
+    "visibleTrussCount": 0,
+    "floweringTrussCount": 0,
+    "fruitingTrussCount": 0,
+    "fruitCountTotal": 6
+  },
+  "phenology": {
+    "vegetativeStage": "mature",
+    "reproductiveStage": "fruit_expansion",
+    "firstVisibleTrussDay": null,
+    "firstFlowerOpenDay": 35,
+    "firstFruitSetDay": 42,
+    "firstFruitVisibleDay": 47,
+    "firstRipeFruitDay": null
+  },
+  "nodes": [
+    {
+      "nodeIndex": 6,
+      "heightFromBaseCm": 28.0,
+      "internodeLengthCm": 4.5,
+      "stemDiameterMm": 8.8,
+      "leafId": "L006",
+      "trussId": null
+    }
+  ],
+  "leaves": [
+    {
+      "leafId": "L016",
+      "nodeIndex": 16,
+      "status": "expanded",
+      "ageDays": 12,
+      "compoundLeaf": false,
+      "leafletCount": 1,
+      "petioleLengthCm": 5.0,
+      "rachisLengthCm": 0,
+      "leafLengthCm": 14.0,
+      "leafWidthCm": 7.5,
+      "leafAreaCm2": 78.0,
+      "orientation": {
+        "azimuthDeg": 130,
+        "elevationDeg": -10,
+        "droopAngleDeg": 18,
+        "rollDeg": 5
+      },
+      "shape": {
+        "averageLeafletAspect": 1.9,
+        "serrationLevel": "none",
+        "curlLevel": "low"
+      },
+      "health": {
+        "colorStage": "dark_green",
+        "senescence": 0.0,
+        "damageRatio": 0.0
+      }
+    }
+  ],
+  "trusses": [],
+  "fruits": [],
+  "cropSpecific": {
+    "paprika": {
+      "fruitsPerNode": [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0]
+    }
+  },
+  "qualityFlags": {
+    "missingMeasurement": false,
+    "occludedOrgans": false,
+    "imageQuality": "normal"
+  }
+}

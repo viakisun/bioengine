@@ -1,0 +1,9 @@
+day,visible_leaf_min,visible_leaf_max,expanded_leaf_min,expanded_leaf_max,leaflet_count_min,leaflet_count_max,petiole_length_cm_min,petiole_length_cm_max,rachis_length_cm_min,rachis_length_cm_max,leaf_length_cm_min,leaf_length_cm_max,leaf_width_cm_min,leaf_width_cm_max,droop_angle_deg_min,droop_angle_deg_max,lateral_spread_deg_min,lateral_spread_deg_max,elevation_deg_min,elevation_deg_max
+10,5,7,4,6,3,5,5,8,8,12,12,16,6,8,5,12,30,60,5,20
+20,7,9,6,8,5,7,8,11,14,20,20,28,10,15,10,20,40,80,0,10
+30,9,11,8,10,7,7,10,14,20,26,28,36,15,21,15,30,50,90,-20,-5
+40,11,13,10,12,7,9,12,16,24,30,34,42,19,25,20,35,50,95,-25,-10
+50,13,15,12,14,9,9,14,18,28,34,40,48,23,29,25,40,45,90,-30,-15
+60,15,17,14,16,9,9,15,19,30,36,44,52,25,31,30,45,40,85,-35,-20
+70,17,19,15,18,9,9,16,20,31,37,46,54,26,32,35,50,35,80,-40,-25
+80,18,21,16,19,9,9,16,20,31,37,46,54,26,32,40,55,30,75,-45,-30

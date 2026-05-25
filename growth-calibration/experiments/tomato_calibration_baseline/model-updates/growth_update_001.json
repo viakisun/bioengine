@@ -1,0 +1,77 @@
+{
+  "schemaVersion": "growthCalibration.v1",
+  "updateId": "growth_update_001",
+  "previousModelVersion": "growthModel.tomato.baseline",
+  "newModelVersion": "growthModel.tomato.v0.4-iter1a",
+  "date": "2026-05-25",
+  "triggerComparisons": [
+    "cmp_day030_SIM_seed20260520_vs_REF_P_day030",
+    "(220 baseline comparisons total)"
+  ],
+  "triggerRuleIds": [
+    "tomato_day33_fruit_too_early",
+    "tomato_fruit_appears_too_early",
+    "common_truss_status_too_advanced"
+  ],
+  "reason": [
+    "Iter 1A: Phenology timing — JSONC-only changes (≤3 params).",
+    "Reference Pack 08_day_gdd_mapping.json identified GDD_to_first_flower 250 as ~4 days too early under 22°C constant assumption.",
+    "Day 30 baseline showed fruit count 4 (target 0) with diameter 83.9mm (target 0mm) — Gompertz curve too aggressive."
+  ],
+  "parameterChanges": [
+    {
+      "parameter": "phenology.GDD_to_first_flower",
+      "file": "packages/tomato-engine/models/cultivars/tomimaru-muchoo.jsonc",
+      "oldValue": 250,
+      "newValue": 300,
+      "unit": "GDD",
+      "citation": "Reference Pack 08_day_gdd_mapping.json: user_target firstVisibleTrussDay=25 days × 12 GDD/day at 22°C = 300. Also RDA 2020 §3.",
+      "reason": "User target first truss visible at day 25 (not day 21).",
+      "changeType": "jsonc_parameter",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "physiology.gompertzInflectionC",
+      "file": "packages/tomato-engine/models/cultivars/tomimaru-muchoo.jsonc",
+      "oldValue": 0.45,
+      "newValue": 0.55,
+      "unit": "ratio",
+      "citation": "Anaya-Ramirez 2024 Gompertz fits cluster at τ/total = 0.5-0.6. Also user Reference Pack: fruit not visible until ~day 48.",
+      "reason": "Inflection τ moves from 292.5 GDD (~day 25) to 357.5 GDD (~day 30) post-fertilization. Reduces visible fruit size at day 30.",
+      "changeType": "jsonc_parameter",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "physiology.gompertzRateB",
+      "file": "packages/tomato-engine/models/cultivars/tomimaru-muchoo.jsonc",
+      "oldValue": 0.06,
+      "newValue": 0.05,
+      "unit": "1/GDD",
+      "citation": "Anaya-Ramirez 2024 R²>0.99 fits 0.04-0.06 range. Lower B = slower asymptote.",
+      "reason": "Slower fruit growth rate to lower meanDiameter at day 70.",
+      "changeType": "jsonc_parameter",
+      "enforcementStatus": "active"
+    }
+  ],
+  "expectedEffect": {
+    "day30": "fruit count 4→0-1, max diameter 83mm→<20mm. tomato_day33_fruit_too_early should not fire.",
+    "day40": "Truss 1 reaches fruit_set instead of green_expanding. tomato_fruit_appears_too_early reduced.",
+    "day60-100": "Fruit growth slower; meanDiameter shifts later by ~5 days. May trigger common_truss_status_too_behind at late days (acceptable trade-off for v0.1)."
+  },
+  "validationPlan": {
+    "replayDays": [0, 10, 20, 30, 40, 50],
+    "forwardDays": [60, 70, 80, 90, 100],
+    "targetMetrics": [
+      "overall.fruitCountTotal",
+      "overall.maxFruitDiameterMm",
+      "trusses[*].status",
+      "fruits[*].status"
+    ]
+  },
+  "outcome": {
+    "runDate": "2026-05-25",
+    "replayScoreDelta": 0.016,
+    "forwardScoreDelta": 0.016,
+    "notes": "Baseline S=0.636 P_band=0.497 → Iter 1A S=0.652 P_band=0.518 (220 comparisons, N=20 × 11 days). Marginal +2.5% / +4.2% gain. common_truss_status_too_advanced reduced 122→103 (-19) — phenology timing change had partial effect. However tomato_day33_fruit_too_early stayed at 20/20 (no change) — Gompertz parameter changes did not move fruit visibility at day 30. Diagnosis: GDD_to_first_flower 250→300 delayed truss emergence but Gompertz changes alone don't suppress fruit count when fertilization phase logic is the dominant driver. Engine_logic escalation (Iter 1B) needed: introduce flowerToFruitSetGDD lag, and/or visible_fruit threshold based on Gompertz phase rather than diameter."
+  }
+}

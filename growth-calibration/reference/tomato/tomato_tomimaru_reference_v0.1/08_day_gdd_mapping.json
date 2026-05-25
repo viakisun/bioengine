@@ -1,0 +1,52 @@
+{
+  "schemaVersion": "growthReference.v0.1",
+  "referencePackId": "tomato_tomimaru_reference_v0.1",
+  "thermalAssumption": {
+    "baseTemperatureC": 10,
+    "constantAverageTemperatureC": 22,
+    "gddPerDay": 12,
+    "method": "simple_average"
+  },
+  "mapping": [
+    {
+      "target": "firstVisibleTrussDay",
+      "calendarDay": 25,
+      "accumulatedGdd": 300,
+      "currentModelField": "cultivar.phenology.GDD_to_first_flower",
+      "currentModelValue": 250,
+      "diagnosis": "current model about 4 days too early under 22C assumption"
+    },
+    {
+      "target": "firstFlowerOpenDay",
+      "calendarDay": 35,
+      "accumulatedGdd": 420,
+      "currentModelField": "cultivar.phenology.GDD_to_first_flower",
+      "currentModelValue": 250,
+      "diagnosis": "current model treats flower/truss emergence too early or too coupled"
+    },
+    {
+      "target": "firstFruitSetDay",
+      "calendarDay": 43,
+      "accumulatedGdd": 516,
+      "currentModelField": "cultivar.phenology.flowerToFruitSetGDD",
+      "currentModelValue": 0,
+      "diagnosis": "model likely has no flower-to-fruit-set lag"
+    },
+    {
+      "target": "firstVisibleFruitDay",
+      "calendarDay": 48,
+      "accumulatedGdd": 576,
+      "currentModelField": "cultivar.phenology.fruitSetToVisibleFruitGDD",
+      "currentModelValue": null,
+      "diagnosis": "visible fruit threshold or Gompertz phase timing needs explicit modeling"
+    },
+    {
+      "target": "trussIntervalDays",
+      "calendarDayInterval": 10,
+      "gddInterval": 120,
+      "currentModelField": "cultivar.phenology.GDD_per_truss",
+      "currentModelValue": 120,
+      "diagnosis": "current interval may be acceptable"
+    }
+  ]
+}

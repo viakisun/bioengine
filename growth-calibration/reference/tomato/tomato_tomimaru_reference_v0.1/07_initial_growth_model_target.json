@@ -1,0 +1,40 @@
+{
+  "schemaVersion": "growthReference.v0.1",
+  "referencePackId": "tomato_tomimaru_reference_v0.1",
+  "modelTargetId": "tomato_growth_model_target_v0.1",
+  "provenance": {
+    "sourceType": "user_target",
+    "confidence": "low",
+    "sourceRefs": [],
+    "notes": "Initial target for calibration. Must be replaced or reweighted after measured data is collected."
+  },
+  "phenology": {
+    "firstVisibleTrussDay": 25,
+    "firstFlowerOpenDay": 35,
+    "firstFruitSetDay": 43,
+    "firstVisibleFruitDay": 48,
+    "trussIntervalDays": 10,
+    "trussIntervalNodes": 3
+  },
+  "fruitDevelopment": {
+    "flowerToFruitSetDays": 7,
+    "fruitSetToVisibleFruitDays": 5,
+    "visibleFruitToSmallGreenDays": 7,
+    "smallGreenToExpandingDays": 10,
+    "expandingToBreakerDays": 30,
+    "breakerToRedDays": 10
+  },
+  "leafDevelopment": {
+    "leafExpansionDays": 18,
+    "leafMatureDays": 25,
+    "leafDroopIncreasePerDay": 0.8,
+    "lateralSpreadScale": 0.75,
+    "maxLateralSpreadDeg": 90,
+    "supportStringInfluence": 0.4
+  },
+  "stemDevelopment": {
+    "internodeLengthCmMean": 7.0,
+    "nodeAppearanceIntervalDays": 3.5,
+    "stemElongationRateCmPerDay": 3.0
+  }
+}

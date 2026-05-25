@@ -20,8 +20,13 @@
   },
 
   "phenology": {
-    // GDD thresholds (CROPGRO-Tomato standard at T_base=10°C)
-    "GDD_to_first_flower": 250,
+    // GDD thresholds (CROPGRO-Tomato standard at T_base=10°C).
+    //
+    // Iter 1A (2026-05-25, growth_update_001): GDD_to_first_flower 250→300
+    // per Reference Pack 08_day_gdd_mapping.json — user target firstVisible
+    // TrussDay=25 days × 12 GDD/day at 22°C = 300. Original 250 → day 21,
+    // ~4 days too early. Citation: RDA 2020 §3 + user_target_v0.1.
+    "GDD_to_first_flower": 300,
     "GDD_per_truss": 120,
     "GDD_flower_to_red": 800,
     "cellDivisionDurationGDD": 150,
@@ -85,8 +90,13 @@
       "stem": 0.15,
       "root": 0.07
     },
-    "gompertzRateB": 0.06,
-    "gompertzInflectionC": 0.45
+    // Iter 1A (2026-05-25): Gompertz curve was producing 80mm fruit by
+    // day 30 (Reference Pack target: 0mm). gompertzInflectionC 0.45→0.55
+    // delays τ from 292.5 GDD to 357.5 GDD post-fertilization (~+5 days).
+    // gompertzRateB 0.06→0.05 slows asymptote approach. Citation:
+    // Anaya-Ramirez 2024 fits cluster at τ/total 0.5-0.6, B 0.04-0.06.
+    "gompertzRateB": 0.05,
+    "gompertzInflectionC": 0.55
   },
 
   // ────────────────────────────────────────────────────────────────
@@ -118,6 +128,15 @@
         "fruitPruning":  { "enabled": true },
         // v4.2 — Korean commercial practice: bottom-up lower-leaf pruning.
         // Defoliation starts at D80, removes only y ≤ 0.50 m bed-near old leaves.
+        // Iter 2 attempted (2026-05-25, growth_update_002):
+        //   startDay 80→35 + removeBelowHeightM 0.50→0.60 + minLeafAgeDaysAtRemoval 30→21
+        //   ROLLED BACK — caused S regression (0.652 → 0.626), removed leaves that
+        //   reference still expected visible. See growth_update_002 outcome.
+        //   Lesson: Reference Pack visibleLeafCount range (9-11 at day 30) is total
+        //   visible leaves, but our model counts only leaves passing visibility.visible
+        //   filter; aggressive defoliation makes sim < reference. Need to:
+        //   (a) verify what Reference Pack "visibleLeafCount" means operationally, OR
+        //   (b) loosen the defoliation while keeping lower-canopy management active.
         "defoliation":   { "enabled": true, "policy": "bottomUpHeight",
                            "startDay": 80, "removeBelowHeightM": 0.50, "minLeafAgeDaysAtRemoval": 30 },
         "harvest":       { "enabled": true, "atRipenStage": 5 }

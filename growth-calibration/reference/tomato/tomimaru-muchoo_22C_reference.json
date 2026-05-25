@@ -1,0 +1,1299 @@
+{
+  "schemaVersion": "growthCalibration.v1",
+  "bundleSchemaVersion": "referenceObservationBundle.v0.1",
+  "referencePackId": "tomato_tomimaru_reference_v0.1",
+  "generatedAt": "2026-05-25T07:26:49.141Z",
+  "observationCount": 11,
+  "observations": [
+    {
+      "schemaVersion": "growthCalibration.v1",
+      "provenance": {
+        "sourceType": "synthetic_reference",
+        "confidence": "low",
+        "sourceRefs": [
+          "tomato_tomimaru_reference_v0.1"
+        ],
+        "notes": "Auto-generated from Reference Pack v0.1 via build-reference-observations.ts. Range midpoints used for scalar fields. Replace with measured PlantObservations when available."
+      },
+      "experimentId": "tomato_tomimaru_reference_v0.1",
+      "plantId": "REF_P_day000",
+      "day": 0,
+      "observationDate": "2026-06-01_+day0",
+      "plantAgeDays": 0,
+      "thermalTime": {
+        "baseTemperatureC": 10,
+        "dailyGdd": 12,
+        "accumulatedGdd": 0,
+        "method": "simple_average"
+      },
+      "overall": {
+        "heightCm": 20,
+        "mainStemLengthCm": 20,
+        "mainStemDiameterMm": 4,
+        "nodeCount": 5,
+        "visibleLeafCount": 5,
+        "expandedLeafCount": 3,
+        "visibleTrussCount": 0,
+        "floweringTrussCount": 0,
+        "fruitingTrussCount": 0,
+        "fruitCountTotal": 0
+      },
+      "phenology": {
+        "vegetativeStage": "germination",
+        "reproductiveStage": "none",
+        "firstVisibleTrussDay": 20,
+        "firstFlowerOpenDay": 30,
+        "firstFruitSetDay": 40,
+        "firstFruitVisibleDay": 40,
+        "firstRipeFruitDay": null
+      },
+      "nodes": [],
+      "leaves": [],
+      "trusses": [],
+      "fruits": [],
+      "qualityFlags": {
+        "missingMeasurement": false,
+        "occludedOrgans": false,
+        "imageQuality": "good"
+      }
+    },
+    {
+      "schemaVersion": "growthCalibration.v1",
+      "provenance": {
+        "sourceType": "synthetic_reference",
+        "confidence": "low",
+        "sourceRefs": [
+          "tomato_tomimaru_reference_v0.1"
+        ],
+        "notes": "Auto-generated from Reference Pack v0.1 via build-reference-observations.ts. Range midpoints used for scalar fields. Replace with measured PlantObservations when available."
+      },
+      "experimentId": "tomato_tomimaru_reference_v0.1",
+      "plantId": "REF_P_day010",
+      "day": 10,
+      "observationDate": "2026-06-01_+day10",
+      "plantAgeDays": 10,
+      "thermalTime": {
+        "baseTemperatureC": 10,
+        "dailyGdd": 12,
+        "accumulatedGdd": 120,
+        "method": "simple_average"
+      },
+      "overall": {
+        "heightCm": 35,
+        "mainStemLengthCm": 35,
+        "mainStemDiameterMm": 5.5,
+        "nodeCount": 7,
+        "visibleLeafCount": 6,
+        "expandedLeafCount": 5,
+        "visibleTrussCount": 0,
+        "floweringTrussCount": 0,
+        "fruitingTrussCount": 0,
+        "fruitCountTotal": 0
+      },
+      "phenology": {
+        "vegetativeStage": "seedling",
+        "reproductiveStage": "none",
+        "firstVisibleTrussDay": 20,
+        "firstFlowerOpenDay": 30,
+        "firstFruitSetDay": 40,
+        "firstFruitVisibleDay": 40,
+        "firstRipeFruitDay": null
+      },
+      "nodes": [],
+      "leaves": [
+        {
+          "leafId": "L_ref_day10",
+          "nodeIndex": 7,
+          "status": "expanding",
+          "ageDays": 8,
+          "compoundLeaf": true,
+          "leafletCount": 4,
+          "petioleLengthCm": 6.5,
+          "rachisLengthCm": 10,
+          "leafLengthCm": 14,
+          "leafWidthCm": 7,
+          "leafAreaCm2": 0,
+          "orientation": {
+            "azimuthDeg": 90,
+            "elevationDeg": 12.5,
+            "droopAngleDeg": 8.5,
+            "rollDeg": 0
+          },
+          "shape": {
+            "averageLeafletAspect": 1.8,
+            "serrationLevel": "medium",
+            "curlLevel": "low"
+          },
+          "health": {
+            "colorStage": "green",
+            "senescence": 0,
+            "damageRatio": 0
+          }
+        }
+      ],
+      "trusses": [
+        {
+          "trussId": "T_ref_1",
+          "trussIndex": 1,
+          "attachedNodeIndex": 9,
+          "status": "not_visible",
+          "ageDays": 0,
+          "peduncleLengthCm": 0,
+          "rachisLengthCm": 0,
+          "flowerBudCount": 0,
+          "openFlowerCount": 0,
+          "fruitSetCount": 0,
+          "visibleFruitCount": 0,
+          "largestFruitDiameterMm": 0,
+          "orientation": {
+            "azimuthDeg": 0,
+            "elevationDeg": -10,
+            "droopAngleDeg": 12
+          },
+          "phenology": {
+            "visibleDay": null,
+            "firstFlowerOpenDay": null,
+            "firstFruitSetDay": null,
+            "firstFruitVisibleDay": null,
+            "firstRipeDay": null
+          }
+        }
+      ],
+      "fruits": [],
+      "qualityFlags": {
+        "missingMeasurement": false,
+        "occludedOrgans": false,
+        "imageQuality": "good"
+      }
+    },
+    {
+      "schemaVersion": "growthCalibration.v1",
+      "provenance": {
+        "sourceType": "synthetic_reference",
+        "confidence": "low",
+        "sourceRefs": [
+          "tomato_tomimaru_reference_v0.1"
+        ],
+        "notes": "Auto-generated from Reference Pack v0.1 via build-reference-observations.ts. Range midpoints used for scalar fields. Replace with measured PlantObservations when available."
+      },
+      "experimentId": "tomato_tomimaru_reference_v0.1",
+      "plantId": "REF_P_day020",
+      "day": 20,
+      "observationDate": "2026-06-01_+day20",
+      "plantAgeDays": 20,
+      "thermalTime": {
+        "baseTemperatureC": 10,
+        "dailyGdd": 12,
+        "accumulatedGdd": 240,
+        "method": "simple_average"
+      },
+      "overall": {
+        "heightCm": 55,
+        "mainStemLengthCm": 55,
+        "mainStemDiameterMm": 7,
+        "nodeCount": 10,
+        "visibleLeafCount": 8,
+        "expandedLeafCount": 7,
+        "visibleTrussCount": 1,
+        "floweringTrussCount": 0,
+        "fruitingTrussCount": 0,
+        "fruitCountTotal": 0
+      },
+      "phenology": {
+        "vegetativeStage": "juvenile",
+        "reproductiveStage": "truss_initiation",
+        "firstVisibleTrussDay": 20,
+        "firstFlowerOpenDay": 30,
+        "firstFruitSetDay": 40,
+        "firstFruitVisibleDay": 40,
+        "firstRipeFruitDay": null
+      },
+      "nodes": [],
+      "leaves": [
+        {
+          "leafId": "L_ref_day20",
+          "nodeIndex": 10,
+          "status": "expanded",
+          "ageDays": 8,
+          "compoundLeaf": true,
+          "leafletCount": 6,
+          "petioleLengthCm": 9.5,
+          "rachisLengthCm": 17,
+          "leafLengthCm": 24,
+          "leafWidthCm": 12.5,
+          "leafAreaCm2": 0,
+          "orientation": {
+            "azimuthDeg": 90,
+            "elevationDeg": 5,
+            "droopAngleDeg": 15,
+            "rollDeg": 0
+          },
+          "shape": {
+            "averageLeafletAspect": 1.8,
+            "serrationLevel": "medium",
+            "curlLevel": "low"
+          },
+          "health": {
+            "colorStage": "green",
+            "senescence": 0,
+            "damageRatio": 0
+          }
+        }
+      ],
+      "trusses": [
+        {
+          "trussId": "T_ref_1",
+          "trussIndex": 1,
+          "attachedNodeIndex": 9,
+          "status": "visible_bud",
+          "ageDays": 0,
+          "peduncleLengthCm": 0,
+          "rachisLengthCm": 0,
+          "flowerBudCount": 0,
+          "openFlowerCount": 0,
+          "fruitSetCount": 0,
+          "visibleFruitCount": 0,
+          "largestFruitDiameterMm": 0,
+          "orientation": {
+            "azimuthDeg": 0,
+            "elevationDeg": -10,
+            "droopAngleDeg": 12
+          },
+          "phenology": {
+            "visibleDay": null,
+            "firstFlowerOpenDay": null,
+            "firstFruitSetDay": null,
+            "firstFruitVisibleDay": null,
+            "firstRipeDay": null
+          }
+        }
+      ],
+      "fruits": [],
+      "qualityFlags": {
+        "missingMeasurement": false,
+        "occludedOrgans": false,
+        "imageQuality": "good"
+      }
+    },
+    {
+      "schemaVersion": "growthCalibration.v1",
+      "provenance": {
+        "sourceType": "synthetic_reference",
+        "confidence": "low",
+        "sourceRefs": [
+          "tomato_tomimaru_reference_v0.1"
+        ],
+        "notes": "Auto-generated from Reference Pack v0.1 via build-reference-observations.ts. Range midpoints used for scalar fields. Replace with measured PlantObservations when available."
+      },
+      "experimentId": "tomato_tomimaru_reference_v0.1",
+      "plantId": "REF_P_day030",
+      "day": 30,
+      "observationDate": "2026-06-01_+day30",
+      "plantAgeDays": 30,
+      "thermalTime": {
+        "baseTemperatureC": 10,
+        "dailyGdd": 12,
+        "accumulatedGdd": 360,
+        "method": "simple_average"
+      },
+      "overall": {
+        "heightCm": 75,
+        "mainStemLengthCm": 75,
+        "mainStemDiameterMm": 8.5,
+        "nodeCount": 13,
+        "visibleLeafCount": 10,
+        "expandedLeafCount": 9,
+        "visibleTrussCount": 1,
+        "floweringTrussCount": 1,
+        "fruitingTrussCount": 0,
+        "fruitCountTotal": 0
+      },
+      "phenology": {
+        "vegetativeStage": "juvenile",
+        "reproductiveStage": "flowering",
+        "firstVisibleTrussDay": 20,
+        "firstFlowerOpenDay": 30,
+        "firstFruitSetDay": 40,
+        "firstFruitVisibleDay": 40,
+        "firstRipeFruitDay": null
+      },
+      "nodes": [],
+      "leaves": [
+        {
+          "leafId": "L_ref_day30",
+          "nodeIndex": 13,
+          "status": "expanded",
+          "ageDays": 8,
+          "compoundLeaf": true,
+          "leafletCount": 7,
+          "petioleLengthCm": 12,
+          "rachisLengthCm": 23,
+          "leafLengthCm": 32,
+          "leafWidthCm": 18,
+          "leafAreaCm2": 0,
+          "orientation": {
+            "azimuthDeg": 90,
+            "elevationDeg": -12.5,
+            "droopAngleDeg": 22.5,
+            "rollDeg": 0
+          },
+          "shape": {
+            "averageLeafletAspect": 1.8,
+            "serrationLevel": "medium",
+            "curlLevel": "low"
+          },
+          "health": {
+            "colorStage": "green",
+            "senescence": 0,
+            "damageRatio": 0
+          }
+        }
+      ],
+      "trusses": [
+        {
+          "trussId": "T_ref_1",
+          "trussIndex": 1,
+          "attachedNodeIndex": 9,
+          "status": "flowering",
+          "ageDays": 0,
+          "peduncleLengthCm": 0,
+          "rachisLengthCm": 0,
+          "flowerBudCount": 0,
+          "openFlowerCount": 0,
+          "fruitSetCount": 0,
+          "visibleFruitCount": 0,
+          "largestFruitDiameterMm": 0,
+          "orientation": {
+            "azimuthDeg": 0,
+            "elevationDeg": -10,
+            "droopAngleDeg": 12
+          },
+          "phenology": {
+            "visibleDay": null,
+            "firstFlowerOpenDay": null,
+            "firstFruitSetDay": null,
+            "firstFruitVisibleDay": null,
+            "firstRipeDay": null
+          }
+        },
+        {
+          "trussId": "T_ref_2",
+          "trussIndex": 2,
+          "attachedNodeIndex": 12,
+          "status": "not_visible",
+          "ageDays": 0,
+          "peduncleLengthCm": 0,
+          "rachisLengthCm": 0,
+          "flowerBudCount": 0,
+          "openFlowerCount": 0,
+          "fruitSetCount": 0,
+          "visibleFruitCount": 0,
+          "largestFruitDiameterMm": 0,
+          "orientation": {
+            "azimuthDeg": 0,
+            "elevationDeg": -10,
+            "droopAngleDeg": 12
+          },
+          "phenology": {
+            "visibleDay": null,
+            "firstFlowerOpenDay": null,
+            "firstFruitSetDay": null,
+            "firstFruitVisibleDay": null,
+            "firstRipeDay": null
+          }
+        }
+      ],
+      "fruits": [],
+      "qualityFlags": {
+        "missingMeasurement": false,
+        "occludedOrgans": false,
+        "imageQuality": "good"
+      }
+    },
+    {
+      "schemaVersion": "growthCalibration.v1",
+      "provenance": {
+        "sourceType": "synthetic_reference",
+        "confidence": "low",
+        "sourceRefs": [
+          "tomato_tomimaru_reference_v0.1"
+        ],
+        "notes": "Auto-generated from Reference Pack v0.1 via build-reference-observations.ts. Range midpoints used for scalar fields. Replace with measured PlantObservations when available."
+      },
+      "experimentId": "tomato_tomimaru_reference_v0.1",
+      "plantId": "REF_P_day040",
+      "day": 40,
+      "observationDate": "2026-06-01_+day40",
+      "plantAgeDays": 40,
+      "thermalTime": {
+        "baseTemperatureC": 10,
+        "dailyGdd": 12,
+        "accumulatedGdd": 480,
+        "method": "simple_average"
+      },
+      "overall": {
+        "heightCm": 105,
+        "mainStemLengthCm": 105,
+        "mainStemDiameterMm": 10,
+        "nodeCount": 16,
+        "visibleLeafCount": 12,
+        "expandedLeafCount": 11,
+        "visibleTrussCount": 2,
+        "floweringTrussCount": 1,
+        "fruitingTrussCount": 1,
+        "fruitCountTotal": 1
+      },
+      "phenology": {
+        "vegetativeStage": "active_growth",
+        "reproductiveStage": "fruit_set",
+        "firstVisibleTrussDay": 20,
+        "firstFlowerOpenDay": 30,
+        "firstFruitSetDay": 40,
+        "firstFruitVisibleDay": 40,
+        "firstRipeFruitDay": null
+      },
+      "nodes": [],
+      "leaves": [
+        {
+          "leafId": "L_ref_day40",
+          "nodeIndex": 16,
+          "status": "expanded",
+          "ageDays": 8,
+          "compoundLeaf": true,
+          "leafletCount": 8,
+          "petioleLengthCm": 14,
+          "rachisLengthCm": 27,
+          "leafLengthCm": 38,
+          "leafWidthCm": 22,
+          "leafAreaCm2": 0,
+          "orientation": {
+            "azimuthDeg": 90,
+            "elevationDeg": -17.5,
+            "droopAngleDeg": 27.5,
+            "rollDeg": 0
+          },
+          "shape": {
+            "averageLeafletAspect": 1.8,
+            "serrationLevel": "medium",
+            "curlLevel": "low"
+          },
+          "health": {
+            "colorStage": "green",
+            "senescence": 0,
+            "damageRatio": 0
+          }
+        }
+      ],
+      "trusses": [
+        {
+          "trussId": "T_ref_1",
+          "trussIndex": 1,
+          "attachedNodeIndex": 9,
+          "status": "small_green",
+          "ageDays": 0,
+          "peduncleLengthCm": 0,
+          "rachisLengthCm": 0,
+          "flowerBudCount": 0,
+          "openFlowerCount": 0,
+          "fruitSetCount": 0,
+          "visibleFruitCount": 1,
+          "largestFruitDiameterMm": 5.5,
+          "orientation": {
+            "azimuthDeg": 0,
+            "elevationDeg": -10,
+            "droopAngleDeg": 12
+          },
+          "phenology": {
+            "visibleDay": null,
+            "firstFlowerOpenDay": null,
+            "firstFruitSetDay": null,
+            "firstFruitVisibleDay": null,
+            "firstRipeDay": null
+          }
+        },
+        {
+          "trussId": "T_ref_2",
+          "trussIndex": 2,
+          "attachedNodeIndex": 12,
+          "status": "visible_bud",
+          "ageDays": 0,
+          "peduncleLengthCm": 0,
+          "rachisLengthCm": 0,
+          "flowerBudCount": 0,
+          "openFlowerCount": 0,
+          "fruitSetCount": 0,
+          "visibleFruitCount": 0,
+          "largestFruitDiameterMm": 0,
+          "orientation": {
+            "azimuthDeg": 0,
+            "elevationDeg": -10,
+            "droopAngleDeg": 12
+          },
+          "phenology": {
+            "visibleDay": null,
+            "firstFlowerOpenDay": null,
+            "firstFruitSetDay": null,
+            "firstFruitVisibleDay": null,
+            "firstRipeDay": null
+          }
+        }
+      ],
+      "fruits": [],
+      "qualityFlags": {
+        "missingMeasurement": false,
+        "occludedOrgans": false,
+        "imageQuality": "good"
+      }
+    },
+    {
+      "schemaVersion": "growthCalibration.v1",
+      "provenance": {
+        "sourceType": "synthetic_reference",
+        "confidence": "low",
+        "sourceRefs": [
+          "tomato_tomimaru_reference_v0.1"
+        ],
+        "notes": "Auto-generated from Reference Pack v0.1 via build-reference-observations.ts. Range midpoints used for scalar fields. Replace with measured PlantObservations when available."
+      },
+      "experimentId": "tomato_tomimaru_reference_v0.1",
+      "plantId": "REF_P_day050",
+      "day": 50,
+      "observationDate": "2026-06-01_+day50",
+      "plantAgeDays": 50,
+      "thermalTime": {
+        "baseTemperatureC": 10,
+        "dailyGdd": 12,
+        "accumulatedGdd": 600,
+        "method": "simple_average"
+      },
+      "overall": {
+        "heightCm": 140,
+        "mainStemLengthCm": 140,
+        "mainStemDiameterMm": 11.5,
+        "nodeCount": 19,
+        "visibleLeafCount": 14,
+        "expandedLeafCount": 13,
+        "visibleTrussCount": 3,
+        "floweringTrussCount": 2,
+        "fruitingTrussCount": 2,
+        "fruitCountTotal": 4
+      },
+      "phenology": {
+        "vegetativeStage": "active_growth",
+        "reproductiveStage": "fruit_set",
+        "firstVisibleTrussDay": 20,
+        "firstFlowerOpenDay": 30,
+        "firstFruitSetDay": 40,
+        "firstFruitVisibleDay": 40,
+        "firstRipeFruitDay": null
+      },
+      "nodes": [],
+      "leaves": [
+        {
+          "leafId": "L_ref_day50",
+          "nodeIndex": 19,
+          "status": "expanded",
+          "ageDays": 8,
+          "compoundLeaf": true,
+          "leafletCount": 9,
+          "petioleLengthCm": 16,
+          "rachisLengthCm": 31,
+          "leafLengthCm": 44,
+          "leafWidthCm": 26,
+          "leafAreaCm2": 0,
+          "orientation": {
+            "azimuthDeg": 90,
+            "elevationDeg": -22.5,
+            "droopAngleDeg": 32.5,
+            "rollDeg": 0
+          },
+          "shape": {
+            "averageLeafletAspect": 1.8,
+            "serrationLevel": "medium",
+            "curlLevel": "low"
+          },
+          "health": {
+            "colorStage": "green",
+            "senescence": 0,
+            "damageRatio": 0
+          }
+        }
+      ],
+      "trusses": [
+        {
+          "trussId": "T_ref_1",
+          "trussIndex": 1,
+          "attachedNodeIndex": 9,
+          "status": "small_green",
+          "ageDays": 0,
+          "peduncleLengthCm": 0,
+          "rachisLengthCm": 0,
+          "flowerBudCount": 0,
+          "openFlowerCount": 0,
+          "fruitSetCount": 0,
+          "visibleFruitCount": 4,
+          "largestFruitDiameterMm": 14,
+          "orientation": {
+            "azimuthDeg": 0,
+            "elevationDeg": -10,
+            "droopAngleDeg": 12
+          },
+          "phenology": {
+            "visibleDay": null,
+            "firstFlowerOpenDay": null,
+            "firstFruitSetDay": null,
+            "firstFruitVisibleDay": null,
+            "firstRipeDay": null
+          }
+        },
+        {
+          "trussId": "T_ref_2",
+          "trussIndex": 2,
+          "attachedNodeIndex": 12,
+          "status": "fruit_set",
+          "ageDays": 0,
+          "peduncleLengthCm": 0,
+          "rachisLengthCm": 0,
+          "flowerBudCount": 0,
+          "openFlowerCount": 0,
+          "fruitSetCount": 0,
+          "visibleFruitCount": 1,
+          "largestFruitDiameterMm": 5.5,
+          "orientation": {
+            "azimuthDeg": 0,
+            "elevationDeg": -10,
+            "droopAngleDeg": 12
+          },
+          "phenology": {
+            "visibleDay": null,
+            "firstFlowerOpenDay": null,
+            "firstFruitSetDay": null,
+            "firstFruitVisibleDay": null,
+            "firstRipeDay": null
+          }
+        }
+      ],
+      "fruits": [],
+      "qualityFlags": {
+        "missingMeasurement": false,
+        "occludedOrgans": false,
+        "imageQuality": "good"
+      }
+    },
+    {
+      "schemaVersion": "growthCalibration.v1",
+      "provenance": {
+        "sourceType": "synthetic_reference",
+        "confidence": "low",
+        "sourceRefs": [
+          "tomato_tomimaru_reference_v0.1"
+        ],
+        "notes": "Auto-generated from Reference Pack v0.1 via build-reference-observations.ts. Range midpoints used for scalar fields. Replace with measured PlantObservations when available."
+      },
+      "experimentId": "tomato_tomimaru_reference_v0.1",
+      "plantId": "REF_P_day060",
+      "day": 60,
+      "observationDate": "2026-06-01_+day60",
+      "plantAgeDays": 60,
+      "thermalTime": {
+        "baseTemperatureC": 10,
+        "dailyGdd": 12,
+        "accumulatedGdd": 720,
+        "method": "simple_average"
+      },
+      "overall": {
+        "heightCm": 165,
+        "mainStemLengthCm": 165,
+        "mainStemDiameterMm": 13,
+        "nodeCount": 22,
+        "visibleLeafCount": 16,
+        "expandedLeafCount": 15,
+        "visibleTrussCount": 4,
+        "floweringTrussCount": 2,
+        "fruitingTrussCount": 3,
+        "fruitCountTotal": 8
+      },
+      "phenology": {
+        "vegetativeStage": "active_growth",
+        "reproductiveStage": "fruit_expansion",
+        "firstVisibleTrussDay": 20,
+        "firstFlowerOpenDay": 30,
+        "firstFruitSetDay": 40,
+        "firstFruitVisibleDay": 40,
+        "firstRipeFruitDay": null
+      },
+      "nodes": [],
+      "leaves": [
+        {
+          "leafId": "L_ref_day60",
+          "nodeIndex": 22,
+          "status": "expanded",
+          "ageDays": 8,
+          "compoundLeaf": true,
+          "leafletCount": 9,
+          "petioleLengthCm": 17,
+          "rachisLengthCm": 33,
+          "leafLengthCm": 48,
+          "leafWidthCm": 28,
+          "leafAreaCm2": 0,
+          "orientation": {
+            "azimuthDeg": 90,
+            "elevationDeg": -27.5,
+            "droopAngleDeg": 37.5,
+            "rollDeg": 0
+          },
+          "shape": {
+            "averageLeafletAspect": 1.8,
+            "serrationLevel": "medium",
+            "curlLevel": "low"
+          },
+          "health": {
+            "colorStage": "green",
+            "senescence": 0,
+            "damageRatio": 0
+          }
+        }
+      ],
+      "trusses": [
+        {
+          "trussId": "T_ref_1",
+          "trussIndex": 1,
+          "attachedNodeIndex": 9,
+          "status": "green_expanding",
+          "ageDays": 0,
+          "peduncleLengthCm": 0,
+          "rachisLengthCm": 0,
+          "flowerBudCount": 0,
+          "openFlowerCount": 0,
+          "fruitSetCount": 0,
+          "visibleFruitCount": 5,
+          "largestFruitDiameterMm": 27,
+          "orientation": {
+            "azimuthDeg": 0,
+            "elevationDeg": -10,
+            "droopAngleDeg": 12
+          },
+          "phenology": {
+            "visibleDay": null,
+            "firstFlowerOpenDay": null,
+            "firstFruitSetDay": null,
+            "firstFruitVisibleDay": null,
+            "firstRipeDay": null
+          }
+        },
+        {
+          "trussId": "T_ref_2",
+          "trussIndex": 2,
+          "attachedNodeIndex": 12,
+          "status": "small_green",
+          "ageDays": 0,
+          "peduncleLengthCm": 0,
+          "rachisLengthCm": 0,
+          "flowerBudCount": 0,
+          "openFlowerCount": 0,
+          "fruitSetCount": 0,
+          "visibleFruitCount": 4,
+          "largestFruitDiameterMm": 14,
+          "orientation": {
+            "azimuthDeg": 0,
+            "elevationDeg": -10,
+            "droopAngleDeg": 12
+          },
+          "phenology": {
+            "visibleDay": null,
+            "firstFlowerOpenDay": null,
+            "firstFruitSetDay": null,
+            "firstFruitVisibleDay": null,
+            "firstRipeDay": null
+          }
+        }
+      ],
+      "fruits": [],
+      "qualityFlags": {
+        "missingMeasurement": false,
+        "occludedOrgans": false,
+        "imageQuality": "good"
+      }
+    },
+    {
+      "schemaVersion": "growthCalibration.v1",
+      "provenance": {
+        "sourceType": "synthetic_reference",
+        "confidence": "low",
+        "sourceRefs": [
+          "tomato_tomimaru_reference_v0.1"
+        ],
+        "notes": "Auto-generated from Reference Pack v0.1 via build-reference-observations.ts. Range midpoints used for scalar fields. Replace with measured PlantObservations when available."
+      },
+      "experimentId": "tomato_tomimaru_reference_v0.1",
+      "plantId": "REF_P_day070",
+      "day": 70,
+      "observationDate": "2026-06-01_+day70",
+      "plantAgeDays": 70,
+      "thermalTime": {
+        "baseTemperatureC": 10,
+        "dailyGdd": 12,
+        "accumulatedGdd": 840,
+        "method": "simple_average"
+      },
+      "overall": {
+        "heightCm": 195,
+        "mainStemLengthCm": 195,
+        "mainStemDiameterMm": 14.5,
+        "nodeCount": 25,
+        "visibleLeafCount": 18,
+        "expandedLeafCount": 17,
+        "visibleTrussCount": 5,
+        "floweringTrussCount": 2,
+        "fruitingTrussCount": 4,
+        "fruitCountTotal": 13
+      },
+      "phenology": {
+        "vegetativeStage": "active_growth",
+        "reproductiveStage": "fruit_expansion",
+        "firstVisibleTrussDay": 20,
+        "firstFlowerOpenDay": 30,
+        "firstFruitSetDay": 40,
+        "firstFruitVisibleDay": 40,
+        "firstRipeFruitDay": null
+      },
+      "nodes": [],
+      "leaves": [
+        {
+          "leafId": "L_ref_day70",
+          "nodeIndex": 25,
+          "status": "expanded",
+          "ageDays": 8,
+          "compoundLeaf": true,
+          "leafletCount": 9,
+          "petioleLengthCm": 18,
+          "rachisLengthCm": 34,
+          "leafLengthCm": 50,
+          "leafWidthCm": 29,
+          "leafAreaCm2": 0,
+          "orientation": {
+            "azimuthDeg": 90,
+            "elevationDeg": -32.5,
+            "droopAngleDeg": 42.5,
+            "rollDeg": 0
+          },
+          "shape": {
+            "averageLeafletAspect": 1.8,
+            "serrationLevel": "medium",
+            "curlLevel": "low"
+          },
+          "health": {
+            "colorStage": "green",
+            "senescence": 0,
+            "damageRatio": 0
+          }
+        }
+      ],
+      "trusses": [
+        {
+          "trussId": "T_ref_1",
+          "trussIndex": 1,
+          "attachedNodeIndex": 9,
+          "status": "green_expanding",
+          "ageDays": 0,
+          "peduncleLengthCm": 0,
+          "rachisLengthCm": 0,
+          "flowerBudCount": 0,
+          "openFlowerCount": 0,
+          "fruitSetCount": 0,
+          "visibleFruitCount": 5,
+          "largestFruitDiameterMm": 40,
+          "orientation": {
+            "azimuthDeg": 0,
+            "elevationDeg": -10,
+            "droopAngleDeg": 12
+          },
+          "phenology": {
+            "visibleDay": null,
+            "firstFlowerOpenDay": null,
+            "firstFruitSetDay": null,
+            "firstFruitVisibleDay": null,
+            "firstRipeDay": null
+          }
+        },
+        {
+          "trussId": "T_ref_2",
+          "trussIndex": 2,
+          "attachedNodeIndex": 12,
+          "status": "green_expanding",
+          "ageDays": 0,
+          "peduncleLengthCm": 0,
+          "rachisLengthCm": 0,
+          "flowerBudCount": 0,
+          "openFlowerCount": 0,
+          "fruitSetCount": 0,
+          "visibleFruitCount": 5,
+          "largestFruitDiameterMm": 27,
+          "orientation": {
+            "azimuthDeg": 0,
+            "elevationDeg": -10,
+            "droopAngleDeg": 12
+          },
+          "phenology": {
+            "visibleDay": null,
+            "firstFlowerOpenDay": null,
+            "firstFruitSetDay": null,
+            "firstFruitVisibleDay": null,
+            "firstRipeDay": null
+          }
+        }
+      ],
+      "fruits": [],
+      "qualityFlags": {
+        "missingMeasurement": false,
+        "occludedOrgans": false,
+        "imageQuality": "good"
+      }
+    },
+    {
+      "schemaVersion": "growthCalibration.v1",
+      "provenance": {
+        "sourceType": "synthetic_reference",
+        "confidence": "low",
+        "sourceRefs": [
+          "tomato_tomimaru_reference_v0.1"
+        ],
+        "notes": "Auto-generated from Reference Pack v0.1 via build-reference-observations.ts. Range midpoints used for scalar fields. Replace with measured PlantObservations when available."
+      },
+      "experimentId": "tomato_tomimaru_reference_v0.1",
+      "plantId": "REF_P_day080",
+      "day": 80,
+      "observationDate": "2026-06-01_+day80",
+      "plantAgeDays": 80,
+      "thermalTime": {
+        "baseTemperatureC": 10,
+        "dailyGdd": 12,
+        "accumulatedGdd": 960,
+        "method": "simple_average"
+      },
+      "overall": {
+        "heightCm": 225,
+        "mainStemLengthCm": 225,
+        "mainStemDiameterMm": 16,
+        "nodeCount": 28,
+        "visibleLeafCount": 20,
+        "expandedLeafCount": 18,
+        "visibleTrussCount": 6,
+        "floweringTrussCount": 2,
+        "fruitingTrussCount": 5,
+        "fruitCountTotal": 19
+      },
+      "phenology": {
+        "vegetativeStage": "active_growth",
+        "reproductiveStage": "ripening",
+        "firstVisibleTrussDay": 20,
+        "firstFlowerOpenDay": 30,
+        "firstFruitSetDay": 40,
+        "firstFruitVisibleDay": 40,
+        "firstRipeFruitDay": null
+      },
+      "nodes": [],
+      "leaves": [
+        {
+          "leafId": "L_ref_day80",
+          "nodeIndex": 28,
+          "status": "expanded",
+          "ageDays": 8,
+          "compoundLeaf": true,
+          "leafletCount": 9,
+          "petioleLengthCm": 18,
+          "rachisLengthCm": 34,
+          "leafLengthCm": 50,
+          "leafWidthCm": 29,
+          "leafAreaCm2": 0,
+          "orientation": {
+            "azimuthDeg": 90,
+            "elevationDeg": -37.5,
+            "droopAngleDeg": 47.5,
+            "rollDeg": 0
+          },
+          "shape": {
+            "averageLeafletAspect": 1.8,
+            "serrationLevel": "medium",
+            "curlLevel": "low"
+          },
+          "health": {
+            "colorStage": "green",
+            "senescence": 0,
+            "damageRatio": 0
+          }
+        }
+      ],
+      "trusses": [
+        {
+          "trussId": "T_ref_1",
+          "trussIndex": 1,
+          "attachedNodeIndex": 9,
+          "status": "breaker",
+          "ageDays": 0,
+          "peduncleLengthCm": 0,
+          "rachisLengthCm": 0,
+          "flowerBudCount": 0,
+          "openFlowerCount": 0,
+          "fruitSetCount": 0,
+          "visibleFruitCount": 5,
+          "largestFruitDiameterMm": 50,
+          "orientation": {
+            "azimuthDeg": 0,
+            "elevationDeg": -10,
+            "droopAngleDeg": 12
+          },
+          "phenology": {
+            "visibleDay": null,
+            "firstFlowerOpenDay": null,
+            "firstFruitSetDay": null,
+            "firstFruitVisibleDay": null,
+            "firstRipeDay": null
+          }
+        },
+        {
+          "trussId": "T_ref_2",
+          "trussIndex": 2,
+          "attachedNodeIndex": 12,
+          "status": "green_expanding",
+          "ageDays": 0,
+          "peduncleLengthCm": 0,
+          "rachisLengthCm": 0,
+          "flowerBudCount": 0,
+          "openFlowerCount": 0,
+          "fruitSetCount": 0,
+          "visibleFruitCount": 5,
+          "largestFruitDiameterMm": 40,
+          "orientation": {
+            "azimuthDeg": 0,
+            "elevationDeg": -10,
+            "droopAngleDeg": 12
+          },
+          "phenology": {
+            "visibleDay": null,
+            "firstFlowerOpenDay": null,
+            "firstFruitSetDay": null,
+            "firstFruitVisibleDay": null,
+            "firstRipeDay": null
+          }
+        }
+      ],
+      "fruits": [],
+      "qualityFlags": {
+        "missingMeasurement": false,
+        "occludedOrgans": false,
+        "imageQuality": "good"
+      }
+    },
+    {
+      "schemaVersion": "growthCalibration.v1",
+      "provenance": {
+        "sourceType": "synthetic_reference",
+        "confidence": "low",
+        "sourceRefs": [
+          "tomato_tomimaru_reference_v0.1"
+        ],
+        "notes": "Auto-generated from Reference Pack v0.1 via build-reference-observations.ts. Range midpoints used for scalar fields. Replace with measured PlantObservations when available."
+      },
+      "experimentId": "tomato_tomimaru_reference_v0.1",
+      "plantId": "REF_P_day090",
+      "day": 90,
+      "observationDate": "2026-06-01_+day90",
+      "plantAgeDays": 90,
+      "thermalTime": {
+        "baseTemperatureC": 10,
+        "dailyGdd": 12,
+        "accumulatedGdd": 1080,
+        "method": "simple_average"
+      },
+      "overall": {
+        "heightCm": 255,
+        "mainStemLengthCm": 255,
+        "mainStemDiameterMm": 17.5,
+        "nodeCount": 31,
+        "visibleLeafCount": 21,
+        "expandedLeafCount": 19,
+        "visibleTrussCount": 7,
+        "floweringTrussCount": 2,
+        "fruitingTrussCount": 6,
+        "fruitCountTotal": 24
+      },
+      "phenology": {
+        "vegetativeStage": "active_growth",
+        "reproductiveStage": "ripening",
+        "firstVisibleTrussDay": 20,
+        "firstFlowerOpenDay": 30,
+        "firstFruitSetDay": 40,
+        "firstFruitVisibleDay": 40,
+        "firstRipeFruitDay": null
+      },
+      "nodes": [],
+      "leaves": [],
+      "trusses": [
+        {
+          "trussId": "T_ref_1",
+          "trussIndex": 1,
+          "attachedNodeIndex": 9,
+          "status": "red",
+          "ageDays": 0,
+          "peduncleLengthCm": 0,
+          "rachisLengthCm": 0,
+          "flowerBudCount": 0,
+          "openFlowerCount": 0,
+          "fruitSetCount": 0,
+          "visibleFruitCount": 5,
+          "largestFruitDiameterMm": 57.5,
+          "orientation": {
+            "azimuthDeg": 0,
+            "elevationDeg": -10,
+            "droopAngleDeg": 12
+          },
+          "phenology": {
+            "visibleDay": null,
+            "firstFlowerOpenDay": null,
+            "firstFruitSetDay": null,
+            "firstFruitVisibleDay": null,
+            "firstRipeDay": null
+          }
+        },
+        {
+          "trussId": "T_ref_2",
+          "trussIndex": 2,
+          "attachedNodeIndex": 12,
+          "status": "breaker",
+          "ageDays": 0,
+          "peduncleLengthCm": 0,
+          "rachisLengthCm": 0,
+          "flowerBudCount": 0,
+          "openFlowerCount": 0,
+          "fruitSetCount": 0,
+          "visibleFruitCount": 5,
+          "largestFruitDiameterMm": 50,
+          "orientation": {
+            "azimuthDeg": 0,
+            "elevationDeg": -10,
+            "droopAngleDeg": 12
+          },
+          "phenology": {
+            "visibleDay": null,
+            "firstFlowerOpenDay": null,
+            "firstFruitSetDay": null,
+            "firstFruitVisibleDay": null,
+            "firstRipeDay": null
+          }
+        }
+      ],
+      "fruits": [],
+      "qualityFlags": {
+        "missingMeasurement": false,
+        "occludedOrgans": false,
+        "imageQuality": "good"
+      }
+    },
+    {
+      "schemaVersion": "growthCalibration.v1",
+      "provenance": {
+        "sourceType": "synthetic_reference",
+        "confidence": "low",
+        "sourceRefs": [
+          "tomato_tomimaru_reference_v0.1"
+        ],
+        "notes": "Auto-generated from Reference Pack v0.1 via build-reference-observations.ts. Range midpoints used for scalar fields. Replace with measured PlantObservations when available."
+      },
+      "experimentId": "tomato_tomimaru_reference_v0.1",
+      "plantId": "REF_P_day100",
+      "day": 100,
+      "observationDate": "2026-06-01_+day100",
+      "plantAgeDays": 100,
+      "thermalTime": {
+        "baseTemperatureC": 10,
+        "dailyGdd": 12,
+        "accumulatedGdd": 1200,
+        "method": "simple_average"
+      },
+      "overall": {
+        "heightCm": 285,
+        "mainStemLengthCm": 285,
+        "mainStemDiameterMm": 19,
+        "nodeCount": 34,
+        "visibleLeafCount": 23,
+        "expandedLeafCount": 20,
+        "visibleTrussCount": 8,
+        "floweringTrussCount": 2,
+        "fruitingTrussCount": 7,
+        "fruitCountTotal": 30
+      },
+      "phenology": {
+        "vegetativeStage": "mature",
+        "reproductiveStage": "harvest",
+        "firstVisibleTrussDay": 20,
+        "firstFlowerOpenDay": 30,
+        "firstFruitSetDay": 40,
+        "firstFruitVisibleDay": 40,
+        "firstRipeFruitDay": null
+      },
+      "nodes": [],
+      "leaves": [],
+      "trusses": [
+        {
+          "trussId": "T_ref_1",
+          "trussIndex": 1,
+          "attachedNodeIndex": 9,
+          "status": "harvest_ready",
+          "ageDays": 0,
+          "peduncleLengthCm": 0,
+          "rachisLengthCm": 0,
+          "flowerBudCount": 0,
+          "openFlowerCount": 0,
+          "fruitSetCount": 0,
+          "visibleFruitCount": 5,
+          "largestFruitDiameterMm": 62.5,
+          "orientation": {
+            "azimuthDeg": 0,
+            "elevationDeg": -10,
+            "droopAngleDeg": 12
+          },
+          "phenology": {
+            "visibleDay": null,
+            "firstFlowerOpenDay": null,
+            "firstFruitSetDay": null,
+            "firstFruitVisibleDay": null,
+            "firstRipeDay": null
+          }
+        },
+        {
+          "trussId": "T_ref_2",
+          "trussIndex": 2,
+          "attachedNodeIndex": 12,
+          "status": "red",
+          "ageDays": 0,
+          "peduncleLengthCm": 0,
+          "rachisLengthCm": 0,
+          "flowerBudCount": 0,
+          "openFlowerCount": 0,
+          "fruitSetCount": 0,
+          "visibleFruitCount": 5,
+          "largestFruitDiameterMm": 57.5,
+          "orientation": {
+            "azimuthDeg": 0,
+            "elevationDeg": -10,
+            "droopAngleDeg": 12
+          },
+          "phenology": {
+            "visibleDay": null,
+            "firstFlowerOpenDay": null,
+            "firstFruitSetDay": null,
+            "firstFruitVisibleDay": null,
+            "firstRipeDay": null
+          }
+        }
+      ],
+      "fruits": [],
+      "qualityFlags": {
+        "missingMeasurement": false,
+        "occludedOrgans": false,
+        "imageQuality": "good"
+      }
+    }
+  ]
+}

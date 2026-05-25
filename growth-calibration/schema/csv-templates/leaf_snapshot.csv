@@ -1,0 +1,2 @@
+experiment_id,plant_id,day,leaf_id,node_index,status,leaflet_count,petiole_length_cm,rachis_length_cm,leaf_length_cm,leaf_width_cm,leaf_area_cm2,azimuth_deg,elevation_deg,droop_angle_deg
+tomato_calib_001,P001,30,L008,8,expanded,7,12.4,23.1,31.2,18.5,220,120,-18,24

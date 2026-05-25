@@ -1,0 +1,87 @@
+{
+  "schemaVersion": "growthCalibration.v1",
+  "provenance": {
+    "sourceType": "user_target",
+    "confidence": "low",
+    "sourceRefs": ["schema cross-crop reuse smoke test"],
+    "notes": "Strawberry example — no truss/fruit-tree structure, uses cropSpecific.strawberry with crown/runner/flowerCluster."
+  },
+  "experimentId": "strawberry_schema_smoke_001",
+  "plantId": "P001",
+  "day": 90,
+  "observationDate": "2026-08-30",
+  "plantAgeDays": 90,
+  "overall": {
+    "heightCm": 22.0,
+    "mainStemLengthCm": 0,
+    "mainStemDiameterMm": 0,
+    "nodeCount": 0,
+    "visibleLeafCount": 14,
+    "expandedLeafCount": 12,
+    "visibleTrussCount": 0,
+    "floweringTrussCount": 0,
+    "fruitingTrussCount": 0,
+    "fruitCountTotal": 8
+  },
+  "phenology": {
+    "vegetativeStage": "mature",
+    "reproductiveStage": "fruit_expansion",
+    "firstVisibleTrussDay": null,
+    "firstFlowerOpenDay": 45,
+    "firstFruitSetDay": 52,
+    "firstFruitVisibleDay": 58,
+    "firstRipeFruitDay": 78
+  },
+  "nodes": [],
+  "leaves": [
+    {
+      "leafId": "L008",
+      "nodeIndex": 8,
+      "status": "mature",
+      "ageDays": 25,
+      "compoundLeaf": true,
+      "leafletCount": 3,
+      "petioleLengthCm": 12.0,
+      "rachisLengthCm": 1.5,
+      "leafLengthCm": 9.0,
+      "leafWidthCm": 8.5,
+      "leafAreaCm2": 60.0,
+      "orientation": {
+        "azimuthDeg": 50,
+        "elevationDeg": -5,
+        "droopAngleDeg": 12,
+        "rollDeg": 0
+      },
+      "shape": {
+        "averageLeafletAspect": 1.1,
+        "serrationLevel": "medium",
+        "curlLevel": "none"
+      },
+      "health": {
+        "colorStage": "green",
+        "senescence": 0.0,
+        "damageRatio": 0.0
+      }
+    }
+  ],
+  "trusses": [],
+  "fruits": [],
+  "cropSpecific": {
+    "strawberry": {
+      "crownCount": 2,
+      "runnerCount": 4,
+      "flowerClusterCount": 3,
+      "runners": [
+        { "id": "R001", "lengthCm": 28.0, "daughterPlantCount": 1 },
+        { "id": "R002", "lengthCm": 22.0, "daughterPlantCount": 1 },
+        { "id": "R003", "lengthCm": 8.0,  "daughterPlantCount": 0 },
+        { "id": "R004", "lengthCm": 4.0,  "daughterPlantCount": 0 }
+      ]
+    }
+  },
+  "qualityFlags": {
+    "missingMeasurement": false,
+    "occludedOrgans": false,
+    "imageQuality": "good"
+  }
+}

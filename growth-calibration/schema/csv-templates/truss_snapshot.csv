@@ -1,0 +1,2 @@
+experiment_id,plant_id,day,truss_id,truss_index,attached_node_index,status,flower_bud_count,open_flower_count,fruit_set_count,visible_fruit_count,largest_fruit_diameter_mm
+tomato_calib_001,P001,30,T001,1,8,visible_bud,5,0,0,0,0

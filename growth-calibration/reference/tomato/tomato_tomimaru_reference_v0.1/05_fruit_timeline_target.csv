@@ -1,0 +1,17 @@
+day,truss_index,allowed_stage_min,allowed_stage_max,visible_fruit_min,visible_fruit_max,max_diameter_mm_min,max_diameter_mm_max,diagnostic_note
+30,1,flower,flower,0,0,0,0,fruit visible too early if present
+40,1,fruit_set,small_green,0,2,3,8,fruit just beginning
+50,1,small_green,small_green,3,5,10,18,visible small fruit
+60,1,green_expanding,green_expanding,4,6,22,32,rapid expansion
+70,1,green_expanding,green_expanding,4,6,35,45,large green
+80,1,green_expanding,breaker,4,6,45,55,color change beginning
+90,1,breaker,red,4,6,50,65,ripening
+100,1,red,harvest_ready,4,6,55,70,harvest possible
+30,2,flower,flower,0,0,0,0,no second truss fruit yet
+40,2,visible_bud,flower,0,0,0,0,no fruit yet
+50,2,fruit_set,small_green,0,2,3,8,fruit beginning
+60,2,small_green,small_green,3,5,10,18,visible small fruit
+70,2,green_expanding,green_expanding,4,6,22,32,rapid expansion
+80,2,green_expanding,green_expanding,4,6,35,45,large green
+90,2,green_expanding,breaker,4,6,45,55,color change beginning
+100,2,breaker,red,4,6,50,65,ripening

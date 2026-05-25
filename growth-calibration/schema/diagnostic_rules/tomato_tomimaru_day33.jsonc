@@ -1,0 +1,76 @@
+// Day 33 cultivar-specific diagnostic rules — verbatim from Reference Pack
+// 06_day33_diagnostic_target.json. Comparison engine uses these for any
+// day in [30, 35] when scope matches.
+//
+// This file imports/links to:
+//   growth-calibration/reference/tomato/tomato_tomimaru_reference_v0.1/
+//     06_day33_diagnostic_target.json
+//
+// Reference Pack is source of truth; this file mirrors for engine consumption.
+{
+  "schemaVersion": "growthCalibration.v1",
+  "sourceFile": "growth-calibration/reference/tomato/tomato_tomimaru_reference_v0.1/06_day33_diagnostic_target.json",
+  "rules": [
+    {
+      "ruleId": "tomato_day33_fruit_too_early",
+      "scope": {
+        "crop": "tomato",
+        "cultivar": "tomimaru-muchoo",
+        "dayRange": [30, 35],
+        "growthSystem": "string_training"
+      },
+      "if": "overall.fruitCountTotal > 0 OR overall.maxFruitDiameterMm > 0",
+      "diagnosis": "fruit_too_early",
+      "severity": "high",
+      "target": "overall.fruitCountTotal",
+      "suggestedParameters": [
+        "phenology.flowerToFruitSetGDD",
+        "phenology.fruitSetToVisibleFruitGDD",
+        "physiology.gompertzInflectionC",
+        "physiology.gompertzRateB"
+      ],
+      "suggestedChangeType": "engine_logic_or_jsonc_parameter",
+      "message": "At day 33, fruit should not yet be visible. Any fruit count > 0 or diameter > 0 indicates the model's fruit set / Gompertz curve is too fast."
+    },
+    {
+      "ruleId": "tomato_day33_truss_count_overestimated",
+      "scope": {
+        "crop": "tomato",
+        "cultivar": "tomimaru-muchoo",
+        "dayRange": [30, 35],
+        "growthSystem": "string_training"
+      },
+      "if": "overall.visibleTrussCount > 2",
+      "diagnosis": "truss_count_overestimated",
+      "severity": "medium",
+      "target": "overall.visibleTrussCount",
+      "suggestedParameters": [
+        "phenology.GDD_to_first_flower",
+        "phenology.GDD_per_truss",
+        "morphology.trussIntervalNodes"
+      ],
+      "suggestedChangeType": "jsonc_parameter",
+      "message": "At day 33, only 1-2 trusses should be visible. More than 2 indicates rapid truss emergence."
+    },
+    {
+      "ruleId": "tomato_day33_leaf_lateral_spread_too_wide",
+      "scope": {
+        "crop": "tomato",
+        "cultivar": "tomimaru-muchoo",
+        "dayRange": [30, 35],
+        "growthSystem": "string_training"
+      },
+      "if": "leaves[*].orientation.lateralSpreadDeg.mean > 90",
+      "diagnosis": "leaf_lateral_spread_too_wide",
+      "severity": "medium",
+      "target": "leaves[*].orientation.lateralSpreadDeg",
+      "suggestedParameters": [
+        "leafShape.orientation.lateralSpreadScale",
+        "leafShape.orientation.maxLateralSpreadDeg",
+        "leafShape.orientation.supportStringInfluence"
+      ],
+      "suggestedChangeType": "engine_logic",
+      "message": "At day 33, leaf lateral spread mean > 90° indicates azimuth distribution is too wide. String-trained tomato should have leaves grouped along the support line."
+    }
+  ]
+}

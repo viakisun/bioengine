@@ -8,16 +8,11 @@
  *   → src/plant/__diag__/{cultivar}-{scenario}-{training}-seed{n}-day{d}.json
  */
 
-// Node-only diagnostic CLI — run via `vite-node`. Node types aren't in
-// the root tsconfig (the app code is browser-only), so we declare the
-// few APIs we need locally to keep this file ts-strict.
-// @ts-expect-error Node module — declared inline.
+// Node-only diagnostic CLI — run via `vite-node`. (@types/node provides
+// the standard library typings since the calibration platform was added.)
 import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
-// @ts-expect-error Node module — declared inline.
 import { dirname, join } from 'node:path';
-// @ts-expect-error Node module — declared inline.
 import { fileURLToPath } from 'node:url';
-declare const process: { argv: string[] };
 
 import {
   GrowthEngine,

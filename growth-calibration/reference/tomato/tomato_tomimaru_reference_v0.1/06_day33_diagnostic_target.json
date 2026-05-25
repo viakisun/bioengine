@@ -1,0 +1,89 @@
+{
+  "schemaVersion": "growthReference.v0.1",
+  "referencePackId": "tomato_tomimaru_reference_v0.1",
+  "day": 33,
+  "scope": {
+    "crop": "tomato",
+    "cultivar": "tomimaru-muchoo",
+    "growthSystem": "string_training",
+    "dayRange": [30, 35]
+  },
+  "provenance": {
+    "sourceType": "user_target",
+    "confidence": "low",
+    "sourceRefs": [],
+    "notes": "Initial calibration target based on visual simulation anomaly. Not measured ground truth."
+  },
+  "expected": {
+    "overall": {
+      "heightCm":             { "min": 75, "max": 95 },
+      "nodeCount":            { "min": 12, "max": 15 },
+      "visibleLeafCount":     { "min": 9,  "max": 11 },
+      "visibleTrussCount":    { "min": 1,  "max": 2 },
+      "floweringTrussCount":  { "min": 0,  "max": 1 },
+      "fruitingTrussCount":   { "min": 0,  "max": 0 },
+      "fruitCountTotal":      { "min": 0,  "max": 0 },
+      "maxFruitDiameterMm":   { "min": 0,  "max": 0 }
+    },
+    "trusses": [
+      {
+        "trussIndex": 1,
+        "allowedStatus": ["visible_bud", "flowering"],
+        "disallowedStatus": ["fruit_set", "small_green", "green_expanding", "breaker", "red", "harvest_ready"],
+        "maxVisibleFruitCount": 0,
+        "maxFruitDiameterMm": 0
+      },
+      {
+        "trussIndex": 2,
+        "allowedStatus": ["not_visible", "visible_bud"],
+        "disallowedStatus": ["flowering", "fruit_set", "small_green", "green_expanding", "breaker", "red", "harvest_ready"],
+        "maxVisibleFruitCount": 0,
+        "maxFruitDiameterMm": 0
+      }
+    ],
+    "leafOrientation": {
+      "lateralSpreadDeg": { "min": 45, "max": 90 },
+      "elevationDeg":     { "min": -25, "max": 5 },
+      "droopAngleDeg":    { "min": 15, "max": 35 }
+    }
+  },
+  "diagnosticRules": [
+    {
+      "ruleId": "tomato_day33_fruit_too_early",
+      "if": "overall.fruitCountTotal > 0 OR overall.maxFruitDiameterMm > 0",
+      "diagnosis": "fruit_too_early",
+      "severity": "high",
+      "suggestedParameters": [
+        "phenology.flowerToFruitSetGDD",
+        "phenology.fruitSetToVisibleFruitGDD",
+        "physiology.gompertzInflectionC",
+        "physiology.gompertzRateB"
+      ],
+      "suggestedChangeType": "engine_logic_or_jsonc_parameter"
+    },
+    {
+      "ruleId": "tomato_day33_truss_count_overestimated",
+      "if": "overall.visibleTrussCount > 2",
+      "diagnosis": "truss_count_overestimated",
+      "severity": "medium",
+      "suggestedParameters": [
+        "phenology.GDD_to_first_flower",
+        "phenology.GDD_per_truss",
+        "morphology.trussIntervalNodes"
+      ],
+      "suggestedChangeType": "jsonc_parameter"
+    },
+    {
+      "ruleId": "tomato_day33_leaf_lateral_spread_too_wide",
+      "if": "leafOrientation.lateralSpreadDeg.mean > 90",
+      "diagnosis": "leaf_lateral_spread_too_wide",
+      "severity": "medium",
+      "suggestedParameters": [
+        "leafShape.orientation.lateralSpreadScale",
+        "leafShape.orientation.maxLateralSpreadDeg",
+        "leafShape.orientation.supportStringInfluence"
+      ],
+      "suggestedChangeType": "engine_logic"
+    }
+  ]
+}

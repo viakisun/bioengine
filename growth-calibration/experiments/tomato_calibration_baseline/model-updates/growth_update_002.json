@@ -1,0 +1,80 @@
+{
+  "schemaVersion": "growthCalibration.v1",
+  "updateId": "growth_update_002",
+  "previousModelVersion": "growthModel.tomato.v0.4-iter1a",
+  "newModelVersion": "growthModel.tomato.v0.5-iter2",
+  "status": "rolled_back",
+  "date": "2026-05-25",
+  "triggerComparisons": [
+    "(220 baseline + iter1a comparisons)"
+  ],
+  "triggerRuleIds": [
+    "common_truss_status_too_advanced",
+    "tomato_leaf_count_overestimated"
+  ],
+  "reason": [
+    "Iter 2: Defoliation policy — attempt to reduce lower-canopy density (overturns growth-gap-analysis.md §0 'intentional visual character' decision).",
+    "RDA 2020 + Kläring 2008 cite early defoliation start (~day 21-35); model default startDay=80 too late."
+  ],
+  "parameterChanges": [
+    {
+      "parameter": "scenarios.commercial-standard.management.defoliation.startDay",
+      "file": "packages/tomato-engine/models/cultivars/tomimaru-muchoo.jsonc",
+      "oldValue": 80,
+      "newValue": 35,
+      "unit": "day",
+      "citation": "RDA 2020 §3.5 + Kläring 2008",
+      "reason": "Begin defoliation earlier per commercial practice.",
+      "changeType": "jsonc_parameter",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "scenarios.commercial-standard.management.defoliation.removeBelowHeightM",
+      "file": "packages/tomato-engine/models/cultivars/tomimaru-muchoo.jsonc",
+      "oldValue": 0.50,
+      "newValue": 0.60,
+      "unit": "m",
+      "citation": "김제 SF 운영지침",
+      "reason": "Sweep slightly higher band.",
+      "changeType": "jsonc_parameter",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "scenarios.commercial-standard.management.defoliation.minLeafAgeDaysAtRemoval",
+      "file": "packages/tomato-engine/models/cultivars/tomimaru-muchoo.jsonc",
+      "oldValue": 30,
+      "newValue": 21,
+      "unit": "day",
+      "citation": "Dutch commercial 2-3 weeks post-emergence",
+      "reason": "Enable first sweep at day 35 to actually remove leaves.",
+      "changeType": "jsonc_parameter",
+      "enforcementStatus": "active"
+    }
+  ],
+  "expectedEffect": {
+    "day40+": "leavesBelow0.5m drops from ~14 → 2-4; LAI day 112 6.98 → ~5.5"
+  },
+  "validationPlan": {
+    "replayDays": [0, 10, 20, 30, 40, 50],
+    "forwardDays": [60, 70, 80, 90, 100],
+    "targetMetrics": ["overall.visibleLeafCount", "overall.laiCanopy"]
+  },
+  "outcome": {
+    "runDate": "2026-05-25",
+    "replayScoreDelta": -0.026,
+    "forwardScoreDelta": -0.026,
+    "notes": "REGRESSION. Iter 1A S=0.652 → Iter 2 S=0.626 (-0.026). P_band 0.518 → 0.483 (-0.035). Diagnosis counts unchanged. Defoliation removed leaves that Reference Pack still expected visible (target visibleLeafCount 9-11 at day 30, 13-15 at day 50). Rollback applied: defoliation params reverted to baseline (startDay=80, removeBelowHeightM=0.50, minLeafAgeDaysAtRemoval=30).",
+    "rollback": {
+      "appliedAt": "2026-05-25",
+      "rollbackReason": "Negative S+P_band delta with no diagnostic improvement.",
+      "lessonsLearned": [
+        "Reference Pack visibleLeafCount range may not match how the engine counts leaves (visibility.visible filter vs. all leaves with leafMaturity > 0).",
+        "Need to verify pack semantics OR adjust comparison to use 'leaves with mature foliage' rather than total visible.",
+        "Pre-iter alignment check: confirm reference and sim use compatible metric definitions before changing JSONC.",
+        "Decoupling: Iter 2 only fixed lower-canopy density (a sub-metric), but the comparison aggregates over all leafCount metrics — pulling visibleLeafCount below reference hurt overall S more than the lower-canopy gain helped.",
+        "Phase F (replay vs forward) would have caught this earlier — replay set (day 0-50) and forward set (60-100) both regressed, indicating systemic mismatch not overfit."
+      ],
+      "nextStep": "Investigate metric semantic alignment before retrying defoliation, OR target Iter 3 (leafShape.orientation schema_only) which addresses the dominant 215/220 lateral_spread diagnosis."
+    }
+  }
+}

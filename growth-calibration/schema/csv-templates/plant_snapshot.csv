@@ -1,0 +1,2 @@
+experiment_id,plant_id,day,observation_date,height_cm,stem_diameter_mm,node_count,visible_leaf_count,expanded_leaf_count,visible_truss_count,flowering_truss_count,fruiting_truss_count,fruit_count_total
+tomato_calib_001,P001,30,2026-07-01,62.4,6.2,9,8,6,1,0,0,0

@@ -1,0 +1,85 @@
+{
+  "schemaVersion": "growthReference.v0.1",
+  "referencePackId": "tomato_tomimaru_reference_v0.1",
+  "crop": "tomato",
+  "cultivar": "tomimaru-muchoo",
+  "growthSystem": {
+    "type": "hydroponic",
+    "supportType": "string_training"
+  },
+  "referenceRole": "initial_calibration_target",
+  "sourceType": "user_target",
+  "confidence": "low",
+  "createdAt": "2026-05-25",
+  "createdBy": "VIA",
+  "basis": [
+    "user-defined target timeline",
+    "initial visual diagnosis from simulation day 33",
+    "literature ranges to be added progressively"
+  ],
+  "importantNotes": [
+    "This is not measured ground truth.",
+    "This reference pack is used before real 10-day interval observations are collected.",
+    "All values must be replaced or reweighted when measured data becomes available.",
+    "Calendar day is counted from transplant/simulation start.",
+    "Thermal time conversion assumes 22°C constant environment and 10°C base temperature."
+  ],
+  "measurementIntervalDays": 10,
+  "targetDays": [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+  "primaryUse": [
+    "simulation sanity check",
+    "day 33 anomaly diagnosis",
+    "first-round JSONC calibration",
+    "reference format validation"
+  ],
+  "contents": [
+    {
+      "filename": "01_plant_timeline_target.csv",
+      "type": "csv",
+      "role": "plant_timeline",
+      "description": "Per-day plant-level metric bands (height, node, leaf, truss, fruit counts) with _min/_max paired columns"
+    },
+    {
+      "filename": "02_truss_timeline_target.csv",
+      "type": "csv",
+      "role": "truss_timeline",
+      "description": "Per-truss phenology day ranges (visible → flower → set → expanding → breaker) with attach node range"
+    },
+    {
+      "filename": "03_truss_status_by_day.csv",
+      "type": "csv",
+      "role": "truss_status_by_day",
+      "description": "Long-form (day, truss_index, allowed_status_min/max, expected fruit counts/diameters per truss-day cell)"
+    },
+    {
+      "filename": "04_leaf_timeline_target.csv",
+      "type": "csv",
+      "role": "leaf_timeline",
+      "description": "Per-day leaf metric bands including orientation (droopAngleDeg, lateralSpreadDeg, elevationDeg)"
+    },
+    {
+      "filename": "05_fruit_timeline_target.csv",
+      "type": "csv",
+      "role": "fruit_timeline",
+      "description": "Per-day per-truss fruit stage + visible count + diameter + diagnostic note"
+    },
+    {
+      "filename": "06_day33_diagnostic_target.json",
+      "type": "json",
+      "role": "day33_diagnostic",
+      "description": "Day 33 specific expected ranges and diagnostic rules with ruleId (fruit_too_early, truss_count_overestimated, leaf_lateral_spread_too_wide)"
+    },
+    {
+      "filename": "07_initial_growth_model_target.json",
+      "type": "json",
+      "role": "growth_model_target",
+      "description": "DAY-based initial growth model parameter target (v0.1 calibration goal). phenology + fruitDevelopment + leafDevelopment + stemDevelopment"
+    },
+    {
+      "filename": "08_day_gdd_mapping.json",
+      "type": "json",
+      "role": "day_gdd_mapping",
+      "description": "DAY ↔ accumulatedGdd translation table (22°C, base 10°C) + current model field diagnosis"
+    }
+  ]
+}

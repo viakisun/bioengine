@@ -1,0 +1,82 @@
+{
+  "schemaVersion": "growthCalibration.v1",
+  "provenance": {
+    "sourceType": "user_target",
+    "confidence": "low",
+    "sourceRefs": ["schema cross-crop reuse smoke test"],
+    "notes": "Lettuce example — has no truss/fruit at all. trusses/fruits are empty arrays; cropSpecific.lettuce carries head/rosette metrics. This is the strongest test of cross-crop schema design."
+  },
+  "experimentId": "lettuce_schema_smoke_001",
+  "plantId": "P001",
+  "day": 35,
+  "observationDate": "2026-07-05",
+  "plantAgeDays": 35,
+  "overall": {
+    "heightCm": 18.0,
+    "mainStemLengthCm": 0,
+    "mainStemDiameterMm": 0,
+    "nodeCount": 0,
+    "visibleLeafCount": 24,
+    "expandedLeafCount": 22,
+    "visibleTrussCount": 0,
+    "floweringTrussCount": 0,
+    "fruitingTrussCount": 0,
+    "fruitCountTotal": 0
+  },
+  "phenology": {
+    "vegetativeStage": "mature",
+    "reproductiveStage": "none",
+    "firstVisibleTrussDay": null,
+    "firstFlowerOpenDay": null,
+    "firstFruitSetDay": null,
+    "firstFruitVisibleDay": null,
+    "firstRipeFruitDay": null
+  },
+  "nodes": [],
+  "leaves": [
+    {
+      "leafId": "L022",
+      "nodeIndex": 22,
+      "status": "expanded",
+      "ageDays": 8,
+      "compoundLeaf": false,
+      "leafletCount": 1,
+      "petioleLengthCm": 1.5,
+      "rachisLengthCm": 0,
+      "leafLengthCm": 18.0,
+      "leafWidthCm": 14.0,
+      "leafAreaCm2": 180.0,
+      "orientation": {
+        "azimuthDeg": 200,
+        "elevationDeg": 15,
+        "droopAngleDeg": 5,
+        "rollDeg": 8
+      },
+      "shape": {
+        "averageLeafletAspect": 1.3,
+        "serrationLevel": "low",
+        "curlLevel": "medium"
+      },
+      "health": {
+        "colorStage": "green",
+        "senescence": 0.0,
+        "damageRatio": 0.0
+      }
+    }
+  ],
+  "trusses": [],
+  "fruits": [],
+  "cropSpecific": {
+    "lettuce": {
+      "headDiameterCm": 24.0,
+      "rosetteLeafCount": 24,
+      "freshWeightG": 320,
+      "headStage": "closed"
+    }
+  },
+  "qualityFlags": {
+    "missingMeasurement": false,
+    "occludedOrgans": false,
+    "imageQuality": "good"
+  }
+}

@@ -1,0 +1,12 @@
+day,height_cm_min,height_cm_max,node_count_min,node_count_max,visible_leaf_min,visible_leaf_max,expanded_leaf_min,expanded_leaf_max,visible_truss_min,visible_truss_max,flowering_truss_min,flowering_truss_max,fruiting_truss_min,fruiting_truss_max,fruit_count_min,fruit_count_max,max_fruit_diameter_mm_min,max_fruit_diameter_mm_max,expected_stage
+0,15,25,4,6,4,6,2,4,0,0,0,0,0,0,0,0,0,0,transplant_seedling
+10,30,40,6,8,5,7,4,6,0,0,0,0,0,0,0,0,0,0,vegetative_growth
+20,45,65,9,11,7,9,6,8,0,1,0,0,0,0,0,0,0,0,first_truss_initiation_or_visible
+30,65,85,12,14,9,11,8,10,1,1,0,1,0,0,0,0,0,0,first_truss_bud_to_early_flowering
+40,90,120,15,17,11,13,10,12,1,2,1,1,0,1,0,2,3,8,first_truss_fruit_set_second_truss_bud
+50,120,160,18,20,13,15,12,14,2,3,1,2,1,2,3,5,10,18,first_truss_small_green_second_truss_fruit_set
+60,150,180,21,23,15,17,14,16,3,4,1,2,2,3,6,10,22,32,first_truss_expanding_second_truss_small_green
+70,180,210,24,26,17,19,15,18,4,5,1,2,3,4,10,15,35,45,multiple_trusses_fruit_expanding
+80,210,240,27,29,18,21,16,19,5,6,1,2,4,5,15,22,45,55,lower_truss_late_green_or_breaker
+90,240,270,30,32,19,23,17,20,6,7,1,2,5,6,20,28,50,65,lower_truss_ripening_upper_truss_expanding
+100,270,300,33,35,20,25,18,21,7,8,1,2,6,7,25,35,55,70,harvest_cycle_beginning

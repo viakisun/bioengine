@@ -1,0 +1,2 @@
+experiment_id,plant_id,day,fruit_id,truss_id,truss_index,position_in_truss,status,diameter_mm,height_mm,color_stage
+tomato_calib_001,P001,50,F001,T001,1,1,green_expanding,22.5,20.4,green

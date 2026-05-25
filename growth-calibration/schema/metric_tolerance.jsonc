@@ -1,0 +1,76 @@
+// metric_tolerance — Schema 7 (zero-band defense).
+//
+// Used by the comparison engine to compute effective half-band:
+//   effective = max(
+//     ref_half_band,
+//     tolerance.minHalfBand ?? 0,
+//     tolerance.absoluteTolerance ?? 0,
+//     (tolerance.relativeTolerance ?? 0) × ref_mid
+//   )
+//
+// Without this, metrics with ref range [0, 0] (e.g. Day 30 fruitCountTotal)
+// cause division-by-zero in similarity score. minHalfBand=1 means "off by 1
+// fruit is still in band" — sane default for integer counts.
+//
+// Units match the metric's natural unit (cm / mm / count / deg / fraction).
+{
+  "schemaVersion": "growthCalibration.v1",
+  "metricTolerances": {
+
+    // Plant overall — counts
+    "overall.fruitCountTotal":              { "absoluteTolerance": 0, "minHalfBand": 1 },
+    "overall.visibleTrussCount":            { "absoluteTolerance": 0, "minHalfBand": 1 },
+    "overall.floweringTrussCount":          { "absoluteTolerance": 0, "minHalfBand": 1 },
+    "overall.fruitingTrussCount":           { "absoluteTolerance": 0, "minHalfBand": 1 },
+    "overall.visibleLeafCount":             { "absoluteTolerance": 2, "minHalfBand": 2 },
+    "overall.expandedLeafCount":            { "absoluteTolerance": 2, "minHalfBand": 2 },
+    "overall.nodeCount":                    { "absoluteTolerance": 1, "minHalfBand": 1 },
+
+    // Plant overall — geometry
+    "overall.heightCm":                     { "relativeTolerance": 0.10, "minHalfBand": 3 },
+    "overall.mainStemLengthCm":             { "relativeTolerance": 0.10, "minHalfBand": 3 },
+    "overall.mainStemDiameterMm":           { "relativeTolerance": 0.15, "minHalfBand": 0.5 },
+    "overall.laiCanopy":                    { "relativeTolerance": 0.15, "minHalfBand": 0.3 },
+
+    // Plant overall — fruit size
+    "overall.maxFruitDiameterMm":           { "absoluteTolerance": 2, "minHalfBand": 2 },
+
+    // Phenology days
+    "phenology.firstVisibleTrussDay":       { "absoluteTolerance": 3, "minHalfBand": 3 },
+    "phenology.firstFlowerOpenDay":         { "absoluteTolerance": 3, "minHalfBand": 3 },
+    "phenology.firstFruitSetDay":           { "absoluteTolerance": 3, "minHalfBand": 3 },
+    "phenology.firstFruitVisibleDay":       { "absoluteTolerance": 3, "minHalfBand": 3 },
+    "phenology.firstRipeFruitDay":          { "absoluteTolerance": 5, "minHalfBand": 5 },
+
+    // Per-truss
+    "trusses[*].largestFruitDiameterMm":    { "absoluteTolerance": 2, "minHalfBand": 2 },
+    "trusses[*].visibleFruitCount":         { "absoluteTolerance": 1, "minHalfBand": 1 },
+    "trusses[*].flowerBudCount":            { "absoluteTolerance": 2, "minHalfBand": 2 },
+    "trusses[*].openFlowerCount":           { "absoluteTolerance": 1, "minHalfBand": 1 },
+    "trusses[*].peduncleLengthCm":          { "absoluteTolerance": 1, "minHalfBand": 1 },
+    "trusses[*].rachisLengthCm":            { "absoluteTolerance": 1, "minHalfBand": 1 },
+    "trusses[*].orientation.droopAngleDeg": { "absoluteTolerance": 8, "minHalfBand": 8 },
+
+    // Per-leaf morphology
+    "leaves[*].leafLengthCm":               { "relativeTolerance": 0.15, "minHalfBand": 2 },
+    "leaves[*].leafWidthCm":                { "relativeTolerance": 0.15, "minHalfBand": 1 },
+    "leaves[*].leafAreaCm2":                { "relativeTolerance": 0.20, "minHalfBand": 20 },
+    "leaves[*].petioleLengthCm":            { "relativeTolerance": 0.15, "minHalfBand": 1 },
+    "leaves[*].rachisLengthCm":             { "relativeTolerance": 0.15, "minHalfBand": 2 },
+    "leaves[*].leafletCount":               { "absoluteTolerance": 1, "minHalfBand": 1 },
+
+    // Per-leaf orientation (사용자 Day 33 anomaly 직접 대응)
+    "leaves[*].orientation.azimuthDeg":     { "absoluteTolerance": 30, "minHalfBand": 30 },
+    "leaves[*].orientation.elevationDeg":   { "absoluteTolerance": 8,  "minHalfBand": 8 },
+    "leaves[*].orientation.droopAngleDeg":  { "absoluteTolerance": 8,  "minHalfBand": 8 },
+    "leaves[*].orientation.rollDeg":        { "absoluteTolerance": 15, "minHalfBand": 15 },
+
+    // Per-fruit
+    "fruits[*].diameterMm":                 { "absoluteTolerance": 2, "minHalfBand": 2 },
+    "fruits[*].heightMm":                   { "absoluteTolerance": 2, "minHalfBand": 2 },
+    "fruits[*].estimatedWeightG":           { "relativeTolerance": 0.15, "minHalfBand": 5 },
+
+    // Stem — derived
+    "stemDevelopment.internodeMeanCm":      { "relativeTolerance": 0.15, "minHalfBand": 0.5 }
+  }
+}

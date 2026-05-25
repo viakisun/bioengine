@@ -1,0 +1,68 @@
+// Tomato-specific diagnostic rules (cultivar-agnostic, applies to all tomato).
+// Layered on top of common.jsonc; cultivar/day-specific rules in
+// tomato_{cultivar}_{day}.jsonc layered on top of this.
+{
+  "schemaVersion": "growthCalibration.v1",
+  "rules": [
+    {
+      "ruleId": "tomato_lower_canopy_too_dense",
+      "scope": { "crop": "tomato" },
+      "if": "leavesBelow0_5m.error > 4 AND day >= 60",
+      "diagnosis": "lower_canopy_too_dense",
+      "severity": "medium",
+      "target": "leavesBelow0_5m",
+      "suggestedParameters": [
+        "scenarios.commercial-standard.management.defoliation.startDay",
+        "scenarios.commercial-standard.management.defoliation.removeBelowHeightM",
+        "scenarios.commercial-standard.management.defoliation.minLeafAgeDaysAtRemoval"
+      ],
+      "suggestedChangeType": "jsonc_parameter",
+      "message": "Lower canopy (≤0.5m) has more than 4 leaves above reference past day 60 — defoliation not aggressive enough."
+    },
+    {
+      "ruleId": "tomato_fruit_appears_too_early",
+      "scope": { "crop": "tomato" },
+      "if": "overall.fruitCountTotal > 0 AND day < 40",
+      "diagnosis": "fruit_too_early",
+      "severity": "high",
+      "target": "overall.fruitCountTotal",
+      "suggestedParameters": [
+        "phenology.flowerToFruitSetGDD",
+        "phenology.fruitSetToVisibleFruitGDD",
+        "physiology.gompertzInflectionC"
+      ],
+      "suggestedChangeType": "engine_logic_or_jsonc_parameter",
+      "message": "Fruit visible before day 40 — tomato should be in flowering/early set stage only."
+    },
+    {
+      "ruleId": "tomato_too_many_trusses_early",
+      "scope": { "crop": "tomato" },
+      "if": "overall.visibleTrussCount > 2 AND day < 40",
+      "diagnosis": "truss_count_overestimated",
+      "severity": "medium",
+      "target": "overall.visibleTrussCount",
+      "suggestedParameters": [
+        "phenology.GDD_to_first_flower",
+        "phenology.GDD_per_truss",
+        "morphology.trussIntervalNodes"
+      ],
+      "suggestedChangeType": "jsonc_parameter",
+      "message": "More than 2 visible trusses before day 40 — truss emergence is too rapid."
+    },
+    {
+      "ruleId": "tomato_leaf_lateral_spread_too_wide",
+      "scope": { "crop": "tomato" },
+      "if": "leaves[*].orientation.lateralSpreadDeg.mean > 95",
+      "diagnosis": "leaf_lateral_spread_too_wide",
+      "severity": "medium",
+      "target": "leaves[*].orientation.lateralSpreadDeg",
+      "suggestedParameters": [
+        "leafShape.orientation.lateralSpreadScale",
+        "leafShape.orientation.maxLateralSpreadDeg",
+        "leafShape.orientation.supportStringInfluence"
+      ],
+      "suggestedChangeType": "engine_logic",
+      "message": "Mean leaf lateral spread exceeds 95° — string-trained tomato should be narrower."
+    }
+  ]
+}
