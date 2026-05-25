@@ -1,0 +1,97 @@
+{
+  "schemaVersion": "growthCalibration.v1",
+  "updateId": "growth_update_009",
+  "previousModelVersion": "growthModel.tomato.v0.11.1-stage-fixed",
+  "newModelVersion": "growthModel.tomato.v0.11.1-stage-fixed",
+  "status": "rejected",
+  "date": "2026-05-26",
+  "triggerComparisons": [
+    "(v0.11.1 220 comparisons + Iter 6d audit: Day 90 cohort=13 < target visible 20~28 + cohort generation sweep 결과)"
+  ],
+  "triggerRuleIds": [
+    "common_truss_status_too_behind"
+  ],
+  "reason": [
+    "Iter 6d fruit cohort generation calibration sweep: tomimaru.flowersPerTruss.mu × tomimaru.fruitSetRate 2-axis (3×3=9 variants).",
+    "Preflight B 통과 — override 실제 cohort에 영향 확인 (baseline mu=5,fsr=0.6 → cohort 13 vs extreme mu=11,fsr=1.0 → cohort 16, flowerBud 34→76, fertilized 25→69).",
+    "9 runs sweep 후 top 4 (run_001 baseline + run_002/005/009 spread) 220 comparison.",
+    "결과: run_002/005/009 모두 Day 33 maxVisDiam=3.7mm > 3mm → fruit_too_early_returned hard gate 탈락 (cohort 늘리면서 일부 fruit Day 33 visible threshold 진입).",
+    "run_005/009 (mu=7-9) Day 90 maxDiam 28.8~29.1mm < 40mm → day90_maxDiam_below_lower_bound cohort_increased_but_size_collapsed.",
+    "selectBestForIter6d hard gate + cohort sufficiency 통과 후보 0 → SSOT #45 (rejected — no candidate passed) 정책 적용.",
+    "Per-truss breakdown (Section 5d) 진단: baseline abortion rate 72% (18/25), run_005 abortion rate 63% (27/43) — flowersPerTruss/fruitSetRate 늘려도 abortion 비례 흡수 → 살아남는 cohort 13~16에서 saturate. 진짜 lever는 abortion path."
+  ],
+  "parameterChanges": [
+    {
+      "parameter": "dump-growth-checkpoints + extract-calibration-observations --overrideCohort",
+      "oldValue": null,
+      "newValue": "process-local cultivar.flowersPerTruss.mu + cultivar.fruitSetRate mutation (target cultivar only, SSOT #53)",
+      "file": "growth-calibration/scripts/dump-growth-checkpoints.ts + extract-calibration-observations.ts",
+      "unit": "CLI",
+      "citation": "Iter 6d spec",
+      "reason": "cohort layer sweep harness 지원. c.flowersPerTruss + c.reproductive.trussOrderProfile + c.scenarios[*].reproductive.trussOrderProfile 3중 mutation (CoreModel.emergeTruss는 rule?.flowersPerTruss ?? cultivar.flowersPerTruss로 read).",
+      "changeType": "engine_logic",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "plant_summary.csv + truss_summary.csv truss-level cohort breakdown 컬럼",
+      "oldValue": "기본 컬럼만",
+      "newValue": "+ flower_bud_total, fertilized_total, aborted_total, harvested_total, non_aborted_cohort_total, starved_ongoing_total (plant), 동일 per-truss (truss)",
+      "file": "growth-calibration/scripts/dump-growth-checkpoints.ts",
+      "unit": "schema",
+      "citation": "Iter 6d spec SSOT #56",
+      "reason": "cohort 병목 진단 (flowerBud→openFlower→fertilized→aborted→cohort→visible→expanding→starved)",
+      "changeType": "schema_only",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "run-gompertz-sweep.ts variant + CLI 확장",
+      "oldValue": "Gompertz 3-axis + phenology 2-axis",
+      "newValue": "+ cohort 2-axis (flowersPerTrussMu/fruitSetRate)",
+      "file": "growth-calibration/scripts/run-gompertz-sweep.ts",
+      "unit": "logic",
+      "citation": "Iter 6d spec",
+      "reason": "sweep grid 일반화 — Gompertz + Phenology + Cohort 동시 또는 단독 가능. cohort sufficiency 보너스 (Day 60 ≥6, Day 90 ≥20) 추가.",
+      "changeType": "engine_logic",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "run-top-candidates-comparison.ts selectBestForIter6d",
+      "oldValue": "Iter 6c improvement-condition",
+      "newValue": "+ cohort sufficiency 필수조건 (Day 60 ≥6, Day 90 ≥20) + 채택조건 분리 + 극단값 conditional_promote (fSR≥0.9 OR fMu≥9) + rejectCategory 카테고리화 + riskReasons 채움",
+      "file": "growth-calibration/scripts/run-top-candidates-comparison.ts",
+      "unit": "logic",
+      "citation": "Iter 6d spec 사용자 검토 #1, #3, #4, #5, #6",
+      "reason": "cohort sufficiency = 필요조건, visible/stage 개선 = 채택조건. 극단값 winner 자동 promote 금지. reject 카테고리로 다음 Iter 방향 결정.",
+      "changeType": "engine_logic",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "dump-iter-audit.ts Section 5c 확장 + 5d 신규 + Section 11 카테고리",
+      "oldValue": "Section 5c (Day 90 only)",
+      "newValue": "Section 5c (Day 60 + Day 90) + Section 5d per-truss breakdown (Day 60 + Day 90) + Section 11 rejectCategory/riskReasons/promoteVerdict",
+      "file": "growth-calibration/scripts/dump-iter-audit.ts",
+      "unit": "schema",
+      "citation": "Iter 6d spec SSOT #56, #57, #58, #60",
+      "reason": "cohort 병목 진단 자동 노출 — fertilization rate / abortion rate per truss + reject 카테고리별 후보 그룹화.",
+      "changeType": "schema_only",
+      "enforcementStatus": "active"
+    }
+  ],
+  "validationPlan": {
+    "replayDays": [0, 10, 20, 30, 33, 40, 50, 60, 70, 80, 90, 100],
+    "forwardDays": [],
+    "targetMetrics": ["common_truss_status_too_behind", "overall.visibleFruitCount @ day 60/90", "overall.fruitCohortCount @ day 60/90", "abortion_rate @ day 90"]
+  },
+  "outcome": {
+    "runDate": "2026-05-26",
+    "replayScoreDelta": 0,
+    "forwardScoreDelta": 0,
+    "verdict": "rejected — v0.11.1 유지 (SSOT #45 — no candidate passed hard gate + cohort sufficiency)",
+    "notes": "Iter 6d cohort generation calibration 인프라는 모두 작동 (Preflight B pass: cohort 13→16, sweep + top-candidates + audit harness 일반화 with selectBestForIter6d + rejectCategory). 9 runs sweep + 4 후보 220 comparison 결과 hard gate 통과 후보 0. 핵심 진단 (Section 5d): baseline abortion rate 72%, run_005 abortion rate 63% — flowersPerTruss/fruitSetRate 늘려도 abortion이 비례 흡수해서 cohort 13~16에서 saturate. fruitSetRate는 0.75에서 saturate (0.9까지 늘려도 동일). flowersPerTrussMu ≥ 7에서 sink 분산으로 Day 90 maxDiam 55→29mm 무너짐. → 진짜 lever는 cohort generation이 아닌 abortion path (Iter 6e: surplusPolicy 또는 6f: abortion threshold). v0.11.1 유지하고 Iter 6e (source-sink surplus) / Iter 6f (abortion threshold) / Iter 7 (stem) 진행."
+  },
+  "followUp": [
+    "Iter 6e (Source-Sink Surplus Policy): surplusPolicy 'unused_pool' → 'redistribute_to_vegetative'. vegetative로 surplus 보내서 fruit sink competition 완화 → abortion rate 직접 낮춤. baseline 72% → target 50% 이하.",
+    "Iter 6f (Abortion Threshold / Starvation): ABORTION_LAG_DAYS (현재 4) 또는 starvedDays trigger threshold (25% potential growth) 완화. abortion path 자체를 약화. 6e와 mutually exclusive 또는 sequential.",
+    "Iter 7 (Stem calibration, Case D): stemGrowth.matureInternode.lengthDistribution sweep. abortion bottleneck과 무관하므로 병렬 진행 가능."
+  ]
+}

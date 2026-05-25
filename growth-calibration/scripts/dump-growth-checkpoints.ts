@@ -58,6 +58,10 @@ interface CliArgs {
    *  format: "cellDivisionDurationGDD=200,cellExpansionDurationGDD=400".
    *  Target cultivar (args.cultivar)만 mutate (SSOT #49). */
   overridePhenology?: { cellDivisionDurationGDD?: number; cellExpansionDurationGDD?: number };
+  /** Iter 6d — cohort generation override (flowersPerTruss.mu / fruitSetRate).
+   *  format: "flowersPerTrussMu=7,fruitSetRate=0.75".
+   *  Target cultivar (args.cultivar)만 mutate (SSOT #53). */
+  overrideCohort?: { flowersPerTrussMu?: number; fruitSetRate?: number };
 }
 
 function parseOverride(s?: string): CliArgs['overrideGompertz'] {
@@ -87,6 +91,19 @@ function parseOverridePhenology(s?: string): CliArgs['overridePhenology'] {
   return out;
 }
 
+function parseOverrideCohort(s?: string): CliArgs['overrideCohort'] {
+  if (!s) return undefined;
+  const out: { flowersPerTrussMu?: number; fruitSetRate?: number } = {};
+  for (const pair of s.split(',')) {
+    const [k, v] = pair.split('=').map(t => t.trim());
+    const n = Number(v);
+    if (!Number.isFinite(n)) continue;
+    if (k === 'flowersPerTrussMu') out.flowersPerTrussMu = n;
+    else if (k === 'fruitSetRate') out.fruitSetRate = n;
+  }
+  return out;
+}
+
 function parseArgs(argv: string[]): CliArgs {
   const opts: Record<string, string> = {};
   for (let i = 0; i < argv.length; i++) {
@@ -110,6 +127,7 @@ function parseArgs(argv: string[]): CliArgs {
     outRoot: opts.outRoot ?? join(__dirname, '..', 'checkpoints'),
     overrideGompertz: parseOverride(opts.overrideGompertz),
     overridePhenology: parseOverridePhenology(opts.overridePhenology),
+    overrideCohort: parseOverrideCohort(opts.overrideCohort),
   };
 }
 
@@ -160,6 +178,37 @@ function applyOverridePhenology(args: CliArgs): void {
   console.log(`[override] phenology: cultivar=${args.cultivar} cellDiv=${ov.cellDivisionDurationGDD ?? '-'}, cellExp=${ov.cellExpansionDurationGDD ?? '-'}`);
 }
 
+/** Iter 6d — cohort generation override. flowersPerTruss.mu + fruitSetRate
+ *  in-place mutation (SSOT #53). Target cultivar (args.cultivar)만 mutate.
+ *
+ *  주의: flowersPerTruss는 reproductive.trussOrderProfile rule이 cultivar 기본을
+ *  override할 수 있음 (CoreModel.ts emergeTruss line 257 `rule?.flowersPerTruss ?? cultivar.flowersPerTruss`).
+ *  그래서 (1) c.flowersPerTruss.mu, (2) c.reproductive.trussOrderProfile[*].flowersPerTruss.mu,
+ *  (3) c.scenarios[*].reproductive.trussOrderProfile[*].flowersPerTruss.mu 모두 mutate. */
+function applyOverrideCohort(args: CliArgs): void {
+  const ov = args.overrideCohort;
+  if (!ov) return;
+  const c = CULTIVARS[args.cultivar];
+  if (!c) {
+    console.warn(`[override cohort] cultivar ${args.cultivar} not found — skip`);
+    return;
+  }
+  if (ov.fruitSetRate !== undefined) c.fruitSetRate = ov.fruitSetRate;
+  if (ov.flowersPerTrussMu !== undefined) {
+    const mu = ov.flowersPerTrussMu;
+    c.flowersPerTruss.mu = mu;
+    for (const rule of c.reproductive.trussOrderProfile) {
+      rule.flowersPerTruss.mu = mu;
+    }
+    for (const sc of Object.values(c.scenarios)) {
+      for (const rule of sc.reproductive.trussOrderProfile) {
+        rule.flowersPerTruss.mu = mu;
+      }
+    }
+  }
+  console.log(`[override] cohort: cultivar=${args.cultivar} flowersPerTrussMu=${ov.flowersPerTrussMu ?? '-'}, fruitSetRate=${ov.fruitSetRate ?? '-'}`);
+}
+
 // ── Engine snapshot per day ───────────────────────────────────────────
 
 interface DaySnapshot {
@@ -206,6 +255,13 @@ interface PlantOverall {
   maxVisibleFruitDiameterMm: number;   // visible fruits 중 최대 (없으면 0)
   // Iter 6 — expansion 단계 fruit count (diameter + phase 둘 다 확인)
   expandingFruitCount: number;
+  // Iter 6d — cohort generation breakdown (sums across all trusses, SSOT #56)
+  flowerBudTotal: number;          // sum of truss.flowerCount (initial bud allocation)
+  fertilizedTotal: number;         // fruits with fertilizationTT > 0 (alive + aborted)
+  abortedTotal: number;            // fruits with aborted=true (combined: starvation + pruning)
+  harvestedTotal: number;          // fruits with harvested=true
+  nonAbortedCohortTotal: number;   // !aborted && !harvested (fertilized + pre-fertilization buds)
+  starvedOngoingTotal: number;     // alive but starvedDays > 0 (at-risk, not yet aborted)
   // Backward-compat aliases (= visible 기준)
   fruitCountTotal: number;             // = visibleFruitCount
   maxFruitDiameterMm: number;          // = maxVisibleFruitDiameterMm
@@ -271,6 +327,13 @@ function plantOverall(snap: DaySnapshot): PlantOverall {
   let expandingCount = 0;
   let maxVisibleDiam = 0;
   let totalFresh = 0;
+  // Iter 6d — cohort generation breakdown (SSOT #56)
+  let flowerBudTotal = 0;
+  let fertilizedTotal = 0;
+  let abortedTotal = 0;
+  let harvestedTotal = 0;
+  let nonAbortedCohortTotal = 0;
+  let starvedOngoingTotal = 0;
   // Iter 5b — minVisibleDiameterMm from massFlow (default 0 if missing)
   const minVisibleDiameterMm =
     snap.cultivar.resolvedBotanical?.fruitDevelopment.massFlow.minVisibleDiameterMm ?? 0;
@@ -282,7 +345,15 @@ function plantOverall(snap: DaySnapshot): PlantOverall {
     const status = mapTrussStatus(t, physiology.TT, snap.cultivar);
     if (status === 'flowering') flowering++;
     if (FRUITING_STATUSES.has(status)) fruiting++;
+    flowerBudTotal += t.flowerCount;
     for (const f of t.fruits) {
+      if (f.fertilizationTT > 0) fertilizedTotal++;
+      if (f.aborted) abortedTotal++;
+      if (f.harvested) harvestedTotal++;
+      if (!f.aborted && !f.harvested) {
+        nonAbortedCohortTotal++;
+        if (f.starvedDays > 0) starvedOngoingTotal++;
+      }
       if (f.aborted || f.harvested) continue;
       if (f.fertilizationTT <= 0) continue;
       cohortCount++;
@@ -314,6 +385,13 @@ function plantOverall(snap: DaySnapshot): PlantOverall {
     visibleFruitCount: visibleCount,
     maxVisibleFruitDiameterMm: maxVisibleDiam,
     expandingFruitCount: expandingCount,
+    // Iter 6d — cohort generation breakdown
+    flowerBudTotal,
+    fertilizedTotal,
+    abortedTotal,
+    harvestedTotal,
+    nonAbortedCohortTotal,
+    starvedOngoingTotal,
     // Backward-compat aliases (= visible 기준 — Reference Pack과 비교)
     fruitCountTotal: visibleCount,
     maxFruitDiameterMm: maxVisibleDiam,
@@ -378,6 +456,9 @@ function buildPlantSummaryCsv(rows: PlantOverall[], bundle: ReferenceBundle): st
     'max_visible_fruit_diameter_mm',
     'fruit_count_total', 'max_fruit_diameter_mm',  // aliases (= visible)
     'total_fruit_fresh_mass_g',
+    // Iter 6d — cohort generation breakdown (SSOT #56)
+    'flower_bud_total', 'fertilized_total', 'aborted_total', 'harvested_total',
+    'non_aborted_cohort_total', 'starved_ongoing_total',
     'height_band', 'height_in_band',
     'node_band', 'node_in_band',
     'truss_band', 'truss_in_band',
@@ -394,6 +475,8 @@ function buildPlantSummaryCsv(rows: PlantOverall[], bundle: ReferenceBundle): st
       r.maxVisibleFruitDiameterMm,
       r.fruitCountTotal, r.maxFruitDiameterMm,
       r.totalFruitFreshMassG,
+      r.flowerBudTotal, r.fertilizedTotal, r.abortedTotal, r.harvestedTotal,
+      r.nonAbortedCohortTotal, r.starvedOngoingTotal,
       bandStr(pb?.height ?? null), pb?.height ? inBandFlag(r.heightCm, pb.height) : 'no_target',
       bandStr(pb?.nodeCount ?? null), pb?.nodeCount ? inBandFlag(r.nodeCount, pb.nodeCount) : 'no_target',
       bandStr(pb?.visibleTruss ?? null), pb?.visibleTruss ? inBandFlag(r.visibleTrussCount, pb.visibleTruss) : 'no_target',
@@ -405,24 +488,51 @@ function buildPlantSummaryCsv(rows: PlantOverall[], bundle: ReferenceBundle): st
 }
 
 function buildTrussSummaryCsv(snapshots: DaySnapshot[]): string {
+  // Iter 6d (SSOT #56) — truss-level cohort breakdown:
+  //   flower_bud → open_flower → fertilized → aborted → non_aborted_cohort
+  //   → visible → expanding → starved_ongoing
   const header = [
     'day', 'truss_index', 'status', 'emergence_tt', 'flower_bud_count',
     'open_flower_count', 'fruit_set_count', 'visible_fruit_count',
     'max_fruit_diameter_mm',
+    // Iter 6d additions (per truss)
+    'fertilized_count', 'aborted_count', 'harvested_count',
+    'non_aborted_cohort', 'expanding_count', 'starved_ongoing_count',
   ];
   const lines = [header.join(',')];
   for (const snap of snapshots) {
+    const minVisibleDiameterMm =
+      snap.cultivar.resolvedBotanical?.fruitDevelopment.massFlow.minVisibleDiameterMm ?? 0;
+    const minExpandingDiameterMm =
+      snap.cultivar.resolvedBotanical?.fruitDevelopment.massFlow.minExpandingDiameterMm ?? 10;
     for (let i = 0; i < snap.physiology.trusses.length; i++) {
       const t = snap.physiology.trusses[i];
       const live = t.fruits.filter(f => !f.aborted && !f.harvested);
-      const visible = live.filter(f => f.fertilizationTT > 0);
+      const visible = live.filter(f => f.fertilizationTT > 0 && f.diameter >= minVisibleDiameterMm);
       const maxDiam = visible.length > 0 ? Math.max(...visible.map(f => f.diameter)) : 0;
+      const fertilized = t.fruits.filter(f => f.fertilizationTT > 0).length;
+      const aborted = t.fruits.filter(f => f.aborted).length;
+      const harvested = t.fruits.filter(f => f.harvested).length;
+      const nonAbortedCohort = live.filter(f => f.fertilizationTT > 0).length;
+      let expanding = 0;
+      let starvedOngoing = 0;
+      for (const f of live) {
+        if (f.fertilizationTT > 0 && f.diameter >= minExpandingDiameterMm) {
+          const p = fruitPhase(f, snap.physiology.TT, snap.cultivar);
+          if (p.phase === 'cell_expansion' || p.phase === 'ripening_early' || p.phase === 'ripening_late') {
+            expanding++;
+          }
+        }
+        if (f.starvedDays > 0) starvedOngoing++;
+      }
       lines.push(csvRow([
         snap.day, i + 1, mapTrussStatus(t, snap.physiology.TT, snap.cultivar), t.emergenceTT,
         t.flowerCount,
         t.fruits.filter(f => f.fertilizationTT <= 0 && !f.aborted).length,
         t.fruits.filter(f => f.fertilizationTT > 0 && !f.aborted).length,
         visible.length, maxDiam,
+        fertilized, aborted, harvested,
+        nonAbortedCohort, expanding, starvedOngoing,
       ]));
     }
   }
@@ -794,6 +904,7 @@ function main() {
   // Iter 6 — apply Gompertz override (child-process sweep harness가 호출)
   applyOverrideGompertz(args);
   applyOverridePhenology(args);  // Iter 6c
+  applyOverrideCohort(args);     // Iter 6d
 
   const bundle = loadReferenceBundle(args.referenceBundle);
 

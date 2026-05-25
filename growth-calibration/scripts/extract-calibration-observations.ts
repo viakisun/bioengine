@@ -59,6 +59,9 @@ interface CliArgs {
   overrideGompertz?: { inflectionC?: number; rateB?: number; exponentScaling?: number };
   /** Iter 6c — phenology override (target cultivar only). */
   overridePhenology?: { cellDivisionDurationGDD?: number; cellExpansionDurationGDD?: number };
+  /** Iter 6d — cohort override (target cultivar only, SSOT #53).
+   *  format: "flowersPerTrussMu=7,fruitSetRate=0.75" */
+  overrideCohort?: { flowersPerTrussMu?: number; fruitSetRate?: number };
 }
 
 function parseOverride(s?: string): CliArgs['overrideGompertz'] {
@@ -88,6 +91,19 @@ function parseOverridePhenology(s?: string): CliArgs['overridePhenology'] {
   return out;
 }
 
+function parseOverrideCohort(s?: string): CliArgs['overrideCohort'] {
+  if (!s) return undefined;
+  const out: { flowersPerTrussMu?: number; fruitSetRate?: number } = {};
+  for (const pair of s.split(',')) {
+    const [k, v] = pair.split('=').map(t => t.trim());
+    const n = Number(v);
+    if (!Number.isFinite(n)) continue;
+    if (k === 'flowersPerTrussMu') out.flowersPerTrussMu = n;
+    else if (k === 'fruitSetRate') out.fruitSetRate = n;
+  }
+  return out;
+}
+
 function parseArgs(argv: string[]): CliArgs {
   const opts: Record<string, string> = {};
   for (let i = 0; i < argv.length; i++) {
@@ -111,6 +127,7 @@ function parseArgs(argv: string[]): CliArgs {
     outRoot: opts.outRoot ?? join(__dirname, '..', 'experiments'),
     overrideGompertz: parseOverride(opts.overrideGompertz),
     overridePhenology: parseOverridePhenology(opts.overridePhenology),
+    overrideCohort: parseOverrideCohort(opts.overrideCohort),
   };
 }
 
@@ -151,6 +168,33 @@ function applyOverridePhenology(args: CliArgs): void {
   if (ov.cellDivisionDurationGDD !== undefined) c.cellDivisionDurationGDD = ov.cellDivisionDurationGDD;
   if (ov.cellExpansionDurationGDD !== undefined) c.cellExpansionDurationGDD = ov.cellExpansionDurationGDD;
   console.log(`[extract override] phenology: cultivar=${args.cultivar} cellDiv=${ov.cellDivisionDurationGDD ?? '-'}, cellExp=${ov.cellExpansionDurationGDD ?? '-'}`);
+}
+
+/** Iter 6d — cohort override (target cultivar only, SSOT #53).
+ *  c.flowersPerTruss + c.reproductive.trussOrderProfile[*] + c.scenarios[*].reproductive.trussOrderProfile[*]
+ *  모두 in-place mutate (CoreModel.emergeTruss는 rule?.flowersPerTruss ?? cultivar.flowersPerTruss). */
+function applyOverrideCohort(args: CliArgs): void {
+  const ov = args.overrideCohort;
+  if (!ov) return;
+  const c = CULTIVARS[args.cultivar];
+  if (!c) {
+    console.warn(`[extract override cohort] cultivar ${args.cultivar} not found — skip`);
+    return;
+  }
+  if (ov.fruitSetRate !== undefined) c.fruitSetRate = ov.fruitSetRate;
+  if (ov.flowersPerTrussMu !== undefined) {
+    const mu = ov.flowersPerTrussMu;
+    c.flowersPerTruss.mu = mu;
+    for (const rule of c.reproductive.trussOrderProfile) {
+      rule.flowersPerTruss.mu = mu;
+    }
+    for (const sc of Object.values(c.scenarios)) {
+      for (const rule of sc.reproductive.trussOrderProfile) {
+        rule.flowersPerTruss.mu = mu;
+      }
+    }
+  }
+  console.log(`[extract override] cohort: cultivar=${args.cultivar} flowersPerTrussMu=${ov.flowersPerTrussMu ?? '-'}, fruitSetRate=${ov.fruitSetRate ?? '-'}`);
 }
 
 // ── Status mapping (engine → schema enum) ─────────────────────────────
@@ -461,6 +505,7 @@ function main(): void {
   const args = parseArgs(process.argv.slice(2));
   applyOverrideGompertz(args);  // Iter 6b — child-process Gompertz mutation
   applyOverridePhenology(args); // Iter 6c — phenology mutation
+  applyOverrideCohort(args);    // Iter 6d — cohort mutation
   const simRoot = join(args.outRoot, args.experimentId, 'simulation', args.modelVersion);
 
   process.stdout.write(

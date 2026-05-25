@@ -376,15 +376,26 @@ function buildSweepTable(sweepRoot: string, sweepId?: string): string {
 
 interface EvalCandidate {
   runId: string;
-  variant: { inflectionC: number; rateB: number; exponentScaling: number };
+  variant: {
+    inflectionC: number;
+    rateB: number;
+    exponentScaling: number;
+    cellDivisionDurationGDD?: number;
+    cellExpansionDurationGDD?: number;
+    flowersPerTrussMu?: number;
+    fruitSetRate?: number;
+  };
   S: number;
   PBand: number;
   diagnosis: Record<string, number>;
-  day30?: { maxVisDiam: number; visibleCount: number };
-  day33?: { maxVisDiam: number; visibleCount: number };
-  day60?: { maxDiam: number; visibleCount: number };
-  day90?: { maxDiam: number; visibleCount: number };
+  day30?: { maxVisDiam: number; visibleCount: number; cohortCount?: number };
+  day33?: { maxVisDiam: number; visibleCount: number; cohortCount?: number };
+  day60?: { maxDiam: number; visibleCount: number; cohortCount?: number };
+  day90?: { maxDiam: number; visibleCount: number; cohortCount?: number };
   rejectReason?: string | null;
+  rejectCategory?: string | null;
+  riskReasons?: string[];
+  promoteVerdict?: 'promote' | 'conditional_promote';
   score?: number;
   isBaseline?: boolean;
 }
@@ -393,7 +404,7 @@ interface EvalSummary {
   evalId: string;
   baselineRunId: string;
   candidates: EvalCandidate[];
-  winner: { runId: string; reasoning: string };
+  winner: { runId: string; reasoning: string; promoteVerdict?: string; riskReasons?: string[] };
 }
 
 function readEvalSummary(sweepRoot: string, sweepId?: string): EvalSummary | null {
@@ -464,19 +475,30 @@ function buildCohortSufficiencyTable(candCkpt: CheckpointSummary | null): string
 }
 
 // Section 10b — Top Candidate Re-score
+// Iter 6d: cohort + variant cohort fields + rejectCategory + riskReasons + verdict 모두 노출
 function buildTopCandidateTable(evalSummary: EvalSummary | null): string {
   if (!evalSummary) return '_(eval_summary.json not found)_';
   const lines: string[] = [];
-  lines.push('| Run | inflectionC | rateB | expScale | S | P_band | Day60 maxD | Day90 maxD | Day60 visible | Day90 visible | too_behind | gate | selected |');
-  lines.push('|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---|');
+  lines.push('| Run | fMu | fSR | S | P_band | D60 maxD | D90 maxD | D60 vis | D90 vis | D60 coh | D90 coh | too_behind | category | selected |');
+  lines.push('|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---|');
   for (const c of evalSummary.candidates) {
     const tooBehind = c.diagnosis['common_truss_status_too_behind'] ?? 0;
-    const gate = c.rejectReason ? `✗ ${c.rejectReason.slice(0, 30)}` : '✓';
+    const category = c.rejectReason
+      ? `✗ ${c.rejectCategory ?? 'unknown'}`
+      : (c.runId === evalSummary.winner.runId ? `✓ ${c.promoteVerdict ?? 'promote'}` : '✓');
     const selected = c.runId === evalSummary.winner.runId ? '⭐' : (c.isBaseline ? '_baseline_' : '');
-    lines.push(`| ${c.runId}${c.isBaseline ? ' (v0.11)' : ''} | ${c.variant.inflectionC} | ${c.variant.rateB} | ${c.variant.exponentScaling} | ${c.S.toFixed(3)} | ${c.PBand.toFixed(3)} | ${(c.day60?.maxDiam ?? 0).toFixed(1)} | ${(c.day90?.maxDiam ?? 0).toFixed(1)} | ${c.day60?.visibleCount ?? '-'} | ${c.day90?.visibleCount ?? '-'} | ${tooBehind} | ${gate} | ${selected} |`);
+    const fMu = c.variant.flowersPerTrussMu ?? '-';
+    const fSR = c.variant.fruitSetRate ?? '-';
+    lines.push(`| ${c.runId}${c.isBaseline ? ' (baseline)' : ''} | ${fMu} | ${fSR} | ${c.S.toFixed(3)} | ${c.PBand.toFixed(3)} | ${(c.day60?.maxDiam ?? 0).toFixed(1)} | ${(c.day90?.maxDiam ?? 0).toFixed(1)} | ${c.day60?.visibleCount ?? '-'} | ${c.day90?.visibleCount ?? '-'} | ${c.day60?.cohortCount ?? '-'} | ${c.day90?.cohortCount ?? '-'} | ${tooBehind} | ${category} | ${selected} |`);
   }
   lines.push('');
-  lines.push(`**Winner**: ${evalSummary.winner.runId} — ${evalSummary.winner.reasoning}`);
+  lines.push(`**Winner**: ${evalSummary.winner.runId} (verdict: ${evalSummary.winner.promoteVerdict ?? '-'})`);
+  lines.push('');
+  lines.push(`**Reasoning**: ${evalSummary.winner.reasoning}`);
+  if (evalSummary.winner.riskReasons && evalSummary.winner.riskReasons.length > 0) {
+    lines.push('');
+    lines.push(`**Risk Reasons**: \`${evalSummary.winner.riskReasons.join(', ')}\` (SSOT #60)`);
+  }
   return lines.join('\n');
 }
 
@@ -553,6 +575,58 @@ function readTrussSummaryCsv(checkpointRoot: string, modelVersion: string): stri
   if (!existsSync(path)) return [];
   const text = readFileSync(path, 'utf-8');
   return text.split('\n').filter(l => l.length > 0).map(l => l.split(','));
+}
+
+// Iter 6d (SSOT #56) — Section 5d per-truss flower/fertilization/abortion breakdown.
+// Day 60 + Day 90 only (cohort 13/13 정체의 핵심 진단점).
+function buildTrussCohortBreakdown(truss_rows: string[][]): string {
+  if (truss_rows.length === 0) return '_(truss_summary.csv not found)_';
+  const header = truss_rows[0];
+  const idx = (k: string) => header.indexOf(k);
+  // 필수 컬럼 존재 확인 (구버전 CSV는 없을 수 있음)
+  const needed = ['day', 'truss_index', 'flower_bud_count', 'fertilized_count', 'aborted_count', 'harvested_count', 'non_aborted_cohort', 'visible_fruit_count', 'expanding_count', 'starved_ongoing_count'];
+  for (const c of needed) {
+    if (idx(c) < 0) return `_(truss_summary.csv missing column '${c}' — Iter 6d 확장 전 CSV 가능)_`;
+  }
+  const lines: string[] = [];
+  for (const day of [60, 90]) {
+    const rows = truss_rows.slice(1).filter(r => r[idx('day')] === String(day));
+    if (rows.length === 0) {
+      lines.push(`### Day ${day}`);
+      lines.push('');
+      lines.push('_(no rows)_');
+      lines.push('');
+      continue;
+    }
+    let sumBud = 0, sumFert = 0, sumAbort = 0, sumHarv = 0, sumCoh = 0, sumVis = 0, sumExp = 0, sumStarv = 0;
+    lines.push(`### Day ${day} — per truss`);
+    lines.push('');
+    lines.push('| Truss | flowerBud | fertilized | aborted | harvested | nonAbortedCohort | visible | expanding | starvedOngoing |');
+    lines.push('|---|---:|---:|---:|---:|---:|---:|---:|---:|');
+    for (const r of rows) {
+      const ti = r[idx('truss_index')];
+      const bud = Number(r[idx('flower_bud_count')]);
+      const fert = Number(r[idx('fertilized_count')]);
+      const abort = Number(r[idx('aborted_count')]);
+      const harv = Number(r[idx('harvested_count')]);
+      const coh = Number(r[idx('non_aborted_cohort')]);
+      const vis = Number(r[idx('visible_fruit_count')]);
+      const exp_ = Number(r[idx('expanding_count')]);
+      const starv = Number(r[idx('starved_ongoing_count')]);
+      lines.push(`| T${ti} | ${bud} | ${fert} | ${abort} | ${harv} | ${coh} | ${vis} | ${exp_} | ${starv} |`);
+      sumBud += bud; sumFert += fert; sumAbort += abort; sumHarv += harv;
+      sumCoh += coh; sumVis += vis; sumExp += exp_; sumStarv += starv;
+    }
+    lines.push(`| **total** | **${sumBud}** | **${sumFert}** | **${sumAbort}** | **${sumHarv}** | **${sumCoh}** | **${sumVis}** | **${sumExp}** | **${sumStarv}** |`);
+    lines.push('');
+    // 진단 힌트
+    const fertRate = sumBud > 0 ? (sumFert / sumBud) : 0;
+    const abortRate = sumFert > 0 ? (sumAbort / sumFert) : 0;
+    lines.push(`- fertilization rate: ${(fertRate * 100).toFixed(0)}% (${sumFert}/${sumBud})`);
+    lines.push(`- abortion rate (of fertilized): ${(abortRate * 100).toFixed(0)}% (${sumAbort}/${sumFert})`);
+    lines.push('');
+  }
+  return lines.join('\n');
 }
 
 function buildLeafSizeSanity(
@@ -678,6 +752,14 @@ function main() {
   lines.push('- cohort < target_visible_min 이면 phenology sweep으로 해결 불가 → fruit cohort generation 영역 (Iter 6d 또는 후속).');
   lines.push('');
 
+  // ── 5d. Per-truss cohort breakdown (Iter 6d, SSOT #56) ──
+  lines.push('## 5d. Per-truss Cohort Breakdown (Iter 6d 진단 — Day 60/90)');
+  lines.push('');
+  lines.push(buildTrussCohortBreakdown(candTrussRows));
+  lines.push('- `flowerBud` = `flowersPerTruss` sample, `fertilized` = `fruitSetRate` 통과, `aborted` = starvation OR pruning (combined).');
+  lines.push('- low fertilization rate → `fruitSetRate` 조정 후보. high abortion rate → sink starvation OR pruning (별도 검토).');
+  lines.push('');
+
   // ── 6. Gompertz Parameter Sweep ──
   lines.push('## 6. Gompertz Parameter Sweep');
   lines.push('');
@@ -755,6 +837,30 @@ function main() {
   lines.push('');
   lines.push(`- **채택 / 보류 / 재조정**: **${verdict.verdict}**`);
   lines.push(`- **이유**: ${verdict.reason}`);
+  // Iter 6d (SSOT #57, #58, #60) — winner promote verdict + risk + reject category 명시
+  if (evalSummary?.winner) {
+    const w = evalSummary.winner;
+    if (w.promoteVerdict) {
+      lines.push(`- **promote verdict**: \`${w.promoteVerdict}\` ${w.promoteVerdict === 'conditional_promote' ? '⚠️ 사용자 검토 필요 (SSOT #58)' : ''}`);
+    }
+    if (w.riskReasons && w.riskReasons.length > 0) {
+      lines.push(`- **risk reasons (SSOT #60)**: \`${w.riskReasons.join(', ')}\``);
+    }
+    // reject 후보 카테고리 요약
+    const rejectByCat: Record<string, string[]> = {};
+    for (const c of evalSummary.candidates) {
+      if (!c.rejectCategory || c.isBaseline) continue;
+      const k = c.rejectCategory;
+      (rejectByCat[k] ??= []).push(c.runId);
+    }
+    const catKeys = Object.keys(rejectByCat);
+    if (catKeys.length > 0) {
+      lines.push(`- **reject 카테고리 (SSOT #57)**:`);
+      for (const k of catKeys) {
+        lines.push(`  - \`${k}\`: ${rejectByCat[k].join(', ')}`);
+      }
+    }
+  }
   lines.push(`- **남은 문제**: (manual fill)`);
   lines.push(`- **다음 Iter 후보**: ${candCkpt?.diagnosis.recommendedNextIter ?? '(checkpoint 없음)'}`);
   lines.push('');

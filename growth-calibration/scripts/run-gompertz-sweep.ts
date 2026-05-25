@@ -34,6 +34,9 @@ interface CliArgs {
   /** Iter 6c — phenology sweep axes (optional). */
   cellDivisionDurationGDD?: number[];
   cellExpansionDurationGDD?: number[];
+  /** Iter 6d — cohort generation sweep axes (optional, SSOT #53). */
+  flowersPerTrussMu?: number[];
+  fruitSetRate?: number[];
   seed: number;
   days: number[];
   cultivar: string;
@@ -65,6 +68,8 @@ function parseArgs(argv: string[]): CliArgs {
     exponentScaling: parseList(opts.exponentScaling, [0.010]),
     cellDivisionDurationGDD: opts.cellDivisionDurationGDD ? parseList(opts.cellDivisionDurationGDD, []) : undefined,
     cellExpansionDurationGDD: opts.cellExpansionDurationGDD ? parseList(opts.cellExpansionDurationGDD, []) : undefined,
+    flowersPerTrussMu: opts.flowersPerTrussMu ? parseList(opts.flowersPerTrussMu, []) : undefined,
+    fruitSetRate: opts.fruitSetRate ? parseList(opts.fruitSetRate, []) : undefined,
     seed: opts.seed ? Number(opts.seed) : 20260525,
     days: parseList(opts.days, [30, 33, 60, 90]),
     cultivar: opts.cultivar ?? 'tomimaru-muchoo',
@@ -82,21 +87,31 @@ interface Variant {
   // Iter 6c — phenology (optional)
   cellDivisionDurationGDD?: number;
   cellExpansionDurationGDD?: number;
+  // Iter 6d — cohort generation (optional)
+  flowersPerTrussMu?: number;
+  fruitSetRate?: number;
 }
 
 function genVariants(args: CliArgs): Variant[] {
   const out: Variant[] = [];
   const cddList = args.cellDivisionDurationGDD ?? [undefined];
   const cedList = args.cellExpansionDurationGDD ?? [undefined];
+  const fptList = args.flowersPerTrussMu ?? [undefined];
+  const fsrList = args.fruitSetRate ?? [undefined];
   for (const ic of args.inflectionC) {
     for (const rb of args.rateB) {
       for (const exp of args.exponentScaling) {
         for (const cdd of cddList) {
           for (const ced of cedList) {
-            out.push({
-              inflectionC: ic, rateB: rb, exponentScaling: exp,
-              cellDivisionDurationGDD: cdd, cellExpansionDurationGDD: ced,
-            });
+            for (const fpt of fptList) {
+              for (const fsr of fsrList) {
+                out.push({
+                  inflectionC: ic, rateB: rb, exponentScaling: exp,
+                  cellDivisionDurationGDD: cdd, cellExpansionDurationGDD: ced,
+                  flowersPerTrussMu: fpt, fruitSetRate: fsr,
+                });
+              }
+            }
           }
         }
       }
@@ -146,6 +161,13 @@ function runVariant(args: CliArgs, runId: string, v: Variant): RunOutput {
     if (v.cellExpansionDurationGDD !== undefined) parts.push(`cellExpansionDurationGDD=${v.cellExpansionDurationGDD}`);
     cliArgs.push('--overridePhenology', parts.join(','));
   }
+  // Iter 6d — cohort override (if variant has cohort fields)
+  if (v.flowersPerTrussMu !== undefined || v.fruitSetRate !== undefined) {
+    const parts: string[] = [];
+    if (v.flowersPerTrussMu !== undefined) parts.push(`flowersPerTrussMu=${v.flowersPerTrussMu}`);
+    if (v.fruitSetRate !== undefined) parts.push(`fruitSetRate=${v.fruitSetRate}`);
+    cliArgs.push('--overrideCohort', parts.join(','));
+  }
   const res = spawnSync('npx', cliArgs, { cwd: args.repoRoot, stdio: 'pipe', encoding: 'utf-8' });
 
   if (res.status !== 0) {
@@ -172,26 +194,27 @@ function runVariant(args: CliArgs, runId: string, v: Variant): RunOutput {
 interface RankedRun extends RunOutput {
   score: number;
   scoreBreakdown: Record<string, number>;
-  day30: { visibleCount: number; maxVisDiam: number };
-  day33: { visibleCount: number; maxVisDiam: number };
-  day60: { maxDiam: number; visibleCount: number };
-  day90: { maxDiam: number; visibleCount: number };
+  day30: { visibleCount: number; maxVisDiam: number; cohortCount: number };
+  day33: { visibleCount: number; maxVisDiam: number; cohortCount: number };
+  day60: { maxDiam: number; visibleCount: number; cohortCount: number };
+  day90: { maxDiam: number; visibleCount: number; cohortCount: number };
 }
 
 function rankRuns(runs: RunOutput[]): RankedRun[] {
   return runs.map(r => {
     if (!r.ok) {
-      return { ...r, score: -Infinity, scoreBreakdown: {}, day30: { visibleCount: -1, maxVisDiam: -1 }, day33: { visibleCount: -1, maxVisDiam: -1 }, day60: { maxDiam: -1, visibleCount: -1 }, day90: { maxDiam: -1, visibleCount: -1 } };
+      const emp = { visibleCount: -1, maxVisDiam: -1, cohortCount: -1 };
+      return { ...r, score: -Infinity, scoreBreakdown: {}, day30: emp, day33: emp, day60: { maxDiam: -1, visibleCount: -1, cohortCount: -1 }, day90: { maxDiam: -1, visibleCount: -1, cohortCount: -1 } };
     }
     const get = (day: number) => r.overalls.find(o => o.day === day);
     const d30 = get(30);
     const d33 = get(33);
     const d60 = get(60);
     const d90 = get(90);
-    const day30 = { visibleCount: d30?.visibleFruitCount ?? d30?.fruitCountTotal ?? 0, maxVisDiam: d30?.maxVisibleFruitDiameterMm ?? d30?.maxFruitDiameterMm ?? 0 };
-    const day33 = { visibleCount: d33?.visibleFruitCount ?? d33?.fruitCountTotal ?? 0, maxVisDiam: d33?.maxVisibleFruitDiameterMm ?? d33?.maxFruitDiameterMm ?? 0 };
-    const day60 = { maxDiam: d60?.maxVisibleFruitDiameterMm ?? d60?.maxFruitDiameterMm ?? 0, visibleCount: d60?.visibleFruitCount ?? 0 };
-    const day90 = { maxDiam: d90?.maxVisibleFruitDiameterMm ?? d90?.maxFruitDiameterMm ?? 0, visibleCount: d90?.visibleFruitCount ?? 0 };
+    const day30 = { visibleCount: d30?.visibleFruitCount ?? d30?.fruitCountTotal ?? 0, maxVisDiam: d30?.maxVisibleFruitDiameterMm ?? d30?.maxFruitDiameterMm ?? 0, cohortCount: d30?.fruitCohortCount ?? 0 };
+    const day33 = { visibleCount: d33?.visibleFruitCount ?? d33?.fruitCountTotal ?? 0, maxVisDiam: d33?.maxVisibleFruitDiameterMm ?? d33?.maxFruitDiameterMm ?? 0, cohortCount: d33?.fruitCohortCount ?? 0 };
+    const day60 = { maxDiam: d60?.maxVisibleFruitDiameterMm ?? d60?.maxFruitDiameterMm ?? 0, visibleCount: d60?.visibleFruitCount ?? 0, cohortCount: d60?.fruitCohortCount ?? 0 };
+    const day90 = { maxDiam: d90?.maxVisibleFruitDiameterMm ?? d90?.maxFruitDiameterMm ?? 0, visibleCount: d90?.visibleFruitCount ?? 0, cohortCount: d90?.fruitCohortCount ?? 0 };
 
     // Multi-criteria scoring
     const breakdown: Record<string, number> = {};
@@ -218,6 +241,11 @@ function rankRuns(runs: RunOutput[]): RankedRun[] {
     breakdown.day90_visible_band =
       day90.visibleCount >= 20 && day90.visibleCount <= 28 ? 15 :
       day90.visibleCount >= 16 && day90.visibleCount <= 32 ? 7 : 0;
+
+    // Iter 6d — cohort sufficiency 보너스 (SSOT #52 — 필요조건)
+    // Day 60 cohort ≥ 6, Day 90 cohort ≥ 20
+    breakdown.day60_cohort_sufficient = day60.cohortCount >= 6 ? 10 : 0;
+    breakdown.day90_cohort_sufficient = day90.cohortCount >= 20 ? 15 : 0;
 
     const score = Object.values(breakdown).reduce((a, b) => a + b, 0);
     return { ...r, score, scoreBreakdown: breakdown, day30, day33, day60, day90 };
@@ -266,20 +294,22 @@ function writeSweepSummary(args: CliArgs, ranked: RankedRun[]): void {
     lines.push(`- inflectionC: **${best.variant.inflectionC}**`);
     lines.push(`- rateB: **${best.variant.rateB}**`);
     lines.push(`- exponentScaling: **${best.variant.exponentScaling}**`);
+    if (best.variant.flowersPerTrussMu !== undefined) lines.push(`- flowersPerTrussMu: **${best.variant.flowersPerTrussMu}**`);
+    if (best.variant.fruitSetRate !== undefined) lines.push(`- fruitSetRate: **${best.variant.fruitSetRate}**`);
     lines.push(`- Score: ${best.score.toFixed(1)}`);
     lines.push(`- Day 30: visible=${best.day30.visibleCount}, maxDiam=${best.day30.maxVisDiam.toFixed(1)}mm`);
     lines.push(`- Day 33: visible=${best.day33.visibleCount}, maxDiam=${best.day33.maxVisDiam.toFixed(1)}mm`);
-    lines.push(`- Day 60: maxDiam=${best.day60.maxDiam.toFixed(1)}mm (target 22-32)`);
-    lines.push(`- Day 90: maxDiam=${best.day90.maxDiam.toFixed(1)}mm (target 50-65)`);
+    lines.push(`- Day 60: maxDiam=${best.day60.maxDiam.toFixed(1)}mm (target 22-32), cohort=${best.day60.cohortCount} (target ≥6), visible=${best.day60.visibleCount}`);
+    lines.push(`- Day 90: maxDiam=${best.day90.maxDiam.toFixed(1)}mm (target 50-65), cohort=${best.day90.cohortCount} (target ≥20), visible=${best.day90.visibleCount}`);
     lines.push('');
   }
   lines.push(`## Full Ranking (top 10)`);
   lines.push('');
-  lines.push('| Rank | runId | inflectionC | rateB | expScale | Score | Day30 maxD | Day33 maxD | Day60 maxD | Day90 maxD |');
-  lines.push('|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|');
+  lines.push('| Rank | runId | iC | rB | exp | fMu | fSR | Score | Day60 maxD | D60 cohort | D60 vis | Day90 maxD | D90 cohort | D90 vis |');
+  lines.push('|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|');
   for (let i = 0; i < Math.min(10, ranked.length); i++) {
     const r = ranked[i];
-    lines.push(`| ${i + 1} | ${r.runId} | ${r.variant.inflectionC} | ${r.variant.rateB} | ${r.variant.exponentScaling} | ${r.score.toFixed(1)} | ${r.day30.maxVisDiam.toFixed(1)} | ${r.day33.maxVisDiam.toFixed(1)} | ${r.day60.maxDiam.toFixed(1)} | ${r.day90.maxDiam.toFixed(1)} |`);
+    lines.push(`| ${i + 1} | ${r.runId} | ${r.variant.inflectionC} | ${r.variant.rateB} | ${r.variant.exponentScaling} | ${r.variant.flowersPerTrussMu ?? '-'} | ${r.variant.fruitSetRate ?? '-'} | ${r.score.toFixed(1)} | ${r.day60.maxDiam.toFixed(1)} | ${r.day60.cohortCount} | ${r.day60.visibleCount} | ${r.day90.maxDiam.toFixed(1)} | ${r.day90.cohortCount} | ${r.day90.visibleCount} |`);
   }
   writeFileSync(join(outRoot, 'sweep_summary.md'), lines.join('\n') + '\n');
 }
@@ -291,7 +321,16 @@ function main(): void {
   const variants = genVariants(args);
 
   console.log(`[run-gompertz-sweep] sweepId=${args.sweepId}`);
-  console.log(`  variants: ${variants.length} (inflectionC=${args.inflectionC.length} × rateB=${args.rateB.length} × exp=${args.exponentScaling.length})`);
+  const axes: string[] = [
+    `inflectionC=${args.inflectionC.length}`,
+    `rateB=${args.rateB.length}`,
+    `exp=${args.exponentScaling.length}`,
+  ];
+  if (args.cellDivisionDurationGDD) axes.push(`cellDiv=${args.cellDivisionDurationGDD.length}`);
+  if (args.cellExpansionDurationGDD) axes.push(`cellExp=${args.cellExpansionDurationGDD.length}`);
+  if (args.flowersPerTrussMu) axes.push(`flowersMu=${args.flowersPerTrussMu.length}`);
+  if (args.fruitSetRate) axes.push(`fruitSetRate=${args.fruitSetRate.length}`);
+  console.log(`  variants: ${variants.length} (${axes.join(' × ')})`);
   console.log(`  output: ${join(args.sweepRoot, args.sweepId)}`);
 
   const sweepDir = join(args.sweepRoot, args.sweepId);
@@ -303,7 +342,9 @@ function main(): void {
     const runId = `run_${String(i + 1).padStart(3, '0')}`;
     const phStr = (v.cellDivisionDurationGDD !== undefined || v.cellExpansionDurationGDD !== undefined)
       ? ` cellDiv=${v.cellDivisionDurationGDD ?? '-'} cellExp=${v.cellExpansionDurationGDD ?? '-'}` : '';
-    process.stdout.write(`  [${i + 1}/${variants.length}] ${runId} inflectionC=${v.inflectionC} rateB=${v.rateB} exp=${v.exponentScaling}${phStr} ... `);
+    const coStr = (v.flowersPerTrussMu !== undefined || v.fruitSetRate !== undefined)
+      ? ` flowersMu=${v.flowersPerTrussMu ?? '-'} fsr=${v.fruitSetRate ?? '-'}` : '';
+    process.stdout.write(`  [${i + 1}/${variants.length}] ${runId} inflectionC=${v.inflectionC} rateB=${v.rateB} exp=${v.exponentScaling}${phStr}${coStr} ... `);
     const out = runVariant(args, runId, v);
     runs.push(out);
     console.log(out.ok ? '✓' : '✗');

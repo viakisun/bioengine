@@ -72,6 +72,9 @@ interface SweepVariant {
   // Iter 6c — phenology (optional)
   cellDivisionDurationGDD?: number;
   cellExpansionDurationGDD?: number;
+  // Iter 6d — cohort generation (optional, SSOT #53)
+  flowersPerTrussMu?: number;
+  fruitSetRate?: number;
 }
 
 interface SweepRanking {
@@ -92,6 +95,25 @@ interface EvalCandidate {
   /** Iter 6c SSOT #52 — cohort sufficiency: target visible 가능한가? */
   cohortSufficiency?: { day60: 'ok' | 'insufficient'; day90: 'ok' | 'insufficient' };
   rejectReason?: string | null;
+  /** Iter 6d (SSOT #57) — reject reason 카테고리. null이면 통과. */
+  rejectCategory?:
+    | 'fruit_too_early_returned'
+    | 'day60_maxDiam_below_lower_bound'
+    | 'day60_maxDiam_above_upper_bound'
+    | 'day90_maxDiam_below_lower_bound'
+    | 'day90_maxDiam_above_upper_bound'
+    | 'sp_band_dropped'
+    | 'visible_count_did_not_improve'
+    | 'cohort_increased_but_size_collapsed'
+    | 'cohort_did_not_increase'
+    | 'cohort_insufficient'
+    | 'composite_margin_insufficient'
+    | 'process_failed'
+    | null;
+  /** Iter 6d (SSOT #60) — promote/conditional 후보 risk 표식. */
+  riskReasons?: string[];
+  /** Iter 6d — 극단값 winner 분기 verdict 자체. */
+  promoteVerdict?: 'promote' | 'conditional_promote';
   score?: number;
   isBaseline?: boolean;
 }
@@ -108,7 +130,17 @@ function evalCandidate(args: CliArgs, runId: string, v: SweepVariant): EvalCandi
         v.cellExpansionDurationGDD !== undefined ? `cellExpansionDurationGDD=${v.cellExpansionDurationGDD}` : '',
       ].filter(Boolean).join(',')
     : undefined;
-  const extraOverride = phenologyStr ? ['--overridePhenology', phenologyStr] : [];
+  // Iter 6d — cohort override (if variant has cohort fields)
+  const cohortStr = (v.flowersPerTrussMu !== undefined || v.fruitSetRate !== undefined)
+    ? [
+        v.flowersPerTrussMu !== undefined ? `flowersPerTrussMu=${v.flowersPerTrussMu}` : '',
+        v.fruitSetRate !== undefined ? `fruitSetRate=${v.fruitSetRate}` : '',
+      ].filter(Boolean).join(',')
+    : undefined;
+  const extraOverride = [
+    ...(phenologyStr ? ['--overridePhenology', phenologyStr] : []),
+    ...(cohortStr ? ['--overrideCohort', cohortStr] : []),
+  ];
 
   // 1. extract 220 (child process)
   console.log(`    extract...`);
@@ -124,7 +156,7 @@ function evalCandidate(args: CliArgs, runId: string, v: SweepVariant): EvalCandi
   ], { cwd: args.repoRoot, stdio: 'pipe', encoding: 'utf-8' });
   if (r1.status !== 0) {
     console.error(`    extract FAILED: ${r1.stderr?.slice(0, 200)}`);
-    return { runId, variant: v, S: 0, PBand: 0, diagnosis: {}, rejectReason: 'extract failed' };
+    return { runId, variant: v, S: 0, PBand: 0, diagnosis: {}, rejectReason: 'extract failed', rejectCategory: 'process_failed' };
   }
 
   // 2. compare 220
@@ -137,7 +169,7 @@ function evalCandidate(args: CliArgs, runId: string, v: SweepVariant): EvalCandi
   ], { cwd: args.repoRoot, stdio: 'pipe', encoding: 'utf-8' });
   if (r2.status !== 0) {
     console.error(`    compare FAILED: ${r2.stderr?.slice(0, 200)}`);
-    return { runId, variant: v, S: 0, PBand: 0, diagnosis: {}, rejectReason: 'compare failed' };
+    return { runId, variant: v, S: 0, PBand: 0, diagnosis: {}, rejectReason: 'compare failed', rejectCategory: 'process_failed' };
   }
 
   // 3. dump single-seed checkpoint (audit용)
@@ -160,7 +192,7 @@ function evalCandidate(args: CliArgs, runId: string, v: SweepVariant): EvalCandi
   // 4. read summary + checkpoint
   const summaryPath = join(args.experimentRoot, 'comparison', `growthModel.tomato.${evalModelVersion}`, 'summary.json');
   if (!existsSync(summaryPath)) {
-    return { runId, variant: v, S: 0, PBand: 0, diagnosis: {}, rejectReason: 'summary.json missing' };
+    return { runId, variant: v, S: 0, PBand: 0, diagnosis: {}, rejectReason: 'summary.json missing', rejectCategory: 'process_failed' };
   }
   const summary = JSON.parse(readFileSync(summaryPath, 'utf-8'));
 
@@ -201,18 +233,54 @@ function evalCandidate(args: CliArgs, runId: string, v: SweepVariant): EvalCandi
 
 // ── Hard gate (SSOT #46) ─────────────────────────────────────────────
 
-function hardGateReject(e: EvalCandidate, baseline: { S: number; PBand: number }): string | null {
-  if ((e.diagnosis['tomato_fruit_appears_too_early'] ?? 0) > 0) return 'fruit_too_early 재발화';
-  if ((e.diagnosis['tomato_day33_fruit_too_early'] ?? 0) > 0) return 'day33_fruit_too_early 재발화';
-  if ((e.day30?.maxVisDiam ?? 0) > 3) return `Day 30 maxVisDiam ${e.day30?.maxVisDiam.toFixed(1)}mm > 3mm`;
-  if ((e.day33?.maxVisDiam ?? 0) > 3) return `Day 33 maxVisDiam ${e.day33?.maxVisDiam.toFixed(1)}mm > 3mm`;
+interface HardGateResult {
+  reason: string | null;
+  category: EvalCandidate['rejectCategory'];
+}
+
+function hardGateReject(e: EvalCandidate, baseline: { S: number; PBand: number }): HardGateResult {
+  if ((e.diagnosis['tomato_fruit_appears_too_early'] ?? 0) > 0)
+    return { reason: 'fruit_too_early 재발화', category: 'fruit_too_early_returned' };
+  if ((e.diagnosis['tomato_day33_fruit_too_early'] ?? 0) > 0)
+    return { reason: 'day33_fruit_too_early 재발화', category: 'fruit_too_early_returned' };
+  if ((e.day30?.maxVisDiam ?? 0) > 3)
+    return { reason: `Day 30 maxVisDiam ${e.day30?.maxVisDiam.toFixed(1)}mm > 3mm`, category: 'fruit_too_early_returned' };
+  if ((e.day33?.maxVisDiam ?? 0) > 3)
+    return { reason: `Day 33 maxVisDiam ${e.day33?.maxVisDiam.toFixed(1)}mm > 3mm`, category: 'fruit_too_early_returned' };
   const d60 = e.day60?.maxDiam ?? 0;
-  if (d60 < 18 || d60 > 36) return `Day 60 maxDiam ${d60.toFixed(1)}mm out of 18~36`;
+  if (d60 < 18)
+    return { reason: `Day 60 maxDiam ${d60.toFixed(1)}mm < 18 (lower bound)`, category: 'day60_maxDiam_below_lower_bound' };
+  if (d60 > 36)
+    return { reason: `Day 60 maxDiam ${d60.toFixed(1)}mm > 36 (upper bound)`, category: 'day60_maxDiam_above_upper_bound' };
   const d90 = e.day90?.maxDiam ?? 0;
-  if (d90 < 40 || d90 > 75) return `Day 90 maxDiam ${d90.toFixed(1)}mm out of 40~75`;
-  if (e.S < baseline.S - 0.02) return `S ${e.S.toFixed(3)} drop > 0.02`;
-  if (e.PBand < baseline.PBand - 0.02) return `P_band ${e.PBand.toFixed(3)} drop > 0.02`;
-  return null;
+  if (d90 < 40)
+    return { reason: `Day 90 maxDiam ${d90.toFixed(1)}mm < 40 (lower bound)`, category: 'day90_maxDiam_below_lower_bound' };
+  if (d90 > 75)
+    return { reason: `Day 90 maxDiam ${d90.toFixed(1)}mm > 75 (upper bound)`, category: 'day90_maxDiam_above_upper_bound' };
+  if (e.S < baseline.S - 0.02)
+    return { reason: `S ${e.S.toFixed(3)} drop > 0.02`, category: 'sp_band_dropped' };
+  if (e.PBand < baseline.PBand - 0.02)
+    return { reason: `P_band ${e.PBand.toFixed(3)} drop > 0.02`, category: 'sp_band_dropped' };
+  return { reason: null, category: null };
+}
+
+/** Iter 6d (SSOT #55) — cohort sufficiency 필수조건.
+ *  Day 60 cohort ≥ 6 + Day 90 cohort ≥ 20. 미달 시 reject. */
+function cohortSufficiencyReject(e: EvalCandidate, baseline: EvalCandidate | null): HardGateResult {
+  const d60c = e.day60?.cohortCount ?? 0;
+  const d90c = e.day90?.cohortCount ?? 0;
+  if (d60c < 6 || d90c < 20) {
+    // Iter 6d 후보 (cohort axis 있음)에서 baseline 대비 cohort 변화 0인지 추가 판별
+    const isCohortVariant = e.variant.flowersPerTrussMu !== undefined || e.variant.fruitSetRate !== undefined;
+    if (isCohortVariant && baseline) {
+      const baseD90c = baseline.day90?.cohortCount ?? 0;
+      if (d90c <= baseD90c) {
+        return { reason: `Day 90 cohort ${d90c} ≤ baseline ${baseD90c} (cohort 변화 없음)`, category: 'cohort_did_not_increase' };
+      }
+    }
+    return { reason: `cohort 부족: Day 60=${d60c} (need ≥6), Day 90=${d90c} (need ≥20)`, category: 'cohort_insufficient' };
+  }
+  return { reason: null, category: null };
 }
 
 // ── Composite scoring (after gate) ───────────────────────────────────
@@ -265,32 +333,44 @@ function main(): void {
   const baseline = results.find(r => r.isBaseline) ?? results[0];
   if (!baseline) throw new Error('no baseline found');
 
-  // Hard gate + composite score
+  // ── Stage 1: Hard gate (Iter 5b/6/6b/6c 그대로) ────────────────────
+  // baseline은 항상 통과 (자기 자신 기준). 다른 후보만 reject 분류.
   for (const e of results) {
-    e.rejectReason = hardGateReject(e, { S: baseline.S, PBand: baseline.PBand });
-    if (!e.rejectReason) {
+    if (e.isBaseline) {
       e.score = compositeScore(e, { S: baseline.S, PBand: baseline.PBand });
+      continue;
     }
+    const gate = hardGateReject(e, { S: baseline.S, PBand: baseline.PBand });
+    if (gate.reason) {
+      e.rejectReason = gate.reason;
+      e.rejectCategory = gate.category;
+      continue;
+    }
+    // Iter 6d (SSOT #55) — cohort sufficiency 필수조건
+    const cohortGate = cohortSufficiencyReject(e, baseline);
+    if (cohortGate.reason) {
+      e.rejectReason = cohortGate.reason;
+      e.rejectCategory = cohortGate.category;
+      continue;
+    }
+    e.score = compositeScore(e, { S: baseline.S, PBand: baseline.PBand });
   }
 
-  const survivors = results.filter(r => !r.rejectReason);
+  const survivors = results.filter(r => !r.rejectReason && !r.isBaseline);
   let winner: EvalCandidate;
   let reasoning: string;
+  let promoteVerdict: 'promote' | 'conditional_promote' | 'reject' = 'reject';
 
   if (survivors.length === 0) {
     winner = baseline;
-    reasoning = '모든 candidate가 hard gate 탈락 → baseline (v0.11) 유지';
+    reasoning = '모든 candidate가 hard gate / cohort sufficiency 탈락 → baseline 유지';
   } else {
     const ranked = [...survivors].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
     const top = ranked[0];
     const baselineScore = baseline.score ?? -Infinity;
     const margin = (top.score ?? 0) - baselineScore;
 
-    // Iter 6c — additional improvement-condition gate (SSOT, 사용자 검토 #5):
-    // promote 하려면 다음 중 최소 하나 만족해야 함:
-    //   - truss_status_too_behind: baseline 대비 ≥ 7 감소 (87 → ≤ 80)
-    //   - Day 60 visibleFruitCount: baseline 대비 ≥ 2 증가
-    //   - Day 90 visibleFruitCount: baseline 대비 ≥ 4 증가
+    // 채택조건 (SSOT #55): improvement-condition (Iter 6c와 동일)
     const tb_base = baseline.diagnosis['common_truss_status_too_behind'] ?? 0;
     const tb_top = top.diagnosis['common_truss_status_too_behind'] ?? 0;
     const d60v_base = baseline.day60?.visibleCount ?? 0;
@@ -302,20 +382,50 @@ function main(): void {
     const d90Improved = (d90v_top - d90v_base) >= 4;
     const meaningfulImprovement = trussImproved || d60Improved || d90Improved;
 
-    if (top.runId === baseline.runId || margin < 5) {
+    if (margin < 5) {
       winner = baseline;
-      reasoning = `baseline (${baseline.runId}) 대비 composite margin ${margin.toFixed(1)} < 5 → 유지`;
+      top.rejectReason = `composite margin ${margin.toFixed(1)} < 5`;
+      top.rejectCategory = 'composite_margin_insufficient';
+      reasoning = `top 후보 ${top.runId} composite margin ${margin.toFixed(1)} < 5 → baseline 유지`;
     } else if (!meaningfulImprovement) {
       winner = baseline;
-      reasoning = `${top.runId} composite margin=${margin.toFixed(1)}이지만 improvement-condition 미달 (truss_too_behind Δ=${tb_base - tb_top}, D60vis Δ=${d60v_top - d60v_base}, D90vis Δ=${d90v_top - d90v_base}) → baseline 유지`;
+      top.rejectReason = `visible/stage 채택조건 미달 (truss Δ=${tb_base - tb_top}, D60vis Δ=${d60v_top - d60v_base}, D90vis Δ=${d90v_top - d90v_base})`;
+      top.rejectCategory = 'visible_count_did_not_improve';
+      reasoning = `${top.runId} composite margin=${margin.toFixed(1)} 통과지만 채택조건 미달 → baseline 유지`;
     } else {
       winner = top;
+      // Iter 6d (SSOT #58) — 극단값 winner는 conditional_promote
+      const fsr = top.variant.fruitSetRate ?? 0;
+      const fmu = top.variant.flowersPerTrussMu ?? 0;
+      const extremeFsr = fsr >= 0.9;
+      const extremeFmu = fmu >= 9;
+      promoteVerdict = (extremeFsr || extremeFmu) ? 'conditional_promote' : 'promote';
+      top.promoteVerdict = promoteVerdict;
+
+      // riskReasons 채우기 (SSOT #60)
+      const risks: string[] = [];
+      if (extremeFsr) risks.push('high_fruit_set_rate');
+      if (extremeFmu) risks.push('high_flowers_per_truss');
+      const d60d = top.day60?.maxDiam ?? 0;
+      const d90d = top.day90?.maxDiam ?? 0;
+      if (d60d > 0 && (d60d - 18) / 18 <= 0.05) risks.push('maxDiam_near_lower_bound');
+      if (d90d > 0 && (d90d - 40) / 40 <= 0.05) risks.push('maxDiam_near_lower_bound');
+      const conditionCount = [trussImproved, d60Improved, d90Improved].filter(Boolean).length;
+      if (conditionCount === 1) risks.push('cohort_increased_but_visible_marginal');
+      const sDrop = baseline.S - top.S;
+      if (sDrop >= 0.015) risks.push('sp_band_marginal');
+      const pDrop = baseline.PBand - top.PBand;
+      if (pDrop >= 0.015) risks.push('sp_band_marginal');
+      top.riskReasons = risks;
+
       const reasons = [
         trussImproved ? `truss_too_behind ${tb_base}→${tb_top} (-${tb_base - tb_top})` : '',
         d60Improved ? `Day 60 visible ${d60v_base}→${d60v_top}` : '',
         d90Improved ? `Day 90 visible ${d90v_base}→${d90v_top}` : '',
       ].filter(Boolean).join(', ');
-      reasoning = `${winner.runId}: ${reasons}, composite margin=${margin.toFixed(1)}`;
+      const verdictTag = promoteVerdict === 'conditional_promote' ? ' [CONDITIONAL — 사용자 검토 필요]' : '';
+      reasoning = `${winner.runId} (${promoteVerdict})${verdictTag}: ${reasons}, composite margin=${margin.toFixed(1)}` +
+        (risks.length > 0 ? ` | risk: ${risks.join(',')}` : '');
     }
   }
 
@@ -327,7 +437,12 @@ function main(): void {
     sweepId: args.sweepId,
     baselineRunId: baseline.runId,
     candidates: results,
-    winner: { runId: winner.runId, reasoning },
+    winner: {
+      runId: winner.runId,
+      reasoning,
+      promoteVerdict: winner.isBaseline ? 'reject' : promoteVerdict,
+      riskReasons: winner.riskReasons ?? [],
+    },
     timestamp: new Date().toISOString(),
   };
   writeFileSync(join(outDir, 'eval_summary.json'), JSON.stringify(summary, null, 2) + '\n');
@@ -335,12 +450,13 @@ function main(): void {
   // Console summary
   console.log('\n=== Eval Results ===');
   for (const r of results) {
-    const gate = r.rejectReason ? `✗ ${r.rejectReason}` : `✓ score=${(r.score ?? 0).toFixed(1)}`;
+    const gate = r.rejectReason ? `✗ ${r.rejectCategory ?? '?'}: ${r.rejectReason}` : `✓ score=${(r.score ?? 0).toFixed(1)}`;
     const baseline_tag = r.isBaseline ? ' (baseline)' : '';
-    console.log(`  ${r.runId}${baseline_tag}: S=${r.S.toFixed(3)} P=${r.PBand.toFixed(3)} too_behind=${r.diagnosis['common_truss_status_too_behind'] ?? 0} D60vis=${r.day60?.visibleCount ?? '-'} D90vis=${r.day90?.visibleCount ?? '-'} | ${gate}`);
+    console.log(`  ${r.runId}${baseline_tag}: S=${r.S.toFixed(3)} P=${r.PBand.toFixed(3)} too_behind=${r.diagnosis['common_truss_status_too_behind'] ?? 0} D60vis=${r.day60?.visibleCount ?? '-'} D90vis=${r.day90?.visibleCount ?? '-'} D60coh=${r.day60?.cohortCount ?? '-'} D90coh=${r.day90?.cohortCount ?? '-'} | ${gate}`);
   }
-  console.log(`\nWinner: ${winner.runId}`);
+  console.log(`\nWinner: ${winner.runId} (verdict: ${winner.isBaseline ? 'reject' : promoteVerdict})`);
   console.log(`  ${reasoning}`);
+  if ((winner.riskReasons?.length ?? 0) > 0) console.log(`  risks: ${winner.riskReasons?.join(', ')}`);
   console.log(`\nOutput: ${join(outDir, 'eval_summary.json')}`);
 }
 
