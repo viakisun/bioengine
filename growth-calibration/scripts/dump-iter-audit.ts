@@ -229,25 +229,55 @@ function recommendVerdict(criteria: PassCriterion[]): { verdict: '채택' | '보
 
 // ── Fruit Mass Flow Audit table (per-fruit) ────────────────────────────
 
+/**
+ * Iter 6b — Pick representative fruit per day per SSOT #44:
+ *   1. 모두 aborted면 first aborted fruit (그때만 aborted 표시)
+ *   2. visible (diameter >= 3mm = minVisibleDiameterMm) 중 max diameter
+ *   3. visible 없으면 cohort 중 max diameter (non-aborted)
+ */
+function pickRepresentativeFruit(
+  rows: string[][],
+  idx: (col: string) => number,
+  day: number,
+): string[] | null {
+  const dayAll = rows.filter(r => r[idx('day')] === String(day));
+  if (dayAll.length === 0) return null;
+  const nonAborted = dayAll.filter(r => r[idx('aborted')] !== 'true');
+
+  // 1. 모두 aborted
+  if (nonAborted.length === 0) return dayAll[0];
+
+  const diam = (r: string[]) => Number(r[idx('diameter_mm')]);
+
+  // 2. visible (>= 3mm) 중 max
+  const visible = nonAborted.filter(r => diam(r) >= 3);
+  if (visible.length > 0) {
+    return visible.reduce((max, r) => diam(r) > diam(max) ? r : max);
+  }
+
+  // 3. cohort 중 max (non-aborted)
+  return nonAborted.reduce((max, r) => diam(r) > diam(max) ? r : max);
+}
+
 function buildFruitFlowTable(
   candCheckpoint: CheckpointSummary | null,
   fruitRows: string[][],
+  days: number[],
 ): string {
   if (fruitRows.length === 0) return '_(fruit_summary.csv not found)_';
-
-  // header → index map
   const header = fruitRows[0];
   const idx = (col: string) => header.indexOf(col);
 
-  // 각 day별로 truss 1, fruit F1_1만 추출 (요약 목적)
-  const filterRows = fruitRows.slice(1).filter(r =>
-    r[idx('truss_index')] === '1' && r[idx('fruit_id')] === 'F1_1');
-
   const lines: string[] = [];
-  lines.push('| day | phase | gdd_since_fert | fresh_mass_g | diameter_mm | gompertz_cap_fresh_g | gompertz_allowed_diameter_mm | demand_limited? | trajectory_capped? |');
-  lines.push('|---|---|---|---|---|---|---|---|---|');
-  for (const r of filterRows) {
-    lines.push(`| ${r[idx('day')]} | ${r[idx('phase')]} | ${r[idx('gdd_since_fert')]} | ${r[idx('fresh_mass_g')]} | ${r[idx('diameter_mm')]} | ${r[idx('gompertz_cap_fresh_g')]} | ${r[idx('gompertz_allowed_diameter_mm')]} | ${r[idx('demand_was_limited')]} | ${r[idx('cumulative_cap_was_applied')]} |`);
+  lines.push('| day | fruit_id | phase | aborted | gdd_since_fert | fresh_mass_g | diameter_mm | gompertz_cap_fresh_g | gompertz_allowed_diameter_mm | demand_limited? | trajectory_capped? |');
+  lines.push('|---:|---|---|---:|---:|---:|---:|---:|---:|---|---|');
+  for (const day of days) {
+    const r = pickRepresentativeFruit(fruitRows.slice(1), idx, day);
+    if (!r) {
+      lines.push(`| ${day} | _(no fruit)_ | - | - | - | - | - | - | - | - | - |`);
+      continue;
+    }
+    lines.push(`| ${r[idx('day')]} | ${r[idx('fruit_id')]} | ${r[idx('phase')]} | ${r[idx('aborted')]} | ${r[idx('gdd_since_fert')]} | ${r[idx('fresh_mass_g')]} | ${r[idx('diameter_mm')]} | ${r[idx('gompertz_cap_fresh_g')]} | ${r[idx('gompertz_allowed_diameter_mm')]} | ${r[idx('demand_was_limited')]} | ${r[idx('cumulative_cap_was_applied')]} |`);
   }
   return lines.join('\n');
 }
@@ -342,14 +372,125 @@ function buildSweepTable(sweepRoot: string, sweepId?: string): string {
   return lines.join('\n');
 }
 
+// ── Iter 6b — Eval summary (run-top-candidates-comparison.ts output) ──
+
+interface EvalCandidate {
+  runId: string;
+  variant: { inflectionC: number; rateB: number; exponentScaling: number };
+  S: number;
+  PBand: number;
+  diagnosis: Record<string, number>;
+  day30?: { maxVisDiam: number; visibleCount: number };
+  day33?: { maxVisDiam: number; visibleCount: number };
+  day60?: { maxDiam: number; visibleCount: number };
+  day90?: { maxDiam: number; visibleCount: number };
+  rejectReason?: string | null;
+  score?: number;
+  isBaseline?: boolean;
+}
+
+interface EvalSummary {
+  evalId: string;
+  baselineRunId: string;
+  candidates: EvalCandidate[];
+  winner: { runId: string; reasoning: string };
+}
+
+function readEvalSummary(sweepRoot: string, sweepId?: string): EvalSummary | null {
+  if (!sweepId) return null;
+  const path = join(sweepRoot, sweepId, 'eval_summary.json');
+  if (!existsSync(path)) return null;
+  return JSON.parse(readFileSync(path, 'utf-8')) as EvalSummary;
+}
+
+// Section 5b — Stage Recovery (baseline vs winner)
+function buildStageRecoveryTable(evalSummary: EvalSummary | null): string {
+  if (!evalSummary) return '_(eval_summary.json not found — run-top-candidates-comparison.ts 실행 후 표시)_';
+  const baseline = evalSummary.candidates.find(c => c.isBaseline);
+  const winner = evalSummary.candidates.find(c => c.runId === evalSummary.winner.runId);
+  if (!baseline || !winner) return '_(baseline/winner not found in eval_summary)_';
+  const dx = (k: string, c: EvalCandidate) => c.diagnosis[k] ?? 0;
+  const fmt = (n?: number) => n == null ? '-' : n.toFixed(1);
+  const ifmt = (n?: number) => n == null ? '-' : String(n);
+  const delta = (a: number, b: number) => `${b >= a ? '+' : ''}${(b - a).toFixed(0)}`;
+  const lines: string[] = [];
+  lines.push('| Metric | v0.11 baseline | winner (' + winner.runId + ') | Δ | Target |');
+  lines.push('|---|---:|---:|---:|---:|');
+  const rows: Array<[string, number, number, string]> = [
+    ['fruit_too_early', dx('tomato_fruit_appears_too_early', baseline), dx('tomato_fruit_appears_too_early', winner), '0 유지 (hard gate)'],
+    ['day33_fruit_too_early', dx('tomato_day33_fruit_too_early', baseline), dx('tomato_day33_fruit_too_early', winner), '0 유지 (hard gate)'],
+    ['truss_status_too_behind', dx('common_truss_status_too_behind', baseline), dx('common_truss_status_too_behind', winner), '감소'],
+    ['truss_status_too_advanced', dx('common_truss_status_too_advanced', baseline), dx('common_truss_status_too_advanced', winner), '증가 허용'],
+  ];
+  for (const [name, b, c, target] of rows) {
+    lines.push(`| ${name} | ${b} | ${c} | ${delta(b, c)} | ${target} |`);
+  }
+  lines.push(`| Day 60 visibleFruitCount | ${ifmt(baseline.day60?.visibleCount)} | ${ifmt(winner.day60?.visibleCount)} | ${winner.day60 && baseline.day60 ? delta(baseline.day60.visibleCount, winner.day60.visibleCount) : '-'} | 6~10 |`);
+  lines.push(`| Day 90 visibleFruitCount | ${ifmt(baseline.day90?.visibleCount)} | ${ifmt(winner.day90?.visibleCount)} | ${winner.day90 && baseline.day90 ? delta(baseline.day90.visibleCount, winner.day90.visibleCount) : '-'} | 20~28 |`);
+  lines.push(`| Day 60 maxVisibleDiameterMm | ${fmt(baseline.day60?.maxDiam)} | ${fmt(winner.day60?.maxDiam)} | - | 22~32 유지 (hard gate) |`);
+  lines.push(`| Day 90 maxVisibleDiameterMm | ${fmt(baseline.day90?.maxDiam)} | ${fmt(winner.day90?.maxDiam)} | - | 50~65 유지 (hard gate) |`);
+  return lines.join('\n');
+}
+
+// Section 10b — Top Candidate Re-score
+function buildTopCandidateTable(evalSummary: EvalSummary | null): string {
+  if (!evalSummary) return '_(eval_summary.json not found)_';
+  const lines: string[] = [];
+  lines.push('| Run | inflectionC | rateB | expScale | S | P_band | Day60 maxD | Day90 maxD | Day60 visible | Day90 visible | too_behind | gate | selected |');
+  lines.push('|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---|');
+  for (const c of evalSummary.candidates) {
+    const tooBehind = c.diagnosis['common_truss_status_too_behind'] ?? 0;
+    const gate = c.rejectReason ? `✗ ${c.rejectReason.slice(0, 30)}` : '✓';
+    const selected = c.runId === evalSummary.winner.runId ? '⭐' : (c.isBaseline ? '_baseline_' : '');
+    lines.push(`| ${c.runId}${c.isBaseline ? ' (v0.11)' : ''} | ${c.variant.inflectionC} | ${c.variant.rateB} | ${c.variant.exponentScaling} | ${c.S.toFixed(3)} | ${c.PBand.toFixed(3)} | ${(c.day60?.maxDiam ?? 0).toFixed(1)} | ${(c.day90?.maxDiam ?? 0).toFixed(1)} | ${c.day60?.visibleCount ?? '-'} | ${c.day90?.visibleCount ?? '-'} | ${tooBehind} | ${gate} | ${selected} |`);
+  }
+  lines.push('');
+  lines.push(`**Winner**: ${evalSummary.winner.runId} — ${evalSummary.winner.reasoning}`);
+  return lines.join('\n');
+}
+
 function buildStageTable(
   candCkpt: CheckpointSummary | null,
   truss_rows: string[][],
+  fruit_rows: string[][],
   days: number[],
 ): string {
   if (truss_rows.length === 0) return '_(truss_summary.csv not found)_';
   const header = truss_rows[0];
   const idx = (col: string) => header.indexOf(col);
+
+  // Iter 6b — fruit_summary로부터 per (day, truss) cohort/visible/expanding 분리 (SSOT #47)
+  let fIdx: ((col: string) => number) | null = null;
+  if (fruit_rows.length > 0) {
+    const fh = fruit_rows[0];
+    fIdx = (col: string) => fh.indexOf(col);
+  }
+  const cohortFor = (day: number, truss: string): { cohort: number; visible: number; expanding: number; maxVis: number; maxCoh: number } => {
+    if (!fIdx) return { cohort: 0, visible: 0, expanding: 0, maxVis: 0, maxCoh: 0 };
+    const rows = fruit_rows.slice(1).filter(r =>
+      r[fIdx!('day')] === String(day) &&
+      r[fIdx!('truss_index')] === truss &&
+      r[fIdx!('aborted')] !== 'true',
+    );
+    let cohort = 0, visible = 0, expanding = 0, maxVis = 0, maxCoh = 0;
+    for (const r of rows) {
+      const d = Number(r[fIdx!('diameter_mm')]);
+      if (Number(r[fIdx!('fertilization_tt')]) <= 0) continue;
+      cohort++;
+      if (d > maxCoh) maxCoh = d;
+      if (d >= 3) {
+        visible++;
+        if (d > maxVis) maxVis = d;
+      }
+      // expansion: phase + diameter
+      const phase = r[fIdx!('phase')];
+      if (d >= 10 && (phase === 'cell_expansion' || phase === 'ripening_early' || phase === 'ripening_late')) {
+        expanding++;
+      }
+    }
+    return { cohort, visible, expanding, maxVis, maxCoh };
+  };
+
   const lines: string[] = [];
   const targetByDay: Record<number, string> = {
     30: 'visible_bud ~ flowering',
@@ -357,18 +498,20 @@ function buildStageTable(
     60: 'green_expanding',
     90: 'breaker ~ red',
   };
-  lines.push('| Day | Truss | Target Stage | Sim Status | Visible Fruit | Max Diameter |');
-  lines.push('|---:|---:|---|---|---:|---:|');
+  // 사용자 검토 #2 — column label 분리 (cohort/visible/expanding 명시)
+  lines.push('| Day | Truss | Target Stage | Sim Status | Cohort | Visible | Expanding | Max Visible mm | Max Cohort mm |');
+  lines.push('|---:|---:|---|---|---:|---:|---:|---:|---:|');
   for (const day of days) {
     const matching = truss_rows.slice(1).filter(r => r[idx('day')] === String(day));
     if (matching.length === 0) {
-      lines.push(`| ${day} | - | ${targetByDay[day] ?? '-'} | (no truss data) | - | - |`);
+      lines.push(`| ${day} | - | ${targetByDay[day] ?? '-'} | (no truss data) | - | - | - | - | - |`);
       continue;
     }
-    // Show first 2 trusses
     for (let i = 0; i < Math.min(2, matching.length); i++) {
       const r = matching[i];
-      lines.push(`| ${day} | T${r[idx('truss_index')]} | ${targetByDay[day] ?? '-'} | ${r[idx('status')]} | ${r[idx('visible_fruit_count')]} | ${r[idx('max_fruit_diameter_mm')]} |`);
+      const trussIdx = r[idx('truss_index')];
+      const counts = cohortFor(day, trussIdx);
+      lines.push(`| ${day} | T${trussIdx} | ${targetByDay[day] ?? '-'} | ${r[idx('status')]} | ${counts.cohort} | ${counts.visible} | ${counts.expanding} | ${counts.maxVis.toFixed(1)} | ${counts.maxCoh.toFixed(1)} |`);
     }
   }
   return lines.join('\n');
@@ -487,6 +630,15 @@ function main() {
   lines.push(buildFruitSizeTimeline(baseCkpt, candCkpt, args.days));
   lines.push('');
 
+  // ── 5b. Stage Recovery (Iter 6b — eval_summary.json 있을 때만) ──
+  const evalSummary = readEvalSummary(args.sweepRoot, args.sweepId);
+  if (evalSummary) {
+    lines.push('## 5b. Stage Recovery (Iter 6b 목표 진단)');
+    lines.push('');
+    lines.push(buildStageRecoveryTable(evalSummary));
+    lines.push('');
+  }
+
   // ── 6. Gompertz Parameter Sweep ──
   lines.push('## 6. Gompertz Parameter Sweep');
   lines.push('');
@@ -496,13 +648,13 @@ function main() {
   // ── 7. Truss / Fruit Stage Audit ──
   lines.push('## 7. Truss / Fruit Stage Audit');
   lines.push('');
-  lines.push(buildStageTable(candCkpt, candTrussRows, args.days));
+  lines.push(buildStageTable(candCkpt, candTrussRows, candFruitRows, args.days));
   lines.push('');
 
   // ── 8. Fruit Mass Flow Audit ──
   lines.push('## 8. Fruit Mass Flow Audit (truss 1, fruit F1_1)');
   lines.push('');
-  lines.push(buildFruitFlowTable(candCkpt, candFruitRows));
+  lines.push(buildFruitFlowTable(candCkpt, candFruitRows, args.days));
   lines.push('');
   lines.push('- `gompertz_cap_fresh_g` = `potentialFreshMassG(gddSinceFert, potentialMassG, params)` (fresh)');
   lines.push('- `gompertz_allowed_diameter_mm` = 200g→80mm 기준 ovate approx');
@@ -550,6 +702,14 @@ function main() {
     cp(v >= 40 && v <= 75, 'Day 90 maxVisibleFruitDiameterMm in 40~75mm (target 50~65)', `actual ${v.toFixed(1)}mm`);
   }
   lines.push('');
+
+  // ── 10b. Top Candidate Re-score (Iter 6b — eval_summary.json 있을 때만) ──
+  if (evalSummary) {
+    lines.push('## 10b. Top Candidate Re-score');
+    lines.push('');
+    lines.push(buildTopCandidateTable(evalSummary));
+    lines.push('');
+  }
 
   // ── 11. Final Decision ──
   lines.push('## 11. Final Decision');

@@ -185,6 +185,15 @@ function rankRuns(runs: RunOutput[]): RankedRun[] {
     if (day60.maxDiam < 5) breakdown.day60_overcorrection = -30;
     if (day90.maxDiam < 30) breakdown.day90_overcorrection = -30;
 
+    // Iter 6b — visible count target band 보너스 (single-seed trend only)
+    // Day 60 target 6~10, Day 90 target 20~28
+    breakdown.day60_visible_band =
+      day60.visibleCount >= 6 && day60.visibleCount <= 10 ? 15 :
+      day60.visibleCount >= 4 && day60.visibleCount <= 12 ? 7 : 0;
+    breakdown.day90_visible_band =
+      day90.visibleCount >= 20 && day90.visibleCount <= 28 ? 15 :
+      day90.visibleCount >= 16 && day90.visibleCount <= 32 ? 7 : 0;
+
     const score = Object.values(breakdown).reduce((a, b) => a + b, 0);
     return { ...r, score, scoreBreakdown: breakdown, day30, day33, day60, day90 };
   }).sort((a, b) => b.score - a.score);

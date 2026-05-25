@@ -27,9 +27,10 @@ import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { GrowthEngine } from '../../packages/tomato-engine/src/GrowthEngine';
-import { getCultivar } from '../../packages/tomato-engine/src/Cultivar';
+import { getCultivar, CULTIVARS } from '../../packages/tomato-engine/src/Cultivar';
 import { DEFAULT_CLIMATE } from '../../packages/tomato-engine/src/CoreModel';
 import { ACTIVE_ENGINE_MODE } from '../../packages/tomato-engine/src/EngineMode';
+import { ACTIVE_BOTANICAL } from '../../packages/tomato-engine/src/ModelRegistry';
 import { computePlantGeometry } from '../../src/plant/PlantBase';
 import type {
   PlantObservation,
@@ -53,6 +54,23 @@ interface CliArgs {
   baseSeed: number;
   days: number[];
   outRoot: string;
+  /** Iter 6b — sweep harness가 child-process 격리에 사용. dump-growth-checkpoints와
+   *  동일 패턴 (process-local mutation). format: "inflectionC=X,rateB=Y,exponentScaling=Z". */
+  overrideGompertz?: { inflectionC?: number; rateB?: number; exponentScaling?: number };
+}
+
+function parseOverride(s?: string): CliArgs['overrideGompertz'] {
+  if (!s) return undefined;
+  const out: { inflectionC?: number; rateB?: number; exponentScaling?: number } = {};
+  for (const pair of s.split(',')) {
+    const [k, v] = pair.split('=').map(t => t.trim());
+    const n = Number(v);
+    if (!Number.isFinite(n)) continue;
+    if (k === 'inflectionC') out.inflectionC = n;
+    else if (k === 'rateB') out.rateB = n;
+    else if (k === 'exponentScaling') out.exponentScaling = n;
+  }
+  return out;
 }
 
 function parseArgs(argv: string[]): CliArgs {
@@ -76,7 +94,33 @@ function parseArgs(argv: string[]): CliArgs {
       ? opts.days.split(',').map(s => Number(s.trim())).filter(n => Number.isFinite(n) && n >= 0)
       : DEFAULT_DAYS,
     outRoot: opts.outRoot ?? join(__dirname, '..', 'experiments'),
+    overrideGompertz: parseOverride(opts.overrideGompertz),
   };
+}
+
+/** Iter 6b — process-local Gompertz mutation (child-process per candidate, SSOT #48).
+ *  ACTIVE_BOTANICAL + CULTIVARS derived fields 둘 다 mutate. */
+function applyOverrideGompertz(args: CliArgs): void {
+  const ov = args.overrideGompertz;
+  if (!ov) return;
+  const fg = ACTIVE_BOTANICAL.tomato.fruitDevelopment.gompertz;
+  if (ov.inflectionC !== undefined) fg.inflectionC.mu = ov.inflectionC;
+  if (ov.rateB !== undefined) fg.rateB.mu = ov.rateB;
+  if (ov.exponentScaling !== undefined) fg.exponentScaling = ov.exponentScaling;
+  for (const c of Object.values(CULTIVARS)) {
+    if (ov.inflectionC !== undefined) {
+      c.gompertzInflectionC = ov.inflectionC;
+      c.resolvedBotanical.fruitDevelopment.gompertz.inflectionC.mu = ov.inflectionC;
+    }
+    if (ov.rateB !== undefined) {
+      c.gompertzRateB = ov.rateB;
+      c.resolvedBotanical.fruitDevelopment.gompertz.rateB.mu = ov.rateB;
+    }
+    if (ov.exponentScaling !== undefined) {
+      c.resolvedBotanical.fruitDevelopment.gompertz.exponentScaling = ov.exponentScaling;
+    }
+  }
+  console.log(`[extract override] gompertz: inflectionC=${ov.inflectionC ?? '-'}, rateB=${ov.rateB ?? '-'}, exp=${ov.exponentScaling ?? '-'}`);
 }
 
 // ── Status mapping (engine → schema enum) ─────────────────────────────
@@ -385,6 +429,7 @@ function ensureDir(dir: string): void {
 
 function main(): void {
   const args = parseArgs(process.argv.slice(2));
+  applyOverrideGompertz(args);  // Iter 6b — child-process Gompertz mutation
   const simRoot = join(args.outRoot, args.experimentId, 'simulation', args.modelVersion);
 
   process.stdout.write(

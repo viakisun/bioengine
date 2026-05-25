@@ -190,23 +190,24 @@
     //   rateB: 0.06
     //   inflectionC: 0.45
     "gompertz": {
-      // Iter 6 (growth_update_006): sweep iter6_sweep2/run_003 best.
-      //   inflectionC.mu 0.45 → 1.00 (τ를 사실상 cellDivisionGDD + cellExpansionGDD 시점으로),
-      //   rateB.mu 0.06 → 0.05 (살짝 완화),
-      //   exponentScaling 0.01 → 0.12 (curve를 가파르게).
-      // 결과 (tomimaru, seed 20260525, day 30/60/90):
-      //   Day 30: 28.4mm → 0.0mm (target 0~3 ✓)
-      //   Day 60: 36.5mm → 27.7mm (target 22~32, 정중앙 ✓)
-      //   Day 90: 41.6mm → 56.2mm (target 50~65, 정중앙 ✓)
+      // Iter 6 (growth_update_006): inflectionC.mu 0.45→1.00, rateB.mu 0.06→0.05, exp 0.01→0.12.
+      // Iter 6b (growth_update_007): top 4 sweep candidate re-evaluation 결과 run_005 선택.
+      //   rateB.mu 0.05 → 0.06 (살짝 빠르게 — fruit stage 진행 가속)
+      //   exponentScaling 0.12 → 0.08 (curve 살짝 평탄화)
+      // 결과 (220 comparison, baseline v0.11):
+      //   truss_status_too_behind 97 → 87 (-10), Day 90 visible 6 → 8 (+2)
+      //   S 0.693 → 0.694, P_band 0.550 → 0.554
+      //   Day 30/33 maxDiam 0.0mm 유지 (hard gate pass)
+      //   Day 60 27.7 → 32.0mm, Day 90 56.2 → 55.0mm (target band 유지)
       "rateB": {                             // 1/GDD, growth rate parameter
-        "mu": 0.05,
+        "mu": 0.06,
         "sigma": 0.01
       },
       "inflectionC": {                       // ratio, τ/total inflection point
         "mu": 1.00,
         "sigma": 0.05
       },
-      "exponentScaling": 0.12                // FruitGrowth.ts (Iter 6 main lever)
+      "exponentScaling": 0.08                // FruitGrowth.ts (Iter 6b — 0.12→0.08)
     },
 
     // -- Mass flow policy (Iter 5b, growth_update_005) -----------

@@ -1,0 +1,135 @@
+{
+  "schemaVersion": "growthCalibration.v1",
+  "updateId": "growth_update_007",
+  "previousModelVersion": "growthModel.tomato.v0.11-gompertz-calibrated",
+  "newModelVersion": "growthModel.tomato.v0.11.1-stage-fixed",
+  "status": "promoted",
+  "date": "2026-05-25",
+  "triggerComparisons": [
+    "(v0.11 220 comparisons + Iter 6 audit: truss_status_too_behind 46→97 trade-off, Day 60/90 visible fruit count target band 한참 아래)"
+  ],
+  "triggerRuleIds": [
+    "common_truss_status_too_behind"
+  ],
+  "reason": [
+    "Iter 6 v0.11이 fruit 크기 timeline은 target 정중앙 달성했으나 truss_status_too_behind 46→97 trade-off + Day 60/90 visible fruit count 부족.",
+    "Iter 6b: 새 sweep grid 없이 기존 iter6_sweep2의 top 4 후보 (run_003=v0.11, run_005, run_006, run_008) 220 comparison으로 재평가.",
+    "Hard gate (SSOT #46) 적용: fruit_too_early=0/day33=0/Day30/33 maxDiam≤3mm/Day60 18-36/Day90 40-75/S/P_band tolerance 모두 통과.",
+    "Composite score: truss_too_behind 감소 1.0 가중 + visible count target band 보너스 + S/P_band 보너스.",
+    "Winner: run_005 (margin 10 > 5 임계값) — rateB 0.05→0.06, exp 0.12→0.08.",
+    "결과: truss_too_behind 97→87 (-10), Day 90 visible 6→8, S +0.001, P_band +0.004. Day 60 maxDiam 27.7→32.0 (target 22~32 안), Day 90 56.2→55.0 (target 50~65 안), Day 30/33 0mm 유지."
+  ],
+  "parameterChanges": [
+    {
+      "parameter": "fruitDevelopment.gompertz.rateB.mu",
+      "oldValueBase": 0.05,
+      "oldValueResolvedTomimaru": 0.05,
+      "newValue": 0.06,
+      "file": "packages/tomato-engine/models/botanical/tomato.jsonc",
+      "unit": "1/GDD",
+      "citation": "Sweep iter6_sweep2/run_005 re-evaluation winner",
+      "reason": "fruit stage progression 가속 → truss_status_too_behind 감소",
+      "changeType": "jsonc_parameter",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "fruitDevelopment.gompertz.exponentScaling",
+      "oldValueBase": 0.12,
+      "oldValueResolvedTomimaru": 0.12,
+      "newValue": 0.08,
+      "file": "packages/tomato-engine/models/botanical/tomato.jsonc",
+      "unit": "1/GDD",
+      "citation": "Sweep iter6_sweep2/run_005",
+      "reason": "curve 살짝 평탄화 (rateB 증가와 균형)",
+      "changeType": "jsonc_parameter",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "dump-iter-audit.ts representative fruit selector",
+      "oldValue": "F1_1 fixed pick (모두 aborted 표시 버그)",
+      "newValue": "per-day max-visible (≥3mm) or max-cohort non-aborted fruit (SSOT #44)",
+      "file": "growth-calibration/scripts/dump-iter-audit.ts",
+      "unit": "logic",
+      "citation": "Iter 6b 사용자 검토 #3",
+      "reason": "Iter 5b/6에서 audit table이 모두 aborted F1_1만 표시되어 비교 불가능",
+      "changeType": "engine_logic",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "dump-iter-audit.ts 11→13 section 확장",
+      "oldValue": "11 sections",
+      "newValue": "+ Section 5b Stage Recovery + Section 10b Top Candidate Re-score",
+      "file": "growth-calibration/scripts/dump-iter-audit.ts",
+      "unit": "schema",
+      "citation": "Iter 6b spec",
+      "reason": "Iter 6b 결정 근거 명시 (baseline vs winner + 4 후보 비교)",
+      "changeType": "schema_only",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "Section 7 column 라벨 분리 (cohort/visible/expanding)",
+      "oldValue": "단일 'Visible Fruit' 컬럼 (혼동)",
+      "newValue": "Cohort + Visible + Expanding + Max Visible mm + Max Cohort mm 5 컬럼",
+      "file": "growth-calibration/scripts/dump-iter-audit.ts",
+      "unit": "schema",
+      "citation": "Iter 6b 사용자 검토 #2 + SSOT #47",
+      "reason": "Day 30 fruit_count=0인데 Visible Fruit=1로 보이는 등 혼동 해결",
+      "changeType": "schema_only",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "extract-calibration-observations --overrideGompertz",
+      "oldValue": "없음",
+      "newValue": "process-local mutation (dump-growth-checkpoints 동일 패턴)",
+      "file": "growth-calibration/scripts/extract-calibration-observations.ts",
+      "unit": "CLI",
+      "citation": "Iter 6b — child-process per candidate 격리 지원 (SSOT #48)",
+      "reason": "run-top-candidates-comparison 의 220 ensemble 호출 격리",
+      "changeType": "engine_logic",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "run-top-candidates-comparison.ts (신규)",
+      "oldValue": null,
+      "newValue": "child-process per candidate eval: extract 220 → compare 220 → dump checkpoint, hard gate → composite score → winner",
+      "file": "growth-calibration/scripts/run-top-candidates-comparison.ts",
+      "unit": "script",
+      "citation": "Iter 6b spec",
+      "reason": "SSOT #43 fine-tuning policy — 새 sweep 대신 top 후보 재평가",
+      "changeType": "engine_logic",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "run-gompertz-sweep.ts scoring 확장",
+      "oldValue": "Day 30/33 visible=0 + Day 30 diam + Day 60/90 band 보너스",
+      "newValue": "+ visible count target band 보너스 (Day 60 6~10, Day 90 20~28)",
+      "file": "growth-calibration/scripts/run-gompertz-sweep.ts",
+      "unit": "logic",
+      "citation": "Iter 6b spec",
+      "reason": "후속 sweep 시 visible count도 ranking에 반영 (single-seed trend)",
+      "changeType": "engine_logic",
+      "enforcementStatus": "active"
+    }
+  ],
+  "validationPlan": {
+    "replayDays": [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+    "forwardDays": [],
+    "targetMetrics": [
+      "common_truss_status_too_behind",
+      "overall.visibleFruitCount @ day 60/90",
+      "overall.maxFruitDiameterMm"
+    ]
+  },
+  "outcome": {
+    "runDate": "2026-05-25",
+    "replayScoreDelta": 0.001,
+    "forwardScoreDelta": 0,
+    "verdict": "채택 (margin 10 > 5, hard gate all pass)",
+    "notes": "Iter 6b fine-tuning 성공. v0.11 baseline 대비 truss_status_too_behind 97→87 (-10, -10%), Day 90 visible fruit 6→8, S 0.693→0.694 (+0.001), P_band 0.550→0.554 (+0.004). Day 30/33/60/90 fruit size target band 유지 (hard gate ✓). 미세 개선이지만 명확한 방향성 — composite score margin 10이 SSOT #45 임계값 5 통과. 4 후보 모두 hard gate pass. dump-iter-audit.ts representative fruit selector 버그 (F1_1 모두 aborted 표시) 같이 수정 — audit table이 실제 max-diameter fruit (F1_4 등) 표시. Audit 11→13 sections 확장 + Section 7 column 라벨 분리 (cohort/visible/expanding) — SSOT #47."
+  },
+  "followUp": [
+    "Iter 7 (Stem calibration, Case D): stemGrowth.matureInternode.lengthDistribution sweep — Day 30/60/90 height 보강. reproductive diagnosis noise 정리 후 적합.",
+    "Iter 6c (선택): GDD_per_truss + cellDivisionDurationGDD sweep — visible fruit count target band 진입 (Day 60 6~10, Day 90 20~28). Gompertz curve로 더 줄일 수 없는 영역.",
+    "Iter 8 (Leaf Module 정식 구현): lateralSpread mesh-derived + leaf size sanity 정식 (현재 220/220 진단 발화 + visible_leaf_count 부합률 미달)."
+  ]
+}
