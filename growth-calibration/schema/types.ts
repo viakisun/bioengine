@@ -203,6 +203,11 @@ export interface LeafObservation {
     elevationDeg: number;                         // -90..+90
     droopAngleDeg: number;                        // cantilever sag
     rollDeg: number;
+    /** Compound leaf 좌우 leaflet pair 사이 추정 각도. Iter 5 prep —
+     *  PlantBase ESTIMATE proxy (`leaflet_count_estimate`).
+     *  Optional for backward compat; populated by extract script when
+     *  PlantBase.LeafBase.lateralSpreadDeg is available. */
+    lateralSpreadDeg?: number;
   };
   shape: {
     averageLeafletAspect: number;

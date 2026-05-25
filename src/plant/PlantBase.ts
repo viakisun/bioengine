@@ -118,6 +118,21 @@ export interface LeafBase {
   // Material hints (passed through from PlantState)
   waterStress: number;
   diseaseLoad: number;
+
+  // ── Reference Pack-aligned orientation metrics (Iter 5 prep) ────────
+  // 본 두 값은 ESTIMATE proxy. 실제 geometric calculation은 compound leaf
+  // geometry (SkinMeshPlant)에서나 가능. 정식 구현 전까지의 임시 채움이며,
+  // source 태그로 "추정값"임을 명시한다. dump-growth-checkpoints.ts +
+  // extract-calibration-observations.ts가 consume.
+  /** leafletCount 기반 추정 각도. clamp(30 + (count-1)*10, 0, 90).
+   *  Reference Pack target band: 45-90° at day 30. */
+  lateralSpreadDeg: number;
+  /** 잎 자루의 수평 대비 elevation. droopRad는 positive-down 해석
+   *  (처질수록 양수) → elevationDeg는 음수. */
+  elevationDeg: number;
+  /** estimate source 태그. 향후 mesh-derived 정식 구현 시 분기. */
+  lateralSpreadSource: 'leaflet_count_estimate';
+  elevationSource: 'droop_rad_proxy';
 }
 
 export interface TrussBase {
@@ -477,6 +492,15 @@ function buildLeafBase(
   };
   const petioleCurve = [{ ...attachPos }, c1, c2, tip];
 
+  // Reference Pack-aligned orientation estimates (Iter 5 prep).
+  // clamp upper bound 90° = Reference target max, prevents 9+ leaflet
+  // automatic too_wide misdiagnosis.
+  const lateralSpreadDeg = Math.min(
+    90,
+    30 + Math.max(0, node.leafletCount - 1) * 10,
+  );
+  const elevationDeg = -(droopRad * 180 / Math.PI);
+
   return {
     nodeIdx: node.index,
     visibility: leafVisibility(node),
@@ -490,6 +514,10 @@ function buildLeafBase(
     petioleCurve,
     waterStress: node.waterStress,
     diseaseLoad: node.diseaseLoad,
+    lateralSpreadDeg,
+    elevationDeg,
+    lateralSpreadSource: 'leaflet_count_estimate',
+    elevationSource: 'droop_rad_proxy',
   };
 }
 

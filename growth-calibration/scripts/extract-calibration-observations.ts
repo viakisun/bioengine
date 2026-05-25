@@ -232,9 +232,13 @@ function buildObservation(args: BuildArgs): PlantObservation {
         leafAreaCm2: 0,                              // TODO derive from sizeFactor
         orientation: {
           azimuthDeg: rad2deg(leaf.azimuthRad),
-          elevationDeg: 0,                           // TODO
+          // Iter 5 prep — elevationDeg + lateralSpreadDeg는 PlantBase의 ESTIMATE
+          // proxy. lateralSpread is leaflet_count_estimate, elevation is droop_rad_proxy.
+          // 정식 mesh-derived 구현은 후속 plan.
+          elevationDeg: leaf.elevationDeg,
           droopAngleDeg: leaf.droopRad * RAD_TO_DEG,
           rollDeg: 0,
+          lateralSpreadDeg: leaf.lateralSpreadDeg,
         },
         shape: { averageLeafletAspect: 1.8, serrationLevel: 'medium', curlLevel: 'low' },
         health: {
