@@ -57,6 +57,8 @@ interface CliArgs {
   /** Iter 6b — sweep harness가 child-process 격리에 사용. dump-growth-checkpoints와
    *  동일 패턴 (process-local mutation). format: "inflectionC=X,rateB=Y,exponentScaling=Z". */
   overrideGompertz?: { inflectionC?: number; rateB?: number; exponentScaling?: number };
+  /** Iter 6c — phenology override (target cultivar only). */
+  overridePhenology?: { cellDivisionDurationGDD?: number; cellExpansionDurationGDD?: number };
 }
 
 function parseOverride(s?: string): CliArgs['overrideGompertz'] {
@@ -69,6 +71,19 @@ function parseOverride(s?: string): CliArgs['overrideGompertz'] {
     if (k === 'inflectionC') out.inflectionC = n;
     else if (k === 'rateB') out.rateB = n;
     else if (k === 'exponentScaling') out.exponentScaling = n;
+  }
+  return out;
+}
+
+function parseOverridePhenology(s?: string): CliArgs['overridePhenology'] {
+  if (!s) return undefined;
+  const out: { cellDivisionDurationGDD?: number; cellExpansionDurationGDD?: number } = {};
+  for (const pair of s.split(',')) {
+    const [k, v] = pair.split('=').map(t => t.trim());
+    const n = Number(v);
+    if (!Number.isFinite(n)) continue;
+    if (k === 'cellDivisionDurationGDD') out.cellDivisionDurationGDD = n;
+    else if (k === 'cellExpansionDurationGDD') out.cellExpansionDurationGDD = n;
   }
   return out;
 }
@@ -95,6 +110,7 @@ function parseArgs(argv: string[]): CliArgs {
       : DEFAULT_DAYS,
     outRoot: opts.outRoot ?? join(__dirname, '..', 'experiments'),
     overrideGompertz: parseOverride(opts.overrideGompertz),
+    overridePhenology: parseOverridePhenology(opts.overridePhenology),
   };
 }
 
@@ -121,6 +137,20 @@ function applyOverrideGompertz(args: CliArgs): void {
     }
   }
   console.log(`[extract override] gompertz: inflectionC=${ov.inflectionC ?? '-'}, rateB=${ov.rateB ?? '-'}, exp=${ov.exponentScaling ?? '-'}`);
+}
+
+/** Iter 6c — phenology override (target cultivar only, SSOT #49). */
+function applyOverridePhenology(args: CliArgs): void {
+  const ov = args.overridePhenology;
+  if (!ov) return;
+  const c = CULTIVARS[args.cultivar];
+  if (!c) {
+    console.warn(`[extract override phenology] cultivar ${args.cultivar} not found — skip`);
+    return;
+  }
+  if (ov.cellDivisionDurationGDD !== undefined) c.cellDivisionDurationGDD = ov.cellDivisionDurationGDD;
+  if (ov.cellExpansionDurationGDD !== undefined) c.cellExpansionDurationGDD = ov.cellExpansionDurationGDD;
+  console.log(`[extract override] phenology: cultivar=${args.cultivar} cellDiv=${ov.cellDivisionDurationGDD ?? '-'}, cellExp=${ov.cellExpansionDurationGDD ?? '-'}`);
 }
 
 // ── Status mapping (engine → schema enum) ─────────────────────────────
@@ -430,6 +460,7 @@ function ensureDir(dir: string): void {
 function main(): void {
   const args = parseArgs(process.argv.slice(2));
   applyOverrideGompertz(args);  // Iter 6b — child-process Gompertz mutation
+  applyOverridePhenology(args); // Iter 6c — phenology mutation
   const simRoot = join(args.outRoot, args.experimentId, 'simulation', args.modelVersion);
 
   process.stdout.write(

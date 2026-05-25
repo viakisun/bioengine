@@ -31,6 +31,9 @@ interface CliArgs {
   inflectionC: number[];
   rateB: number[];
   exponentScaling: number[];
+  /** Iter 6c — phenology sweep axes (optional). */
+  cellDivisionDurationGDD?: number[];
+  cellExpansionDurationGDD?: number[];
   seed: number;
   days: number[];
   cultivar: string;
@@ -60,6 +63,8 @@ function parseArgs(argv: string[]): CliArgs {
     inflectionC: parseList(opts.inflectionC, [0.55, 0.60, 0.65, 0.70]),
     rateB: parseList(opts.rateB, [0.04, 0.05, 0.06, 0.07]),
     exponentScaling: parseList(opts.exponentScaling, [0.010]),
+    cellDivisionDurationGDD: opts.cellDivisionDurationGDD ? parseList(opts.cellDivisionDurationGDD, []) : undefined,
+    cellExpansionDurationGDD: opts.cellExpansionDurationGDD ? parseList(opts.cellExpansionDurationGDD, []) : undefined,
     seed: opts.seed ? Number(opts.seed) : 20260525,
     days: parseList(opts.days, [30, 33, 60, 90]),
     cultivar: opts.cultivar ?? 'tomimaru-muchoo',
@@ -74,14 +79,26 @@ interface Variant {
   inflectionC: number;
   rateB: number;
   exponentScaling: number;
+  // Iter 6c — phenology (optional)
+  cellDivisionDurationGDD?: number;
+  cellExpansionDurationGDD?: number;
 }
 
 function genVariants(args: CliArgs): Variant[] {
   const out: Variant[] = [];
+  const cddList = args.cellDivisionDurationGDD ?? [undefined];
+  const cedList = args.cellExpansionDurationGDD ?? [undefined];
   for (const ic of args.inflectionC) {
     for (const rb of args.rateB) {
       for (const exp of args.exponentScaling) {
-        out.push({ inflectionC: ic, rateB: rb, exponentScaling: exp });
+        for (const cdd of cddList) {
+          for (const ced of cedList) {
+            out.push({
+              inflectionC: ic, rateB: rb, exponentScaling: exp,
+              cellDivisionDurationGDD: cdd, cellExpansionDurationGDD: ced,
+            });
+          }
+        }
       }
     }
   }
@@ -112,7 +129,7 @@ interface RunOutput {
 function runVariant(args: CliArgs, runId: string, v: Variant): RunOutput {
   const outRoot = join(args.sweepRoot, args.sweepId);
   const overrideStr = `inflectionC=${v.inflectionC},rateB=${v.rateB},exponentScaling=${v.exponentScaling}`;
-  const res = spawnSync('npx', [
+  const cliArgs = [
     'vite-node',
     'growth-calibration/scripts/dump-growth-checkpoints.ts', '--',
     '--days', args.days.join(','),
@@ -121,7 +138,15 @@ function runVariant(args: CliArgs, runId: string, v: Variant): RunOutput {
     '--modelVersion', runId,
     '--outRoot', outRoot,
     '--overrideGompertz', overrideStr,
-  ], { cwd: args.repoRoot, stdio: 'pipe', encoding: 'utf-8' });
+  ];
+  // Iter 6c — phenology override (if variant has phenology fields)
+  if (v.cellDivisionDurationGDD !== undefined || v.cellExpansionDurationGDD !== undefined) {
+    const parts: string[] = [];
+    if (v.cellDivisionDurationGDD !== undefined) parts.push(`cellDivisionDurationGDD=${v.cellDivisionDurationGDD}`);
+    if (v.cellExpansionDurationGDD !== undefined) parts.push(`cellExpansionDurationGDD=${v.cellExpansionDurationGDD}`);
+    cliArgs.push('--overridePhenology', parts.join(','));
+  }
+  const res = spawnSync('npx', cliArgs, { cwd: args.repoRoot, stdio: 'pipe', encoding: 'utf-8' });
 
   if (res.status !== 0) {
     console.error(`  ${runId} FAILED:`, res.stderr?.slice(0, 500));
@@ -276,7 +301,9 @@ function main(): void {
   for (let i = 0; i < variants.length; i++) {
     const v = variants[i];
     const runId = `run_${String(i + 1).padStart(3, '0')}`;
-    process.stdout.write(`  [${i + 1}/${variants.length}] ${runId} inflectionC=${v.inflectionC} rateB=${v.rateB} exp=${v.exponentScaling} ... `);
+    const phStr = (v.cellDivisionDurationGDD !== undefined || v.cellExpansionDurationGDD !== undefined)
+      ? ` cellDiv=${v.cellDivisionDurationGDD ?? '-'} cellExp=${v.cellExpansionDurationGDD ?? '-'}` : '';
+    process.stdout.write(`  [${i + 1}/${variants.length}] ${runId} inflectionC=${v.inflectionC} rateB=${v.rateB} exp=${v.exponentScaling}${phStr} ... `);
     const out = runVariant(args, runId, v);
     runs.push(out);
     console.log(out.ok ? '✓' : '✗');

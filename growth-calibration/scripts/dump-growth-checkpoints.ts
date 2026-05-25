@@ -54,6 +54,10 @@ interface CliArgs {
    *  override. format: "inflectionC=0.60,rateB=0.05,exponentScaling=0.01".
    *  Process-local mutation (다음 child에 안 새어나감). */
   overrideGompertz?: { inflectionC?: number; rateB?: number; exponentScaling?: number };
+  /** Iter 6c — cultivar phenology override (cellDivision/Expansion).
+   *  format: "cellDivisionDurationGDD=200,cellExpansionDurationGDD=400".
+   *  Target cultivar (args.cultivar)만 mutate (SSOT #49). */
+  overridePhenology?: { cellDivisionDurationGDD?: number; cellExpansionDurationGDD?: number };
 }
 
 function parseOverride(s?: string): CliArgs['overrideGompertz'] {
@@ -66,6 +70,19 @@ function parseOverride(s?: string): CliArgs['overrideGompertz'] {
     if (k === 'inflectionC') out.inflectionC = n;
     else if (k === 'rateB') out.rateB = n;
     else if (k === 'exponentScaling') out.exponentScaling = n;
+  }
+  return out;
+}
+
+function parseOverridePhenology(s?: string): CliArgs['overridePhenology'] {
+  if (!s) return undefined;
+  const out: { cellDivisionDurationGDD?: number; cellExpansionDurationGDD?: number } = {};
+  for (const pair of s.split(',')) {
+    const [k, v] = pair.split('=').map(t => t.trim());
+    const n = Number(v);
+    if (!Number.isFinite(n)) continue;
+    if (k === 'cellDivisionDurationGDD') out.cellDivisionDurationGDD = n;
+    else if (k === 'cellExpansionDurationGDD') out.cellExpansionDurationGDD = n;
   }
   return out;
 }
@@ -92,6 +109,7 @@ function parseArgs(argv: string[]): CliArgs {
       ?? 'growth-calibration/reference/tomato/tomato_tomimaru_reference_v0.1',
     outRoot: opts.outRoot ?? join(__dirname, '..', 'checkpoints'),
     overrideGompertz: parseOverride(opts.overrideGompertz),
+    overridePhenology: parseOverridePhenology(opts.overridePhenology),
   };
 }
 
@@ -125,6 +143,21 @@ function applyOverrideGompertz(args: CliArgs): void {
     }
   }
   console.log(`[override] gompertz: inflectionC=${ov.inflectionC ?? '-'}, rateB=${ov.rateB ?? '-'}, exponentScaling=${ov.exponentScaling ?? '-'}`);
+}
+
+/** Iter 6c — phenology override. cultivar.phenology field 직접 mutate (SSOT #49).
+ *  Target cultivar (args.cultivar)만 mutate — cross-cultivar smoke test 안전. */
+function applyOverridePhenology(args: CliArgs): void {
+  const ov = args.overridePhenology;
+  if (!ov) return;
+  const c = CULTIVARS[args.cultivar];
+  if (!c) {
+    console.warn(`[override phenology] cultivar ${args.cultivar} not found — skip`);
+    return;
+  }
+  if (ov.cellDivisionDurationGDD !== undefined) c.cellDivisionDurationGDD = ov.cellDivisionDurationGDD;
+  if (ov.cellExpansionDurationGDD !== undefined) c.cellExpansionDurationGDD = ov.cellExpansionDurationGDD;
+  console.log(`[override] phenology: cultivar=${args.cultivar} cellDiv=${ov.cellDivisionDurationGDD ?? '-'}, cellExp=${ov.cellExpansionDurationGDD ?? '-'}`);
 }
 
 // ── Engine snapshot per day ───────────────────────────────────────────
@@ -712,12 +745,16 @@ function userSummaryMd(
     lines.push(`- 잎 펼침 (mean): ${leafSpreadMean.toFixed(1)}° / 목표 ${spreadStr} → ${leafSpreadPct?.toFixed(0) ?? 'N/A'}%, ${judgmentFor(leafSpreadMean, leafSpreadBand)} *(leaflet_count_estimate)*`);
 
     // One-line decision
-    const fruitFail = (fruitPct ?? 100) < 50;
+    // Iter 6c (SSOT #50) — visible count vs max diameter 분리해서 판단
+    const visibleCountFail = (fruitPct ?? 100) < 50;     // fruit count target 미달
+    const maxDiamFail = (diamPct ?? 100) < 50;            // max diameter target 미달
     const stemFail = (heightPct ?? 100) < 80 || (nodePct ?? 100) < 80;
     const trussOver = trussBand && o.visibleTrussCount > trussBand[1];
     let decision = '대부분 정상';
-    if (fruitFail && stemFail) decision = '과실 + 줄기 모두 문제';
-    else if (fruitFail) decision = '과실 비대 로직이 문제 (화방/줄기는 무관)';
+    if (visibleCountFail && maxDiamFail && stemFail) decision = '과실 + 줄기 모두 문제';
+    else if (visibleCountFail && maxDiamFail) decision = '과실 비대 + visible count 둘 다 문제';
+    else if (visibleCountFail && !maxDiamFail) decision = 'visible fruit count 부족 (stage progression 문제, max diameter는 정상)';
+    else if (maxDiamFail && !visibleCountFail) decision = '과실 비대 크기가 문제';
     else if (stemFail) decision = '줄기 진행이 OOB';
     else if (trussOver) decision = '화방 수 과다';
     lines.push(`- **판단**: ${decision}`);
@@ -756,6 +793,7 @@ function main() {
 
   // Iter 6 — apply Gompertz override (child-process sweep harness가 호출)
   applyOverrideGompertz(args);
+  applyOverridePhenology(args);  // Iter 6c
 
   const bundle = loadReferenceBundle(args.referenceBundle);
 

@@ -1,0 +1,96 @@
+{
+  "schemaVersion": "growthCalibration.v1",
+  "updateId": "growth_update_008",
+  "previousModelVersion": "growthModel.tomato.v0.11.1-stage-fixed",
+  "newModelVersion": "growthModel.tomato.v0.11.1-stage-fixed",
+  "status": "rejected",
+  "date": "2026-05-25",
+  "triggerComparisons": [
+    "(v0.11.1 220 comparisons + Iter 6b audit: truss_status_too_behind 87 + Day 60/90 visible 1/8 target band 한참 아래)"
+  ],
+  "triggerRuleIds": [
+    "common_truss_status_too_behind"
+  ],
+  "reason": [
+    "Iter 6c phenology calibration sweep: tomimaru.phenology.cellDivisionDurationGDD × cellExpansionDurationGDD 2-axis (3×3=9 variants).",
+    "사용자 검토 SSOT #51 Preflight A 통과 — override 실제 엔진 적용 확인 (baseline cell_div=300 vs extreme cell_div=200 결과 다름, fruit phase transition + Day 60 visible 1→5 + Day 90 visible 8→10).",
+    "9 runs sweep 후 top 4 (run_008 baseline + run_003/006/001) 220 comparison.",
+    "결과: run_003 (cellDiv 300→200, cellExp 500→600) = 효과 cancel out (margin=0). run_006 = 살짝 악화. run_001 (cellDiv 200, cellExp 400) = truss_too_behind 87→82 + Day 60 vis 5 + Day 90 vis 10 (개선 명확) but **fruit_too_early/day33 재발화 → hard gate 탈락**.",
+    "selectBestForIter6c improvement-condition 충족 후보 없음 → SSOT #45 (rejected — no improvement) 정책 적용.",
+    "Cohort Sufficiency Check (SSOT #52) — Day 90 cohort=13 < target visible 20~28 → phenology timing 영역이 아닌 fruit cohort generation 영역이 진짜 lever."
+  ],
+  "parameterChanges": [
+    {
+      "parameter": "dump-growth-checkpoints + extract-calibration-observations --overridePhenology",
+      "oldValue": null,
+      "newValue": "process-local cultivar.phenology mutation (target cultivar only, SSOT #49)",
+      "file": "growth-calibration/scripts/dump-growth-checkpoints.ts + extract-calibration-observations.ts",
+      "unit": "CLI",
+      "citation": "Iter 6c spec",
+      "reason": "phenology layer sweep harness 지원",
+      "changeType": "engine_logic",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "run-gompertz-sweep.ts variant + CLI 확장",
+      "oldValue": "Gompertz 3-axis only",
+      "newValue": "+ phenology 2-axis (cellDivision/Expansion)",
+      "file": "growth-calibration/scripts/run-gompertz-sweep.ts",
+      "unit": "logic",
+      "citation": "Iter 6c spec",
+      "reason": "sweep grid 일반화 — Gompertz + Phenology 동시 또는 단독 가능",
+      "changeType": "engine_logic",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "run-top-candidates-comparison.ts selectBestForIter6c",
+      "oldValue": "Iter 6b composite margin 5만",
+      "newValue": "+ improvement-condition (truss_too_behind ≥7 감소 OR Day 60 vis ≥2 OR Day 90 vis ≥4)",
+      "file": "growth-calibration/scripts/run-top-candidates-comparison.ts",
+      "unit": "logic",
+      "citation": "Iter 6c spec 사용자 검토 #5",
+      "reason": "hard gate + composite 통과해도 의미있는 개선 없으면 baseline 유지",
+      "changeType": "engine_logic",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "Cohort Sufficiency Check + cohortFruitCount 노출",
+      "oldValue": "없음",
+      "newValue": "eval_summary.json + audit Section 5c (SSOT #52)",
+      "file": "growth-calibration/scripts/run-top-candidates-comparison.ts + dump-iter-audit.ts",
+      "unit": "schema",
+      "citation": "Iter 6c spec 사용자 검토 #2",
+      "reason": "visible count 부족 진단 시 stage timing vs cohort 부족 분리",
+      "changeType": "schema_only",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "user_summary 판단 메시지 분기 (visible count low 케이스)",
+      "oldValue": "fruitFail 단일 분류",
+      "newValue": "visibleCountFail + maxDiamFail 분리 (SSOT #50)",
+      "file": "growth-calibration/scripts/dump-growth-checkpoints.ts",
+      "unit": "logic",
+      "citation": "Iter 6b/6c spec 사용자 검토 #6",
+      "reason": "Day 60/90이 visible count는 부족하지만 max diameter는 정상인 케이스 정확 분류",
+      "changeType": "engine_logic",
+      "enforcementStatus": "active"
+    }
+  ],
+  "validationPlan": {
+    "replayDays": [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+    "forwardDays": [],
+    "targetMetrics": ["common_truss_status_too_behind", "overall.visibleFruitCount @ day 60/90", "overall.fruitCohortCount @ day 90"]
+  },
+  "outcome": {
+    "runDate": "2026-05-25",
+    "replayScoreDelta": 0,
+    "forwardScoreDelta": 0,
+    "verdict": "rejected — v0.11.1 유지 (SSOT #45 — no meaningful improvement)",
+    "notes": "Iter 6c phenology calibration 인프라는 모두 작동 (Preflight A pass, sweep + top-candidates harness 일반화). 9 runs sweep + 4 후보 220 comparison 결과 hard gate 안에서 의미있는 개선 후보 없음. run_001 (cellDiv 200/cellExp 400)이 가장 유망 (too_behind -5, Day 60 vis +4, Day 90 vis +2) but fruit_too_early/day33 재발화 → hard gate 탈락. Day 90 cohort=13 < target 20 → SSOT #52 cohort sufficiency 미달 = phenology timing 영역이 아닌 cohort generation 영역이 진짜 lever. v0.11.1 유지하고 Iter 6d (cohort generation: flowersPerTruss, fruitSetRate, abortion) 또는 Iter 7 (stem) 진행."
+  },
+  "followUp": [
+    "Iter 6d (Fruit Cohort Generation): cultivar.flowersPerTruss + fruitSetRate + abortion threshold sweep. Day 90 cohort 13→20+ 만들어 phenology + Gompertz hard gate 안에서 visible count 회복.",
+    "Iter 7 (Stem calibration, Case D): stemGrowth.matureInternode.lengthDistribution sweep. cohort 부족이 stem과 무관함 확정됐으므로 6d와 병렬 진행 가능.",
+    "Iter 8 (Leaf Module): leafShape.orientation lateralSpread mesh-derived (220/220 진단 발화)."
+  ]
+}

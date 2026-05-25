@@ -432,6 +432,37 @@ function buildStageRecoveryTable(evalSummary: EvalSummary | null): string {
   return lines.join('\n');
 }
 
+// Iter 6c — Section 5c Cohort Sufficiency Check (SSOT #52)
+function buildCohortSufficiencyTable(candCkpt: CheckpointSummary | null): string {
+  if (!candCkpt) return '_(checkpoint not available)_';
+  const lines: string[] = [];
+  lines.push('| Day | target visible | candidate cohort | stage timing 으로 해결 가능? | 판정 |');
+  lines.push('|---:|---:|---:|---|---|');
+  const targets: Record<number, [number, number]> = {
+    30: [0, 0],
+    33: [0, 0],
+    60: [6, 10],
+    90: [20, 28],
+  };
+  for (const day of [30, 33, 60, 90]) {
+    const o = candCkpt.overalls.find(x => x.day === day);
+    if (!o) {
+      lines.push(`| ${day} | - | - | - | _(no data)_ |`);
+      continue;
+    }
+    const [tMin, tMax] = targets[day];
+    const cohort = o.fruitCohortCount ?? 0;
+    const possible = cohort >= tMin;
+    const verdict = day <= 33
+      ? '(Day 30/33은 visible = 0 목표, cohort 관계 없음)'
+      : possible
+        ? '✓ stage timing sweep으로 가능'
+        : '✗ **fruit cohort generation 영역 필요** (truss flower count, fruit set rate, abortion)';
+    lines.push(`| ${day} | ${tMin}~${tMax} | ${cohort} | ${day <= 33 ? '-' : (possible ? '✓' : '✗')} | ${verdict} |`);
+  }
+  return lines.join('\n');
+}
+
 // Section 10b — Top Candidate Re-score
 function buildTopCandidateTable(evalSummary: EvalSummary | null): string {
   if (!evalSummary) return '_(eval_summary.json not found)_';
@@ -638,6 +669,14 @@ function main() {
     lines.push(buildStageRecoveryTable(evalSummary));
     lines.push('');
   }
+
+  // ── 5c. Cohort Sufficiency Check (Iter 6c, SSOT #52) ──
+  lines.push('## 5c. Cohort Sufficiency Check (sweep 가능 영역 확인)');
+  lines.push('');
+  lines.push(buildCohortSufficiencyTable(candCkpt));
+  lines.push('');
+  lines.push('- cohort < target_visible_min 이면 phenology sweep으로 해결 불가 → fruit cohort generation 영역 (Iter 6d 또는 후속).');
+  lines.push('');
 
   // ── 6. Gompertz Parameter Sweep ──
   lines.push('## 6. Gompertz Parameter Sweep');

@@ -69,6 +69,9 @@ interface SweepVariant {
   inflectionC: number;
   rateB: number;
   exponentScaling: number;
+  // Iter 6c — phenology (optional)
+  cellDivisionDurationGDD?: number;
+  cellExpansionDurationGDD?: number;
 }
 
 interface SweepRanking {
@@ -82,10 +85,12 @@ interface EvalCandidate {
   S: number;
   PBand: number;
   diagnosis: Record<string, number>;
-  day30?: { maxVisDiam: number; visibleCount: number };
-  day33?: { maxVisDiam: number; visibleCount: number };
-  day60?: { maxDiam: number; visibleCount: number };
-  day90?: { maxDiam: number; visibleCount: number };
+  day30?: { maxVisDiam: number; visibleCount: number; cohortCount?: number };
+  day33?: { maxVisDiam: number; visibleCount: number; cohortCount?: number };
+  day60?: { maxDiam: number; visibleCount: number; cohortCount?: number };
+  day90?: { maxDiam: number; visibleCount: number; cohortCount?: number };
+  /** Iter 6c SSOT #52 — cohort sufficiency: target visible 가능한가? */
+  cohortSufficiency?: { day60: 'ok' | 'insufficient'; day90: 'ok' | 'insufficient' };
   rejectReason?: string | null;
   score?: number;
   isBaseline?: boolean;
@@ -96,6 +101,14 @@ interface EvalCandidate {
 function evalCandidate(args: CliArgs, runId: string, v: SweepVariant): EvalCandidate {
   const evalModelVersion = `v0.11-eval-${runId}`;
   const overrideStr = `inflectionC=${v.inflectionC},rateB=${v.rateB},exponentScaling=${v.exponentScaling}`;
+  // Iter 6c — phenology override (if variant has phenology fields)
+  const phenologyStr = (v.cellDivisionDurationGDD !== undefined || v.cellExpansionDurationGDD !== undefined)
+    ? [
+        v.cellDivisionDurationGDD !== undefined ? `cellDivisionDurationGDD=${v.cellDivisionDurationGDD}` : '',
+        v.cellExpansionDurationGDD !== undefined ? `cellExpansionDurationGDD=${v.cellExpansionDurationGDD}` : '',
+      ].filter(Boolean).join(',')
+    : undefined;
+  const extraOverride = phenologyStr ? ['--overridePhenology', phenologyStr] : [];
 
   // 1. extract 220 (child process)
   console.log(`    extract...`);
@@ -107,6 +120,7 @@ function evalCandidate(args: CliArgs, runId: string, v: SweepVariant): EvalCandi
     '--baseSeed', String(args.ensembleBaseSeed),
     '--days', args.days.join(','),
     '--overrideGompertz', overrideStr,
+    ...extraOverride,
   ], { cwd: args.repoRoot, stdio: 'pipe', encoding: 'utf-8' });
   if (r1.status !== 0) {
     console.error(`    extract FAILED: ${r1.stderr?.slice(0, 200)}`);
@@ -137,6 +151,7 @@ function evalCandidate(args: CliArgs, runId: string, v: SweepVariant): EvalCandi
     '--seed', String(args.seedSingle),
     '--days', '30,33,60,90',
     '--overrideGompertz', overrideStr,
+    ...extraOverride,
   ], { cwd: args.repoRoot, stdio: 'pipe', encoding: 'utf-8' });
   if (r3.status !== 0) {
     console.error(`    dump FAILED: ${r3.stderr?.slice(0, 200)}`);
@@ -162,6 +177,7 @@ function evalCandidate(args: CliArgs, runId: string, v: SweepVariant): EvalCandi
       maxDiam: o.maxVisibleFruitDiameterMm ?? o.maxFruitDiameterMm ?? 0,
       maxVisDiam: o.maxVisibleFruitDiameterMm ?? o.maxFruitDiameterMm ?? 0,
       visibleCount: o.visibleFruitCount ?? o.fruitCountTotal ?? 0,
+      cohortCount: o.fruitCohortCount ?? 0,
     };
   };
 
@@ -175,6 +191,11 @@ function evalCandidate(args: CliArgs, runId: string, v: SweepVariant): EvalCandi
     day33: dayMetric(33),
     day60: dayMetric(60),
     day90: dayMetric(90),
+    // Iter 6c SSOT #52 — cohort sufficiency check
+    cohortSufficiency: {
+      day60: (dayMetric(60)?.cohortCount ?? 0) >= 6 ? 'ok' : 'insufficient',
+      day90: (dayMetric(90)?.cohortCount ?? 0) >= 20 ? 'ok' : 'insufficient',
+    },
   };
 }
 
@@ -264,12 +285,37 @@ function main(): void {
     const top = ranked[0];
     const baselineScore = baseline.score ?? -Infinity;
     const margin = (top.score ?? 0) - baselineScore;
+
+    // Iter 6c — additional improvement-condition gate (SSOT, 사용자 검토 #5):
+    // promote 하려면 다음 중 최소 하나 만족해야 함:
+    //   - truss_status_too_behind: baseline 대비 ≥ 7 감소 (87 → ≤ 80)
+    //   - Day 60 visibleFruitCount: baseline 대비 ≥ 2 증가
+    //   - Day 90 visibleFruitCount: baseline 대비 ≥ 4 증가
+    const tb_base = baseline.diagnosis['common_truss_status_too_behind'] ?? 0;
+    const tb_top = top.diagnosis['common_truss_status_too_behind'] ?? 0;
+    const d60v_base = baseline.day60?.visibleCount ?? 0;
+    const d60v_top = top.day60?.visibleCount ?? 0;
+    const d90v_base = baseline.day90?.visibleCount ?? 0;
+    const d90v_top = top.day90?.visibleCount ?? 0;
+    const trussImproved = (tb_base - tb_top) >= 7;
+    const d60Improved = (d60v_top - d60v_base) >= 2;
+    const d90Improved = (d90v_top - d90v_base) >= 4;
+    const meaningfulImprovement = trussImproved || d60Improved || d90Improved;
+
     if (top.runId === baseline.runId || margin < 5) {
       winner = baseline;
-      reasoning = `baseline (${baseline.runId}) 대비 명확한 개선 없음 (margin=${margin.toFixed(1)} < 5) → 유지`;
+      reasoning = `baseline (${baseline.runId}) 대비 composite margin ${margin.toFixed(1)} < 5 → 유지`;
+    } else if (!meaningfulImprovement) {
+      winner = baseline;
+      reasoning = `${top.runId} composite margin=${margin.toFixed(1)}이지만 improvement-condition 미달 (truss_too_behind Δ=${tb_base - tb_top}, D60vis Δ=${d60v_top - d60v_base}, D90vis Δ=${d90v_top - d90v_base}) → baseline 유지`;
     } else {
       winner = top;
-      reasoning = `${winner.runId}: truss_too_behind ${baseline.diagnosis['common_truss_status_too_behind'] ?? 0} → ${winner.diagnosis['common_truss_status_too_behind'] ?? 0}, margin=${margin.toFixed(1)}`;
+      const reasons = [
+        trussImproved ? `truss_too_behind ${tb_base}→${tb_top} (-${tb_base - tb_top})` : '',
+        d60Improved ? `Day 60 visible ${d60v_base}→${d60v_top}` : '',
+        d90Improved ? `Day 90 visible ${d90v_base}→${d90v_top}` : '',
+      ].filter(Boolean).join(', ');
+      reasoning = `${winner.runId}: ${reasons}, composite margin=${margin.toFixed(1)}`;
     }
   }
 
