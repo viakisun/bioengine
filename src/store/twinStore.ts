@@ -534,6 +534,12 @@ interface TwinState {
   showSkeleton: boolean;
   setShowSkeleton: (v: boolean) => void;
 
+  /** SSOT Phase 4 — Implicit skin mesh view toggle. When true, swap the
+   *  default ShowcasePlant for SkinMeshPlant (SDF + marching cubes single
+   *  watertight stem mesh). Environment/skeleton/PlantBase are shared. */
+  useImplicitMesh: boolean;
+  setUseImplicitMesh: (v: boolean) => void;
+
   /** Plan 3b Phase η-2 — 진단 로그 토글. ON 시 ShowcasePlant.update 와
    *  SkeletonOverlay 의 update/setVisible 가 4단계 [diag:N] log 출력. */
   debugDiagnostics: boolean;
@@ -806,6 +812,8 @@ export const useTwinStore = create<TwinState>((set) => ({
   singlePlantInspectorOpen: { cultivar: true, state: true, truss: true, phenology: true, genome: false },
   showSkeleton: false,
   setShowSkeleton: (v) => set({ showSkeleton: v }),
+  useImplicitMesh: false,
+  setUseImplicitMesh: (v) => set({ useImplicitMesh: v }),
   debugDiagnostics: false,
   setDebugDiagnostics: (v) => set({ debugDiagnostics: v }),
 

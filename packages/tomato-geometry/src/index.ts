@@ -15,7 +15,7 @@ export {
   transformChunk,
 } from './types';
 
-export { buildLeafChunk, DEFAULT_LEAF_PARAMS } from './leafChunk';
+export { buildLeafChunk, buildLeafBladeOnly, DEFAULT_LEAF_PARAMS } from './leafChunk';
 export type { LeafBuildParams, LeafShapeParams } from './leafChunk';
 
 export { buildLeafColorBytes, buildLeafNormalBytes, LEAF_TEX_SIZE } from './leafTexture';

@@ -19,7 +19,7 @@ import { Matrix } from '@babylonjs/core/Maths/math.vector';
 import { setShaderWindEnabled, isShaderWindEnabled } from '../plant/LeafGenerator';
 import { getLabelOverlayHandle } from '../components/LabelOverlay';
 import { setBootStage, logBoot, setEnvInfo, setEnvCounters, notify } from '../store/notify';
-import { setSinglePlantEngineRef, setSinglePlantShowcaseRef } from '../ui/single-plant/useSinglePlantState';
+import { setSinglePlantEngineRef, setSinglePlantShowcaseRef, setSinglePlantSkinMeshRef } from '../ui/single-plant/useSinglePlantState';
 
 import '@babylonjs/core/Helpers/sceneHelpers';
 import '@babylonjs/core/Materials/Textures/Loaders';
@@ -222,6 +222,16 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
 
   const cameraRig = setupCamera(scene, canvas);
   cameraRig.setPreset(useTwinStore.getState().cameraPreset);
+  // Dev-only: expose scene + camera for headless capture / debugging.
+  if (import.meta.env?.DEV) {
+    (globalThis as { __scene?: unknown }).__scene = scene;
+    (globalThis as { __camera?: unknown }).__camera = cameraRig.camera;
+    // Plant Morphology Engine — Leaf Module v0.1 dev hook.
+    // Playwright + DevTools entry point for V9-V12 verification.
+    void import('../plant/leaf/devHook').then((m) => {
+      (globalThis as { __leafModule?: unknown }).__leafModule = m.makeLeafModuleDevHook(scene);
+    });
+  }
   console.log('[BabylonEngine] camera ready');
   logBoot('log', 'engine: 카메라 준비 완료');
 
@@ -245,6 +255,7 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
     greenhouse = await buildGreenhouseScene(scene);
     setSinglePlantEngineRef(greenhouse.growthEngine);
     setSinglePlantShowcaseRef(greenhouse.showcasePlant);
+    setSinglePlantSkinMeshRef(greenhouse.skinMeshPlant);
   } catch (err) {
     console.error('[BabylonEngine] buildGreenhouseScene failed:', err);
     notify.error('온실 빌드 실패', err instanceof Error ? err : String(err));
@@ -385,12 +396,29 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
     }
     if (s.analysisMode !== prev.analysisMode && greenhouse) {
       greenhouse.showcasePlant.setSegmentationMode(s.analysisMode);
+      greenhouse.skinMeshPlant.setSegmentationMode(s.analysisMode);
     }
     if (s.showSkeleton !== prev.showSkeleton && greenhouse) {
       greenhouse.showcasePlant.setSkeletonMode(s.showSkeleton);
+      greenhouse.skinMeshPlant.setSkeletonMode(s.showSkeleton);
     }
     if (s.skeleton !== prev.skeleton && greenhouse) {
       greenhouse.showcasePlant.setSkeletonConfig(s.skeleton);
+      greenhouse.skinMeshPlant.setSkeletonConfig(s.skeleton);
+    }
+    // SSOT Phase 4 — implicit skin mesh toggle. Swap showcase ↔ skin mesh.
+    // SkinMeshPlant is hidden by default; on toggle ON we both show it AND
+    // immediately update it (it skips updates while hidden to save SDF cost).
+    if (s.useImplicitMesh !== prev.useImplicitMesh && greenhouse) {
+      const day = useTwinStore.getState().currentDay;
+      if (s.useImplicitMesh) {
+        greenhouse.showcasePlant.setVisible(false);
+        greenhouse.skinMeshPlant.setVisible(true);
+        greenhouse.skinMeshPlant.update(day);
+      } else {
+        greenhouse.skinMeshPlant.setVisible(false);
+        greenhouse.showcasePlant.setVisible(true);
+      }
     }
     if (s.lighting !== prev.lighting && sceneSetup) {
       applyLightingToScene(scene, sceneSetup, s.lighting);
@@ -605,6 +633,11 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
     if (greenhouse && Math.abs(state.currentDay - lastDayUpdate) > 0.05) {
       // Showcase plant 는 mode 무관 항상 update — single-plant 와 greenhouse 모두 보임.
       greenhouse.showcasePlant.update(state.currentDay);
+      // SSOT Phase 4 — SkinMeshPlant only updates when visible (SDF build
+      // is non-trivial). Toggle-ON handler above pumps an initial update.
+      if (useTwinStore.getState().useImplicitMesh) {
+        greenhouse.skinMeshPlant.update(state.currentDay);
+      }
       // Greenhouse-only content (heatmap/robot/pathTrail + supporting plants) 는
       // greenhouseContent 가 있을 때만 update.
       greenhouseContent?.update(state.currentDay);

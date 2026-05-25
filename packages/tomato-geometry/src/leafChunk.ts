@@ -208,6 +208,150 @@ export function buildLeafChunk(paramsArg: LeafBuildParams, rng: SeededRandom): G
   return mergeChunks(chunks);
 }
 
+/**
+ * Build a leaf mesh WITHOUT the petiole cylinder. The rachis cylinder
+ * and petiolule cylinders are KEPT so the blade remains visually
+ * coherent (leaflets attached to a central midrib).
+ *
+ * Used by SkinMeshPlant (SSOT Phase 4) where the petiole proper is part
+ * of the continuous PlantSkinMesh (SDF). Callers attach this mesh at
+ * the leaf's stem-side attach point (LeafBase.attachPosition) and apply
+ * azimuth+droop rotation, exactly as for buildLeafChunk — the rachis
+ * then starts at (petioleLen, 0, 0) which lies along the same axis as
+ * the SDF petiole tip, so the two surfaces meet naturally.
+ *
+ * Body of this function is intentionally a near-copy of `buildLeafChunk`
+ * with only the `chunks.push(petiole)` line removed (rachis + petiolule
+ * cylinders are still pushed). Per plan SSOT Phase 4 "완전한 분기" —
+ * `buildLeafChunk` itself is untouched; SkinMeshPlant calls this
+ * dedicated function.
+ */
+export function buildLeafBladeOnly(paramsArg: LeafBuildParams, rng: SeededRandom): GeoChunk {
+  const params = paramsArg.shape ?? DEFAULT_LEAF_PARAMS;
+  const stageInfo = paramsArg.stageInfo;
+  const af = paramsArg.ageFrac;
+  const sizeFactor = paramsArg.sizeFactor;
+  const maturity = paramsArg.maturity;
+  const curl = paramsArg.curl;
+
+  const effSerrationDepth = params.serrationDepth * (stageInfo?.serrationStrength ?? 1);
+  const effLobeDepth = params.lobeDepth * (stageInfo?.lobeStrength ?? 1);
+  const effShape: LeafShapeParams = {
+    ...params,
+    serrationDepth: effSerrationDepth,
+    lobeDepth: effLobeDepth,
+  };
+
+  const rawCount = stageInfo?.leafletCount ?? paramsArg.leafletCount;
+  const intCount = Math.max(1, Math.round(rawCount));
+  const outerScale = stageInfo
+    ? 1 - Math.abs(intCount - rawCount) * 2
+    : 1;
+  const pairs = Math.floor(intCount / 2);
+
+  const chunks: GeoChunk[] = [];
+
+  const petioleLen = params.petioleLength * sizeFactor * maturity;
+  const rachisLen = 0.32 * sizeFactor * maturity;
+
+  // Petiole cylinder INTENTIONALLY OMITTED — the SDF skin mesh covers
+  // the petiole region (its capsule centerline is PlantBase.petioleCurve).
+  // The leaf mesh attach point is the stem surface (attachPosition), and
+  // mesh-local (petioleLen, 0, 0) maps to the SDF petiole tip, so the
+  // rachis cylinder below picks up exactly where the SDF surface ends.
+
+  // Rachis — same as buildLeafChunk (kept so leaflets are visually
+  // attached to a midrib, not floating).
+  const rachisBaseRadius = 0.0010 * sizeFactor;
+  const rachisTipRadius = 0.0005 * sizeFactor;
+  const rachis = createCylinderChunk(rachisTipRadius, rachisBaseRadius, rachisLen, 4, 8, true);
+  rotateChunkZ(rachis, -Math.PI / 2);
+  translateChunk(rachis, petioleLen + rachisLen / 2, 0, 0);
+  const rachisDroopFactor = 0.12 + af * 0.45;
+  for (let v = 0; v < rachis.positions.length; v += 3) {
+    const x = rachis.positions[v];
+    const t = (x - petioleLen) / rachisLen;
+    if (t >= 0 && t <= 1) {
+      rachis.positions[v + 1] -= t * t * rachisLen * rachisDroopFactor;
+    }
+  }
+  chunks.push(rachis);
+
+  // Leaflets along rachis — same positions as buildLeafChunk.
+  for (let i = 0; i <= pairs; i++) {
+    const t = pairs === 0 ? 0.7 : 0.15 + 0.75 * (i / pairs);
+    const posAlongRachis = petioleLen + rachisLen * t;
+    const yOff = -t * t * rachisLen * rachisDroopFactor;
+
+    const isTerminal = i === pairs;
+    const baseSizeMod = isTerminal ? 1.2 : 0.5 + 0.5 * Math.sin(t * Math.PI);
+    const expansionScale = maturity * maturity;
+    const isOutermost = !isTerminal && i === pairs - 1;
+    const stageScale = isOutermost ? outerScale : 1;
+    const leafletSize = 0.12 * sizeFactor * expansionScale * baseSizeMod * stageScale * rng.range(0.92, 1.08);
+
+    const leafletDroopRange = 0.14 + af * 0.48;
+    const leafletTwistRange = 0.08 + af * 0.28;
+
+    if (isTerminal) {
+      const leaflet = createOvateLeaflet(leafletSize, curl * rng.range(0.7, 1.3), af, rng, effShape, true);
+      rotateChunkZ(leaflet, rng.range(-leafletDroopRange * 0.5, leafletDroopRange * 0.3));
+      rotateChunkX(leaflet, rng.range(-leafletTwistRange, leafletTwistRange));
+      translateChunk(leaflet, posAlongRachis, yOff, 0);
+      chunks.push(leaflet);
+    } else {
+      for (const side of [-1, 1]) {
+        const leaflet = createOvateLeaflet(
+          leafletSize * rng.range(0.92, 1.08),
+          curl * rng.range(0.7, 1.3),
+          af,
+          rng,
+          effShape,
+          false
+        );
+        rotateChunkY(leaflet, side * rng.range(0.20, 0.30));
+        rotateChunkZ(leaflet, -Math.abs(rng.gaussian(0, leafletDroopRange)));
+        rotateChunkX(leaflet, rng.gaussian(0, leafletTwistRange));
+        translateChunk(leaflet, posAlongRachis, yOff, side * 0.025 * baseSizeMod);
+        chunks.push(leaflet);
+
+        // Petiolule — same as buildLeafChunk (small cylinder between
+        // rachis and each leaflet). Kept for visual completeness.
+        const petioluleLen = 0.008 * baseSizeMod;
+        const petiolule = createCylinderChunk(
+          0.0004 * sizeFactor,
+          0.0006 * sizeFactor,
+          petioluleLen,
+          3,
+          1,
+          true,
+        );
+        rotateChunkX(petiolule, Math.PI / 2);
+        translateChunk(petiolule, posAlongRachis, yOff, side * petioluleLen * 0.5);
+        chunks.push(petiolule);
+      }
+
+      if (intCount >= 5 && i < pairs && rng.next() > 0.3) {
+        const interT = t + 0.5 / (pairs + 1) * 0.75;
+        const interPos = petioleLen + rachisLen * interT;
+        const interYOff = -interT * interT * rachisLen * rachisDroopFactor;
+        const interSize = leafletSize * 0.35 * rng.range(0.7, 1.3);
+        for (const side of [-1, 1]) {
+          if (rng.next() > 0.4) {
+            const small = createOvateLeaflet(interSize, curl * rng.range(0.3, 1.0), af, rng, effShape, false);
+            rotateChunkY(small, side * rng.range(0.4, 0.8));
+            rotateChunkZ(small, -Math.abs(rng.gaussian(0, leafletDroopRange * 0.7)));
+            translateChunk(small, interPos, interYOff, side * 0.015);
+            chunks.push(small);
+          }
+        }
+      }
+    }
+  }
+
+  return mergeChunks(chunks);
+}
+
 function createOvateLeaflet(
   size: number,
   curl: number,

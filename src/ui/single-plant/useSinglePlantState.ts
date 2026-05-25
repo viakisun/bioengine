@@ -16,6 +16,7 @@ import { SHOWCASE_SEED } from '../../twin/GreenhouseScene';
 
 let engineRef: GrowthEngine | null = null;
 let showcaseRef: ShowcasePlantHandle | null = null;
+let skinMeshRef: ShowcasePlantHandle | null = null;
 const listeners = new Set<() => void>();
 
 export function setSinglePlantEngineRef(engine: GrowthEngine | null): void {
@@ -27,6 +28,11 @@ export function setSinglePlantShowcaseRef(showcase: ShowcasePlantHandle | null):
   showcaseRef = showcase;
 }
 
+/** SSOT Phase 4 — SkinMeshPlant sibling. Same ShowcasePlantHandle shape. */
+export function setSinglePlantSkinMeshRef(skin: ShowcasePlantHandle | null): void {
+  skinMeshRef = skin;
+}
+
 /** Module-level access to the live GrowthEngine for non-React callers
  *  (e.g. SinglePlantOverlay's useEffect to advance the simulation). */
 export function getSinglePlantEngine(): GrowthEngine | null {
@@ -35,6 +41,10 @@ export function getSinglePlantEngine(): GrowthEngine | null {
 
 export function getSinglePlantShowcase(): ShowcasePlantHandle | null {
   return showcaseRef;
+}
+
+export function getSinglePlantSkinMesh(): ShowcasePlantHandle | null {
+  return skinMeshRef;
 }
 
 const PLANT_SEED = SHOWCASE_SEED;

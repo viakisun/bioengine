@@ -647,3 +647,99 @@ function createFlowerNode(
 
   return root;
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// createTrussFruitOrgansOnly — SSOT Phase 4 sibling of createTrussNodeFromBase
+//
+// Used by SkinMeshPlant (PlantSkinMesh handles peduncle/rachis/pedicel via
+// continuous SDF mesh, so this function renders ONLY the non-stem organs:
+// fruit body / calyx / flower / petal remnant / ovary).
+//
+// Intentionally a near-copy of the organ-emit portion of createTrussNodeFromBase.
+// Per plan SSOT Phase 4 "완전한 분기" — createTrussNodeFromBase itself is
+// untouched (ShowcasePlant path unaffected).
+// ─────────────────────────────────────────────────────────────────────────
+
+export function createTrussFruitOrgansOnly(
+  name: string,
+  scene: Scene,
+  trussBase: import('./PlantBase').TrussBase,
+  rng: SeededRandom,
+): TransformNode {
+  const root = new TransformNode(name, scene);
+  if (!trussBase.floralSites) return root;
+
+  const toV3 = (p: { x: number; y: number; z: number }) => new Vector3(p.x, p.y, p.z);
+
+  for (const site of trussBase.floralSites) {
+    // aborted / harvested: no organ. (skin mesh handles pedicel for harvested.)
+    if (site.stage === 'aborted' || site.stage === 'harvested') continue;
+
+    const fruitTopV = toV3(site.fruitTop);
+    const axisDirV = toV3(site.fruitAxisDir);
+
+    switch (site.stage) {
+      case 'bud':
+      case 'flowering':
+      case 'petal-drop': {
+        if (!site.flower) break;
+        const flowerNode = createFlowerNode(
+          `${name}_flower_${site.index}`, scene,
+          site.flower.bloomProgress, site.flower.petalDrop, site.flower.ovarySwell,
+        );
+        flowerNode.parent = root;
+        flowerNode.position = fruitTopV;
+        break;
+      }
+      case 'fruit-set':
+      case 'fruit-growing':
+      case 'ripening': {
+        if (site.fruit && site.fruit.diameterMm > 0) {
+          const fruitState: import('@farmsim/tomato-engine').FruitState = {
+            index: site.index,
+            diameterMm: site.fruit.diameterMm,
+            ripenStage: site.fruit.ripenStage,
+            ripenFraction: site.fruit.ripenFraction,
+            color: site.fruit.color,
+            age: 0,
+            cultivarGenome: site.fruit.cultivarGenome,
+          };
+          const fruitNode = createFruitNode(
+            `${name}_fruit_${site.index}`, scene, fruitState, rng.fork(site.index + 1),
+            { skipCalyxAndStem: true },
+          );
+          fruitNode.parent = root;
+          fruitNode.position = toV3(site.fruit.fruitCenter);
+
+          // body local +Y is stem-end pole; orient so it aligns with -fruitAxisDir.
+          const targetUp = axisDirV.scale(-1).normalize();
+          const tilt = Quaternion.FromUnitVectorsToRef(
+            Vector3.Up(), targetUp, new Quaternion(),
+          );
+          const azimuth = Quaternion.RotationAxis(
+            targetUp, (site.index * 137.5 * Math.PI) / 180,
+          );
+          fruitNode.rotationQuaternion = tilt.multiply(azimuth);
+
+          // Calyx star at fruit top — sepals reflex opposite fruitAxisDir.
+          const sepalDir = targetUp;
+          addCalyxStar(
+            scene, root, `${name}_calyx_${site.index}`,
+            fruitTopV, sepalDir, site.fruit.diameterMm / 2 / 1000,
+          );
+        }
+        if (site.stage === 'fruit-set' && site.flower) {
+          const flowerNode = createFlowerNode(
+            `${name}_petal_remnant_${site.index}`, scene,
+            site.flower.bloomProgress, site.flower.petalDrop, site.flower.ovarySwell,
+          );
+          flowerNode.parent = root;
+          flowerNode.position = fruitTopV;
+        }
+        break;
+      }
+    }
+  }
+
+  return root;
+}

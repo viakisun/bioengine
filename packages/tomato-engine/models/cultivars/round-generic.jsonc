@@ -69,5 +69,33 @@
         "harvest":       { "enabled": true, "atRipenStage": 5 }
       }
     }
+  },
+
+  // Plant Morphology Engine — Leaf Module v0.1 (leafShape.v1).
+  // estimated/low provenance — replace with measured values in M1 calibration.
+  "leafShape": {
+    "schemaVersion": "leafShape.v1",
+    "provenance": {
+      "sourceLevel": "estimated",
+      "confidence": "low",
+      "sourceRefs": [],
+      "notes": "Round/standard: balanced width, rounder leaflets, mild serration.",
+      "lastReviewed": "2026-05-25"
+    },
+    "widthProfile": {
+      "mode": "beta",
+      "peakHalfWidthM": 0.050,
+      "peakT": 0.40,
+      "sharpness": 3.8,
+      "asymmetry": 1.0
+    },
+    "marginProfile": {
+      "serrationDepth": 0.12,
+      "serrationFrequency": 8,
+      "lobeDepth": 0.05,
+      "waviness": 0.05
+    },
+    "rachisLengthM": 0.30,
+    "leafletAspect": 1.6
   }
 }

@@ -12,6 +12,7 @@ import { GrowthEngine } from '@farmsim/tomato-engine';
 import { useTwinStore } from '../store/twinStore';
 import { logBoot, updateStageDetail } from '../store/notify';
 import { createShowcasePlant, type ShowcasePlantHandle } from './ShowcasePlant';
+import { createSkinMeshPlant, type SkinMeshPlantHandle } from './SkinMeshPlant';
 import type { SharedEnvContext } from './GreenhouseContent';
 import { createCocopeatBags, SUBSTRATE_TOP_Y } from './CocopeatBags';
 import { createTubeRail } from './TubeRail';
@@ -103,6 +104,9 @@ export const SHOWCASE_SEED = 20260520;
 export interface GreenhouseSceneHandle {
   growthEngine: GrowthEngine;
   showcasePlant: ShowcasePlantHandle;
+  /** SSOT Phase 4 — Implicit skin mesh sibling view. Same seed/position
+   *  as showcasePlant, default hidden. Toggle via useImplicitMesh store. */
+  skinMeshPlant: SkinMeshPlantHandle;
   /** Greenhouse content build 시 넘기는 영구 context. */
   sharedEnv: SharedEnvContext;
 }
@@ -514,16 +518,27 @@ export async function buildGreenhouseScene(scene: Scene): Promise<GreenhouseScen
   updateStageDetail('Showcase 식물 메쉬 빌드', 0.45);
   logBoot('log', 'plants: Showcase 메쉬 빌드');
   await new Promise((r) => setTimeout(r, 0));
+  const showcasePos = new Vector3(
+    showcasePlantSpec.position[0],
+    SUBSTRATE_TOP_Y,
+    0,  // main bed Z
+  );
   const showcasePlant = createShowcasePlant(
     scene,
     growthEngine,
     SHOWCASE_SEED,
-    new Vector3(
-      showcasePlantSpec.position[0],
-      SUBSTRATE_TOP_Y,
-      0  // main bed Z
-    )
+    showcasePos,
   );
+
+  // SSOT Phase 4 — sibling SkinMeshPlant at the same world position,
+  // sharing GrowthEngine + PlantBase. Default hidden; toggle via store.
+  const skinMeshPlant = createSkinMeshPlant(
+    scene,
+    growthEngine,
+    SHOWCASE_SEED,
+    showcasePos,
+  );
+  skinMeshPlant.setVisible(false);
 
   // SharedEnvironment 의 context 묶기 — GreenhouseContent build/dispose 용.
   const sharedEnv: SharedEnvContext = {
@@ -542,6 +557,7 @@ export async function buildGreenhouseScene(scene: Scene): Promise<GreenhouseScen
   return {
     growthEngine,
     showcasePlant,
+    skinMeshPlant,
     sharedEnv,
   };
 }

@@ -226,6 +226,56 @@ export interface CultivarJson {
     trussOrderProfile: TrussOrderRule[];
   };
   scenarios?: Record<string, ScenarioJson>;
+
+  // ── Plant Morphology Engine — Leaf Module v0.1 (leafShape.v1) ──────
+  // Optional. Missing fields fall back to DEFAULT_TOMATO_LEAF_SHAPE via
+  // src/plant/leaf/LeafShapeSchema.ts → resolveLeafShape(). Structural
+  // interface kept here to avoid cross-package import; the leaf module
+  // validates schemaVersion + provenance at resolve time.
+  leafShape?: LeafShapeJson;
+}
+
+/** Structural mirror of LeafShapePartial (src/plant/leaf/LeafShapeSchema.ts).
+ *  Kept inline to avoid src/ → packages/ coupling. */
+export interface LeafShapeJson {
+  schemaVersion?: 'leafShape.v1';
+  provenance?: {
+    sourceLevel?: 'default' | 'estimated' | 'literature' | 'measured' | 'calibrated';
+    confidence?: 'low' | 'medium' | 'high';
+    sourceRefs?: string[];
+    notes?: string;
+    lastReviewed?: string;
+  };
+  leafletCount?: { early?: number; developing?: number; mature?: number };
+  widthProfile?: {
+    mode?: 'beta' | 'bezier' | 'sampled';
+    peakHalfWidthM?: number;
+    peakT?: number;
+    sharpness?: number;
+    asymmetry?: number;
+  };
+  marginProfile?: {
+    serrationDepth?: number;
+    serrationFrequency?: number;
+    lobeDepth?: number;
+    waviness?: number;
+  };
+  surfaceProfile?: {
+    cupAmount?: number;
+    twistAmount?: number;
+    droopAmount?: number;
+    edgeCurlAmount?: number;
+  };
+  petioleLengthM?: number;
+  rachisLengthM?: number;
+  rachisDroopFactor?: number;
+  leafletAspect?: number;
+  variance?: {
+    lengthScaleStd?: number;
+    widthScaleStd?: number;
+    asymmetryStd?: number;
+    droopStd?: number;
+  };
 }
 
 /** One row in a cultivar's reproductive.trussOrderProfile. minOrder /

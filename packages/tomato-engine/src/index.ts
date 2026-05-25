@@ -113,3 +113,7 @@ export {
   getLeafBlendedColor,
 } from './LeafColors';
 export type { LeafColorRGB } from './LeafColors';
+
+// Cultivar JSON registry (incl. leafShape v1) — Plant Morphology Engine v0.1.
+export { CULTIVAR_JSONS, ACTIVE_MODEL, ACTIVE_SCENARIO } from './ModelRegistry';
+export type { CultivarJson, LeafShapeJson } from './ModelRegistry';

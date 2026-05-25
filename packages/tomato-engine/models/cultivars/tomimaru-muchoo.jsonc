@@ -161,5 +161,33 @@
         "harvest":       { "enabled": false }
       }
     }
+  },
+
+  // Plant Morphology Engine — Leaf Module v0.1 (leafShape.v1).
+  // estimated/low provenance — replace with measured values in M1 calibration.
+  "leafShape": {
+    "schemaVersion": "leafShape.v1",
+    "provenance": {
+      "sourceLevel": "estimated",
+      "confidence": "low",
+      "sourceRefs": [],
+      "notes": "Tomimaru Muchoo: pink-beefsteak, mid-large leaflets, vigorous rachis.",
+      "lastReviewed": "2026-05-25"
+    },
+    "widthProfile": {
+      "mode": "beta",
+      "peakHalfWidthM": 0.045,
+      "peakT": 0.35,
+      "sharpness": 4.5,
+      "asymmetry": 1.0
+    },
+    "marginProfile": {
+      "serrationDepth": 0.16,
+      "serrationFrequency": 9,
+      "lobeDepth": 0.07,
+      "waviness": 0.05
+    },
+    "rachisLengthM": 0.32,
+    "leafletAspect": 1.7
   }
 }

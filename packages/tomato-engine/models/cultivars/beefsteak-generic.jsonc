@@ -69,5 +69,33 @@
         "harvest":       { "enabled": true, "atRipenStage": 5 }
       }
     }
+  },
+
+  // Plant Morphology Engine — Leaf Module v0.1 (leafShape.v1).
+  // estimated/low provenance — replace with measured values in M1 calibration.
+  "leafShape": {
+    "schemaVersion": "leafShape.v1",
+    "provenance": {
+      "sourceLevel": "estimated",
+      "confidence": "low",
+      "sourceRefs": [],
+      "notes": "Beefsteak: large, wide leaflets, long rachis. v0.1 골격값.",
+      "lastReviewed": "2026-05-25"
+    },
+    "widthProfile": {
+      "mode": "beta",
+      "peakHalfWidthM": 0.060,
+      "peakT": 0.38,
+      "sharpness": 4.0,
+      "asymmetry": 1.0
+    },
+    "marginProfile": {
+      "serrationDepth": 0.20,
+      "serrationFrequency": 8,
+      "lobeDepth": 0.08,
+      "waviness": 0.06
+    },
+    "rachisLengthM": 0.42,
+    "leafletAspect": 1.5
   }
 }

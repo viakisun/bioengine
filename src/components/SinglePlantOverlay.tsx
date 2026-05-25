@@ -24,33 +24,55 @@ import { SelectedObjectLabel } from '../ui/single-plant/SelectedObjectLabel';
 import { DrawerStack } from './DrawerStack';
 import { C_FG } from '../ui/single-plant/styles';
 import { SHOWCASE_SEED } from '../twin/GreenhouseScene';
-import { getSinglePlantEngine, getSinglePlantShowcase } from '../ui/single-plant/useSinglePlantState';
+import { getSinglePlantEngine, getSinglePlantShowcase, getSinglePlantSkinMesh } from '../ui/single-plant/useSinglePlantState';
+
+// Dev-only: expose store on window for headless capture inspection.
+if (typeof window !== 'undefined' && import.meta.env?.DEV) {
+  (window as unknown as { __twinStore?: typeof useTwinStore }).__twinStore = useTwinStore;
+}
 
 export function SinglePlantOverlay() {
   const minute = useTwinStore((s) => s.singlePlantMinute);
   const playing = useTwinStore((s) => s.singlePlantPlaying);
   const speed = useTwinStore((s) => s.singlePlantSpeed);
   const setMinute = useTwinStore((s) => s.setSinglePlantMinute);
+  const useImplicitMesh = useTwinStore((s) => s.useImplicitMesh);
+
+  // Dev-only diagnostic: log toggle changes so headless capture can verify
+  // zustand subscription is firing.
+  useEffect(() => {
+    console.log(`[SinglePlantOverlay] useImplicitMesh changed → ${useImplicitMesh}`);
+  }, [useImplicitMesh]);
 
   // Drive the live simulation as the user scrubs the timeline.
   // 300ms+ 걸리는 작업만 corner spinner 표시 (debounce — 시작 시
   // setTimeout 으로 예약, 300ms 안에 끝나면 cancel).
   useEffect(() => {
     const engine = getSinglePlantEngine();
+    console.log(`[SinglePlantOverlay] effect: minute=${minute} useImplicitMesh=${useImplicitMesh} engine=${!!engine} skin=${!!getSinglePlantSkinMesh()}`);
     if (!engine) return;
     const setBusy = useTwinStore.getState().setBusy;
     const showAt = window.setTimeout(() => setBusy(true, 'Simulating...'), 300);
     try {
       const physiology = engine.simulatePlantToMinute(SHOWCASE_SEED, minute);
+      const day = Math.floor(minute / 1440);
       const showcase = getSinglePlantShowcase();
       if (showcase) {
-        showcase.update(Math.floor(minute / 1440), physiology);
+        showcase.update(day, physiology);
+      }
+      // SSOT Phase 4 — keep SkinMeshPlant in sync. Only updates when the
+      // toggle is on (avoids wasted SDF builds). Toggle change is also
+      // a dependency so flipping the pill rebuilds immediately at the
+      // current minute.
+      if (useImplicitMesh) {
+        const skin = getSinglePlantSkinMesh();
+        if (skin) skin.update(day, physiology);
       }
     } finally {
       window.clearTimeout(showAt);
       setBusy(false);
     }
-  }, [minute]);
+  }, [minute, useImplicitMesh]);
 
   // Playback loop — rAF, scales minute by speed × elapsed.
   useEffect(() => {
