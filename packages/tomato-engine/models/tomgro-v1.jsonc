@@ -151,7 +151,12 @@
     // Tier 3 — Pedicel: per-floral-site stalk from knuckle → fruit top.
     "pedicel": {
       "lengthM": 0.022,                 // 22mm — real tomato 15-30mm
-      "downAngleRad": 0.7854,           // 45° below horizontal
+      // 75° below horizontal — 진짜 토마토에서 fruit 무게 (80-200g) 가
+      // 가느다란 pedicel (1-1.5mm) 을 거의 -Y 까지 휨. 45° 면 fruit 가
+      // 옆으로 누워 보임 (PlantBase 가 pedicelTangent 를 fruitAxisDir 로
+      // 사용하므로 horizontal 성분이 크면 fruit body 도 horizontal).
+      // 75° → pedicelTangent y ≈ -0.97 → 자연 매달림.
+      "downAngleRad": 1.31,
       "abscissionZoneFrac": 0.65,       // joint at 65% along pedicel
       "radiusBaseM": 0.0014,
       "radiusTipM": 0.0010
