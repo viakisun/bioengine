@@ -94,9 +94,11 @@ export function generateGenome(seed: number): PlantGenome {
     leafWaviness: clamp(rng.gaussian(0.003, 0.001), 0.0, 0.006),
     leafPetioleLength: clamp(rng.gaussian(0.10, 0.015), 0.06, 0.14),
 
-    // Internode & leaf expansion — based on real greenhouse tomato data
-    // Real internode: mean 7.45cm (SD 0.8), range 3-8cm across genotypes
-    internodeLenCm: clamp(rng.gaussian(6.5, 0.8), 4.5, 8.5),
+    // Internode & leaf expansion — based on real greenhouse tomato data.
+    // Reference Pack target: 285cm at day 100 / ~34 nodes = ~8.4cm/internode mean.
+    // PROBE A.2 (2026-05-25): mu 6.5→8.0, max 8.5→10.5 to match Reference Pack
+    // height curve. Previous range produced day 100 = 200cm vs target 285cm.
+    internodeLenCm: clamp(rng.gaussian(8.0, 0.8), 6.0, 10.5),
     // Leaf expansion sigmoid k: higher = faster expansion
     // Real leaf takes 14-21 days to fully expand
     leafExpansionRate: clamp(rng.gaussian(0.35, 0.04), 0.25, 0.45),

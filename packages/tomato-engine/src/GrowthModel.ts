@@ -594,7 +594,20 @@ export function computePlantState(
   const org = ACTIVE_MODEL.organogenesis;
   const initialN = org.initialNodeCountAtTransplant;
   const nodeDayOf = (i: number): number => {
-    if (i < initialN) return 0;
+    if (i < initialN) {
+      // PROBE A.1 (2026-05-25): Initial transplant nodes were emerged
+      // during the 4-week seedling phase BEFORE day 0 (transplant). Old
+      // code returned 0 → age=0 at day 0 → elongation=0.01 → internodes
+      // stuck at compressed primordia (Day 0 height = 0.15cm vs ref 15-25cm).
+      // Fix: distribute initial N nodes evenly back through the 28-day
+      // seedling period so they are fully elongated at day 0.
+      // Real biology: 4-week-old transplant has 5-7 leaves, all internodes
+      // 1.5-4cm fully expanded.
+      // All N initial nodes should be FULLY elongated at day 0. Sigmoid
+      // elongation hits >99% at age > elongMid(8) + 3/k(0.4) = ~16d.
+      // Use 30-day base offset; small per-node 0.5d spread preserves order.
+      return -30 + i * 0.5;                 // i=0 → -30, i=4 → -28
+    }
     if (dailyGDD <= 0) return 0;
     const emergenceTT = (i - initialN) * cultivar.phyllochronGDD + org.TT_at_transplant;
     return emergenceTT / dailyGDD;
@@ -1106,9 +1119,17 @@ export function computePlantState(
       }
     }
 
-    // 2. Use physiology height as authoritative — but capped by the
-    //    active training spec (v3.0 Phase 5.5).
-    effectiveHeightCm = Math.min(phys.heightCm, ACTIVE_TRAINING.maxPlantHeightCm);
+    // 2. Height — use STRUCTURAL accHeight (botanical: hypocotyl +
+    //    Σ internodes). Previously this used phys.heightCm which CoreModel
+    //    populated via the magic formula `30 + trusses.length * 27` — that
+    //    formula was botanically meaningless (height stepped 57→84→111 by
+    //    truss count alone) and gapped reference by 18-39cm. Structural
+    //    accHeight is already computed correctly from internode data
+    //    (lines 668-678) using realistic hypocotyl + per-node internode
+    //    elongation; we just let that value stand. Cap still applied below.
+    //
+    // Bug ref: growth-calibration audit 2026-05-25 — Day 0 sim 57cm vs ref
+    //          15-25cm root cause traced to CoreModel.ts:467,682.
   }
   // Always cap structural height too — even when physiology isn't
   // present the legacy sigmoid path should not pierce the wire.

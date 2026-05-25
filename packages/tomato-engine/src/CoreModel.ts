@@ -463,8 +463,13 @@ export function stepMinutely(
   // trusses have emerged so non-truss-bearing internodes are counted too.
   state.N = Math.min(50, Math.floor(phytomerCountFromTT(state.TT, cultivar)));
 
-  // 8. Height — internode ~25 cm with ~3 internodes per truss + base.
-  state.heightCm = 30 + state.trusses.length * 27;
+  // 8. Height — DEPRECATED magic formula removed (was: 30 + trusses*27,
+  //    botanically meaningless, produced 57cm at day 0 vs reference 15-25cm).
+  //    Real height now derived from structural accHeight in GrowthModel.ts
+  //    (hypocotyl + Σ internodes). phys.heightCm is no longer read by any
+  //    consumer; left for backward-compat init only.
+  //    Bug ref: growth-calibration audit 2026-05-25.
+  // state.heightCm = 30 + state.trusses.length * 27;   // removed
 }
 
 /**
