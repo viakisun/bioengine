@@ -236,10 +236,13 @@ function buildCalyxVertexData(): VertexData {
   const indices: number[] = [];
 
   const SEPALS = 5;
-  const sepalLengthFrac = 0.45;       // along Y (× radius)
+  // CROWN_RECESSION 0.18 로 깊어진 well 안에 기존 baseY 0.78 + length 0.45
+  // 이면 sepal 이 well 안에 잠겨 안 보임. base 를 0.85 로 끌어올리고
+  // length 도 0.55 로 늘려 fruit top 위로 5각 star 가 보이게.
+  const sepalLengthFrac = 0.55;       // along Y (× radius)
   const sepalSpreadFrac = 0.85;       // outward (× radius)
   const sepalTipReflex = 0.20;        // tip flares this much above sepal mid
-  const baseY = 0.78;                 // sepal base attaches at this Y/radius (sits in crown well)
+  const baseY = 0.85;                 // well 위쪽 ring 에 attach
 
   // Center vertex
   positions.push(0, baseY + 0.05, 0);
