@@ -19,3 +19,7 @@ src/plant/__diag__/
 # Not tracked: simulation/ + comparison/ (rebuildable from scripts).
 growth-calibration/experiments/*/simulation/
 growth-calibration/experiments/*/comparison/
+
+# Playwright outputs — screenshots/videos/traces regenerable from spec files.
+test-results/
+playwright-report/

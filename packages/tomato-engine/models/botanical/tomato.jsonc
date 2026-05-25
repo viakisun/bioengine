@@ -149,12 +149,15 @@
   "fruitDevelopment": {
 
     // -- Visual sigmoid (legacy visual fruit path) ----------------
-    // GrowthModel.ts:625-626:
-    //   FRUIT_SIGMOID_K = 0.12
-    //   FRUIT_SIGMOID_MID = 18
+    // GrowthModel.ts:625-626. Phase 1.1 calibration (growth_update_004,
+    // 2026-05-25): midpointDays 18→22, steepness 0.12→0.10 to address
+    // Reference Pack diagnoses tomato_fruit_appears_too_early (60/220)
+    // + tomato_day33_fruit_too_early (20/20). Playwright day30 truss
+    // closeup showed visible 3cm fruits at day 30 (target 0).
+    // Same category (fruit_growth_curve), SSOT #32 ≤3 param iteration.
     "visualSigmoid": {
-      "steepness": 0.12,
-      "midpointDays": 18
+      "steepness": 0.10,
+      "midpointDays": 22
     },
 
     // -- Ripening (성숙 단계) -------------------------------------

@@ -22,14 +22,21 @@
   "phenology": {
     // GDD thresholds (CROPGRO-Tomato standard at T_base=10°C).
     //
-    // Iter 1A (2026-05-25, growth_update_001): GDD_to_first_flower 250→300
-    // per Reference Pack 08_day_gdd_mapping.json — user target firstVisible
-    // TrussDay=25 days × 12 GDD/day at 22°C = 300. Original 250 → day 21,
-    // ~4 days too early. Citation: RDA 2020 §3 + user_target_v0.1.
+    // Iter 1A (2026-05-25, growth_update_001): GDD_to_first_flower 250→300.
+    // Iter 3 attempt 1 (300→360) had no effect — boundary at day 30 TT=360
+    // produced same expectedTrussCount=1. v0.7 baseline 300 그대로 유지.
     "GDD_to_first_flower": 300,
     "GDD_per_truss": 120,
     "GDD_flower_to_red": 800,
-    "cellDivisionDurationGDD": 150,
+    // Iter 3 (growth_update_004, 2026-05-25): 150 → 300. Reference Pack day 30
+    // target fruitCount=0, maxDiam=0. Sim v0.8: fruitCount=4, maxDiam=87mm.
+    // CoreModel fruit.diameter = freshMassToDiameter(W_fresh, genome) and
+    // W_fresh follows sink allocation, capped at potentialMassG. Cell division
+    // phase 길이를 늘려서 fruit가 cap (200g, 80mm) 도달까지 걸리는 시간 증가.
+    // Gillaspy 1993 cell division phase: tomato 10-14 days post-anthesis;
+    // 22°C @ 12 GDD/day → 120-168 GDD. 300 GDD ≈ 25 days = upper bound for
+    // slow indeterminate beefsteak (still in published range for large fruit).
+    "cellDivisionDurationGDD": 300,
     "cellExpansionDurationGDD": 500,
     "ripeningDurationGDD": 200,
     "trussRipeningSpreadGDD": 100
@@ -90,11 +97,11 @@
       "stem": 0.15,
       "root": 0.07
     },
-    // Iter 1A (2026-05-25): Gompertz curve was producing 80mm fruit by
-    // day 30 (Reference Pack target: 0mm). gompertzInflectionC 0.45→0.55
-    // delays τ from 292.5 GDD to 357.5 GDD post-fertilization (~+5 days).
-    // gompertzRateB 0.06→0.05 slows asymptote approach. Citation:
-    // Anaya-Ramirez 2024 fits cluster at τ/total 0.5-0.6, B 0.04-0.06.
+    // Iter 1A (2026-05-25): gompertzInflectionC 0.45→0.55, rateB 0.06→0.05.
+    // Iter 3 attempt: inflectionC 0.55→0.75 시도했으나 효과 0. 이유:
+    // CoreModel은 Gompertz를 abortion threshold (potentialDailyGrowthFW)에만
+    // 쓰고, 실제 fruit.diameter는 sink allocation 결과 → cellDivisionDurationGDD
+    // 가 진짜 lever. Revert to v0.7 values.
     "gompertzRateB": 0.05,
     "gompertzInflectionC": 0.55
   },

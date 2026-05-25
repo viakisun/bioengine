@@ -1,0 +1,78 @@
+{
+  "schemaVersion": "growthCalibration.v1",
+  "updateId": "growth_update_004",
+  "previousModelVersion": "growthModel.tomato.v0.8-botanical",
+  "newModelVersion": "growthModel.tomato.v0.9-fruit-timing",
+  "status": "promoted",
+  "date": "2026-05-25",
+  "triggerComparisons": [
+    "(220 v0.8-botanical comparisons)"
+  ],
+  "triggerRuleIds": [
+    "common_truss_status_too_advanced",
+    "common_truss_status_too_behind",
+    "tomato_fruit_appears_too_early",
+    "tomato_day33_fruit_too_early"
+  ],
+  "reason": [
+    "Iter 3 — first calibration iteration on top of v0.8 Botanical Migration Phase 1.",
+    "v0.8 baseline: S=0.685, P_band=0.542. Major diagnoses: leaf_lateral_spread (220/220, Phase 2 leaf orientation 영역), truss_status_too_advanced (103), too_behind (67), fruit_appears_too_early (60+20).",
+    "사용자 요청 (auto-mode): 기준 데이터에 부합하도록 파라미터 개선 (하드코딩 X, JSONC only).",
+    "조사 결과 — Reference Pack 진단 metric (fruitCountTotal, maxFruitDiameter)는 CoreModel physiology trusses의 sink-allocation 결과를 사용. 본 iter는 sweep 가능한 JSONC lever 중 안전한 phenology category 1개 변경."
+  ],
+  "parameterChanges": [
+    {
+      "parameter": "phenology.cellDivisionDurationGDD",
+      "file": "packages/tomato-engine/models/cultivars/tomimaru-muchoo.jsonc",
+      "oldValue": 150,
+      "newValue": 300,
+      "unit": "GDD",
+      "citation": "Gillaspy 1993 cell division phase tomato 10-14 days; @22°C × 12 GDD/day = 120-168 GDD (lower bound). 300 GDD ≈ 25 days = upper bound for slow indeterminate beefsteak, still in literature-permissible range.",
+      "reason": "Cell division phase 길이를 늘려 fruit가 mass cap (potentialMassG, ~200g)에 도달까지 걸리는 시간 증가 → truss status (green_expanding → breaker → red) 진행 속도 완화. Truss status 진단 (too_advanced 103, too_behind 67) 완화 목적.",
+      "changeType": "jsonc_parameter",
+      "enforcementStatus": "active"
+    }
+  ],
+  "experimentsAttempted": [
+    {
+      "param": "botanical.fruitDevelopment.visualSigmoid.{steepness, midpointDays}",
+      "tried": "0.12→0.10, 18→22",
+      "effect": "S unchanged 0.685 (cosmetic-only path; CoreModel overlayPhysiologyFruits에 의해 덮어쓰임 in hybridFspmMode)",
+      "decision": "Keep (cosmetic improvement for visual fruit size; declared with documentation but no S/P_band impact)"
+    },
+    {
+      "param": "phenology.GDD_to_first_flower",
+      "tried": "300→360",
+      "effect": "S unchanged — boundary effect (day 30 TT=360 produced floor(0/120)+1=1 truss, same as TT=360 vs threshold 300)",
+      "decision": "Reverted to 300"
+    },
+    {
+      "param": "physiology.gompertzInflectionC",
+      "tried": "0.55→0.75",
+      "effect": "S unchanged — CoreModel uses Gompertz ONLY in potentialDailyGrowthFW (abortion threshold). fruit.diameter = freshMassToDiameter(W_fresh, genome), where W_fresh = W_dry / DM_percent and W_dry comes from sink allocation. Gompertz는 actual mass curve에 영향 없음.",
+      "decision": "Reverted to 0.55. 진정한 lever 는 sink allocation (cultivar.physiology.sinkStrength) 또는 potentialFruitMassG cap, 또는 engine_logic으로 Gompertz를 실제 mass에 연결하는 변경."
+    }
+  ],
+  "expectedEffect": {
+    "S": "+0.008 (0.685 → 0.693)",
+    "P_band": "+0.020 (0.542 → 0.562)",
+    "truss_status_too_advanced": "-24 (103 → 79)",
+    "truss_status_too_behind": "-21 (67 → 46)"
+  },
+  "validationPlan": {
+    "replayDays": [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+    "forwardDays": [],
+    "targetMetrics": ["overall.fruitCountTotal", "overall.maxFruitDiameterMm", "trusses[*].status"]
+  },
+  "outcome": {
+    "runDate": "2026-05-25",
+    "replayScoreDelta": 0.008,
+    "forwardScoreDelta": 0,
+    "notes": "PROMOTED. v0.8 (S=0.685, P_band=0.542) → v0.9 (S=0.693, P_band=0.562). Truss-status 진단 -45회 (-26%). Day 30 fruitCount/maxDiam 변화 없음 (4/87.6mm 그대로) — 본 lever는 phase boundary 진행 속도에만 영향. Day 30 fruit too early 해결은 sink allocation engine_logic 영역으로 별도 plan 필요. Playwright 9 screenshots (tuned-v0.9) 동일 day/seed에서 시각적으로 큰 변화 없음 (visualSigmoid은 hybridFspmMode overlay에 의해 덮어쓰임)."
+  },
+  "followUp": [
+    "Iter 4 후보: cultivar.physiology.potentialFruitMassG.mu (200→160) — fruit cap을 낮춰 day 30 maxDiameter 감소 시도. SSOT #32 sweep [160, 180, 200].",
+    "Iter 5 후보 (engine_logic): CoreModel fruit mass 흐름을 Gillaspy 1993 3-phase 모델에 더 충실하게 — cell division phase는 cell 수만 결정, mass 증가는 expansion phase 중심. 현재 division phase 동안 sink allocation으로 mass cap 도달이 비현실적.",
+    "Phase 2 후보 (leaf_lateral_spread 220/220): leafShape.orientation 분야 — 본 plan의 Phase 1 botanical 영역 밖 (Phase 2 Leaf Module migration 시 같이)."
+  ]
+}
