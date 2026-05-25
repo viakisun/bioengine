@@ -288,14 +288,19 @@ export function createShowcasePlant(
         const rawNode = rawAxis.nodes[leafBase.nodeIdx];
         if (!rawNode) continue;
 
+        // Leaf 가 충분히 자라지 않은 케이스 (sizeFactor 매우 작음) 면
+        // petiole 도 blade 도 거의 안 보이는데 petiole 의 minimum 굵기
+        // (1mm) 가 그대로면 sky 에 막대만 floating. 둘 다 skip.
+        if (leafBase.sizeFactor < 0.12) continue;
+
         // Petiole tube — petioleCurve (PlantBase.ts buildLeafBase) 의 4 control
-        // points 따라 catmull-rom tube. lush mesh 에 petiole 자체를 시각화
-        // (이전엔 skeleton overlay 에서만 wire 로 보임). stem 표면 attachPos
-        // → arched tip 곡선.
+        // points 따라 catmull-rom tube. lush mesh 에 petiole 시각화
+        // (이전엔 skeleton overlay 에서만 wire 로 보임). 굵기는 sizeFactor
+        // 에 직접 비례 — 작은 잎은 자연스럽게 가는 줄.
         if (leafBase.petioleCurve && leafBase.petioleCurve.length >= 4) {
           const petCps = leafBase.petioleCurve.map((p) => new Vector3(p.x, p.y, p.z));
-          // Petiole 굵기 — 잎 크기에 비례. base 1mm → tip 0.6mm 정도.
-          const petBase = 0.0010 + 0.0006 * Math.max(0, Math.min(1, leafBase.sizeFactor));
+          const sf = Math.max(0.12, Math.min(1, leafBase.sizeFactor));
+          const petBase = 0.0012 * sf;   // sf=1 → 1.2mm, sf=0.12 → 0.14mm
           const petTip = petBase * 0.6;
           const petRadii = [petBase, petBase * 0.85, petBase * 0.7, petTip];
           const petioleMesh = createCurvedTube(
