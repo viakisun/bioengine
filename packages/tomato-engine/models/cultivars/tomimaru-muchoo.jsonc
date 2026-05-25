@@ -96,14 +96,11 @@
       "leaf": 0.35,
       "stem": 0.15,
       "root": 0.07
-    },
-    // Iter 1A (2026-05-25): gompertzInflectionC 0.45→0.55, rateB 0.06→0.05.
-    // Iter 3 attempt: inflectionC 0.55→0.75 시도했으나 효과 0. 이유:
-    // CoreModel은 Gompertz를 abortion threshold (potentialDailyGrowthFW)에만
-    // 쓰고, 실제 fruit.diameter는 sink allocation 결과 → cellDivisionDurationGDD
-    // 가 진짜 lever. Revert to v0.7 values.
-    "gompertzRateB": 0.05,
-    "gompertzInflectionC": 0.55
+    }
+    // Iter 5b/1B (growth_update_005): gompertzRateB/InflectionC removed.
+    // 이전 값 (0.05/0.55)은 botanicalOverride.fruitDevelopment.gompertz로
+    // 이동 (commit eee6b67). 엔진은 cultivar.resolvedBotanical에서 read.
+    // Anaya-Ramirez 2024 fit cluster τ/total 0.5-0.6, B 0.04-0.06.
   },
 
   // ────────────────────────────────────────────────────────────────

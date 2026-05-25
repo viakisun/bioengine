@@ -26,15 +26,18 @@ import type { Cultivar, CultivarSample } from './Cultivar';
 import type { FruitCohort, TrussCohort } from './CoreModel';
 import { ACTIVE_BOTANICAL } from './ModelRegistry';
 
+// ─────────────────────────────────────────────────────────────────────
+// abortion check 전용 — actual:potential ratio for abortion gate.
+// Marcelis 1996 / Frontiers 2015. CoreModel.ts:424 에서만 사용.
+// 본 plan에서 변경 없음.
+// ─────────────────────────────────────────────────────────────────────
+
 /** Potential fruit fresh weight as a function of GDD since fertilization.
  *
  *  Gompertz: W(t) = a · exp(−exp(−b·(t − τ)))
  *    a = asymptote (potentialMassG, sampled per fruit from cultivar)
  *    b = rate parameter (per GDD)
  *    τ = inflection point (GDD past which growth decelerates)
- *
- *  The shape is asymmetric — fast early growth (cell division +
- *  expansion onset), gradual deceleration toward asymptote.
  *
  *  Reference: Anaya-Ramirez 2024 fits Gompertz to tomato fresh-weight
  *  growth with R² > 0.99 across cultivars.
@@ -54,7 +57,7 @@ export function potentialFreshWeight(
 }
 
 /** Daily potential growth rate (g FW / day) at this point in the
- *  Gompertz curve. Used for abortion threshold + sink-strength sizing.
+ *  Gompertz curve. Used for abortion threshold (NOT for sink demand).
  */
 export function potentialDailyGrowthFW(
   gddSinceFert: number,
@@ -65,6 +68,72 @@ export function potentialDailyGrowthFW(
   const w0 = potentialFreshWeight(gddSinceFert, genome, cultivar);
   const w1 = potentialFreshWeight(gddSinceFert + gddPerDay, genome, cultivar);
   return Math.max(0, w1 - w0);
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// sink-demand limit 전용 (Iter 5b) — Gompertz trajectory가 per-step에서
+// 허용하는 최대 DM 증가량을 반환. SinkAllocation으로 전달되어 fruit
+// demand의 raw 값을 clamp + CoreModel의 cumulative W_dry trajectory cap.
+//
+// 기존 abortion 함수와 분리하는 이유:
+// - abortion: cultivar (live) + genome (per-fruit sample) 의 mutable 객체에 의존
+// - sink-demand: plain GompertzMassParams 만 받아 ACTIVE_BOTANICAL 또는
+//   resolvedBotanical에서 합성한 값으로 호출 가능 (cultivar 객체 불요)
+// ─────────────────────────────────────────────────────────────────────
+
+/** Gompertz mass-curve parameters. CoreModel이 cultivar +
+ *  resolvedBotanical에서 합성해 본 함수들에 전달. */
+export interface GompertzMassParams {
+  rateB: number;                      // cultivar.gompertzRateB or resolvedBotanical.gompertz.rateB.mu
+  inflectionC: number;                // similar
+  exponentScaling: number;            // resolvedBotanical.fruitDevelopment.gompertz.exponentScaling
+  cellDivisionDurationGDD: number;    // cultivar.cellDivisionDurationGDD
+  cellExpansionDurationGDD: number;   // cultivar.cellExpansionDurationGDD
+}
+
+/** Gompertz fresh mass (g) at gddSinceFert. 0 if gddSinceFert <= 0.
+ *  Bounded above by potentialMassG asymptote.
+ *  CoreModel cumulative W_dry trajectory cap 계산에 사용. */
+export function potentialFreshMassG(
+  gddSinceFert: number,
+  potentialMassG: number,
+  p: GompertzMassParams,
+): number {
+  if (gddSinceFert <= 0) return 0;
+  const totalGrowthGDD = p.cellDivisionDurationGDD + p.cellExpansionDurationGDD;
+  const tau = totalGrowthGDD * p.inflectionC;
+  return potentialMassG * Math.exp(-Math.exp(-p.rateB * (gddSinceFert - tau) * p.exponentScaling));
+}
+
+/** Step fresh growth (g/step) = freshMass(end of step) - freshMass(start of step).
+ *  Always ≥ 0.
+ *
+ *  daily step: stepGdd = T_eff_day (e.g. 12 GDD @ 22°C)
+ *  minutely step: stepGdd = T_eff_per_min (very small)
+ *  → 같은 함수로 daily + minutely 양쪽 호출. */
+export function potentialStepFreshGrowthG(
+  gddSinceFertAtStepEnd: number,
+  stepGdd: number,
+  potentialMassG: number,
+  p: GompertzMassParams,
+): number {
+  if (stepGdd <= 0) return 0;
+  const wEnd = potentialFreshMassG(gddSinceFertAtStepEnd, potentialMassG, p);
+  const wStart = potentialFreshMassG(gddSinceFertAtStepEnd - stepGdd, potentialMassG, p);
+  return Math.max(0, wEnd - wStart);
+}
+
+/** Step dry demand (g/step) = potentialStepFreshGrowthG × fruitDryMatterRatio.
+ *  SinkAllocation에 전달되는 per-fruit per-step max demand. */
+export function potentialStepDryDemandG(
+  gddSinceFertAtStepEnd: number,
+  stepGdd: number,
+  potentialMassG: number,
+  dryMatterRatio: number,
+  p: GompertzMassParams,
+): number {
+  return potentialStepFreshGrowthG(gddSinceFertAtStepEnd, stepGdd, potentialMassG, p)
+    * dryMatterRatio;
 }
 
 /** Abortion-threshold check. A fruit aborts if its actual:potential

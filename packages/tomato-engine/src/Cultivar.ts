@@ -178,6 +178,13 @@ import { resolveBotanical, type BotanicalSpec } from './BotanicalSpec';
 import { SeededRandom } from './SeededRandom';
 
 function adaptCultivar(j: CultivarJson): Cultivar {
+  // Iter 5b/1B — resolve botanical FIRST so gompertz can be wired through.
+  // tomimaru의 botanicalOverride.fruitDevelopment.gompertz가 이미
+  // base와 정합된 값(0.05/0.55)이라 functional no-op이지만, 본 plan
+  // 이후 physiology.gompertz* JSONC field는 deprecated.
+  const resolvedBotanical = resolveBotanical(ACTIVE_BOTANICAL.tomato, j.botanicalOverride);
+  const resolvedGompertz = resolvedBotanical.fruitDevelopment.gompertz;
+
   return {
     name: j.metadata.name,
     type: j.metadata.type as CultivarType,
@@ -199,9 +206,11 @@ function adaptCultivar(j: CultivarJson): Cultivar {
     fruitSetRate: j.fruitSetRate,
     potentialFruitMassG: j.potentialFruitMassG,
 
-    // Gompertz (still on cultivar.physiology in JSON)
-    gompertzRateB: j.physiology.gompertzRateB,
-    gompertzInflectionC: j.physiology.gompertzInflectionC,
+    // Iter 1B — Gompertz from cultivar.resolvedBotanical (was: j.physiology.gompertz*).
+    // tomimaru: 0.05/0.55 (botanicalOverride). Generic: 0.06/0.45 (base).
+    // physiology.gompertz* fallback 제거됨 (cultivar JSONC도 정리 예정).
+    gompertzRateB: resolvedGompertz.rateB.mu,
+    gompertzInflectionC: resolvedGompertz.inflectionC.mu,
 
     // Architecture (v3.0 Phase 2)
     firstTrussNodeIdx: j.morphology.firstTrussNodeIdx,
@@ -250,9 +259,9 @@ function adaptCultivar(j: CultivarJson): Cultivar {
         },
     scenarios: adaptScenarios(j),
 
-    // v0.8 botanical: resolve base + override at load time. 5-step strict
-    // validation guards typos in cultivar.botanicalOverride paths.
-    resolvedBotanical: resolveBotanical(ACTIVE_BOTANICAL.tomato, j.botanicalOverride),
+    // Iter 1B (commit eee6b67 + 본 plan): resolvedBotanical은 함수
+    // 상단에서 한 번만 계산 (gompertz 등 다른 field가 read 가능하도록).
+    resolvedBotanical,
   };
 }
 

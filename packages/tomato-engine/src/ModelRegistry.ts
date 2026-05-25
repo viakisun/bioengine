@@ -225,8 +225,11 @@ export interface CultivarJson {
   physiology: {
     SLA_m2_per_g: number;
     sinkStrength: { leaf: number; stem: number; root: number };
-    gompertzRateB: number;
-    gompertzInflectionC: number;
+    // Iter 1B (commit eee6b67 + Iter 5b): gompertz는 botanical layer로
+    // 이동됨. 본 fields는 deprecated — 엔진은 cultivar.resolvedBotanical
+    // 에서 read. JSONC에 남아있어도 무시 (optional). 후속 plan에서 제거.
+    gompertzRateB?: number;
+    gompertzInflectionC?: number;
   };
 
   // ── v3.0 Phase 4: reproductive truss-order profile + scenarios ──

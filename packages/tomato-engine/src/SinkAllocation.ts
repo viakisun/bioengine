@@ -20,6 +20,7 @@
 
 import type { Cultivar } from './Cultivar';
 import type { PlantPhysiologyState, TrussCohort, FruitCohort } from './CoreModel';
+import type { SurplusAssimilatePolicy } from './BotanicalSpec';
 
 export interface OrganAllocation {
   leafG: number;
@@ -27,6 +28,23 @@ export interface OrganAllocation {
   rootG: number;
   trussG: number[];        // per truss
   trussFruitsG: number[][]; // per truss → per live fruit
+  /** Iter 5b — sink-demand clamp 잉여 (g DM/step). surplusPolicy='unused_pool' 일 때만 채워짐.
+   *  진단/audit용. 'redistribute_to_vegetative' 일 때는 leafG/stemG/rootG로 흐름 → 여기는 0. */
+  unusedAssimilateG?: number;
+  /** Iter 5b — per-truss/fruit raw sink demand (clamp 적용 전). debug 출력용. */
+  trussFruitsGRaw?: number[][];
+}
+
+/** Iter 5b — allocateDM options. */
+export interface AllocateDmOptions {
+  /** Per-fruit max dry-matter demand (g/step) ceiling. SinkAllocation
+   *  clamps raw fruit demand to this value. 단위는 newDM과 같은 step duration.
+   *  Sparse OK — undefined entry는 unlimited 의미. */
+  perFruitMaxDemandG?: number[][];  // [trussIdx][fruitIdx]
+  /** 'unused_pool' (Iter 5b 기본): clamp surplus는 어디로도 흐르지 않고
+   *   unusedAssimilateG에만 기록.
+   *  'redistribute_to_vegetative': surplus를 leaf pool에 합산 (Heuvelink hierarchy). */
+  surplusPolicy?: SurplusAssimilatePolicy;
 }
 
 /** Truss sink strength as a Gaussian function of (TT - TT_anthesis).
@@ -110,7 +128,7 @@ export function fruitFractionCap(N_active_fruits: number): number {
   return 0.660 * (1 - Math.exp(-0.341 * N_active_fruits));
 }
 
-/** Compute organ allocation for a given daily new DM amount.
+/** Compute organ allocation for a given step's new DM amount.
  *
  *  Step 1: compute all sink strengths (vegetative + per-truss)
  *  Step 2: proportional split
@@ -118,11 +136,14 @@ export function fruitFractionCap(N_active_fruits: number): number {
  *          excess back to vegetative organs.
  *  Step 4: subdivide each truss allocation across its live fruits
  *          (by per-fruit sink strength).
+ *  Step 5 (Iter 5b): if options.perFruitMaxDemandG is provided, clamp
+ *          per-fruit allocation. Surplus handling per surplusPolicy.
  */
 export function allocateDM(
   newDM: number,
   state: PlantPhysiologyState,
   cultivar: Cultivar,
+  options?: AllocateDmOptions,
 ): OrganAllocation {
   if (newDM <= 0) {
     return {
@@ -193,5 +214,48 @@ export function allocateDM(
     return perFruitSinks.map((s) => (s / sumSinks) * trussTotal);
   });
 
-  return { leafG, stemG, rootG, trussG, trussFruitsG };
+  // Iter 5b — per-fruit demand clamp + surplus policy
+  const perFruitMax = options?.perFruitMaxDemandG;
+  const surplusPolicy = options?.surplusPolicy ?? 'unused_pool';
+  let unusedAssimilateG = 0;
+  let trussFruitsGRaw: number[][] | undefined;
+
+  if (perFruitMax) {
+    trussFruitsGRaw = trussFruitsG.map(row => [...row]);  // raw copy for debug
+
+    for (let ti = 0; ti < trussFruitsG.length; ti++) {
+      const rowMax = perFruitMax[ti];
+      if (!rowMax) continue;
+      for (let fi = 0; fi < trussFruitsG[ti].length; fi++) {
+        const max = rowMax[fi];
+        if (max === undefined || max === null || !Number.isFinite(max)) continue;
+        const raw = trussFruitsG[ti][fi];
+        if (raw > max) {
+          const surplus = raw - max;
+          trussFruitsG[ti][fi] = max;
+          // truss-level subtotal도 동기화
+          trussG[ti] -= surplus;
+          unusedAssimilateG += surplus;
+        }
+      }
+    }
+
+    // surplus 처리
+    if (unusedAssimilateG > 0 && surplusPolicy === 'redistribute_to_vegetative') {
+      const PG_veg = PG_leaf + PG_stem + PG_root;
+      if (PG_veg > 0) {
+        leafG += unusedAssimilateG * (PG_leaf / PG_veg);
+        stemG += unusedAssimilateG * (PG_stem / PG_veg);
+        rootG += unusedAssimilateG * (PG_root / PG_veg);
+      }
+      unusedAssimilateG = 0;  // 모두 vegetative로 흘렸으므로 0
+    }
+    // 'unused_pool': unusedAssimilateG에 남겨두고 어디로도 안 보냄
+  }
+
+  return {
+    leafG, stemG, rootG, trussG, trussFruitsG,
+    unusedAssimilateG: perFruitMax ? unusedAssimilateG : undefined,
+    trussFruitsGRaw,
+  };
 }

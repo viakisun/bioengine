@@ -189,9 +189,14 @@ function buildObservation(args: BuildArgs): PlantObservation {
       },
     });
 
+    // Iter 5b — visibility threshold from botanical massFlow
+    const minVisibleDiameterMm =
+      cultivar.resolvedBotanical?.fruitDevelopment.massFlow.minVisibleDiameterMm ?? 0;
+
     // Per-fruit observations
     for (let j = 0; j < t.fruits.length; j++) {
       const f = t.fruits[j];
+      const isVisible = !f.aborted && !f.harvested && f.diameter >= minVisibleDiameterMm;
       fruits.push({
         fruitId: `F${i + 1}_${j + 1}`,
         trussId,
@@ -202,7 +207,7 @@ function buildObservation(args: BuildArgs): PlantObservation {
         heightMm: f.diameter * 0.95,                 // crude — Phase C 보강
         estimatedWeightG: f.W_fruit_fresh,
         colorStage: f.ripenStage >= 4 ? 'red' : f.ripenStage >= 1 ? 'turning' : 'green',
-        visibility: { visible: !f.aborted && !f.harvested, occlusionRatio: 0 },
+        visibility: { visible: isVisible, occlusionRatio: 0 },
         phenology: {
           flowerOpenDay: null, fruitSetDay: null, visibleFruitDay: null,
           breakerDay: null, ripeDay: null,

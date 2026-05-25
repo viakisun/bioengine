@@ -28,6 +28,7 @@ import { join } from 'node:path';
 import { GrowthEngine } from '../../packages/tomato-engine/src/GrowthEngine';
 import { getCultivar } from '../../packages/tomato-engine/src/Cultivar';
 import { DEFAULT_CLIMATE } from '../../packages/tomato-engine/src/CoreModel';
+import { potentialFreshMassG } from '../../packages/tomato-engine/src/FruitGrowth';
 import { computePlantGeometry } from '../../src/plant/PlantBase';
 import {
   loadReferenceBundle,
@@ -114,8 +115,13 @@ interface PlantOverall {
   visibleTrussCount: number;
   floweringTrussCount: number;
   fruitingTrussCount: number;
-  fruitCountTotal: number;
-  maxFruitDiameterMm: number;
+  // Iter 5b — visible vs cohort 분리
+  fruitCohortCount: number;            // internal fruit objects (aborted/harvested 제외, fertilized only)
+  visibleFruitCount: number;           // diameterMm >= massFlow.minVisibleDiameterMm
+  maxVisibleFruitDiameterMm: number;   // visible fruits 중 최대 (없으면 0)
+  // Backward-compat aliases (= visible 기준)
+  fruitCountTotal: number;             // = visibleFruitCount
+  maxFruitDiameterMm: number;          // = maxVisibleFruitDiameterMm
   totalFruitFreshMassG: number;
 }
 
@@ -162,9 +168,14 @@ function plantOverall(snap: DaySnapshot): PlantOverall {
   // Trusses — from physiology (CoreModel)
   let flowering = 0;
   let fruiting = 0;
-  let fruitCount = 0;
-  let maxDiam = 0;
+  let cohortCount = 0;
+  let visibleCount = 0;
+  let maxVisibleDiam = 0;
   let totalFresh = 0;
+  // Iter 5b — minVisibleDiameterMm from massFlow (default 0 if missing)
+  const minVisibleDiameterMm =
+    snap.cultivar.resolvedBotanical?.fruitDevelopment.massFlow.minVisibleDiameterMm ?? 0;
+
   for (const t of physiology.trusses) {
     const status = mapTrussStatus(t, physiology.TT);
     if (status === 'flowering') flowering++;
@@ -172,9 +183,12 @@ function plantOverall(snap: DaySnapshot): PlantOverall {
     for (const f of t.fruits) {
       if (f.aborted || f.harvested) continue;
       if (f.fertilizationTT <= 0) continue;
-      fruitCount++;
-      if (f.diameter > maxDiam) maxDiam = f.diameter;
+      cohortCount++;
       totalFresh += f.W_fruit_fresh;
+      if (f.diameter >= minVisibleDiameterMm) {
+        visibleCount++;
+        if (f.diameter > maxVisibleDiam) maxVisibleDiam = f.diameter;
+      }
     }
   }
 
@@ -187,8 +201,12 @@ function plantOverall(snap: DaySnapshot): PlantOverall {
     visibleTrussCount: physiology.trusses.length,
     floweringTrussCount: flowering,
     fruitingTrussCount: fruiting,
-    fruitCountTotal: fruitCount,
-    maxFruitDiameterMm: maxDiam,
+    fruitCohortCount: cohortCount,
+    visibleFruitCount: visibleCount,
+    maxVisibleFruitDiameterMm: maxVisibleDiam,
+    // Backward-compat aliases (= visible 기준 — Reference Pack과 비교)
+    fruitCountTotal: visibleCount,
+    maxFruitDiameterMm: maxVisibleDiam,
     totalFruitFreshMassG: totalFresh,
   };
 }
@@ -246,7 +264,9 @@ function buildPlantSummaryCsv(rows: PlantOverall[], bundle: ReferenceBundle): st
   const header = [
     'day', 'height_cm', 'node_count', 'visible_leaf_count', 'expanded_leaf_count',
     'visible_truss_count', 'flowering_truss_count', 'fruiting_truss_count',
-    'fruit_count_total', 'max_fruit_diameter_mm', 'total_fruit_fresh_mass_g',
+    'fruit_cohort_count', 'visible_fruit_count', 'max_visible_fruit_diameter_mm',
+    'fruit_count_total', 'max_fruit_diameter_mm',  // aliases (= visible)
+    'total_fruit_fresh_mass_g',
     'height_band', 'height_in_band',
     'node_band', 'node_in_band',
     'truss_band', 'truss_in_band',
@@ -259,7 +279,9 @@ function buildPlantSummaryCsv(rows: PlantOverall[], bundle: ReferenceBundle): st
     lines.push(csvRow([
       r.day, r.heightCm, r.nodeCount, r.visibleLeafCount, r.expandedLeafCount,
       r.visibleTrussCount, r.floweringTrussCount, r.fruitingTrussCount,
-      r.fruitCountTotal, r.maxFruitDiameterMm, r.totalFruitFreshMassG,
+      r.fruitCohortCount, r.visibleFruitCount, r.maxVisibleFruitDiameterMm,
+      r.fruitCountTotal, r.maxFruitDiameterMm,
+      r.totalFruitFreshMassG,
       bandStr(pb?.height ?? null), pb?.height ? inBandFlag(r.heightCm, pb.height) : 'no_target',
       bandStr(pb?.nodeCount ?? null), pb?.nodeCount ? inBandFlag(r.nodeCount, pb.nodeCount) : 'no_target',
       bandStr(pb?.visibleTruss ?? null), pb?.visibleTruss ? inBandFlag(r.visibleTrussCount, pb.visibleTruss) : 'no_target',
@@ -300,28 +322,66 @@ function buildFruitSummaryCsv(snapshots: DaySnapshot[]): string {
     'day', 'truss_index', 'fruit_id', 'aborted', 'harvested',
     'diameter_mm', 'fresh_mass_g', 'dry_mass_g',
     'fertilization_tt', 'cell_division_end_tt', 'ripen_start_tt',
-    'gdd_since_fert', 'cell_division_duration_gdd', 'ripen_start_gdd',
-    'phase', 'ripen_stage', 'starved_days', 'diameter_source',
+    'gdd_since_fert', 'cell_division_duration_gdd',
+    'cell_expansion_duration_gdd', 'ripen_start_gdd',
+    'phase', 'ripen_stage', 'starved_days',
+    // Iter 5b — debug fields (massFlow.debug=true 일 때만 채워짐)
+    'raw_sink_demand_g', 'max_step_demand_g', 'demand_was_limited',
+    'dry_mass_before_cap_g', 'cumulative_dry_cap_g', 'cumulative_cap_was_applied',
+    'allocated_dry_growth_g',
+    // Iter 5b — Gompertz fresh mass + allowed diameter (fresh, audit table용)
+    'gompertz_cap_fresh_g', 'gompertz_allowed_diameter_mm',
+    'diameter_source',
   ];
   const lines = [header.join(',')];
   for (const snap of snapshots) {
+    const massFlow = snap.cultivar.resolvedBotanical?.fruitDevelopment.massFlow;
+    const dryRatio = massFlow?.fruitDryMatterRatio ?? 0.06;
     for (let i = 0; i < snap.physiology.trusses.length; i++) {
       const t = snap.physiology.trusses[i];
       for (let j = 0; j < t.fruits.length; j++) {
         const f = t.fruits[j];
         const p = fruitPhase(f, snap.physiology.TT, snap.cultivar);
+        // Gompertz fresh cap @ current gddSinceFert
+        const gp = {
+          rateB: snap.cultivar.gompertzRateB,
+          inflectionC: snap.cultivar.gompertzInflectionC,
+          exponentScaling: snap.cultivar.resolvedBotanical?.fruitDevelopment.gompertz.exponentScaling ?? 0.01,
+          cellDivisionDurationGDD: snap.cultivar.cellDivisionDurationGDD,
+          cellExpansionDurationGDD: snap.cultivar.cellExpansionDurationGDD,
+        };
+        const gompertzFreshCap = potentialFreshMassG(p.gddSinceFert, f.genome.potentialMassG, gp);
+        const gompertzAllowedDiamMm = freshMassToDiameterApprox(gompertzFreshCap);
+        const d = f.debug;
         lines.push(csvRow([
           snap.day, i + 1, `F${i + 1}_${j + 1}`, f.aborted, f.harvested,
           f.diameter, f.W_fruit_fresh, f.W_fruit_dry,
           f.fertilizationTT, f.cellDivisionEndTT, f.ripenStartTT,
-          p.gddSinceFert, p.cellDivisionDurationGDD, p.ripenStartGDD,
+          p.gddSinceFert, p.cellDivisionDurationGDD,
+          snap.cultivar.cellExpansionDurationGDD, p.ripenStartGDD,
           p.phase, f.ripenStage, f.starvedDays,
-          'sink_allocation_mass_curve',
+          d?.rawSinkDemandG ?? null,
+          d ? (Number.isFinite(d.maxStepDemandG) ? d.maxStepDemandG : 'inf') : null,
+          d?.demandWasLimited ?? null,
+          d?.dryMassBeforeCapG ?? null,
+          d ? (Number.isFinite(d.cumulativeDryCapG) ? d.cumulativeDryCapG : 'inf') : null,
+          d?.cumulativeCapWasApplied ?? null,
+          d?.allocatedDryGrowthG ?? null,
+          gompertzFreshCap, gompertzAllowedDiamMm,
+          massFlow?.mode ?? 'sink_allocation_mass_curve',
         ]));
       }
     }
   }
   return lines.join('\n') + '\n';
+}
+
+// Simple ovate approx: 200g ≈ 80mm fruit (Tomimaru beefsteak baseline).
+// For audit table only — not used by engine. d = (m/k)^(1/3) where k=200/80³.
+function freshMassToDiameterApprox(massG: number): number {
+  if (massG <= 0) return 0;
+  const k = 200 / Math.pow(80, 3);  // ≈ 3.91e-4
+  return Math.pow(massG / k, 1 / 3);
 }
 
 function buildLeafOrientationCsv(snapshots: DaySnapshot[]): string {

@@ -199,6 +199,22 @@
         "sigma": 0.05
       },
       "exponentScaling": 0.01                // FruitGrowth.ts:51
+    },
+
+    // -- Mass flow policy (Iter 5b, growth_update_005) -----------
+    // Reference Pack v0.9 진단 결과 Case B fired: 모든 day에서 fruit
+    // mass cap 도달 (Day 30 87mm, Day 60 87mm, Day 90 90mm). 원인은
+    // CoreModel:435-436의 시간 무관 W_dry_cap. 본 block은 Gompertz
+    // potential mass curve를 (a) per-step sink demand limit + (b)
+    // cumulative trajectory cap 두 곳에 연결하는 engine_logic 정책.
+    "massFlow": {
+      "mode": "gompertz_sink_limited",       // legacy_sink_unlimited 는 fallback
+      "fruitDryMatterRatio": 0.06,           // Heuvelink 1996 0.05-0.07
+      "minVisibleDiameterMm": 2,             // visibleFruitCount 임계값
+      "enableTrajectoryCap": true,           // cumulative W_dry trajectory cap
+      "enableStepDemandLimit": true,         // per-fruit per-step demand clamp
+      "surplusPolicy": "unused_pool",        // clamp surplus는 vegetative로 안 흐름
+      "debug": true                          // snapshot에 debug fields 출력
     }
   },
 
@@ -215,7 +231,9 @@
     "fruitDevelopment.flowering.setDelayDays":
       "INACTIVE — 엔진(CoreModel.ts:320-327)이 anthesis 즉시 set 처리. 별도 Iter 1B engine_logic plan에서 enforcement.",
     "fruitDevelopment.gompertz":
-      "Gillaspy 1993 3-phase fruit growth Gompertz fit. cultivar.botanicalOverride.fruitDevelopment.gompertz로 cultivar 보정 가능 (tomimaru 0.05/0.55 등)."
+      "Gillaspy 1993 3-phase fruit growth Gompertz fit. cultivar.botanicalOverride.fruitDevelopment.gompertz로 cultivar 보정 가능 (tomimaru 0.05/0.55 등).",
+    "fruitDevelopment.massFlow":
+      "Iter 5b engine_logic. Reference Pack v0.9 진단 Case B (fruit cap 폭주) 대응. CoreModel sink + W_dry_cap을 Gompertz trajectory에 연결. surplusPolicy 'unused_pool'은 fruit fix 단독 측정용 (잉여 DM은 vegetative로 안 흐름)."
   },
 
   // ============================================================
@@ -252,6 +270,13 @@
     "fruitDevelopment.flowering.setDelayDays": "pending_engine_logic",
     "fruitDevelopment.gompertz.rateB": "active",
     "fruitDevelopment.gompertz.inflectionC": "active",
-    "fruitDevelopment.gompertz.exponentScaling": "active"
+    "fruitDevelopment.gompertz.exponentScaling": "active",
+    "fruitDevelopment.massFlow.mode": "active",
+    "fruitDevelopment.massFlow.fruitDryMatterRatio": "active",
+    "fruitDevelopment.massFlow.minVisibleDiameterMm": "active",
+    "fruitDevelopment.massFlow.enableTrajectoryCap": "active",
+    "fruitDevelopment.massFlow.enableStepDemandLimit": "active",
+    "fruitDevelopment.massFlow.surplusPolicy": "active",
+    "fruitDevelopment.massFlow.debug": "active"
   }
 }

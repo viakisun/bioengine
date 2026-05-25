@@ -97,7 +97,33 @@ export interface StemGrowthSpec {
   initialStateSpread: number;                     // 0.5 — per-node spread
 }
 
-// ── Fruit development (Table 3, 8 values) ─────────────────────────────
+// ── Fruit development (Table 3, 8 values + Iter 5b massFlow) ──────────
+
+/** Iter 5b — 잉여 DM 처리 정책. clamp surplus를 어디로 보낼지. */
+export type SurplusAssimilatePolicy =
+  | 'unused_pool'                  // Iter 5b 기본값. 잉여 DM은 어디로도 안 흐름 (질량 보존 X, but fruit fix 단독 측정 가능).
+  | 'redistribute_to_vegetative';  // 후속 옵션. Heuvelink hierarchy로 leaf → stem → root 흐름.
+
+/** Iter 5b — fruit mass flow 정책. Gompertz curve가 sink demand에 영향을
+ *  주는지 + cumulative cap 시간별 trajectory 적용 여부. */
+export interface MassFlowSpec {
+  /** 'legacy_sink_unlimited' fallback (Iter 5b 이전 동작 재현용).
+   *  Iter 5b 도입값은 'gompertz_sink_limited'. */
+  mode: 'legacy_sink_unlimited' | 'gompertz_sink_limited';
+  /** Tomato fruit DM:FW ratio. Heuvelink 1996 ≈ 0.05-0.07. */
+  fruitDryMatterRatio: number;
+  /** visibleFruitCount 계산에만 사용. `visible = diameterMm >= this && !aborted && !harvested`.
+   *  fruitCohortCount는 별도 metric. 0이면 모든 비-abort fruit가 visible. */
+  minVisibleDiameterMm: number;
+  /** trajectory cap on/off. mode='gompertz_sink_limited'와 함께. */
+  enableTrajectoryCap: boolean;
+  /** per-fruit step demand clamp on/off (SinkAllocation 측). */
+  enableStepDemandLimit: boolean;
+  /** 잉여 DM 처리. Iter 5b 기본 'unused_pool'. */
+  surplusPolicy: SurplusAssimilatePolicy;
+  /** snapshot에 fruit debug fields 출력 on/off. */
+  debug: boolean;
+}
 
 export interface FruitDevelopmentSpec {
   visualSigmoid: {
@@ -121,6 +147,8 @@ export interface FruitDevelopmentSpec {
     inflectionC: MuSigma;                         // {mu: 0.45, sigma: 0.05}
     exponentScaling: number;                      // 0.01 — FruitGrowth.ts:51
   };
+  /** Iter 5b: fruit sink + W_dry trajectory cap 정책. */
+  massFlow: MassFlowSpec;
 }
 
 // ── BotanicalSpec (full) ─────────────────────────────────────────────
@@ -267,6 +295,26 @@ export function validateFull(spec: BotanicalSpec): void {
   requireMuSigma(fd.gompertz.rateB, 'fruitDevelopment.gompertz.rateB');
   requireMuSigma(fd.gompertz.inflectionC, 'fruitDevelopment.gompertz.inflectionC');
   requireFiniteNumber(fd.gompertz.exponentScaling, 'fruitDevelopment.gompertz.exponentScaling');
+  // Iter 5b — massFlow block
+  requireObject(fd.massFlow, 'fruitDevelopment.massFlow');
+  if (fd.massFlow.mode !== 'legacy_sink_unlimited' && fd.massFlow.mode !== 'gompertz_sink_limited') {
+    throw new BotanicalValidationError(
+      `fruitDevelopment.massFlow.mode invalid: ${String(fd.massFlow.mode)}`,
+    );
+  }
+  requireFiniteNumber(fd.massFlow.fruitDryMatterRatio, 'fruitDevelopment.massFlow.fruitDryMatterRatio');
+  requireFiniteNumber(fd.massFlow.minVisibleDiameterMm, 'fruitDevelopment.massFlow.minVisibleDiameterMm');
+  if (typeof fd.massFlow.enableTrajectoryCap !== 'boolean'
+   || typeof fd.massFlow.enableStepDemandLimit !== 'boolean'
+   || typeof fd.massFlow.debug !== 'boolean') {
+    throw new BotanicalValidationError('fruitDevelopment.massFlow flags must be boolean');
+  }
+  if (fd.massFlow.surplusPolicy !== 'unused_pool'
+   && fd.massFlow.surplusPolicy !== 'redistribute_to_vegetative') {
+    throw new BotanicalValidationError(
+      `fruitDevelopment.massFlow.surplusPolicy invalid: ${String(fd.massFlow.surplusPolicy)}`,
+    );
+  }
 }
 
 export function validatePartial(override: BotanicalPartial): void {
@@ -461,6 +509,7 @@ function mergeFruitDevelopment(
       rateB: { ...base.gompertz.rateB, ...(ov.gompertz?.rateB ?? {}) },
       inflectionC: { ...base.gompertz.inflectionC, ...(ov.gompertz?.inflectionC ?? {}) },
     },
+    massFlow: { ...base.massFlow, ...(ov.massFlow ?? {}) },
   };
 }
 
@@ -500,6 +549,7 @@ export function cloneBotanical(src: BotanicalSpec): BotanicalSpec {
         rateB: { ...src.fruitDevelopment.gompertz.rateB },
         inflectionC: { ...src.fruitDevelopment.gompertz.inflectionC },
       },
+      massFlow: { ...src.fruitDevelopment.massFlow },
     },
     parameterNotes: src.parameterNotes ? { ...src.parameterNotes } : undefined,
     enforcementStatus: src.enforcementStatus ? { ...src.enforcementStatus } : undefined,

@@ -1,0 +1,144 @@
+{
+  "schemaVersion": "growthCalibration.v1",
+  "updateId": "growth_update_005",
+  "previousModelVersion": "growthModel.tomato.v0.9-fruit-timing",
+  "newModelVersion": "growthModel.tomato.v0.10-gompertz-sink",
+  "status": "promoted_conditional",
+  "date": "2026-05-25",
+  "triggerComparisons": [
+    "(v0.9 220 comparisons + dump-growth-checkpoints v0.9 Case B/D fired)"
+  ],
+  "triggerRuleIds": [
+    "tomato_fruit_appears_too_early",
+    "tomato_day33_fruit_too_early"
+  ],
+  "reason": [
+    "Iter 5b: Day 30/33/60/90 모든 day에서 fruit가 cap 도달 (Case B 진단, audit docs/calibration-checkpoint-reports/v0.9-day-30-33-60-90-summary.md).",
+    "원인: CoreModel:435-436 W_dry_cap이 시간 무관 최종 cap (potentialMassG × DM_percent) → division phase에서 sink가 자유롭게 cap (200g/87mm) 도달.",
+    "수정: Gompertz potential mass curve를 (a) per-fruit per-step sink demand limit (SinkAllocation.allocateDM에 perFruitMaxDemandG 전달) + (b) cumulative W_dry trajectory cap 두 곳에 연결.",
+    "Iter 1B 통합: tomimaru gompertz override (commit eee6b67)가 declared but not consumed 상태였음. 본 plan에서 cultivar.resolvedBotanical 경로로 active wiring. functional no-op (값 사전 정합)."
+  ],
+  "parameterChanges": [
+    {
+      "parameter": "botanical/tomato.jsonc#/fruitDevelopment/massFlow",
+      "oldValue": null,
+      "newValue": "{mode:'gompertz_sink_limited', fruitDryMatterRatio:0.06, minVisibleDiameterMm:2, enableTrajectoryCap:true, enableStepDemandLimit:true, surplusPolicy:'unused_pool', debug:true}",
+      "file": "packages/tomato-engine/models/botanical/tomato.jsonc",
+      "unit": "schema",
+      "citation": "Iter 5b plan (.claude/plans/sleepy-growing-pretzel.md)",
+      "reason": "Gompertz sink limit policy 도입.",
+      "changeType": "jsonc_parameter",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "BotanicalSpec.FruitDevelopmentSpec.massFlow",
+      "oldValue": null,
+      "newValue": "MassFlowSpec interface 추가",
+      "file": "packages/tomato-engine/src/BotanicalSpec.ts",
+      "unit": "schema",
+      "citation": "Iter 5b plan",
+      "reason": "schema 확장.",
+      "changeType": "schema_only",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "CoreModel fruit sink demand path (daily + minutely)",
+      "oldValue": "raw sink demand (unlimited)",
+      "newValue": "min(raw, potentialStepDryDemandG) via SinkAllocation perFruitMaxDemandG",
+      "file": "packages/tomato-engine/src/CoreModel.ts:400-450,617-670",
+      "unit": "g DM/step",
+      "citation": "Gillaspy 1993 3-phase fruit growth + Anaya-Ramirez 2024 Gompertz fit",
+      "reason": "division phase mass accumulation 제한.",
+      "changeType": "engine_logic",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "CoreModel W_dry_cap (time-invariant → trajectory)",
+      "oldValue": "potentialMassG × DM_percent (constant)",
+      "newValue": "potentialFreshMassG(gddSinceFert) × fruitDryMatterRatio (time-varying)",
+      "file": "packages/tomato-engine/src/CoreModel.ts:435-436, 650-651",
+      "unit": "g DM",
+      "citation": "Gillaspy 1993",
+      "reason": "fruit mass cap이 시간 함수로 변경 → division phase 폭주 방지.",
+      "changeType": "engine_logic",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "SinkAllocation.allocateDM signature",
+      "oldValue": "allocateDM(newDM, state, cultivar)",
+      "newValue": "allocateDM(newDM, state, cultivar, options?)",
+      "file": "packages/tomato-engine/src/SinkAllocation.ts",
+      "unit": "API",
+      "citation": "Iter 5b plan",
+      "reason": "perFruitMaxDemandG + surplusPolicy 전달.",
+      "changeType": "engine_logic",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "Cultivar.gompertz* read path (Iter 1B)",
+      "oldValue": "j.physiology.gompertzRateB/InflectionC",
+      "newValue": "resolvedBotanical.fruitDevelopment.gompertz.{rateB,inflectionC}.mu",
+      "file": "packages/tomato-engine/src/Cultivar.ts:185-205",
+      "unit": "engine wiring",
+      "citation": "Iter 1B plan (declared but not consumed since commit eee6b67)",
+      "reason": "tomimaru botanicalOverride.fruitDevelopment.gompertz가 sole source. functional no-op (값 사전 정합).",
+      "changeType": "engine_logic",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "tomimaru.physiology.gompertz* removal",
+      "oldValue": "physiology.gompertzRateB=0.05, gompertzInflectionC=0.55",
+      "newValue": "removed (botanicalOverride가 sole source)",
+      "file": "packages/tomato-engine/models/cultivars/tomimaru-muchoo.jsonc",
+      "unit": "JSONC field",
+      "citation": "Iter 1B plan",
+      "reason": "duplicate 데이터 제거.",
+      "changeType": "jsonc_parameter",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "CultivarJson.physiology.gompertz* (optional)",
+      "oldValue": "required: number",
+      "newValue": "optional?: number (deprecated)",
+      "file": "packages/tomato-engine/src/ModelRegistry.ts:225-230",
+      "unit": "TypeScript interface",
+      "citation": "Iter 1B plan",
+      "reason": "field가 unused — 다른 cultivar는 보존 (legacy 보관 영역).",
+      "changeType": "schema_only",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "extract-calibration-observations visibility threshold",
+      "oldValue": "visible = !aborted && !harvested",
+      "newValue": "visible = !aborted && !harvested && diameter >= minVisibleDiameterMm",
+      "file": "growth-calibration/scripts/extract-calibration-observations.ts",
+      "unit": "observation filter",
+      "citation": "Iter 5b plan #5 visibility 분리",
+      "reason": "Reference Pack target과 정확히 일치 (visible 기준).",
+      "changeType": "schema_only",
+      "enforcementStatus": "active"
+    }
+  ],
+  "validationPlan": {
+    "replayDays": [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+    "forwardDays": [],
+    "targetMetrics": [
+      "overall.fruitCountTotal",
+      "overall.maxFruitDiameterMm",
+      "fruit.status",
+      "fruit.diameter @ day 30/33/60/90"
+    ]
+  },
+  "outcome": {
+    "runDate": "2026-05-25",
+    "replayScoreDelta": 0.002,
+    "forwardScoreDelta": 0,
+    "verdict": "조건부 채택 (7/9 Technical pass)",
+    "notes": "Iter 5b architectural fix 성공. Day 30 max diameter 87.6→28.4mm (-67%), Day 33 87.6→29.5mm, Day 60 87.6→36.5mm (target 22-32 근접), Day 90 90.2→41.6mm. S 0.693→0.695 (+0.002), P_band 0.562→0.559 (-0.003 tolerance). 시각 (Playwright tuned-v0.10/day30_truss.png)에서도 거대 과실 사라짐 확인. 미충족 Technical pass 2개 (fruit_too_early/day33_fruit_too_early 진단 카운트): Diagnostic rule이 fruit cohort count > 0 만 보고, Iter 5b는 mass만 줄였으므로 카운트 동일. Calibration pass (target band 진입)는 Iter 6 영역 — gompertz exponentScaling 또는 rateB/inflectionC sweep 필요."
+  },
+  "followUp": [
+    "Iter 6 (Calibration loop, fruit_growth_curve category, ≤3 param sweep): exponentScaling 0.01 → [0.02, 0.05, 0.1] OR gompertz.rateB.mu sweep. Day 30 fruit <2mm + Day 90 50-65mm target band 진입 목표.",
+    "Iter 7 (Case D 부차적): stemGrowth.matureInternode.lengthDistribution.mu sweep (Day 30 height -3cm, Day 90 -16cm).",
+    "Iter 8 (leaf_lateral_spread 220/220, Phase 2): PlantBase의 lateralSpreadDeg estimate를 정식 mesh-derived 구현으로 교체 (SkinMeshPlant geometry 기반)."
+  ]
+}

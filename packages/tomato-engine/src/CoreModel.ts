@@ -28,8 +28,50 @@ import { dailyNetDM, hourlyNetDM } from './Photosynthesis';
 import { diurnalEnv, type HourlyClimate } from './DiurnalEnv';
 import { ACTIVE_MODEL } from './ModelRegistry';
 import { allocateDM } from './SinkAllocation';
-import { acropetalGDDOffset, potentialDailyGrowthFW, updateAbortionTracker } from './FruitGrowth';
+import {
+  acropetalGDDOffset, potentialDailyGrowthFW, updateAbortionTracker,
+  potentialFreshMassG, potentialStepDryDemandG,
+  type GompertzMassParams,
+} from './FruitGrowth';
 import { phytomerCountFromTT } from './SimulationContext';
+
+// ─────────────────────────────────────────────────────────────────────
+// Iter 5b — Gompertz sink demand helper (used by both stepDaily +
+// stepMinutely). Returns per-truss-per-fruit MAX dry demand (g/step)
+// in the same time unit as `stepGdd`.
+// ─────────────────────────────────────────────────────────────────────
+function gompertzParamsOf(cultivar: Cultivar): GompertzMassParams {
+  // resolvedBotanical.gompertz는 Phase E에서 cultivar로부터 read하므로
+  // 본 helper는 cultivar.gompertzRateB/InflectionC만 본다.
+  // (cultivar.resolvedBotanical은 wire 후 통해서 채워짐)
+  const exponentScaling = cultivar.resolvedBotanical.fruitDevelopment.gompertz.exponentScaling;
+  return {
+    rateB: cultivar.gompertzRateB,
+    inflectionC: cultivar.gompertzInflectionC,
+    exponentScaling,
+    cellDivisionDurationGDD: cultivar.cellDivisionDurationGDD,
+    cellExpansionDurationGDD: cultivar.cellExpansionDurationGDD,
+  };
+}
+
+function computePerFruitGompertzDemand(
+  state: PlantPhysiologyState,
+  cultivar: Cultivar,
+  stepGdd: number,
+): number[][] {
+  const gp = gompertzParamsOf(cultivar);
+  const dryRatio = cultivar.resolvedBotanical.fruitDevelopment.massFlow.fruitDryMatterRatio;
+  return state.trusses.map(t => t.fruits.map(f => {
+    if (f.aborted || f.harvested || f.fertilizationTT < 0) return 0;
+    return potentialStepDryDemandG(
+      state.TT - f.fertilizationTT,    // gddSinceFertAtStepEnd
+      stepGdd,                          // daily=T_eff_day, minutely=T_eff_per_min
+      f.genome.potentialMassG,
+      dryRatio,
+      gp,
+    );
+  }));
+}
 
 // ---------------------------------------------------------------------------
 // Environment input
@@ -103,6 +145,20 @@ export interface FruitCohort {
    *  growth (Marcelis 1996 abortion threshold). Aborts when this hits
    *  ABORTION_LAG_DAYS. */
   starvedDays: number;
+
+  /** Iter 5b debug fields — populated when massFlow.debug=true. Snapshot
+   *  scripts read these for audit (raw demand vs Gompertz limit vs
+   *  trajectory cap). Optional + last-step-only (overwritten each step). */
+  debug?: {
+    rawSinkDemandG: number;
+    maxStepDemandG: number;
+    demandWasLimited: boolean;
+    dryMassBeforeCapG: number;
+    cumulativeDryCapG: number;
+    cumulativeCapWasApplied: boolean;
+    allocatedDryGrowthG: number;
+    finalDryMassG: number;
+  };
 }
 
 export interface TrussCohort {
@@ -406,7 +462,17 @@ export function stepMinutely(
 
   // 5. Sink-driven allocation — distribute the minute's DM across organs
   if (newDM_min > 0) {
-    const alloc = allocateDM(newDM_min, state, cultivar);
+    // Iter 5b — Gompertz sink demand limit (per-step, per-fruit).
+    //   stepGdd here = T_eff_per_min (this minute's GDD increment)
+    const massFlow = cultivar.resolvedBotanical.fruitDevelopment.massFlow;
+    const perFruitMaxMin = massFlow.enableStepDemandLimit
+      ? computePerFruitGompertzDemand(state, cultivar, T_eff_per_min)
+      : undefined;
+    const alloc = allocateDM(newDM_min, state, cultivar, {
+      perFruitMaxDemandG: perFruitMaxMin,
+      surplusPolicy: massFlow.surplusPolicy,
+    });
+    const gp = gompertzParamsOf(cultivar);
 
     for (let ti = 0; ti < state.trusses.length; ti++) {
       const truss = state.trusses[ti];
@@ -430,12 +496,45 @@ export function stepMinutely(
           continue;
         }
 
+        // Iter 5b — debug fields (pre-cap)
+        const rawSinkDemandG = alloc.trussFruitsGRaw?.[ti]?.[fi] ?? allocatedStep;
+        const maxStepDemandG = perFruitMaxMin?.[ti]?.[fi] ?? Number.POSITIVE_INFINITY;
+        const demandWasLimited = rawSinkDemandG > maxStepDemandG;
+
         // Apply allocation
         fruit.W_fruit_dry += allocatedStep;
-        const W_dry_cap = fruit.genome.potentialMassG * ACTIVE_MODEL.fruitGrowth.DM_percent;
-        if (fruit.W_fruit_dry > W_dry_cap) fruit.W_fruit_dry = W_dry_cap;
+        const dryMassBeforeCapG = fruit.W_fruit_dry;
+
+        // Cap — trajectory or legacy depending on massFlow
+        let cumulativeDryCapG = Number.POSITIVE_INFINITY;
+        let cumulativeCapWasApplied = false;
+        if (massFlow.enableTrajectoryCap) {
+          cumulativeDryCapG = potentialFreshMassG(
+            gddSinceFert, fruit.genome.potentialMassG, gp,
+          ) * massFlow.fruitDryMatterRatio;
+          if (fruit.W_fruit_dry > cumulativeDryCapG) {
+            fruit.W_fruit_dry = cumulativeDryCapG;
+            cumulativeCapWasApplied = true;
+          }
+        } else {
+          const W_dry_cap = fruit.genome.potentialMassG * ACTIVE_MODEL.fruitGrowth.DM_percent;
+          if (fruit.W_fruit_dry > W_dry_cap) fruit.W_fruit_dry = W_dry_cap;
+        }
         fruit.W_fruit_fresh = fruit.W_fruit_dry / ACTIVE_MODEL.fruitGrowth.DM_percent;
         fruit.diameter = freshMassToDiameter(fruit.W_fruit_fresh, fruit.genome);
+
+        if (massFlow.debug) {
+          fruit.debug = {
+            rawSinkDemandG,
+            maxStepDemandG,
+            demandWasLimited,
+            dryMassBeforeCapG,
+            cumulativeDryCapG,
+            cumulativeCapWasApplied,
+            allocatedDryGrowthG: allocatedStep,
+            finalDryMassG: fruit.W_fruit_dry,
+          };
+        }
       }
     }
 
@@ -619,8 +718,17 @@ function _legacyStepDaily(
 
   // 5. Sink-driven allocation across organs + per-truss/per-fruit
   //    (Marcelis 1996 / Heuvelink 1996 with TOMSIM saturation cap).
+  //    Iter 5b: Gompertz sink demand limit + trajectory cap.
   if (newDM > 0) {
-    const alloc = allocateDM(newDM, state, cultivar);
+    const massFlow = cultivar.resolvedBotanical.fruitDevelopment.massFlow;
+    const perFruitMaxDaily = massFlow.enableStepDemandLimit
+      ? computePerFruitGompertzDemand(state, cultivar, T_eff)
+      : undefined;
+    const alloc = allocateDM(newDM, state, cultivar, {
+      perFruitMaxDemandG: perFruitMaxDaily,
+      surplusPolicy: massFlow.surplusPolicy,
+    });
+    const gp = gompertzParamsOf(cultivar);
 
     // Increment per-fruit dry weight, then derive fresh & diameter +
     // abortion tracker (Marcelis 1996, Frontiers 2015).
@@ -644,14 +752,46 @@ function _legacyStepDaily(
           continue;
         }
 
+        // Iter 5b — debug fields (pre-cap)
+        const rawSinkDemandG = alloc.trussFruitsGRaw?.[ti]?.[fi] ?? allocatedToday;
+        const maxStepDemandG = perFruitMaxDaily?.[ti]?.[fi] ?? Number.POSITIVE_INFINITY;
+        const demandWasLimited = rawSinkDemandG > maxStepDemandG;
+
         // Apply allocation
         fruit.W_fruit_dry += allocatedToday;
-        // Cap at potential mass
-        const W_dry_cap = fruit.genome.potentialMassG * ACTIVE_MODEL.fruitGrowth.DM_percent;
-        if (fruit.W_fruit_dry > W_dry_cap) fruit.W_fruit_dry = W_dry_cap;
+        const dryMassBeforeCapG = fruit.W_fruit_dry;
+
+        // Cap — trajectory (Iter 5b) or legacy
+        let cumulativeDryCapG = Number.POSITIVE_INFINITY;
+        let cumulativeCapWasApplied = false;
+        if (massFlow.enableTrajectoryCap) {
+          cumulativeDryCapG = potentialFreshMassG(
+            gddSinceFert, fruit.genome.potentialMassG, gp,
+          ) * massFlow.fruitDryMatterRatio;
+          if (fruit.W_fruit_dry > cumulativeDryCapG) {
+            fruit.W_fruit_dry = cumulativeDryCapG;
+            cumulativeCapWasApplied = true;
+          }
+        } else {
+          const W_dry_cap = fruit.genome.potentialMassG * ACTIVE_MODEL.fruitGrowth.DM_percent;
+          if (fruit.W_fruit_dry > W_dry_cap) fruit.W_fruit_dry = W_dry_cap;
+        }
         // Fresh = dry / DM%
         fruit.W_fruit_fresh = fruit.W_fruit_dry / ACTIVE_MODEL.fruitGrowth.DM_percent;
         fruit.diameter = freshMassToDiameter(fruit.W_fruit_fresh, fruit.genome);
+
+        if (massFlow.debug) {
+          fruit.debug = {
+            rawSinkDemandG,
+            maxStepDemandG,
+            demandWasLimited,
+            dryMassBeforeCapG,
+            cumulativeDryCapG,
+            cumulativeCapWasApplied,
+            allocatedDryGrowthG: allocatedToday,
+            finalDryMassG: fruit.W_fruit_dry,
+          };
+        }
       }
     }
 

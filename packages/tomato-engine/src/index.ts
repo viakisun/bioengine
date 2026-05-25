@@ -89,8 +89,12 @@ export {
   acropetalGDDOffset,
   ABORTION_THRESHOLD,
   ABORTION_LAG_DAYS,
+  // Iter 5b — sink-demand limit 전용
+  potentialFreshMassG,
+  potentialStepFreshGrowthG,
+  potentialStepDryDemandG,
 } from './FruitGrowth';
-export type { AbortionState } from './FruitGrowth';
+export type { AbortionState, GompertzMassParams } from './FruitGrowth';
 
 export { computePhysics, computeTrussDroop } from './PhysicsModel';
 

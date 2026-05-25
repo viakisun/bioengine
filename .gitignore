@@ -25,6 +25,10 @@ growth-calibration/experiments/*/comparison/
 # 의사결정 기록은 docs/calibration-checkpoint-reports/ 에 별도 tracked.
 growth-calibration/checkpoints/
 
+# Iter audit summaries — regenerable via dump-iter-audit.ts.
+# 의사결정 기록은 docs/calibration-checkpoint-reports/ 에 별도 tracked.
+growth-calibration/audits/
+
 # Playwright outputs — screenshots/videos/traces regenerable from spec files.
 test-results/
 playwright-report/
