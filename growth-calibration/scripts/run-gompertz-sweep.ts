@@ -40,6 +40,9 @@ interface CliArgs {
   /** Iter 6f — abortion sweep axes (optional, SSOT #61). */
   abortionThresholdRatio?: number[];
   abortionLagDays?: number[];
+  /** Iter 6g (SSOT #73) — abortion pair-list. e.g. "0.18:7,0.18:10,0.10:10".
+   *  If set, overrides abortionThresholdRatio/abortionLagDays cross-product. */
+  abortionPairs?: Array<{ thresh: number; lag: number }>;
   seed: number;
   days: number[];
   cultivar: string;
@@ -50,6 +53,17 @@ interface CliArgs {
 function parseList(s: string | undefined, fallback: number[]): number[] {
   if (!s) return fallback;
   return s.split(',').map(x => Number(x.trim())).filter(n => Number.isFinite(n));
+}
+
+/** Iter 6g (SSOT #73) — parse "0.18:7,0.18:10,0.10:10" → [{thresh, lag}, ...] */
+function parsePairList(s: string | undefined): Array<{ thresh: number; lag: number }> | undefined {
+  if (!s) return undefined;
+  const out: Array<{ thresh: number; lag: number }> = [];
+  for (const pair of s.split(',')) {
+    const [t, l] = pair.split(':').map(x => Number(x.trim()));
+    if (Number.isFinite(t) && Number.isFinite(l)) out.push({ thresh: t, lag: l });
+  }
+  return out.length > 0 ? out : undefined;
 }
 
 function parseArgs(argv: string[]): CliArgs {
@@ -75,6 +89,7 @@ function parseArgs(argv: string[]): CliArgs {
     fruitSetRate: opts.fruitSetRate ? parseList(opts.fruitSetRate, []) : undefined,
     abortionThresholdRatio: opts.abortionThresholdRatio ? parseList(opts.abortionThresholdRatio, []) : undefined,
     abortionLagDays: opts.abortionLagDays ? parseList(opts.abortionLagDays, []) : undefined,
+    abortionPairs: parsePairList(opts.abortionPairs),
     seed: opts.seed ? Number(opts.seed) : 20260525,
     days: parseList(opts.days, [30, 33, 60, 90]),
     cultivar: opts.cultivar ?? 'tomimaru-muchoo',
@@ -106,8 +121,17 @@ function genVariants(args: CliArgs): Variant[] {
   const cedList = args.cellExpansionDurationGDD ?? [undefined];
   const fptList = args.flowersPerTrussMu ?? [undefined];
   const fsrList = args.fruitSetRate ?? [undefined];
-  const atrList = args.abortionThresholdRatio ?? [undefined];
-  const aldList = args.abortionLagDays ?? [undefined];
+  // Iter 6g (SSOT #73): abortionPairs가 있으면 pair-list 사용, 없으면 cross-product
+  const abortionCombos: Array<{ thresh?: number; lag?: number }> =
+    args.abortionPairs && args.abortionPairs.length > 0
+      ? args.abortionPairs.map(p => ({ thresh: p.thresh, lag: p.lag }))
+      : (() => {
+          const atrList = args.abortionThresholdRatio ?? [undefined];
+          const aldList = args.abortionLagDays ?? [undefined];
+          const combos: Array<{ thresh?: number; lag?: number }> = [];
+          for (const t of atrList) for (const l of aldList) combos.push({ thresh: t, lag: l });
+          return combos;
+        })();
   for (const ic of args.inflectionC) {
     for (const rb of args.rateB) {
       for (const exp of args.exponentScaling) {
@@ -115,15 +139,13 @@ function genVariants(args: CliArgs): Variant[] {
           for (const ced of cedList) {
             for (const fpt of fptList) {
               for (const fsr of fsrList) {
-                for (const atr of atrList) {
-                  for (const ald of aldList) {
-                    out.push({
-                      inflectionC: ic, rateB: rb, exponentScaling: exp,
-                      cellDivisionDurationGDD: cdd, cellExpansionDurationGDD: ced,
-                      flowersPerTrussMu: fpt, fruitSetRate: fsr,
-                      abortionThresholdRatio: atr, abortionLagDays: ald,
-                    });
-                  }
+                for (const ab of abortionCombos) {
+                  out.push({
+                    inflectionC: ic, rateB: rb, exponentScaling: exp,
+                    cellDivisionDurationGDD: cdd, cellExpansionDurationGDD: ced,
+                    flowersPerTrussMu: fpt, fruitSetRate: fsr,
+                    abortionThresholdRatio: ab.thresh, abortionLagDays: ab.lag,
+                  });
                 }
               }
             }
@@ -354,8 +376,12 @@ function main(): void {
   if (args.cellExpansionDurationGDD) axes.push(`cellExp=${args.cellExpansionDurationGDD.length}`);
   if (args.flowersPerTrussMu) axes.push(`flowersMu=${args.flowersPerTrussMu.length}`);
   if (args.fruitSetRate) axes.push(`fruitSetRate=${args.fruitSetRate.length}`);
-  if (args.abortionThresholdRatio) axes.push(`abortThresh=${args.abortionThresholdRatio.length}`);
-  if (args.abortionLagDays) axes.push(`abortLag=${args.abortionLagDays.length}`);
+  if (args.abortionPairs) {
+    axes.push(`abortPairs=${args.abortionPairs.length}`);
+  } else {
+    if (args.abortionThresholdRatio) axes.push(`abortThresh=${args.abortionThresholdRatio.length}`);
+    if (args.abortionLagDays) axes.push(`abortLag=${args.abortionLagDays.length}`);
+  }
   console.log(`  variants: ${variants.length} (${axes.join(' × ')})`);
   console.log(`  output: ${join(args.sweepRoot, args.sweepId)}`);
 

@@ -430,12 +430,15 @@ function main(): void {
       const fmu = top.variant.flowersPerTrussMu ?? 0;
       const atr = top.variant.abortionThresholdRatio ?? Infinity;
       const ald = top.variant.abortionLagDays ?? 0;
+      const exp = top.variant.exponentScaling ?? 0;
       const extremeFsr = fsr >= 0.9;
       const extremeFmu = fmu >= 9;
       // Iter 6f boundary: <= 0.10 OR >= 10 (등호 포함, 사용자 검토)
       const extremeAtr = atr <= 0.10;
       const extremeAld = ald >= 10;
-      promoteVerdict = (extremeFsr || extremeFmu || extremeAtr || extremeAld) ? 'conditional_promote' : 'promote';
+      // Iter 6g (SSOT #58 확장): exponentScaling >= 0.20 = early Gompertz curve 과도 가파름
+      const extremeExp = exp >= 0.20;
+      promoteVerdict = (extremeFsr || extremeFmu || extremeAtr || extremeAld || extremeExp) ? 'conditional_promote' : 'promote';
       top.promoteVerdict = promoteVerdict;
 
       // riskReasons 채우기 (SSOT #60)
@@ -445,6 +448,8 @@ function main(): void {
       // Iter 6f abortion risk reasons
       if (extremeAtr) risks.push('low_abortion_threshold');
       if (extremeAld) risks.push('high_abortion_lag');
+      // Iter 6g Gompertz risk reasons
+      if (extremeExp) risks.push('high_gompertz_exponent_scaling');
       const d60d = top.day60?.maxDiam ?? 0;
       const d90d = top.day90?.maxDiam ?? 0;
       if (d60d > 0 && (d60d - 18) / 18 <= 0.05) risks.push('maxDiam_near_lower_bound');
