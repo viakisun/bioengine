@@ -85,6 +85,9 @@ interface SweepVariant {
   surplusPolicy?: 'unused_pool' | 'redistribute_to_vegetative' | 'fruit_priority_limited';
   // Iter 6e-2 — fruit_priority_limited 강도 (0..1, SSOT #85)
   fruitPriorityFraction?: number;
+  // Iter 6e-3 (SSOT #87) — phase-aware cap multiplier (cellDivision은 1.0 고정, sweep 안 함)
+  capCellExpansionRelax?: number;
+  capRipeningRelax?: number;
 }
 
 interface SweepRanking {
@@ -162,11 +165,16 @@ function evalCandidate(args: CliArgs, runId: string, v: SweepVariant): EvalCandi
         v.minFruitAgeGDDForVisible !== undefined ? `minFruitAgeGDDForVisible=${v.minFruitAgeGDDForVisible}` : '',
       ].filter(Boolean).join(',')
     : undefined;
-  // Iter 6e — massFlow override (if variant has surplusPolicy). Iter 6e-2 — fraction 포함.
-  const massFlowStr = (v.surplusPolicy !== undefined || v.fruitPriorityFraction !== undefined)
+  // Iter 6e — massFlow override (if variant has surplusPolicy). Iter 6e-2 — fraction 포함. Iter 6e-3 — capRelax 포함.
+  const massFlowStr = (v.surplusPolicy !== undefined
+                    || v.fruitPriorityFraction !== undefined
+                    || v.capCellExpansionRelax !== undefined
+                    || v.capRipeningRelax !== undefined)
     ? [
         v.surplusPolicy !== undefined ? `surplusPolicy=${v.surplusPolicy}` : '',
         v.fruitPriorityFraction !== undefined ? `fruitPriorityRedistributionFraction=${v.fruitPriorityFraction}` : '',
+        v.capCellExpansionRelax !== undefined ? `cellExpansionRelax=${v.capCellExpansionRelax}` : '',
+        v.capRipeningRelax !== undefined ? `ripeningRelax=${v.capRipeningRelax}` : '',
       ].filter(Boolean).join(',')
     : undefined;
   const extraOverride = [

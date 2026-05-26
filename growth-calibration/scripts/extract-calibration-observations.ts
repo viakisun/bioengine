@@ -69,10 +69,14 @@ interface CliArgs {
    *  format: "gateMode=phase_and_gdd,minFruitAgeGDDForVisible=80" */
   overrideVisibility?: { gateMode?: 'diameter_only' | 'phase' | 'phase_and_gdd'; minFruitAgeGDDForVisible?: number };
   /** Iter 6e — massFlow surplusPolicy override (botanical-level, SSOT #78).
-   *  Iter 6e-2: surplusPolicy enum 확장 + fruitPriorityRedistributionFraction. */
+   *  Iter 6e-2: surplusPolicy enum 확장 + fruitPriorityRedistributionFraction.
+   *  Iter 6e-3 (SSOT #87): phase-aware cap multiplier (cellDivisionRelax/cellExpansionRelax/ripeningRelax). */
   overrideMassFlow?: {
     surplusPolicy?: 'unused_pool' | 'redistribute_to_vegetative' | 'fruit_priority_limited';
     fruitPriorityRedistributionFraction?: number;
+    cellDivisionRelax?: number;
+    cellExpansionRelax?: number;
+    ripeningRelax?: number;
   };
 }
 
@@ -146,7 +150,7 @@ function parseOverrideVisibility(s?: string): CliArgs['overrideVisibility'] {
 
 function parseOverrideMassFlow(s?: string): CliArgs['overrideMassFlow'] {
   if (!s) return undefined;
-  const out: { surplusPolicy?: 'unused_pool' | 'redistribute_to_vegetative' | 'fruit_priority_limited'; fruitPriorityRedistributionFraction?: number } = {};
+  const out: NonNullable<CliArgs['overrideMassFlow']> = {};
   for (const pair of s.split(',')) {
     const [k, v] = pair.split('=').map(t => t.trim());
     if (k === 'surplusPolicy') {
@@ -154,6 +158,15 @@ function parseOverrideMassFlow(s?: string): CliArgs['overrideMassFlow'] {
     } else if (k === 'fruitPriorityRedistributionFraction' || k === 'fruitPriorityFraction') {
       const n = Number(v);
       if (Number.isFinite(n) && n >= 0 && n <= 1) out.fruitPriorityRedistributionFraction = n;
+    } else if (k === 'cellDivisionRelax') {
+      const n = Number(v);
+      if (Number.isFinite(n) && n > 0) out.cellDivisionRelax = n;
+    } else if (k === 'cellExpansionRelax') {
+      const n = Number(v);
+      if (Number.isFinite(n) && n > 0) out.cellExpansionRelax = n;
+    } else if (k === 'ripeningRelax') {
+      const n = Number(v);
+      if (Number.isFinite(n) && n > 0) out.ripeningRelax = n;
     }
   }
   return out;
@@ -285,19 +298,26 @@ function applyOverrideVisibility(args: CliArgs): void {
   console.log(`[extract override] visibility: gateMode=${ov.gateMode ?? '-'}, minFruitAgeGDDForVisible=${ov.minFruitAgeGDDForVisible ?? '-'}`);
 }
 
-/** Iter 6e — massFlow surplusPolicy override (botanical-level, SSOT #78). */
+/** Iter 6e — massFlow surplusPolicy override (botanical-level, SSOT #78).
+ *  Iter 6e-3 (SSOT #87): + phase-aware cap multiplier (cellDivisionRelax/cellExpansionRelax/ripeningRelax). */
 function applyOverrideMassFlow(args: CliArgs): void {
   const ov = args.overrideMassFlow;
   if (!ov) return;
   const mf = ACTIVE_BOTANICAL.tomato.fruitDevelopment.massFlow;
   if (ov.surplusPolicy !== undefined) mf.surplusPolicy = ov.surplusPolicy;
   if (ov.fruitPriorityRedistributionFraction !== undefined) mf.fruitPriorityRedistributionFraction = ov.fruitPriorityRedistributionFraction;
+  if (ov.cellDivisionRelax !== undefined) mf.capRelaxationByPhase.cellDivision = ov.cellDivisionRelax;
+  if (ov.cellExpansionRelax !== undefined) mf.capRelaxationByPhase.cellExpansion = ov.cellExpansionRelax;
+  if (ov.ripeningRelax !== undefined) mf.capRelaxationByPhase.ripening = ov.ripeningRelax;
   for (const c of Object.values(CULTIVARS)) {
     const mf2 = c.resolvedBotanical.fruitDevelopment.massFlow;
     if (ov.surplusPolicy !== undefined) mf2.surplusPolicy = ov.surplusPolicy;
     if (ov.fruitPriorityRedistributionFraction !== undefined) mf2.fruitPriorityRedistributionFraction = ov.fruitPriorityRedistributionFraction;
+    if (ov.cellDivisionRelax !== undefined) mf2.capRelaxationByPhase.cellDivision = ov.cellDivisionRelax;
+    if (ov.cellExpansionRelax !== undefined) mf2.capRelaxationByPhase.cellExpansion = ov.cellExpansionRelax;
+    if (ov.ripeningRelax !== undefined) mf2.capRelaxationByPhase.ripening = ov.ripeningRelax;
   }
-  console.log(`[extract override] massFlow: surplusPolicy=${ov.surplusPolicy ?? '-'}, fruitPriorityRedistributionFraction=${ov.fruitPriorityRedistributionFraction ?? '-'}`);
+  console.log(`[extract override] massFlow: surplusPolicy=${ov.surplusPolicy ?? '-'}, fruitPriorityRedistributionFraction=${ov.fruitPriorityRedistributionFraction ?? '-'}, capRelaxByPhase cellDiv/Exp/Ripen=${ov.cellDivisionRelax ?? '-'}/${ov.cellExpansionRelax ?? '-'}/${ov.ripeningRelax ?? '-'}`);
 }
 
 // ── Status mapping (engine → schema enum) ─────────────────────────────

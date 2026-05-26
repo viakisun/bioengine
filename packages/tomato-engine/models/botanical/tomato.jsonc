@@ -229,6 +229,15 @@
       // Iter 6e-2 (SSOT #85): fruit_priority_limited 정책에서 surplus의 몇 %를 fruit에 재분배할지.
       //   default 0.5. surplusPolicy != 'fruit_priority_limited'이면 무시.
       "fruitPriorityRedistributionFraction": 0.5,
+      // Iter 6e-3 (SSOT #87): phase-aware per-fruit step demand cap multiplier.
+      //   cellDivision 풀면 Day 30/33 fruit_too_early 위험 (SSOT #88) → 1.0 권장.
+      //   cellExpansion/ripening만 풀어서 Day 60/90 fruit이 더 받음.
+      //   default 모두 1.0 (현재 stepCap 그대로, 후방호환).
+      "capRelaxationByPhase": {
+        "cellDivision": 1.0,
+        "cellExpansion": 1.0,
+        "ripening": 1.0
+      },
       "debug": true,                         // snapshot에 debug fields 출력
       // Iter 6h (SSOT #74, #76): visibility gate — calibration-only.
       //   diameter_only: 기본 (v0.11.1 후방호환). Iter 6h sweep으로 phase/phase_and_gdd 평가.
@@ -298,6 +307,10 @@
     "fruitDevelopment.massFlow.enableStepDemandLimit": "active",
     "fruitDevelopment.massFlow.surplusPolicy": "active",
     "fruitDevelopment.massFlow.fruitPriorityRedistributionFraction": "active",
+    "fruitDevelopment.massFlow.capRelaxationByPhase": "active",
+    "fruitDevelopment.massFlow.capRelaxationByPhase.cellDivision": "active",
+    "fruitDevelopment.massFlow.capRelaxationByPhase.cellExpansion": "active",
+    "fruitDevelopment.massFlow.capRelaxationByPhase.ripening": "active",
     "fruitDevelopment.massFlow.visibilityGateMode": "active",
     "fruitDevelopment.massFlow.minFruitAgeGDDForVisible": "active",
     "fruitDevelopment.massFlow.debug": "active"

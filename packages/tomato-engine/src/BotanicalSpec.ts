@@ -142,6 +142,15 @@ export interface MassFlowSpec {
    *  나머지 (1-fraction) × surplus는 unused_pool에 그대로 유지 (SSOT #84 — vegetative와 분리).
    *  surplusPolicy != 'fruit_priority_limited'일 때는 무시됨. default 0.5. */
   fruitPriorityRedistributionFraction: number;
+  /** Iter 6e-3 (SSOT #87) — phase-aware per-fruit step demand cap multiplier.
+   *  fruitPhase에 따라 stepCap에 곱하는 multiplier. Default 모두 1.0 (현재 stepCap 그대로).
+   *  cellDivision 완화 시 Day 30/33 fruit_too_early 위험 (SSOT #88) → 1.0 권장.
+   *  cellExpansion/ripening만 풀어서 Day 60/90 fruit이 더 받음. */
+  capRelaxationByPhase: {
+    cellDivision: number;     // default 1.0, Day 30/33 보호 가장 강함
+    cellExpansion: number;    // default 1.0, sweep 후보 1.25~2.0
+    ripening: number;         // default 1.0, sweep 후보 1.0~1.25
+  };
   /** snapshot에 fruit debug fields 출력 on/off. */
   debug: boolean;
 }
@@ -343,6 +352,17 @@ export function validateFull(spec: BotanicalSpec): void {
   if (fd.massFlow.fruitPriorityRedistributionFraction < 0 || fd.massFlow.fruitPriorityRedistributionFraction > 1) {
     throw new BotanicalValidationError(
       `fruitDevelopment.massFlow.fruitPriorityRedistributionFraction must be in [0, 1], got ${fd.massFlow.fruitPriorityRedistributionFraction}`,
+    );
+  }
+  // Iter 6e-3 (SSOT #87) — capRelaxationByPhase validator: 3 phase multipliers, 각 >0
+  requireObject(fd.massFlow.capRelaxationByPhase, 'fruitDevelopment.massFlow.capRelaxationByPhase');
+  const crp = fd.massFlow.capRelaxationByPhase;
+  requireFiniteNumber(crp.cellDivision, 'fruitDevelopment.massFlow.capRelaxationByPhase.cellDivision');
+  requireFiniteNumber(crp.cellExpansion, 'fruitDevelopment.massFlow.capRelaxationByPhase.cellExpansion');
+  requireFiniteNumber(crp.ripening, 'fruitDevelopment.massFlow.capRelaxationByPhase.ripening');
+  if (crp.cellDivision <= 0 || crp.cellExpansion <= 0 || crp.ripening <= 0) {
+    throw new BotanicalValidationError(
+      `fruitDevelopment.massFlow.capRelaxationByPhase multipliers must be > 0, got cellDivision=${crp.cellDivision}, cellExpansion=${crp.cellExpansion}, ripening=${crp.ripening}`,
     );
   }
   // Iter 6h — visibility gate validators (SSOT #74)
@@ -548,7 +568,14 @@ function mergeFruitDevelopment(
       rateB: { ...base.gompertz.rateB, ...(ov.gompertz?.rateB ?? {}) },
       inflectionC: { ...base.gompertz.inflectionC, ...(ov.gompertz?.inflectionC ?? {}) },
     },
-    massFlow: { ...base.massFlow, ...(ov.massFlow ?? {}) },
+    massFlow: {
+      ...base.massFlow,
+      ...(ov.massFlow ?? {}),
+      capRelaxationByPhase: {
+        ...base.massFlow.capRelaxationByPhase,
+        ...(ov.massFlow?.capRelaxationByPhase ?? {}),
+      },
+    },
   };
 }
 
@@ -588,7 +615,10 @@ export function cloneBotanical(src: BotanicalSpec): BotanicalSpec {
         rateB: { ...src.fruitDevelopment.gompertz.rateB },
         inflectionC: { ...src.fruitDevelopment.gompertz.inflectionC },
       },
-      massFlow: { ...src.fruitDevelopment.massFlow },
+      massFlow: {
+        ...src.fruitDevelopment.massFlow,
+        capRelaxationByPhase: { ...src.fruitDevelopment.massFlow.capRelaxationByPhase },
+      },
     },
     parameterNotes: src.parameterNotes ? { ...src.parameterNotes } : undefined,
     enforcementStatus: src.enforcementStatus ? { ...src.enforcementStatus } : undefined,

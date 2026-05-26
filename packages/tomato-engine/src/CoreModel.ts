@@ -60,16 +60,29 @@ function computePerFruitGompertzDemand(
   stepGdd: number,
 ): number[][] {
   const gp = gompertzParamsOf(cultivar);
-  const dryRatio = cultivar.resolvedBotanical.fruitDevelopment.massFlow.fruitDryMatterRatio;
+  const massFlow = cultivar.resolvedBotanical.fruitDevelopment.massFlow;
+  const dryRatio = massFlow.fruitDryMatterRatio;
+  // Iter 6e-3 (SSOT #87): phase-aware per-fruit step demand cap multiplier.
+  //   cellDivision/cellExpansion/ripening 각각 multiplier 적용.
+  //   phase 판정은 gddSinceFert + cellDivisionDurationGDD/cellExpansionDurationGDD 기준.
+  //   default 모두 1.0 = 후방호환 (현재 stepCap 그대로).
+  const crp = massFlow.capRelaxationByPhase;
+  const cellDivEnd = cultivar.cellDivisionDurationGDD;
+  const cellExpEnd = cellDivEnd + cultivar.cellExpansionDurationGDD;
   return state.trusses.map(t => t.fruits.map(f => {
     if (f.aborted || f.harvested || f.fertilizationTT < 0) return 0;
-    return potentialStepDryDemandG(
-      state.TT - f.fertilizationTT,    // gddSinceFertAtStepEnd
+    const gddSinceFert = state.TT - f.fertilizationTT;
+    const baseDemand = potentialStepDryDemandG(
+      gddSinceFert,                     // gddSinceFertAtStepEnd
       stepGdd,                          // daily=T_eff_day, minutely=T_eff_per_min
       f.genome.potentialMassG,
       dryRatio,
       gp,
     );
+    const phaseMul = gddSinceFert < cellDivEnd
+      ? crp.cellDivision
+      : (gddSinceFert < cellExpEnd ? crp.cellExpansion : crp.ripening);
+    return baseDemand * phaseMul;
   }));
 }
 

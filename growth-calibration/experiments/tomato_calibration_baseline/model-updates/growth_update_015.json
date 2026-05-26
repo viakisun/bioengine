@@ -1,0 +1,80 @@
+{
+  "schemaVersion": "growthCalibration.v1",
+  "updateId": "growth_update_015",
+  "previousModelVersion": "growthModel.tomato.v0.11.1-stage-fixed",
+  "newModelVersion": "growthModel.tomato.v0.11.1-stage-fixed",
+  "status": "rejected",
+  "date": "2026-05-26",
+  "triggerComparisons": [
+    "(Iter 6e-3 audit SSOT #87 — phase-aware cap layer relaxation 이 진짜 Layer 6 lever인지 검증)"
+  ],
+  "triggerRuleIds": [
+    "common_truss_status_too_behind"
+  ],
+  "reason": [
+    "Iter 6e-3 controlled exploration loop (SSOT #69) — 최소 3-round 항상 진행.",
+    "PARAM phase 산출물 #1 (영구): MassFlowSpec.capRelaxationByPhase { cellDivision, cellExpansion, ripening } (default 모두 1.0, SSOT #87) 신규 필드 + validator (각 > 0). tomato.jsonc default 후방호환.",
+    "CoreModel.computePerFruitGompertzDemand에 phase 판정 (gddSinceFert + cellDivisionDurationGDD + cellExpansionDurationGDD) + phase-aware multiplier 적용 (~15 LOC).",
+    "dump-growth-checkpoints + extract-calibration-observations --overrideMassFlow에 cellDivisionRelax/cellExpansionRelax/ripeningRelax parsing 추가. run-gompertz-sweep --capRelaxPairs \"cellExp:ripen,...\" pair-list axis (SSOT #73 패턴).",
+    "Phase B Preflight H PASS (계측 검증): baseline vs cellExp=2.0 — Day 30/33 maxDiam=0 유지 (cellDivision=1.0 보호 작동 ✓), Day 60 maxDiam +6.4mm / Day 90 +7.5mm, limDem +99%/+66%. cap layer 자체는 실재 lever.",
+    "**핵심 진단 (Iter 6e-2 대비)**: cap relaxation은 redistribute (Iter 6e-2 0.04%)와 비교 압도적 효과 — fruit demand allocation 실제로 +8.8mm 증가.",
+    "Phase C Round 1 (4 runs: capRelaxPairs 1.25:1.0/1.50:1.0/1.50:1.25/2.00:1.25): maxDiam Day 90 +2.4~+8.8mm 명확히 향상. 그러나 cohort 13/visible 8/aborted 18 모두 0 차이. unused 0.2~1.0% 감소만 (462→458). 진입 조건 모두 미달 → Round 2 Case 2 진행.",
+    "Phase D Round 2 Case 2 (4 runs: cap × visibilityGateMode=phase 결합): cohort/visible/aborted 완전 동일 (visibility gate는 filter-only — Iter 6h 영구 확정 재검증). cap × visibility 결합도 reproductive lever 추가 없음.",
+    "Phase E Round 3 (220 ensemble — baseline vs capExp=1.50/Rip=1.25): S=0.703/P=0.572 vs S=0.703/P=0.571 — 0.001 차이도 없음. truss_too_behind 748→772 (+24 악화). Day 60 maxDiam 36.6mm > 36 upper bound (hard gate 위반). 220 ensemble에서 cohort/visible/abortion 통계적으로도 0 차이 확정.",
+    "**H5 partial-negative 영구 확정**: cap layer는 fruit demand allocation lever 맞으나 (maxDiam +8.8mm), cohort generation / abortion threshold (Marcelis ratio)는 분리된 layer. 단독으로는 promote 기준 모두 미달.",
+    "**Section 10 Case A + Case C 매칭**: Case A (cap effect 있으나 cohort/visible 변화 없음) + Case C (강 cap 후보 Day 60 maxDiam upper bound 위반).",
+    "**Layer 6 영구 진단 (Iter 6e + 6e-2 + 6e-3 합산, 산출물 #5)**: Layer 6 전체 (redistribute + cap)가 cohort/abortion lever 아님. 진짜 lever는 stage transition (Iter 6i) 또는 photosynthesis source (Iter 8) 또는 abortion threshold 자체 (Iter 6f-revisit)."
+  ],
+  "parameterChanges": [
+    {
+      "parameter": "MassFlowSpec.capRelaxationByPhase + tomato.jsonc default",
+      "oldValue": "(없음)",
+      "newValue": "{ cellDivision: 1.0, cellExpansion: 1.0, ripening: 1.0 } default + validator (각 > 0)",
+      "file": "packages/tomato-engine/src/BotanicalSpec.ts + models/botanical/tomato.jsonc",
+      "unit": "schema",
+      "citation": "Iter 6e-3 spec SSOT #87, #88",
+      "reason": "phase-aware per-fruit stepCap multiplier 신규 정의. default 모두 1.0 (후방호환). cellDivision=1.0 권장 (Day 30/33 보호).",
+      "changeType": "engine_logic",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "CoreModel.computePerFruitGompertzDemand phase-aware multiplier",
+      "oldValue": "baseDemand = potentialStepDryDemandG(...) (multiplier 없음)",
+      "newValue": "phase = gddSinceFert < cellDivisionDurationGDD ? 'cell_division' : gddSinceFert < cellDivisionDurationGDD + cellExpansionDurationGDD ? 'cell_expansion' : 'ripening'. baseDemand × phaseMul",
+      "file": "packages/tomato-engine/src/CoreModel.ts",
+      "unit": "logic",
+      "citation": "Iter 6e-3 spec SSOT #87",
+      "reason": "per-fruit step demand에 phase-aware cap multiplier 적용. SinkAllocation 변경 없음 (cap은 외부 input).",
+      "changeType": "engine_logic",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "calibration scripts --overrideMassFlow + --capRelaxPairs axis",
+      "oldValue": "--overrideMassFlow surplusPolicy + fruitPriorityRedistributionFraction만",
+      "newValue": "+ cellDivisionRelax / cellExpansionRelax / ripeningRelax parsing. run-gompertz-sweep + run-top-candidates-comparison에 --capRelaxPairs \"cellExp:ripen,...\" pair-list axis 추가",
+      "file": "growth-calibration/scripts/dump-growth-checkpoints.ts + extract-calibration-observations.ts + run-gompertz-sweep.ts + run-top-candidates-comparison.ts",
+      "unit": "CLI + logic",
+      "citation": "Iter 6e-3 spec SSOT #87 + SSOT #73 pair-list 패턴",
+      "reason": "phase-aware cap multiplier sweep 인프라. cellDivision은 항상 1.0 고정 (Day 30/33 보호) — pair-list는 cellExpansion:ripening 두 axis만.",
+      "changeType": "engine_logic",
+      "enforcementStatus": "active"
+    }
+  ],
+  "validationPlan": {
+    "replayDays": [30, 33, 60, 90],
+    "forwardDays": [],
+    "targetMetrics": ["cumulative_limited_fruit_demand_g 증가 (cap 풀려서 fruit 받음)", "cumulative_fruit_demand_limited_by_cap_g 감소", "Day 30/33 maxDiam 보호 (cellDivision=1.0)", "Day 60/90 cohort/visible/abortion 변화", "220 ensemble S/P/truss_too_behind"]
+  },
+  "outcome": {
+    "runDate": "2026-05-26",
+    "replayScoreDelta": 0,
+    "forwardScoreDelta": 0,
+    "verdict": "rejected — v0.11.1 유지 (SSOT #45). H5 partial-negative 영구 확정. Layer 6 전체 (redistribute + cap) reproductive lever 무효 (Iter 6e + 6e-2 + 6e-3 합산 진단).",
+    "notes": "Iter 6e-3 핵심 발견: (1) capRelaxationByPhase + audit 정상 작동 (산출물 #1 영구 인프라). cellDivision=1.0 보호 Day 30/33 안전성 검증 ✓. (2) Preflight H + Round 1: cap layer 실재 lever 확인 — fruit demand allocation +8.8mm maxDiam (redistribute 정책 대비 압도적). (3) 그러나 cohort 13/visible 8/aborted 18 모두 0 차이 — fruit growth/survival mechanism은 cap layer와 분리. (4) Round 2 Case 2 visibility gate 결합도 무효 (filter-only). (5) Round 3 220 ensemble — S/P/cohort/visible/abortion 0.001 차이도 없음 + truss_too_behind +24 악화 + Day 60 maxDiam 36.6 > 36 hard gate 위반. (6) Section 10 Case A + Case C 매칭. (7) **Layer 6 영구 진단 (3-Iter 합산)**: Layer 6 source-sink 전체 (redistribute + cap layer)가 cohort/abortion lever 아님. 진짜 lever는 stage transition (Iter 6i) / photosynthesis source (Iter 8) / abortion threshold revisit (Iter 6f-revisit)."
+  },
+  "followUp": [
+    "Iter 6i (stage transition rule 분리 / lifecycle refactor) ⭐ 본 Iter 6e-3 Case A가 가리킨 정확한 진짜 lever: cell_division 단계 fruit이 starvation 신호 받지 않게 분리, 또는 abortion threshold ratio 자체 변경 (Marcelis 0.25 → 0.15~0.20). cohort/abortion은 layer 6 외부 mechanism.",
+    "Iter 8 (photosynthesis source 증가): source pool 자체를 키우면 fruit potential 증가 → abortion ratio 자동 통과. 6i와 mutually exclusive 가능.",
+    "Iter 7 (Stem calibration): 본 Iter 결과와 무관, 병렬 진행 가능."
+  ]
+}

@@ -50,6 +50,9 @@ interface CliArgs {
   surplusPolicy?: Array<'unused_pool' | 'redistribute_to_vegetative' | 'fruit_priority_limited'>;
   /** Iter 6e-2 (SSOT #85) — fruit_priority_limited 정책 강도 sweep (0..1). */
   fruitPriorityFraction?: number[];
+  /** Iter 6e-3 (SSOT #87) — phase-aware cap pair-list. e.g. "1.25:1.0,1.50:1.0,1.50:1.25,2.00:1.25".
+   *  Format: "cellExpansion:ripening,...". cellDivision은 항상 1.0 (Day 30/33 보호, SSOT #88). */
+  capRelaxPairs?: Array<{ cellExpansion: number; ripening: number }>;
   seed: number;
   days: number[];
   cultivar: string;
@@ -69,6 +72,18 @@ function parsePairList(s: string | undefined): Array<{ thresh: number; lag: numb
   for (const pair of s.split(',')) {
     const [t, l] = pair.split(':').map(x => Number(x.trim()));
     if (Number.isFinite(t) && Number.isFinite(l)) out.push({ thresh: t, lag: l });
+  }
+  return out.length > 0 ? out : undefined;
+}
+
+/** Iter 6e-3 (SSOT #87) — parse "1.25:1.0,1.50:1.0,1.50:1.25" → [{cellExpansion, ripening}, ...].
+ *  cellDivision은 sweep 안 함 (Day 30/33 보호, SSOT #88). */
+function parseCapRelaxPairs(s: string | undefined): Array<{ cellExpansion: number; ripening: number }> | undefined {
+  if (!s) return undefined;
+  const out: Array<{ cellExpansion: number; ripening: number }> = [];
+  for (const pair of s.split(',')) {
+    const [e, r] = pair.split(':').map(x => Number(x.trim()));
+    if (Number.isFinite(e) && e > 0 && Number.isFinite(r) && r > 0) out.push({ cellExpansion: e, ripening: r });
   }
   return out.length > 0 ? out : undefined;
 }
@@ -105,6 +120,7 @@ function parseArgs(argv: string[]): CliArgs {
       ? (opts.surplusPolicy.split(',').map(s => s.trim()).filter(s => s === 'unused_pool' || s === 'redistribute_to_vegetative' || s === 'fruit_priority_limited') as Array<'unused_pool' | 'redistribute_to_vegetative' | 'fruit_priority_limited'>)
       : undefined,
     fruitPriorityFraction: opts.fruitPriorityFraction ? parseList(opts.fruitPriorityFraction, []) : undefined,
+    capRelaxPairs: parseCapRelaxPairs(opts.capRelaxPairs),
     seed: opts.seed ? Number(opts.seed) : 20260525,
     days: parseList(opts.days, [30, 33, 60, 90]),
     cultivar: opts.cultivar ?? 'tomimaru-muchoo',
@@ -135,6 +151,9 @@ interface Variant {
   surplusPolicy?: 'unused_pool' | 'redistribute_to_vegetative' | 'fruit_priority_limited';
   // Iter 6e-2 — fruit_priority_limited 강도 (0..1)
   fruitPriorityFraction?: number;
+  // Iter 6e-3 (SSOT #87) — phase-aware cap multiplier (cellDivision은 1.0 고정, sweep 안 함)
+  capCellExpansionRelax?: number;
+  capRipeningRelax?: number;
 }
 
 function genVariants(args: CliArgs): Variant[] {
@@ -161,6 +180,11 @@ function genVariants(args: CliArgs): Variant[] {
   const spList = args.surplusPolicy ?? [undefined];
   // Iter 6e-2 (SSOT #85): fruitPriorityFraction axis
   const fpfList = args.fruitPriorityFraction ?? [undefined];
+  // Iter 6e-3 (SSOT #87): capRelaxPairs (cellExpansion:ripening pair-list, SSOT #73 패턴 재사용)
+  const crpList: Array<{ cellExpansion?: number; ripening?: number }> =
+    args.capRelaxPairs && args.capRelaxPairs.length > 0
+      ? args.capRelaxPairs.map(p => ({ cellExpansion: p.cellExpansion, ripening: p.ripening }))
+      : [{ cellExpansion: undefined, ripening: undefined }];
   for (const ic of args.inflectionC) {
     for (const rb of args.rateB) {
       for (const exp of args.exponentScaling) {
@@ -173,15 +197,19 @@ function genVariants(args: CliArgs): Variant[] {
                     for (const vag of vagList) {
                       for (const sp of spList) {
                         for (const fpf of fpfList) {
-                          out.push({
-                            inflectionC: ic, rateB: rb, exponentScaling: exp,
-                            cellDivisionDurationGDD: cdd, cellExpansionDurationGDD: ced,
-                            flowersPerTrussMu: fpt, fruitSetRate: fsr,
-                            abortionThresholdRatio: ab.thresh, abortionLagDays: ab.lag,
-                            visibilityGateMode: vgm, minFruitAgeGDDForVisible: vag,
-                            surplusPolicy: sp,
-                            fruitPriorityFraction: fpf,
-                          });
+                          for (const crp of crpList) {
+                            out.push({
+                              inflectionC: ic, rateB: rb, exponentScaling: exp,
+                              cellDivisionDurationGDD: cdd, cellExpansionDurationGDD: ced,
+                              flowersPerTrussMu: fpt, fruitSetRate: fsr,
+                              abortionThresholdRatio: ab.thresh, abortionLagDays: ab.lag,
+                              visibilityGateMode: vgm, minFruitAgeGDDForVisible: vag,
+                              surplusPolicy: sp,
+                              fruitPriorityFraction: fpf,
+                              capCellExpansionRelax: crp.cellExpansion,
+                              capRipeningRelax: crp.ripening,
+                            });
+                          }
                         }
                       }
                     }
@@ -260,10 +288,16 @@ function runVariant(args: CliArgs, runId: string, v: Variant): RunOutput {
     cliArgs.push('--overrideVisibility', parts.join(','));
   }
   // Iter 6e — massFlow surplusPolicy override. Iter 6e-2 — fruitPriorityFraction 추가.
-  if (v.surplusPolicy !== undefined || v.fruitPriorityFraction !== undefined) {
+  // Iter 6e-3 (SSOT #87) — phase-aware cap multiplier (capCellExpansionRelax/capRipeningRelax).
+  if (v.surplusPolicy !== undefined
+   || v.fruitPriorityFraction !== undefined
+   || v.capCellExpansionRelax !== undefined
+   || v.capRipeningRelax !== undefined) {
     const parts: string[] = [];
     if (v.surplusPolicy !== undefined) parts.push(`surplusPolicy=${v.surplusPolicy}`);
     if (v.fruitPriorityFraction !== undefined) parts.push(`fruitPriorityRedistributionFraction=${v.fruitPriorityFraction}`);
+    if (v.capCellExpansionRelax !== undefined) parts.push(`cellExpansionRelax=${v.capCellExpansionRelax}`);
+    if (v.capRipeningRelax !== undefined) parts.push(`ripeningRelax=${v.capRipeningRelax}`);
     cliArgs.push('--overrideMassFlow', parts.join(','));
   }
   const res = spawnSync('npx', cliArgs, { cwd: args.repoRoot, stdio: 'pipe', encoding: 'utf-8' });
@@ -440,6 +474,7 @@ function main(): void {
   if (args.minFruitAgeGDDForVisible) axes.push(`visGDD=${args.minFruitAgeGDDForVisible.length}`);
   if (args.surplusPolicy) axes.push(`surplus=${args.surplusPolicy.length}`);
   if (args.fruitPriorityFraction) axes.push(`fpf=${args.fruitPriorityFraction.length}`);
+  if (args.capRelaxPairs) axes.push(`capRelaxPairs=${args.capRelaxPairs.length}`);
   console.log(`  variants: ${variants.length} (${axes.join(' × ')})`);
   console.log(`  output: ${join(args.sweepRoot, args.sweepId)}`);
 
@@ -460,7 +495,9 @@ function main(): void {
       ? ` visMode=${v.visibilityGateMode ?? '-'} visGDD=${v.minFruitAgeGDDForVisible ?? '-'}` : '';
     const spStr = (v.surplusPolicy !== undefined || v.fruitPriorityFraction !== undefined)
       ? ` surplus=${v.surplusPolicy ?? '-'} fpf=${v.fruitPriorityFraction ?? '-'}` : '';
-    process.stdout.write(`  [${i + 1}/${variants.length}] ${runId} inflectionC=${v.inflectionC} rateB=${v.rateB} exp=${v.exponentScaling}${phStr}${coStr}${abStr}${viStr}${spStr} ... `);
+    const crStr = (v.capCellExpansionRelax !== undefined || v.capRipeningRelax !== undefined)
+      ? ` capExp=${v.capCellExpansionRelax ?? '-'} capRip=${v.capRipeningRelax ?? '-'}` : '';
+    process.stdout.write(`  [${i + 1}/${variants.length}] ${runId} inflectionC=${v.inflectionC} rateB=${v.rateB} exp=${v.exponentScaling}${phStr}${coStr}${abStr}${viStr}${spStr}${crStr} ... `);
     const out = runVariant(args, runId, v);
     runs.push(out);
     console.log(out.ok ? '✓' : '✗');
