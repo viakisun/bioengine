@@ -1,0 +1,71 @@
+{
+  "schemaVersion": "growthCalibration.v1",
+  "updateId": "growth_update_018",
+  "previousModelVersion": "growthModel.tomato.v0.11.3-reproductive-partial-tuned",
+  "newModelVersion": "growthModel.tomato.v0.11.3-reproductive-partial-tuned",
+  "status": "rejected",
+  "date": "2026-05-26",
+  "triggerComparisons": [
+    "(Iter 7 audit SSOT #100/#101/#102 — reproductive timeline consolidation 5-axis wide sweep + interaction map for D90 visible recovery)"
+  ],
+  "triggerRuleIds": [
+    "common_truss_status_too_behind"
+  ],
+  "reason": [
+    "Iter 6k (commit 30fe68f, v0.11.3 Partial Promote) 가 4-axis wide sweep으로 D90 visible 8→6 미달 확정. layer_effect_matrix가 4 axes 모두 D90 visible 영향 0 또는 ↓ 보임.",
+    "본 Iter 7는 5번째 axis (cellDivisionDurationGDD) 추가 + 4-round 구조로 reproductive timeline 전체 consolidation 시도.",
+    "Phase A Preflight K (8 runs lever verification) PASS: 5 axes primary effect 단조성 ✓, 사용자 검토 #1 핵심 가설 사전 검증 (cellDiv=200 + exp=0.12 D33=0 보호 성공 ✓, but D60 maxDiam 44.93 > 38 over + D90 maxDiam 33.55 < 40 under — D60/D90 maxDiam 무너짐 신호).",
+    "Phase B Round 1 Wide Screening (162 runs single-seed): hard gate pass 36/162 (22%, Iter 6k 77% 대비 크게 감소). cellDiv=200/250 모든 18×2=36 runs 100% FAIL. exp=0.08 모든 runs 100% FAIL. cellDiv=300 + exp ∈ {0.10, 0.12} 만 100% pass.",
+    "Phase E-1 layer_effect_matrix.md (Iter 6k script 재사용) ⭐ — cellDiv ↓: D60 maxDiam ↑↑↑ (range 17.67), D33 ↑↑ (range 11.35), starvation ↓ (range 5.83) — D33/D60 risk dominant. abortionThresholdRatio null lever 재확인 (Iter 6k SSOT #97 검증).",
+    "Phase E-2 build-interaction-map.ts (NEW ~340 LOC) + interaction_map.md ⭐⭐⭐ 사용자 1차 목표 (사용자 검토 #3): 10 axis pairs × 8 metrics interaction matrices. cellDiv × exp pair에서 averaged synergy 발견 (cellDiv=200 × exp=0.08 → D90 visible 평균 12.17, baseline 6 대비 +6) — 가설 confirm.",
+    "그러나 hard gate constraints 내 해당 cell 100% FAIL → 실현 불가능. Section 8b Case B 매칭 (cellDiv↓ → D90 visible ↑ BUT hard gate 깨짐, parameter sweep으로 풀 수 없음).",
+    "Phase C Round 2 4 candidates × 220 ensemble (baseline + top 3 distinct): 모든 candidate D90 visible = 6 (또는 4 worse). run_093 (fSR=0.75/lag=12/thresh=0.18) micro-improvement (S +0.001, P +0.002, D60vis +1, D60coh +1, D90abortRate −4%p) but D90 visible 변화 없음.",
+    "Phase D/D2 SKIPPED — Round 1+2 결과로 Case B 확정. Round 3/4 narrow refinement은 동일 결과 예상 (cellDiv=300 + exp=0.10 saturated). 시간 절약.",
+    "사용자 검토 #3 framing 정확: 1차 목표 (interaction map 영구 산출물) ✓ DELIVERED, 2차 목표 (promote) ✗ NOT ACHIEVED. 영구 calibration manual 확보로 본 Iter 핵심 가치 달성. 다음 lever 명확화."
+  ],
+  "parameterChanges": [
+    {
+      "parameter": "(no parameter changes — REJECT)",
+      "oldValue": "v0.11.3-reproductive-partial-tuned",
+      "newValue": "v0.11.3-reproductive-partial-tuned (유지)",
+      "changeType": "no_change_reject",
+      "enforcementStatus": "active",
+      "expectedEffect": "behavior_noop"
+    },
+    {
+      "parameter": "growth-calibration/scripts/build-interaction-map.ts (NEW ~340 LOC)",
+      "oldValue": "(없음)",
+      "newValue": "5 axes pair interaction matrices 자동 생성 script — future wide sweep 영구 재사용",
+      "file": "growth-calibration/scripts/build-interaction-map.ts",
+      "unit": "calibration tooling",
+      "citation": "Iter 7 Phase E-2 SSOT #101 사용자 1차 목표 (검토 #3)",
+      "reason": "axis pair interaction (synergy/antagonism) 정량화 인프라 영구 — 후속 wide sweep에서 항상 사용.",
+      "changeType": "refactor",
+      "enforcementStatus": "active",
+      "expectedEffect": "calibration_manual_addition"
+    }
+  ],
+  "validationPlan": {
+    "replayDays": [30, 33, 60, 90, 100],
+    "forwardDays": [],
+    "targetMetrics": [
+      "D90 visible 회복 (baseline 6 → ≥10) — 본 Iter 핵심 목표 미달",
+      "Hard gate constraints 내 D90 visible 회복 가능성 — Round 1 결과로 불가 확정 (Section 8b Case B)",
+      "interaction_map.md 영구 산출물 확보 — ✓ delivered (1차 목표)",
+      "Iter 6i invariant: unknown_aborted_count == 0 — ✓ PASS (162+880 runs)"
+    ]
+  },
+  "outcome": {
+    "runDate": "2026-05-26",
+    "replayScoreDelta": 0.001,
+    "forwardScoreDelta": 0.002,
+    "verdict": "rejected — v0.11.3 유지. 사용자 검토 #3 framing: 1차 목표 (interaction map ⭐⭐⭐ 영구 산출물) ✓ DELIVERED, 2차 목표 (v0.12 promote) ✗ NOT ACHIEVED. Section 8b Case B (cellDiv↓ → D90 visible ↑ BUT hard gate 깨짐 in actual cases) 영구 확정.",
+    "notes": "Iter 7 핵심 발견: (1) 5-axis wide sweep + interaction map ⭐⭐⭐ 영구 산출물 확보 = 사용자 1차 목표 달성. (2) cellDivisionDurationGDD ↓ × exponentScaling ↑ averaged synergy 확인 (D90 visible 12.17 vs baseline 6) — 가설 자체는 confirm. (3) 그러나 hard gate constraints 내 해당 cell 100% FAIL — 실현 불가능. Section 8b Case B 매칭 영구 확정. (4) 220 ensemble run_093 micro-improvement (S +0.001, D60vis +1, D90abortRate −4%p) but D90 visible 변화 없음 — 본 Iter 핵심 목표 fail. (5) **다음 lever 명확**: Iter 7b architectural refactor (cell_division/cell_expansion transition logic 재설계) OR Iter 6h V3 visibility gate (filter rule). parameter sweep으로는 D90 visible 회복 불가 영구 확정. (6) Iter 6i invariant 162+880 runs 모두 PASS (unknown_aborted = 0). interaction_map.md + layer_effect_matrix.md + wide_screening.md + combined.md (4 audit md) + build-interaction-map.ts (NEW) = 6 영구 산출물."
+  },
+  "followUp": [
+    "Iter 7b (Fruit Stage Transition Refactor — architectural) ⭐⭐ 본 Iter Case B가 가리킨 정확한 다음 lever: parameter sweep으로 풀 수 없음 영구 확정. cell_division → cell_expansion 전환 logic 자체 재설계 또는 cell_division 단계 fruit이 starvation 신호 받지 않게 분리 (Iter 6i가 가리킨 lever, Iter 6e/6e-2/6e-3 Section 8b Case A 시그널 재확인).",
+    "Iter 6h V3 (visibility gate phase_and_gdd 활성화 — calibration-only filter rule): biology 안 건드리고 visible count metric 조정. D90 visible 의미적 회복 가능.",
+    "Iter 8 (photosynthesis source 증가): fallback lever, source pool 자체 키워 cohort 더 살아남게.",
+    "future wide sweep에서 build-interaction-map.ts + build-layer-effect-matrix.ts 표준 산출물로 사용 (Iter 6k + Iter 7 ⭐⭐⭐ 인프라)."
+  ]
+}
