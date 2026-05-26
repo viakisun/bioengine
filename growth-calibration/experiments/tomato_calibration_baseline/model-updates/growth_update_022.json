@@ -1,0 +1,110 @@
+{
+  "schemaVersion": "growthCalibration.v1",
+  "updateId": "growth_update_022",
+  "previousModelVersion": "growthModel.tomato.v0.11.3-reproductive-partial-tuned",
+  "newModelVersion": "growthModel.tomato.v0.11.3-reproductive-partial-tuned",
+  "status": "diagnostic_success_infrastructure_only",
+  "date": "2026-05-27",
+  "triggerComparisons": [
+    "(Iter 9 step demand cap flattening — Iter 8 Signal_Found_Recovery_Failed 후속 architectural refactor 1순위)"
+  ],
+  "triggerRuleIds": ["common_truss_status_too_behind"],
+  "reason": [
+    "Iter 8 (commit 64d1ef6, v0.11.3 유지) — Signal_Found_Recovery_Failed verdict 후 next_lever_decision.md SSOT #114 1순위 lever 실행. 사용자 framing: '문제는 좁혀졌다 — cell_division step demand 자체가 너무 크다'.",
+    "Phase A1 engine extension: BotanicalSpec.phaseAwareMassGrowth에 cellDivisionStepDemandFraction (0..1, default 1.0) 신규 field 추가. CoreModel.ts:88-94 computePerFruitGompertzDemand의 cell_division branch에서 phaseMul = 1.0 하드코드 → pamg.cellDivisionStepDemandFraction. single-site 변경 (stepMinutely + _legacyStepDaily 둘 다 같은 function 호출).",
+    "Phase A2 CLI extension: dump-growth-checkpoints + extract-calibration-observations parseOverrideMassFlow + applyOverrideMassFlow에 phaseAwareCellDivStepDemandFraction key 추가 (Iter 7c clockMode 패턴 mirror).",
+    "Phase A3 sweep harness: run-gompertz-sweep.ts에 phaseAwareCellDivStepDemandFraction axis 추가 (interface field + genVariants nested loop + runVariant 문자열 조합).",
+    "Phase A4 Preflight (cellDiv=200 + frac=0.20 + divisionPhaseMassFraction=0.10): D33 mx 4.288mm (Iter 7b HIT-5 baseline 동일, cumulative cap dominant) BUT D100 visible=11 (cohort survival via reduced cell_division competition 발견).",
+    "Phase B Round 1 27-run sweep (cellDiv × frac × exp = 3×3×3): 26 runs D33 maxDiam 37-44mm (HG FAIL), 1 run (run_007: cellDiv=250+frac=0.10+exp=0.08) D33 mx=0 ⭐ + D90 visible=21 (역대 최대 회복, baseline 6 대비 +15) BUT D60 mx=3mm (under band [18,40]) over-correction.",
+    "Round 1.5 (10-seed ensemble verification, run_007 winner): D90 visible avg 8.00 [5,12] vs baseline 4.20 [2,6] → **+3.80 visible recovery confirmed at ensemble**. BUT D33 maxDiam avg 4.85mm [0, 6.87] — single-seed run_007 D33 mx=0은 seed lottery, ensemble은 hard gate FAIL. D90 maxDiam avg 32.75 (under target [40,75] band).",
+    "220 ensemble SKIP (10-seed pattern conclusive): D90 visible recovery 방향성 확정 + D33 protection seed-dependent + D90 mx under-band regression 일관 → 220 추가 정보 가치 없음, ~12-18h 절약.",
+    "Verdict: **Diagnostic Success** — step demand cap의 cohort survival 메커니즘 완벽히 작동 (D90 visible +3.80) BUT D33 protection 신뢰성 부족 + D90 mx regression. 원인: cell_division → cell_expansion phase 전환이 binary GDD threshold라 fruit이 transition tick 직후 빠르게 mass 채움.",
+    "**다음 lever 확정 (Iter 10 1순위)**: phaseAwareMassGrowth.transitionZoneGDD 신규 field로 sigmoid smooth transition refactor. cell_division-cell_expansion boundary 양쪽에 mass demand multiplier가 점진적으로 변화 (0.1 → 1.0). D33 protection (seed lottery 제거) + D90 mx 회복 (cumulative mass 점진적 회복) 동시 시도.",
+    "Infrastructure 영구 확보: cellDivisionStepDemandFraction engine + CLI + sweep axis. Iter 10 transition smooth 후보군에서 그대로 재사용 + Iter 6~8 학습 SSOT #112-115 + Iter 9 학습 SSOT #119-122 누적."
+  ],
+  "parameterChanges": [
+    {
+      "parameter": "BotanicalSpec.phaseAwareMassGrowth.cellDivisionStepDemandFraction (engine schema)",
+      "oldValue": "(없음)",
+      "newValue": "number 0..1 (default 1.0 = noop, 후방호환)",
+      "file": "packages/tomato-engine/src/BotanicalSpec.ts (interface + validator) + models/botanical/tomato.jsonc (default + enforcementStatus)",
+      "unit": "schema + engine_logic",
+      "citation": "Iter 9 SSOT #116",
+      "reason": "cell_division phase per-step Gompertz demand × fraction (0..1). divisionPhaseMassFraction (cumulative cap, Iter 7b)와 보완관계 — 이건 흐름 자체, 저건 endpoint.",
+      "changeType": "engine_logic_addition",
+      "enforcementStatus": "active",
+      "expectedEffect": "behavior_noop_when_default"
+    },
+    {
+      "parameter": "CoreModel.ts computePerFruitGompertzDemand cell_division branch",
+      "oldValue": "phaseMul = 1.0 (cell_division phase 하드코드)",
+      "newValue": "phaseMul = pamg.cellDivisionStepDemandFraction (Iter 9)",
+      "file": "packages/tomato-engine/src/CoreModel.ts:88-94",
+      "unit": "engine_logic",
+      "citation": "Iter 9 SSOT #118",
+      "reason": "single-site change — stepMinutely + _legacyStepDaily 둘 다 computePerFruitGompertzDemand 호출. cell_division branch만 변경 → cell_expansion/ripening 영향 없음.",
+      "changeType": "engine_logic_modification",
+      "enforcementStatus": "active",
+      "expectedEffect": "behavior_noop_when_default"
+    },
+    {
+      "parameter": "CLI --overrideMassFlow phaseAwareCellDivStepDemandFraction (calibration-only)",
+      "oldValue": "(없음)",
+      "newValue": "string key parsing + mutation (alias: cellDivStepDemandFraction)",
+      "file": "growth-calibration/scripts/dump-growth-checkpoints.ts + extract-calibration-observations.ts",
+      "unit": "CLI",
+      "citation": "Iter 9 Phase A2",
+      "reason": "후속 Iter 10/calibration sweep에서 재사용. Iter 7c clockMode CLI pattern mirror.",
+      "changeType": "refactor",
+      "enforcementStatus": "active",
+      "expectedEffect": "calibration_tooling_addition"
+    },
+    {
+      "parameter": "run-gompertz-sweep.ts phaseAwareCellDivStepDemandFraction axis",
+      "oldValue": "(없음)",
+      "newValue": "number[] axis in nested loop (cross-product with cellDiv/exp/etc)",
+      "file": "growth-calibration/scripts/run-gompertz-sweep.ts",
+      "unit": "harness",
+      "citation": "Iter 9 Phase A3",
+      "reason": "Iter 10 transition smooth와 결합한 sweep에서 그대로 재사용.",
+      "changeType": "refactor",
+      "enforcementStatus": "active",
+      "expectedEffect": "calibration_tooling_addition"
+    },
+    {
+      "parameter": "tomimaru-muchoo cultivar parameters",
+      "oldValue": "v0.11.3 winner (fSR=0.80, lag=10, thresh=0.25, cellDiv=300, exp=0.10)",
+      "newValue": "유지 (no change)",
+      "changeType": "no_change_diagnostic_success",
+      "enforcementStatus": "active",
+      "expectedEffect": "behavior_noop"
+    }
+  ],
+  "validationPlan": {
+    "replayDays": [30, 33, 60, 90, 100],
+    "forwardDays": [],
+    "targetMetrics": [
+      "Phase A1 typecheck PASS (npx tsc --noEmit -p .)",
+      "Phase A4 Preflight: D33 mx 4.288mm (Iter 7b HIT-5 baseline 동일, cumulative cap dominant) + D100 visible=11 (cohort recovery)",
+      "Phase B Round 1 27 runs: HG-PASS at D33 = run_007 단독 (cellDiv=250+frac=0.10+exp=0.08) D33 mx=0 ⭐",
+      "run_007 single seed: D90 visible=21 (baseline 6 대비 +15) ⭐⭐ 역대 최대",
+      "10-seed ensemble run_007: D90 visible avg 8.00 [5,12] vs baseline 4.20 [2,6] → +3.80 recovery confirmed at ensemble",
+      "BUT D33 maxDiam avg 4.85mm — single seed lottery (10 중 1만 ≤ 3mm)",
+      "BUT D90 maxDiam avg 32.75 — under target band [40,75] (cumulative mass under-recovery)",
+      "Iter 6i invariant: unknown_aborted_count == 0 모든 27+10 runs PASS"
+    ]
+  },
+  "outcome": {
+    "runDate": "2026-05-27",
+    "replayScoreDelta": 0,
+    "forwardScoreDelta": 0,
+    "verdict": "diagnostic_success_infrastructure_only — v0.11.3 유지 + cellDivisionStepDemandFraction engine + CLI + sweep infrastructure 영구. Verdict: step demand cap의 cohort survival 메커니즘 완벽히 작동 (D90 visible avg +3.80 ensemble) BUT D33 protection seed-dependent + D90 maxDiam under-band regression. 원인: binary GDD phase transition. → Iter 10 transitionZoneGDD sigmoid smooth transition 1순위.",
+    "notes": "Iter 9 핵심 발견: (1) cellDivisionStepDemandFraction (cell_division phase per-step Gompertz demand × fraction) 메커니즘 완벽히 작동 확정. Round 1 27-run sweep 모든 runs에서 D90 cohort/visible 회복 (~+14 vs baseline). (2) Round 1 winner run_007 (cellDiv=250+frac=0.10+exp=0.08) single seed에서 D33 mx=0 ⭐ + D90 visible=21 (역대 최대 +15 회복). (3) 10-seed ensemble verification: D90 visible avg 8.00 confirmed +3.80 vs baseline. BUT D33 mx avg 4.85 (single seed lottery), D90 mx avg 32.75 (under-band regression). (4) D60 mx valley 발견 (single seed mx=3mm, ensemble은 더 완만 31.62). (5) 220 ensemble SKIP — 10-seed pattern 명확, verdict 변경 가능성 없음. (6) **다음 lever 명확**: Iter 10 phaseAwareMassGrowth.transitionZoneGDD 신규 field → cell_division-cell_expansion boundary sigmoid smooth transition. D33 protection (seed lottery 제거) + D90 mx 회복 (cumulative mass 점진적) + D60 valley 해소 동시 시도. (7) **Iter 10 명시적 배제 lever**: cellDivisionStepDemandFraction 단독 (Iter 9 reject), divisionPhaseMassFraction 단독 (Iter 7b reject), source/canopy/sink (Iter 8 reject), visibility filter (Iter 6h reject), abortion alone (Iter 6f reject). 같은 lever 재시도 금지."
+  },
+  "followUp": [
+    "Iter 10 (phase transition smooth) ⭐ 1순위 — BotanicalSpec.phaseAwareMassGrowth에 transitionZoneGDD 신규 field 추가. CoreModel.ts phase determination을 binary GDD threshold → sigmoid smooth function refactor. cell_division-cell_expansion boundary 양쪽에 mass demand multiplier 점진적 변화. D33 보호 (seed lottery 제거) + D90 mx 회복 + D60 valley 해소.",
+    "Iter 10 alt 2순위 — Per-truss cohort acropetal limiter: within-truss fruit fertilization acropetal delay (basal first, distal later). withinTrussCellExpansionAcropetalSpreadGDD 신규 field. Iter 10 transition smooth가 부족하면 fallback.",
+    "Iter 10 220 ensemble harness (run-top-candidates-comparison) 본격 재시작 — 본 Iter 9는 10-seed로 sufficient, Iter 10 transition smooth 후보가 hard gate 95%+ pass 시 220 ensemble 의미 있음.",
+    "본 Iter 9 cellDivisionStepDemandFraction infrastructure는 Iter 10 transition smooth와 결합 sweep에서 직접 재사용 — transitionZoneGDD × cellDivStepDemandFraction × ... cross-product."
+  ]
+}

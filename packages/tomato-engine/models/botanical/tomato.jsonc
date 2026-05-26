@@ -253,7 +253,11 @@
         //   'fertilization_based' (default, 후방호환): Iter 5b/7b 동작 유지.
         //   'expansion_start_based' (Iter 7c neue): cell_expansion 진입 후 effective GDD shift.
         //   enabled=true AND expansionClockMode='expansion_start_based' 동시 필요.
-        "expansionClockMode": "fertilization_based"
+        "expansionClockMode": "fertilization_based",
+        // Iter 9 (SSOT #116): cell_division phase per-step Gompertz demand × fraction.
+        //   default 1.0 = noop (후방호환). divisionPhaseMassFraction (cumulative cap)와 보완관계.
+        //   sweep 후보: 0.10, 0.20, 0.40. ⚠ enabled=true AND cell_division phase 일 때만 적용.
+        "cellDivisionStepDemandFraction": 1.0
       },
       "debug": true,                         // snapshot에 debug fields 출력
       // Iter 6h (SSOT #74, #76): visibility gate — calibration-only.
@@ -335,6 +339,7 @@
     "fruitDevelopment.massFlow.phaseAwareMassGrowth.expansionPhaseGrowthMultiplier": "active",
     "fruitDevelopment.massFlow.phaseAwareMassGrowth.ripeningPhaseGrowthMultiplier": "active",
     "fruitDevelopment.massFlow.phaseAwareMassGrowth.expansionClockMode": "active",
+    "fruitDevelopment.massFlow.phaseAwareMassGrowth.cellDivisionStepDemandFraction": "active",
     "fruitDevelopment.massFlow.visibilityGateMode": "active",
     "fruitDevelopment.massFlow.minFruitAgeGDDForVisible": "active",
     "fruitDevelopment.massFlow.debug": "active"

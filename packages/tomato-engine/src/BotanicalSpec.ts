@@ -181,6 +181,13 @@ export interface MassFlowSpec {
      *
      *  ⚠ enabled=true AND expansionClockMode='expansion_start_based' 동시 필요. */
     expansionClockMode: 'fertilization_based' | 'expansion_start_based';
+    /** Iter 9 (SSOT #116) — cell_division phase per-step Gompertz demand multiplier.
+     *  computePerFruitGompertzDemand 결과 (rawStepDemand × capRelax)에 추가로 × fraction.
+     *  default 1.0 (후방호환). divisionPhaseMassFraction (cumulative cap, trajectory 끝점)과
+     *  보완관계 — 이 field는 매 step 자체 작게 만들어 D33 시점 mass 자연스럽게 < 3mm.
+     *  ⚠ enabled=true AND cell_division phase (gddSinceFert < cellDivisionDurationGDD)일 때만
+     *  적용. cell_expansion/ripening phase는 영향 없음 (D90 visible 회복 보전). 0..1. */
+    cellDivisionStepDemandFraction: number;
   };
   /** snapshot에 fruit debug fields 출력 on/off. */
   debug: boolean;
@@ -416,6 +423,13 @@ export function validateFull(spec: BotanicalSpec): void {
    || pamg.ripeningPhaseGrowthMultiplier <= 0) {
     throw new BotanicalValidationError(
       `fruitDevelopment.massFlow.phaseAwareMassGrowth: divisionPhaseMaxDiameterMm/expansionPhaseGrowthMultiplier/ripeningPhaseGrowthMultiplier must be > 0`,
+    );
+  }
+  // Iter 9 (SSOT #116) — cellDivisionStepDemandFraction validator
+  requireFiniteNumber(pamg.cellDivisionStepDemandFraction, 'fruitDevelopment.massFlow.phaseAwareMassGrowth.cellDivisionStepDemandFraction');
+  if (pamg.cellDivisionStepDemandFraction <= 0 || pamg.cellDivisionStepDemandFraction > 1) {
+    throw new BotanicalValidationError(
+      `fruitDevelopment.massFlow.phaseAwareMassGrowth.cellDivisionStepDemandFraction must be in (0, 1], got ${pamg.cellDivisionStepDemandFraction}`,
     );
   }
   // Iter 7c (SSOT #106/#107) — expansionClockMode enum validator

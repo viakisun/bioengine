@@ -84,10 +84,12 @@ function computePerFruitGompertzDemand(
     const capMul = gddSinceFert < cellDivEnd
       ? crp.cellDivision
       : (gddSinceFert < cellExpEnd ? crp.cellExpansion : crp.ripening);
-    // Iter 7b: expansion / ripening rate multiplier (cell_division phase는 mass clamp으로 제한)
+    // Iter 7b: expansion / ripening rate multiplier.
+    // Iter 9 (SSOT #116): cell_division phase now uses cellDivisionStepDemandFraction
+    //   (default 1.0 = noop). divisionPhaseMassFraction (cumulative cap)와 보완관계.
     const phaseMul = pamg.enabled
       ? (gddSinceFert < cellDivEnd
-          ? 1.0  // cell_division은 multiplier 안 씀, mass clamp으로 따로 제한
+          ? pamg.cellDivisionStepDemandFraction
           : (gddSinceFert < cellExpEnd
               ? pamg.expansionPhaseGrowthMultiplier
               : pamg.ripeningPhaseGrowthMultiplier))
