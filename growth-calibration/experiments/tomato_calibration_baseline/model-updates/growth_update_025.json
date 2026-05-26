@@ -1,0 +1,58 @@
+{
+  "schemaVersion": "growthCalibration.v1",
+  "updateId": "growth_update_025",
+  "previousModelVersion": "growthModel.tomato.v0.11.3-reproductive-partial-tuned",
+  "newModelVersion": "growthModel.tomato.v0.11.3-reproductive-partial-tuned",
+  "status": "rejected_no_engine_change",
+  "date": "2026-05-27",
+  "triggerComparisons": [
+    "(Iter 12 expansionPhaseGrowthMultiplier sweep — Iter 11 D60 valley 해소 시도, 1순위 lever 후보 검증)"
+  ],
+  "triggerRuleIds": ["common_truss_status_too_behind"],
+  "reason": [
+    "Iter 11 (commit 4d51835, v0.11.3 유지) — cumulativeCapTransitionZoneGDD smoothstep mechanism inactive at D60. probe로 expansionPhaseGrowthMultiplier=2.0 over-correction (D60 3→75, D33 broken) 확인 → Iter 12 1순위 lever로 sweep 1.0-1.5.",
+    "Iter 12 Engine 변경 0 LOC: expansionPhaseGrowthMultiplier 기존 field (Iter 7b부터), CLI override (phaseAwareExpansionMultiplier), sweep axis 모두 기존 infrastructure 활용.",
+    "Phase A Preflight Run 1 ✅ STOP gate PASS: expmul=1.0 byte-perfect reproduces Iter 10 zone=40 (D90 mx=54.34092589440503).",
+    "Phase A Preflight Run 2 (expmul=1.25): D33 mx=0 ✅, D60 mx=3 ⚠ unchanged, D90 mx 54.34→58.25 (+3.91). 첫 negative signal — expmul boost가 D60에 영향 zero.",
+    "Phase B Round 1 12-run sweep (4 expmul × 3 frac): valid configurations (frac=0.05/0.10)에서 D60 mx=3 ALL expmul values. D90 mx만 linear scaling (54→61 at expmul 1.0→1.5). frac=0.20은 D33 broken (Iter 11 동일).",
+    "Iter 13 probe (cellDiv=200 + full Iter 10/11 infrastructure): D33 vis=4 mx=41.7 ❌ broken. D60 vis=13 mx=61.6 ❌ over-band. cellDiv=200도 transitionZoneGDD=40 smoothing으로는 D33 보호 불가.",
+    "Architectural diagnosis (Iter 11/12 누적 확정, SSOT #142): D60 valley는 truss timing 문제. D60 시점 fruit population = (A) Truss 1 모두 aborted + (B) Truss 2 아직 cell_division. expansionPhaseGrowthMultiplier 작용 대상 zero.",
+    "Verdict: **Reject** — expmul mechanism은 작동 (D90 mx scaling confirmed) but D60 outcome에 영향 없음. cultivar JSONC promote 보류.",
+    "**Iter 13 추천 (1순위, SSOT #143)**: `GDD_per_truss` 감소 — Truss 2 emergence 빨리 → D60 시점 cell_expansion 진입 → expmul 작용 대상 생김. (2순위) Truss 1 cell_division abortion threshold relaxation. (3순위) Visibility threshold lowering (관측-side).",
+    "Iter 6~11 infrastructure 모두 영구 재사용 — Iter 12에서 Engine/CLI/sweep 변경 0 LOC. Iter 13에서도 같은 infrastructure 활용."
+  ],
+  "parameterChanges": [
+    {
+      "parameter": "tomimaru-muchoo cultivar parameters",
+      "oldValue": "v0.11.3 winner (fSR=0.80, lag=10, thresh=0.25, cellDiv=300, exp=0.10)",
+      "newValue": "유지 (Iter 13 truss timing acceleration 후 종합 promote)",
+      "changeType": "no_change_reject",
+      "enforcementStatus": "active",
+      "expectedEffect": "behavior_noop"
+    }
+  ],
+  "validationPlan": {
+    "replayDays": [30, 33, 60, 90, 100],
+    "forwardDays": [],
+    "targetMetrics": [
+      "Phase A STOP gate ✅: expmul=1.0 byte-perfect reproduces Iter 10 zone=40",
+      "Phase A probe (expmul=1.25): D60 mx=3 unchanged (first negative signal)",
+      "Phase B Round 1 12 runs: D60 mx ALL expmul=3 (valid frac), D90 mx linear scaling",
+      "Iter 13 probe (cellDiv=200): D33 broken (cellDiv reduction 불가)",
+      "Iter 6i invariant: unknown_aborted_count == 0 모든 12+2 runs PASS"
+    ]
+  },
+  "outcome": {
+    "runDate": "2026-05-27",
+    "replayScoreDelta": 0,
+    "forwardScoreDelta": 0,
+    "verdict": "rejected_no_engine_change — v0.11.3 유지 + Iter 6~11 infrastructure 모두 영구. expansionPhaseGrowthMultiplier mechanism은 작동 (D90 mx scaling confirmed) but D60 valley에 영향 zero (D60 시점 NO fruits in cell_expansion phase). Architectural insight: D60 valley는 truss timing 문제, mass dynamics lever 모두 무력. → Iter 13 1순위: GDD_per_truss 감소 (cohort temporal spacing 단축).",
+    "notes": "Iter 12 핵심 발견: (1) STOP gate ✅ PASS — expmul=1.0 byte-perfect reproduces Iter 10. (2) Preflight probe expmul=1.25: D60 mx unchanged (first negative signal). (3) Round 1 12-run sweep: 모든 valid expmul values에서 D60 mx=3 (valley persist). D90 mx만 linear scaling (54→61). (4) **Architectural diagnosis finalized (SSOT #141/#142)**: D60 valley는 truss timing 문제. cellDiv=250 setup에서 D60 시점 Truss 1 aborted + Truss 2 cell_division — expmul 작용 대상 zero. (5) **Iter 13 probe (cellDiv=200)**: D33 broken (Iter 9 동일). cellDiv 줄이는 단순 접근 불가. (6) **Iter 13 direction (SSOT #143)**: GDD_per_truss 감소가 진짜 lever — Truss 2 emergence 빨리 → D60 시점 cell_expansion 진입. (7) **Engine 변경 0 LOC** — Iter 12는 순수 sweep + 분석. (8) cumulative architectural insight: Iter 10 (transitionZoneGDD breakthrough) + Iter 11 (cumulative cap not binding) + Iter 12 (expmul not at D60) = D60 valley는 cohort generation/timing layer에 있음. (9) cultivar JSONC promote 보류 — v0.11.3 유지, Iter 13 통과 후 종합 진입."
+  },
+  "followUp": [
+    "Iter 13 (truss timing acceleration) ⭐ 1순위 — `GDD_per_truss` 감소 (현재 ~200-250 → 100-150 sweep). Truss 2 emergence 5-10일 빨리 → D60 시점 cell_expansion 진입 → expmul/cumulative cap 작용 대상 생김. cultivar JSONC override (tomimaru-muchoo phenology).",
+    "Iter 13 alt 2순위 — Truss 1 abortion relaxation: cellDivisionAbortionThresholdRelaxation 신규 field. cell_division phase 동안 abortion threshold × scale (0.25 → 0.15). Truss 1 fruits cell_division 통과 가능성 증가 (cell_expansion에 살아남음).",
+    "Iter 13 alt 3순위 — Visibility threshold lowering: minVisibleDiameterMm 3 → 1.5. 관측-side fix, biology 무관. promote 후보에서 일반적으로 배제 (Iter 6h 학습).",
+    "cultivar JSONC promotion 보류 — Iter 13 D60 valley 해소 + Strong Promote 통과 후 종합 진입. v0.11.3 → v0.12-reproductive-timeline-tuned 정식. Single Plant mode → Skin 적용."
+  ]
+}
