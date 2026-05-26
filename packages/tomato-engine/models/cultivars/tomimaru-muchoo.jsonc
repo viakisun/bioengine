@@ -43,7 +43,11 @@
   },
 
   "flowersPerTruss": { "mu": 5, "sigma": 1.0 },
-  "fruitSetRate": 0.6,
+  // Iter 6k (growth_update_017): 0.6 → 0.8 (Partial Promote).
+  //   primary effect: flower_drop_count 9 → 0 (anthesis 착과 실패 완전 제거).
+  //   side effect: pruning_aborted_count 2 → 6 (stage timing 변화 결과,
+  //     management rule 자체 변경 아님 — riskReason: high_fruit_set_rate).
+  "fruitSetRate": 0.8,
   "potentialFruitMassG": { "mu": 200, "sigma": 25 },
 
   "morphology": {
@@ -92,9 +96,14 @@
   // Iter 6f (SSOT #61): cultivar-level abortion override.
   // 현재 값은 ACTIVE_MODEL.abortion (Marcelis 1996) 기본값 명시.
   // Iter 6f sweep winner로 갱신 시 이 두 값만 수정.
+  // Iter 6k (growth_update_017): lagDays 4 → 10 (Partial Promote).
+  //   primary effect: starvation_aborted_count 11 → 7 (post-fert Marcelis abortion 감소).
+  //   D90 abortRate 72% → 39% (33%p 감소).
+  //   side effect: D33 maxDiam +0.7mm — exponentScaling=0.10 보호로 hard gate 안전.
+  //   thresholdRatio 0.25 유지 (Iter 6k 81-run sweep에서 effective null lever 확정).
   "abortion": {
     "thresholdRatio": 0.25,
-    "lagDays": 4
+    "lagDays": 10
   },
 
   "physiology": {

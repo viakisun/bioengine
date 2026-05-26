@@ -1,0 +1,107 @@
+{
+  "schemaVersion": "growthCalibration.v1",
+  "updateId": "growth_update_017",
+  "previousModelVersion": "growthModel.tomato.v0.11.2-lifecycle-semantics",
+  "newModelVersion": "growthModel.tomato.v0.11.3-reproductive-partial-tuned",
+  "status": "partial_promoted",
+  "date": "2026-05-26",
+  "triggerComparisons": [
+    "(Iter 6k audit SSOT #97/#98/#99 — Iter 6i dropReason 분리 인프라가 가능하게 한 4-axis wide sweep + layer effect matrix + tradeoff map calibration manual)"
+  ],
+  "triggerRuleIds": [
+    "common_truss_status_too_behind",
+    "abortion_rate_high"
+  ],
+  "reason": [
+    "Iter 6i (commit 97b0b75, v0.11.2-lifecycle-semantics) 가 dropReason 분리 인프라 영구 확정 — 22 aborted = 9 drop + 11 starve + 2 prune 명확히 분리. 이제 wide sweep 결과를 layer-by-layer 해석 가능.",
+    "본 Iter 6k는 사용자 추천으로 첫 4-axis wide cross-product sweep — fruitSetRate / abortionThresholdRatio / abortionLagDays / exponentScaling 81 candidates (3^4) Round 1.",
+    "Phase A Preflight J (5 runs per-axis lever 검증) PASS — 4 axes 모두 primary effect 단조성 + Iter 6i invariant 유지. 사용자 검토 #4 정확 (fSR=0.80 → pruning 2→6 stage timing 영향).",
+    "Phase B Round 1 81 runs single-seed: hard gate pass 62/81 (77%). exponentScaling=0.08 단독은 hard gate pass 30%만 (D33 fruit_too_early dominant) → exp ≥ 0.10 결합 필수.",
+    "Phase E-1 build-layer-effect-matrix.ts (NEW ~250 LOC, 산출물 #2) ⭐: axis × 13 metrics marginal effect 매트릭스 자동 생성. abortionThresholdRatio 가 effective null lever 확정 (Top 1/2/3 thresh만 다른데 metrics 완전 동일).",
+    "Phase E-2 build-tradeoff-map.md (NEW, 산출물 #3) ⭐⭐: 제품화 calibration manual — 사람이 읽고 lever 선택 가능. 영구 자산.",
+    "Phase C Round 2 4 candidates × 220 ensemble: winner = run_048 (fSR=0.8/lag=10/exp=0.10). S 0.703→0.710, P 0.572→0.579, truss_too_behind 748→730, D90 abortRate 72%→39% (33%p 감소 ⭐⭐).",
+    "Phase D Round 3 narrow refinement (18 runs): 9 candidates ALL identical metrics — fruitSetRate saturates at 0.75+, lagDays at 10+. Final winner fSR=0.80 (run_048 equivalent) — 가장 낮은 truss_too_behind.",
+    "Promote 평가 (사용자 검토 #5 2-tier): Strong Promote 불가 (D60/D90 visible + truss_too_behind 정량 목표 미달). **Partial Promote PASS (7/8 metrics 의미 있게 개선)** — 사용자 기준 2~3개 훨씬 초과.",
+    "D90 visible (8→6) 만 미달 — 본 Iter 4 axes 한계 확인 (layer_effect_matrix 에서 모든 axis가 D90 visible · 0 또는 ↓). 다음 lever: Iter 6h V3 visibility gate / Iter 6c-revisit cellDivisionDurationGDD / Iter 6j setDelayDays.",
+    "Iter 6i invariant 검증: unknown_aborted_count == 0 모든 81+18+220 runs (engine cross-contamination 없음). pruning_aborted_count cross-contamination = warning only (stage timing 영향, hard reject 아님 — 사용자 검토 #4)."
+  ],
+  "parameterChanges": [
+    {
+      "parameter": "tomimaru-muchoo cultivar.fruitSetRate",
+      "oldValue": 0.6,
+      "newValue": 0.8,
+      "file": "packages/tomato-engine/models/cultivars/tomimaru-muchoo.jsonc",
+      "unit": "probability",
+      "citation": "Iter 6k Round 1 81-run wide sweep + Round 3 narrow + Round 2 220 ensemble",
+      "reason": "flower_drop_count 9 → 0 (완전 제거) — anthesis fruit set fail 완전 제거. 사용자 정량 목표 ≤6 달성.",
+      "changeType": "calibration",
+      "enforcementStatus": "active",
+      "expectedEffect": "flower_drop_count 완전 제거",
+      "riskReason": ["high_fruit_set_rate", "possible_starvation_shift_not_realized"]
+    },
+    {
+      "parameter": "tomimaru-muchoo cultivar.abortion.thresholdRatio",
+      "oldValue": 0.25,
+      "newValue": 0.25,
+      "file": "packages/tomato-engine/models/cultivars/tomimaru-muchoo.jsonc",
+      "unit": "ratio",
+      "citation": "Iter 6k Round 1 layer_effect_matrix",
+      "reason": "Effective null lever 확정 — Top 1/2/3 (thresh 0.15/0.18/0.25)에서 metrics 완전 동일. 변경 없음.",
+      "changeType": "verification_no_change",
+      "enforcementStatus": "active",
+      "expectedEffect": "no_change"
+    },
+    {
+      "parameter": "tomimaru-muchoo cultivar.abortion.lagDays",
+      "oldValue": 4,
+      "newValue": 10,
+      "file": "packages/tomato-engine/models/cultivars/tomimaru-muchoo.jsonc",
+      "unit": "days",
+      "citation": "Iter 6k layer_effect_matrix (starvation primary lever)",
+      "reason": "starvation_aborted_count 11 → 7 (post-fert Marcelis abortion 감소). D90 abortRate 72% → 39% (−33%p). 사용자 정량 목표 ≤7 달성. Marcelis 1996 3-5 day baseline에서 보수적 확장.",
+      "changeType": "calibration",
+      "enforcementStatus": "active",
+      "expectedEffect": "starvation_aborted_count 감소 + D90 abortRate 감소"
+    },
+    {
+      "parameter": "tomato.botanical.fruitDevelopment.gompertz.exponentScaling",
+      "oldValue": 0.08,
+      "newValue": 0.10,
+      "file": "packages/tomato-engine/models/botanical/tomato.jsonc",
+      "unit": "scale",
+      "citation": "Iter 6k layer_effect_matrix (D33 hard gate 보호 primary lever)",
+      "reason": "D33 maxDiam 보호 — exp=0.08에서 hard gate pass 30%만, exp=0.10에서 100% pass. fSR↑ + lag↑ 결합 시 D33 fruit_too_early 위험 차단. D60 maxDiam 31.98→33.0 in target band 유지.",
+      "changeType": "calibration",
+      "enforcementStatus": "active",
+      "expectedEffect": "D33 fruit_too_early 보호 (hard gate 100% pass)"
+    }
+  ],
+  "validationPlan": {
+    "replayDays": [30, 33, 60, 90, 100],
+    "forwardDays": [],
+    "targetMetrics": [
+      "starvation_aborted_count 11 → ≤7 (Iter 6i invariant)",
+      "flower_drop_count 9 → ≤6 (anthesis 영역)",
+      "pruning_aborted_count cross-contamination 모니터 (stage timing 영향, hard reject 아님)",
+      "D90 abortRate 감소",
+      "D60/D90 maxDiam target band 유지",
+      "Day 30/33 hard gate (fruit_too_early = 0)",
+      "S/P_band 유지 또는 개선",
+      "220 ensemble Round 2/3 검증",
+      "Iter 6i invariant: unknown_aborted_count == 0 모든 day"
+    ]
+  },
+  "outcome": {
+    "runDate": "2026-05-26",
+    "replayScoreDelta": 0.007,
+    "forwardScoreDelta": 0.007,
+    "verdict": "partial_promoted — v0.11.3-reproductive-partial-tuned. 사용자 검토 #5 Partial Promote 기준 (≥2-3 metrics 개선) 7/8 충족. Strong Promote 미달은 D90 visible (8→6, 본 Iter 4 axes 한계). 영구 산출물 #2 layer_effect_matrix + #3 tradeoff_map = 후속 calibration의 표준 도구.",
+    "notes": "Iter 6k 핵심 발견: (1) 4-axis wide sweep (81 runs) + layer_effect_matrix + tradeoff_map = Iter 6i dropReason 인프라가 가능하게 한 새 calibration 패러다임. narrow single-axis sweep 시대 종료. (2) abortionThresholdRatio = effective null lever 확정 (Top 1/2/3 thresh만 다른데 metrics 동일). (3) fSR=0.8/lag=10/exp=0.10 winner — 6 metrics 의미 있게 개선 (flower_drop 9→0, starvation 11→7, D60c 8→12, D90c 13→18, D90 abortRate 72%→39%, S/P 0.007 ↑). (4) D90 visible 8→6 만 미달 — 본 Iter 4 axes 한계 확인. 다음 lever: Iter 6h V3 visibility gate / Iter 6c-revisit cellDivision / Iter 6j setDelayDays. (5) **영구 산출물 #2/#3**: layer_effect_matrix.md + tradeoff_map.md = 제품형 생육엔진의 calibration manual (사람이 읽고 lever 선택 가능). 후속 wide sweep 표준 도구. (6) Iter 6i invariant 모든 81+18+220 runs PASS (unknown_aborted_count == 0). pruning side effect는 stage timing 결과 (engine cross-contamination 아님, audit 기록 only — 사용자 검토 #4 정확)."
+  },
+  "followUp": [
+    "Iter 6h V3 또는 Iter 6j (D90 visible 풀기) ⭐ 본 Iter 가 가리킨 정확한 다음 lever: layer_effect_matrix가 4 axes 모두 D90 visible 풀 수 없음 확정. visibility gate phase_and_gdd 활성화 또는 setDelayDays 활성화 또는 cellDivisionDurationGDD 단축.",
+    "Iter 7 (Stem calibration): reproductive와 무관, 병렬 진행 가능.",
+    "Iter 8 (photosynthesis source): D90 visible 풀리지 않을 경우 fallback lever.",
+    "future wide sweep에서 build-layer-effect-matrix.ts + tradeoff_map.md 표준 산출물로 사용."
+  ]
+}

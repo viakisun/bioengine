@@ -207,7 +207,7 @@
         "mu": 1.00,
         "sigma": 0.05
       },
-      "exponentScaling": 0.08                // FruitGrowth.ts (Iter 6b — 0.12→0.08)
+      "exponentScaling": 0.10                // FruitGrowth.ts (Iter 6k growth_update_017 — 0.08→0.10, D33 fruit_too_early 보호 + lag/fSR 결합 활성화)
     },
 
     // -- Mass flow policy (Iter 5b, growth_update_005) -----------

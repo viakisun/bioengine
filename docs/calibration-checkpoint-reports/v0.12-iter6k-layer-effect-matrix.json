@@ -1,0 +1,2850 @@
+{
+  "sweepId": "iter6k_round1_wide",
+  "generatedAt": "2026-05-26T07:28:44.103Z",
+  "runs": [
+    {
+      "runId": "run_001",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.08,
+        "fruitSetRate": 0.6,
+        "abortionThresholdRatio": 0.25,
+        "abortionLagDays": 4
+      },
+      "flowerDrop": 9,
+      "starvationAborted": 11,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 12,
+      "fertilizedTotal": 26,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 31.976943436855876,
+      "d90MaxDiam": 54.96036613330591,
+      "d60Visible": 1,
+      "d90Visible": 8,
+      "d60Cohort": 8,
+      "d90Cohort": 13,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_002",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.08,
+        "fruitSetRate": 0.6,
+        "abortionThresholdRatio": 0.25,
+        "abortionLagDays": 7
+      },
+      "flowerDrop": 9,
+      "starvationAborted": 10,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 13,
+      "fertilizedTotal": 26,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 31.987954817409726,
+      "d90MaxDiam": 54.93487315926945,
+      "d60Visible": 1,
+      "d90Visible": 8,
+      "d60Cohort": 10,
+      "d90Cohort": 15,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_004",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.08,
+        "fruitSetRate": 0.6,
+        "abortionThresholdRatio": 0.18,
+        "abortionLagDays": 4
+      },
+      "flowerDrop": 9,
+      "starvationAborted": 10,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 13,
+      "fertilizedTotal": 26,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 31.976943436855876,
+      "d90MaxDiam": 54.939445132320145,
+      "d60Visible": 1,
+      "d90Visible": 8,
+      "d60Cohort": 8,
+      "d90Cohort": 14,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_007",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.08,
+        "fruitSetRate": 0.6,
+        "abortionThresholdRatio": 0.15,
+        "abortionLagDays": 4
+      },
+      "flowerDrop": 9,
+      "starvationAborted": 10,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 13,
+      "fertilizedTotal": 26,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 31.976943436855876,
+      "d90MaxDiam": 54.939445132320145,
+      "d60Visible": 1,
+      "d90Visible": 8,
+      "d60Cohort": 8,
+      "d90Cohort": 14,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_010",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.08,
+        "fruitSetRate": 0.7,
+        "abortionThresholdRatio": 0.25,
+        "abortionLagDays": 4
+      },
+      "flowerDrop": 6,
+      "starvationAborted": 12,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 14,
+      "fertilizedTotal": 29,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 31.976943436855876,
+      "d90MaxDiam": 54.951675966555754,
+      "d60Visible": 1,
+      "d90Visible": 8,
+      "d60Cohort": 8,
+      "d90Cohort": 14,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_011",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.08,
+        "fruitSetRate": 0.7,
+        "abortionThresholdRatio": 0.25,
+        "abortionLagDays": 7
+      },
+      "flowerDrop": 6,
+      "starvationAborted": 11,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 15,
+      "fertilizedTotal": 29,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 31.987954817409726,
+      "d90MaxDiam": 54.925711430310955,
+      "d60Visible": 1,
+      "d90Visible": 8,
+      "d60Cohort": 10,
+      "d90Cohort": 16,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_013",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.08,
+        "fruitSetRate": 0.7,
+        "abortionThresholdRatio": 0.18,
+        "abortionLagDays": 4
+      },
+      "flowerDrop": 6,
+      "starvationAborted": 11,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 15,
+      "fertilizedTotal": 29,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 31.976943436855876,
+      "d90MaxDiam": 54.93033906576656,
+      "d60Visible": 1,
+      "d90Visible": 8,
+      "d60Cohort": 8,
+      "d90Cohort": 15,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_016",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.08,
+        "fruitSetRate": 0.7,
+        "abortionThresholdRatio": 0.15,
+        "abortionLagDays": 4
+      },
+      "flowerDrop": 6,
+      "starvationAborted": 11,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 15,
+      "fertilizedTotal": 29,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 31.976943436855876,
+      "d90MaxDiam": 54.93033906576656,
+      "d60Visible": 1,
+      "d90Visible": 8,
+      "d60Cohort": 8,
+      "d90Cohort": 15,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_028",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.1,
+        "fruitSetRate": 0.6,
+        "abortionThresholdRatio": 0.25,
+        "abortionLagDays": 4
+      },
+      "flowerDrop": 9,
+      "starvationAborted": 12,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 11,
+      "fertilizedTotal": 26,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 27.730820277655784,
+      "d90MaxDiam": 56.2186184580181,
+      "d60Visible": 1,
+      "d90Visible": 6,
+      "d60Cohort": 8,
+      "d90Cohort": 12,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_029",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.1,
+        "fruitSetRate": 0.6,
+        "abortionThresholdRatio": 0.25,
+        "abortionLagDays": 7
+      },
+      "flowerDrop": 9,
+      "starvationAborted": 12,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 11,
+      "fertilizedTotal": 26,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 27.740109214305196,
+      "d90MaxDiam": 56.169896120572375,
+      "d60Visible": 1,
+      "d90Visible": 6,
+      "d60Cohort": 10,
+      "d90Cohort": 13,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_030",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.1,
+        "fruitSetRate": 0.6,
+        "abortionThresholdRatio": 0.25,
+        "abortionLagDays": 10
+      },
+      "flowerDrop": 9,
+      "starvationAborted": 8,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 15,
+      "fertilizedTotal": 26,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 27.73955225816006,
+      "d90MaxDiam": 56.00837007027954,
+      "d60Visible": 1,
+      "d90Visible": 6,
+      "d60Cohort": 11,
+      "d90Cohort": 15,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_031",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.1,
+        "fruitSetRate": 0.6,
+        "abortionThresholdRatio": 0.18,
+        "abortionLagDays": 4
+      },
+      "flowerDrop": 9,
+      "starvationAborted": 12,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 11,
+      "fertilizedTotal": 26,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 27.730820277655784,
+      "d90MaxDiam": 56.2186184580181,
+      "d60Visible": 1,
+      "d90Visible": 6,
+      "d60Cohort": 8,
+      "d90Cohort": 12,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_032",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.1,
+        "fruitSetRate": 0.6,
+        "abortionThresholdRatio": 0.18,
+        "abortionLagDays": 7
+      },
+      "flowerDrop": 9,
+      "starvationAborted": 12,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 11,
+      "fertilizedTotal": 26,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 27.740109214305196,
+      "d90MaxDiam": 56.169896120572375,
+      "d60Visible": 1,
+      "d90Visible": 6,
+      "d60Cohort": 10,
+      "d90Cohort": 13,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_033",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.1,
+        "fruitSetRate": 0.6,
+        "abortionThresholdRatio": 0.18,
+        "abortionLagDays": 10
+      },
+      "flowerDrop": 9,
+      "starvationAborted": 8,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 15,
+      "fertilizedTotal": 26,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 27.73955225816006,
+      "d90MaxDiam": 56.00837007027954,
+      "d60Visible": 1,
+      "d90Visible": 6,
+      "d60Cohort": 11,
+      "d90Cohort": 15,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_034",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.1,
+        "fruitSetRate": 0.6,
+        "abortionThresholdRatio": 0.15,
+        "abortionLagDays": 4
+      },
+      "flowerDrop": 9,
+      "starvationAborted": 12,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 11,
+      "fertilizedTotal": 26,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 27.730820277655784,
+      "d90MaxDiam": 56.2186184580181,
+      "d60Visible": 1,
+      "d90Visible": 6,
+      "d60Cohort": 8,
+      "d90Cohort": 12,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_035",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.1,
+        "fruitSetRate": 0.6,
+        "abortionThresholdRatio": 0.15,
+        "abortionLagDays": 7
+      },
+      "flowerDrop": 9,
+      "starvationAborted": 12,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 11,
+      "fertilizedTotal": 26,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 27.740109214305196,
+      "d90MaxDiam": 56.16922980544328,
+      "d60Visible": 1,
+      "d90Visible": 6,
+      "d60Cohort": 10,
+      "d90Cohort": 13,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_036",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.1,
+        "fruitSetRate": 0.6,
+        "abortionThresholdRatio": 0.15,
+        "abortionLagDays": 10
+      },
+      "flowerDrop": 9,
+      "starvationAborted": 8,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 15,
+      "fertilizedTotal": 26,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 27.73955225816006,
+      "d90MaxDiam": 56.00837007027954,
+      "d60Visible": 1,
+      "d90Visible": 6,
+      "d60Cohort": 11,
+      "d90Cohort": 15,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_037",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.1,
+        "fruitSetRate": 0.7,
+        "abortionThresholdRatio": 0.25,
+        "abortionLagDays": 4
+      },
+      "flowerDrop": 6,
+      "starvationAborted": 13,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 13,
+      "fertilizedTotal": 29,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 27.730820277655784,
+      "d90MaxDiam": 56.20888377903913,
+      "d60Visible": 1,
+      "d90Visible": 6,
+      "d60Cohort": 8,
+      "d90Cohort": 13,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_038",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.1,
+        "fruitSetRate": 0.7,
+        "abortionThresholdRatio": 0.25,
+        "abortionLagDays": 7
+      },
+      "flowerDrop": 6,
+      "starvationAborted": 13,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 13,
+      "fertilizedTotal": 29,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 27.740109214305196,
+      "d90MaxDiam": 56.159588689399264,
+      "d60Visible": 1,
+      "d90Visible": 6,
+      "d60Cohort": 10,
+      "d90Cohort": 14,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_039",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.1,
+        "fruitSetRate": 0.7,
+        "abortionThresholdRatio": 0.25,
+        "abortionLagDays": 10
+      },
+      "flowerDrop": 6,
+      "starvationAborted": 8,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 18,
+      "fertilizedTotal": 29,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 27.73955225816006,
+      "d90MaxDiam": 55.997207714109784,
+      "d60Visible": 1,
+      "d90Visible": 6,
+      "d60Cohort": 11,
+      "d90Cohort": 16,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_040",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.1,
+        "fruitSetRate": 0.7,
+        "abortionThresholdRatio": 0.18,
+        "abortionLagDays": 4
+      },
+      "flowerDrop": 6,
+      "starvationAborted": 13,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 13,
+      "fertilizedTotal": 29,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 27.730820277655784,
+      "d90MaxDiam": 56.20888377903913,
+      "d60Visible": 1,
+      "d90Visible": 6,
+      "d60Cohort": 8,
+      "d90Cohort": 13,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_041",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.1,
+        "fruitSetRate": 0.7,
+        "abortionThresholdRatio": 0.18,
+        "abortionLagDays": 7
+      },
+      "flowerDrop": 6,
+      "starvationAborted": 13,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 13,
+      "fertilizedTotal": 29,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 27.740109214305196,
+      "d90MaxDiam": 56.159588689399264,
+      "d60Visible": 1,
+      "d90Visible": 6,
+      "d60Cohort": 10,
+      "d90Cohort": 14,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_042",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.1,
+        "fruitSetRate": 0.7,
+        "abortionThresholdRatio": 0.18,
+        "abortionLagDays": 10
+      },
+      "flowerDrop": 6,
+      "starvationAborted": 8,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 18,
+      "fertilizedTotal": 29,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 27.73955225816006,
+      "d90MaxDiam": 55.997207714109784,
+      "d60Visible": 1,
+      "d90Visible": 6,
+      "d60Cohort": 11,
+      "d90Cohort": 16,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_043",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.1,
+        "fruitSetRate": 0.7,
+        "abortionThresholdRatio": 0.15,
+        "abortionLagDays": 4
+      },
+      "flowerDrop": 6,
+      "starvationAborted": 13,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 13,
+      "fertilizedTotal": 29,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 27.730820277655784,
+      "d90MaxDiam": 56.20888377903913,
+      "d60Visible": 1,
+      "d90Visible": 6,
+      "d60Cohort": 8,
+      "d90Cohort": 13,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_044",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.1,
+        "fruitSetRate": 0.7,
+        "abortionThresholdRatio": 0.15,
+        "abortionLagDays": 7
+      },
+      "flowerDrop": 6,
+      "starvationAborted": 13,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 13,
+      "fertilizedTotal": 29,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 27.740109214305196,
+      "d90MaxDiam": 56.158922129654776,
+      "d60Visible": 1,
+      "d90Visible": 6,
+      "d60Cohort": 10,
+      "d90Cohort": 14,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_045",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.1,
+        "fruitSetRate": 0.7,
+        "abortionThresholdRatio": 0.15,
+        "abortionLagDays": 10
+      },
+      "flowerDrop": 6,
+      "starvationAborted": 8,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 18,
+      "fertilizedTotal": 29,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 27.73955225816006,
+      "d90MaxDiam": 55.997207714109784,
+      "d60Visible": 1,
+      "d90Visible": 6,
+      "d60Cohort": 11,
+      "d90Cohort": 16,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_055",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.12,
+        "fruitSetRate": 0.6,
+        "abortionThresholdRatio": 0.25,
+        "abortionLagDays": 4
+      },
+      "flowerDrop": 9,
+      "starvationAborted": 12,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 11,
+      "fertilizedTotal": 26,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 23.396777378208956,
+      "d90MaxDiam": 57.17431149908254,
+      "d60Visible": 1,
+      "d90Visible": 4,
+      "d60Cohort": 8,
+      "d90Cohort": 12,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_056",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.12,
+        "fruitSetRate": 0.6,
+        "abortionThresholdRatio": 0.25,
+        "abortionLagDays": 7
+      },
+      "flowerDrop": 9,
+      "starvationAborted": 12,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 11,
+      "fertilizedTotal": 26,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 23.405186546835285,
+      "d90MaxDiam": 57.107494697388546,
+      "d60Visible": 1,
+      "d90Visible": 4,
+      "d60Cohort": 10,
+      "d90Cohort": 13,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_057",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.12,
+        "fruitSetRate": 0.6,
+        "abortionThresholdRatio": 0.25,
+        "abortionLagDays": 10
+      },
+      "flowerDrop": 9,
+      "starvationAborted": 10,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 13,
+      "fertilizedTotal": 26,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 23.404559683338828,
+      "d90MaxDiam": 56.93745298117037,
+      "d60Visible": 1,
+      "d90Visible": 4,
+      "d60Cohort": 11,
+      "d90Cohort": 14,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_058",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.12,
+        "fruitSetRate": 0.6,
+        "abortionThresholdRatio": 0.18,
+        "abortionLagDays": 4
+      },
+      "flowerDrop": 9,
+      "starvationAborted": 12,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 11,
+      "fertilizedTotal": 26,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 23.396777378208956,
+      "d90MaxDiam": 57.17431149908254,
+      "d60Visible": 1,
+      "d90Visible": 4,
+      "d60Cohort": 8,
+      "d90Cohort": 12,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_059",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.12,
+        "fruitSetRate": 0.6,
+        "abortionThresholdRatio": 0.18,
+        "abortionLagDays": 7
+      },
+      "flowerDrop": 9,
+      "starvationAborted": 12,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 11,
+      "fertilizedTotal": 26,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 23.405186546835285,
+      "d90MaxDiam": 57.107494697388546,
+      "d60Visible": 1,
+      "d90Visible": 4,
+      "d60Cohort": 10,
+      "d90Cohort": 13,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_060",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.12,
+        "fruitSetRate": 0.6,
+        "abortionThresholdRatio": 0.18,
+        "abortionLagDays": 10
+      },
+      "flowerDrop": 9,
+      "starvationAborted": 10,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 13,
+      "fertilizedTotal": 26,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 23.404559683338828,
+      "d90MaxDiam": 56.93745298117037,
+      "d60Visible": 1,
+      "d90Visible": 4,
+      "d60Cohort": 11,
+      "d90Cohort": 14,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_061",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.12,
+        "fruitSetRate": 0.6,
+        "abortionThresholdRatio": 0.15,
+        "abortionLagDays": 4
+      },
+      "flowerDrop": 9,
+      "starvationAborted": 12,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 11,
+      "fertilizedTotal": 26,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 23.396777378208956,
+      "d90MaxDiam": 57.17431149908254,
+      "d60Visible": 1,
+      "d90Visible": 4,
+      "d60Cohort": 8,
+      "d90Cohort": 12,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_062",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.12,
+        "fruitSetRate": 0.6,
+        "abortionThresholdRatio": 0.15,
+        "abortionLagDays": 7
+      },
+      "flowerDrop": 9,
+      "starvationAborted": 12,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 11,
+      "fertilizedTotal": 26,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 23.405186546835285,
+      "d90MaxDiam": 57.107494697388546,
+      "d60Visible": 1,
+      "d90Visible": 4,
+      "d60Cohort": 10,
+      "d90Cohort": 13,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_063",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.12,
+        "fruitSetRate": 0.6,
+        "abortionThresholdRatio": 0.15,
+        "abortionLagDays": 10
+      },
+      "flowerDrop": 9,
+      "starvationAborted": 10,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 13,
+      "fertilizedTotal": 26,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 23.404559683338828,
+      "d90MaxDiam": 56.93745298117037,
+      "d60Visible": 1,
+      "d90Visible": 4,
+      "d60Cohort": 11,
+      "d90Cohort": 14,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_064",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.12,
+        "fruitSetRate": 0.7,
+        "abortionThresholdRatio": 0.25,
+        "abortionLagDays": 4
+      },
+      "flowerDrop": 6,
+      "starvationAborted": 13,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 13,
+      "fertilizedTotal": 29,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 23.396777378208956,
+      "d90MaxDiam": 57.1638705501354,
+      "d60Visible": 1,
+      "d90Visible": 4,
+      "d60Cohort": 8,
+      "d90Cohort": 13,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_065",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.12,
+        "fruitSetRate": 0.7,
+        "abortionThresholdRatio": 0.25,
+        "abortionLagDays": 7
+      },
+      "flowerDrop": 6,
+      "starvationAborted": 13,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 13,
+      "fertilizedTotal": 29,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 23.405186546835285,
+      "d90MaxDiam": 57.096410850661215,
+      "d60Visible": 1,
+      "d90Visible": 4,
+      "d60Cohort": 10,
+      "d90Cohort": 14,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_066",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.12,
+        "fruitSetRate": 0.7,
+        "abortionThresholdRatio": 0.25,
+        "abortionLagDays": 10
+      },
+      "flowerDrop": 6,
+      "starvationAborted": 10,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 16,
+      "fertilizedTotal": 29,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 23.404559683338828,
+      "d90MaxDiam": 56.925744606581354,
+      "d60Visible": 1,
+      "d90Visible": 4,
+      "d60Cohort": 11,
+      "d90Cohort": 15,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_067",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.12,
+        "fruitSetRate": 0.7,
+        "abortionThresholdRatio": 0.18,
+        "abortionLagDays": 4
+      },
+      "flowerDrop": 6,
+      "starvationAborted": 13,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 13,
+      "fertilizedTotal": 29,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 23.396777378208956,
+      "d90MaxDiam": 57.1638705501354,
+      "d60Visible": 1,
+      "d90Visible": 4,
+      "d60Cohort": 8,
+      "d90Cohort": 13,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_068",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.12,
+        "fruitSetRate": 0.7,
+        "abortionThresholdRatio": 0.18,
+        "abortionLagDays": 7
+      },
+      "flowerDrop": 6,
+      "starvationAborted": 13,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 13,
+      "fertilizedTotal": 29,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 23.405186546835285,
+      "d90MaxDiam": 57.096410850661215,
+      "d60Visible": 1,
+      "d90Visible": 4,
+      "d60Cohort": 10,
+      "d90Cohort": 14,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_069",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.12,
+        "fruitSetRate": 0.7,
+        "abortionThresholdRatio": 0.18,
+        "abortionLagDays": 10
+      },
+      "flowerDrop": 6,
+      "starvationAborted": 10,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 16,
+      "fertilizedTotal": 29,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 23.404559683338828,
+      "d90MaxDiam": 56.925744606581354,
+      "d60Visible": 1,
+      "d90Visible": 4,
+      "d60Cohort": 11,
+      "d90Cohort": 15,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_070",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.12,
+        "fruitSetRate": 0.7,
+        "abortionThresholdRatio": 0.15,
+        "abortionLagDays": 4
+      },
+      "flowerDrop": 6,
+      "starvationAborted": 13,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 13,
+      "fertilizedTotal": 29,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 23.396777378208956,
+      "d90MaxDiam": 57.1638705501354,
+      "d60Visible": 1,
+      "d90Visible": 4,
+      "d60Cohort": 8,
+      "d90Cohort": 13,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_071",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.12,
+        "fruitSetRate": 0.7,
+        "abortionThresholdRatio": 0.15,
+        "abortionLagDays": 7
+      },
+      "flowerDrop": 6,
+      "starvationAborted": 13,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 13,
+      "fertilizedTotal": 29,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 23.405186546835285,
+      "d90MaxDiam": 57.096410850661215,
+      "d60Visible": 1,
+      "d90Visible": 4,
+      "d60Cohort": 10,
+      "d90Cohort": 14,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_072",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.12,
+        "fruitSetRate": 0.7,
+        "abortionThresholdRatio": 0.15,
+        "abortionLagDays": 10
+      },
+      "flowerDrop": 6,
+      "starvationAborted": 10,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 16,
+      "fertilizedTotal": 29,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 23.404559683338828,
+      "d90MaxDiam": 56.925744606581354,
+      "d60Visible": 1,
+      "d90Visible": 4,
+      "d60Cohort": 11,
+      "d90Cohort": 15,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_073",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.12,
+        "fruitSetRate": 0.8,
+        "abortionThresholdRatio": 0.25,
+        "abortionLagDays": 4
+      },
+      "flowerDrop": 0,
+      "starvationAborted": 12,
+      "pruningAborted": 6,
+      "unknownAborted": 0,
+      "fertilizedAlive": 15,
+      "fertilizedTotal": 35,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 29.102201465143548,
+      "d90MaxDiam": 57.071790206281534,
+      "d60Visible": 2,
+      "d90Visible": 4,
+      "d60Cohort": 9,
+      "d90Cohort": 15,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_074",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.12,
+        "fruitSetRate": 0.8,
+        "abortionThresholdRatio": 0.25,
+        "abortionLagDays": 7
+      },
+      "flowerDrop": 0,
+      "starvationAborted": 11,
+      "pruningAborted": 6,
+      "unknownAborted": 0,
+      "fertilizedAlive": 16,
+      "fertilizedTotal": 35,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 29.109399301839616,
+      "d90MaxDiam": 56.996524540027806,
+      "d60Visible": 2,
+      "d90Visible": 4,
+      "d60Cohort": 11,
+      "d90Cohort": 16,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_075",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.12,
+        "fruitSetRate": 0.8,
+        "abortionThresholdRatio": 0.25,
+        "abortionLagDays": 10
+      },
+      "flowerDrop": 0,
+      "starvationAborted": 9,
+      "pruningAborted": 6,
+      "unknownAborted": 0,
+      "fertilizedAlive": 18,
+      "fertilizedTotal": 35,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 29.106229455711265,
+      "d90MaxDiam": 56.8218251169418,
+      "d60Visible": 2,
+      "d90Visible": 4,
+      "d60Cohort": 12,
+      "d90Cohort": 17,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_076",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.12,
+        "fruitSetRate": 0.8,
+        "abortionThresholdRatio": 0.18,
+        "abortionLagDays": 4
+      },
+      "flowerDrop": 0,
+      "starvationAborted": 12,
+      "pruningAborted": 6,
+      "unknownAborted": 0,
+      "fertilizedAlive": 15,
+      "fertilizedTotal": 35,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 29.102201465143548,
+      "d90MaxDiam": 57.071790206281534,
+      "d60Visible": 2,
+      "d90Visible": 4,
+      "d60Cohort": 9,
+      "d90Cohort": 15,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_077",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.12,
+        "fruitSetRate": 0.8,
+        "abortionThresholdRatio": 0.18,
+        "abortionLagDays": 7
+      },
+      "flowerDrop": 0,
+      "starvationAborted": 11,
+      "pruningAborted": 6,
+      "unknownAborted": 0,
+      "fertilizedAlive": 16,
+      "fertilizedTotal": 35,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 29.109399301839616,
+      "d90MaxDiam": 56.996524540027806,
+      "d60Visible": 2,
+      "d90Visible": 4,
+      "d60Cohort": 11,
+      "d90Cohort": 16,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_078",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.12,
+        "fruitSetRate": 0.8,
+        "abortionThresholdRatio": 0.18,
+        "abortionLagDays": 10
+      },
+      "flowerDrop": 0,
+      "starvationAborted": 9,
+      "pruningAborted": 6,
+      "unknownAborted": 0,
+      "fertilizedAlive": 18,
+      "fertilizedTotal": 35,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 29.106229455711265,
+      "d90MaxDiam": 56.8218251169418,
+      "d60Visible": 2,
+      "d90Visible": 4,
+      "d60Cohort": 12,
+      "d90Cohort": 17,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_079",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.12,
+        "fruitSetRate": 0.8,
+        "abortionThresholdRatio": 0.15,
+        "abortionLagDays": 4
+      },
+      "flowerDrop": 0,
+      "starvationAborted": 12,
+      "pruningAborted": 6,
+      "unknownAborted": 0,
+      "fertilizedAlive": 15,
+      "fertilizedTotal": 35,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 29.102201465143548,
+      "d90MaxDiam": 57.071790206281534,
+      "d60Visible": 2,
+      "d90Visible": 4,
+      "d60Cohort": 9,
+      "d90Cohort": 15,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_080",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.12,
+        "fruitSetRate": 0.8,
+        "abortionThresholdRatio": 0.15,
+        "abortionLagDays": 7
+      },
+      "flowerDrop": 0,
+      "starvationAborted": 11,
+      "pruningAborted": 6,
+      "unknownAborted": 0,
+      "fertilizedAlive": 16,
+      "fertilizedTotal": 35,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 29.109399301839616,
+      "d90MaxDiam": 56.996524540027806,
+      "d60Visible": 2,
+      "d90Visible": 4,
+      "d60Cohort": 11,
+      "d90Cohort": 16,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_081",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.12,
+        "fruitSetRate": 0.8,
+        "abortionThresholdRatio": 0.15,
+        "abortionLagDays": 10
+      },
+      "flowerDrop": 0,
+      "starvationAborted": 9,
+      "pruningAborted": 6,
+      "unknownAborted": 0,
+      "fertilizedAlive": 18,
+      "fertilizedTotal": 35,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 29.106229455711265,
+      "d90MaxDiam": 56.8218251169418,
+      "d60Visible": 2,
+      "d90Visible": 4,
+      "d60Cohort": 12,
+      "d90Cohort": 17,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_046",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.1,
+        "fruitSetRate": 0.8,
+        "abortionThresholdRatio": 0.25,
+        "abortionLagDays": 4
+      },
+      "flowerDrop": 0,
+      "starvationAborted": 11,
+      "pruningAborted": 6,
+      "unknownAborted": 0,
+      "fertilizedAlive": 16,
+      "fertilizedTotal": 35,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 32.98998814577701,
+      "d90MaxDiam": 56.135869572141424,
+      "d60Visible": 2,
+      "d90Visible": 6,
+      "d60Cohort": 9,
+      "d90Cohort": 15,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_047",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.1,
+        "fruitSetRate": 0.8,
+        "abortionThresholdRatio": 0.25,
+        "abortionLagDays": 7
+      },
+      "flowerDrop": 0,
+      "starvationAborted": 11,
+      "pruningAborted": 6,
+      "unknownAborted": 0,
+      "fertilizedAlive": 16,
+      "fertilizedTotal": 35,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 32.99772157790035,
+      "d90MaxDiam": 56.079109308376005,
+      "d60Visible": 2,
+      "d90Visible": 6,
+      "d60Cohort": 11,
+      "d90Cohort": 16,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_048",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.1,
+        "fruitSetRate": 0.8,
+        "abortionThresholdRatio": 0.25,
+        "abortionLagDays": 10
+      },
+      "flowerDrop": 0,
+      "starvationAborted": 7,
+      "pruningAborted": 6,
+      "unknownAborted": 0,
+      "fertilizedAlive": 20,
+      "fertilizedTotal": 35,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 32.995326713753116,
+      "d90MaxDiam": 55.91337127208394,
+      "d60Visible": 2,
+      "d90Visible": 6,
+      "d60Cohort": 12,
+      "d90Cohort": 18,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_049",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.1,
+        "fruitSetRate": 0.8,
+        "abortionThresholdRatio": 0.18,
+        "abortionLagDays": 4
+      },
+      "flowerDrop": 0,
+      "starvationAborted": 11,
+      "pruningAborted": 6,
+      "unknownAborted": 0,
+      "fertilizedAlive": 16,
+      "fertilizedTotal": 35,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 32.98998814577701,
+      "d90MaxDiam": 56.135869572141424,
+      "d60Visible": 2,
+      "d90Visible": 6,
+      "d60Cohort": 9,
+      "d90Cohort": 15,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_050",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.1,
+        "fruitSetRate": 0.8,
+        "abortionThresholdRatio": 0.18,
+        "abortionLagDays": 7
+      },
+      "flowerDrop": 0,
+      "starvationAborted": 11,
+      "pruningAborted": 6,
+      "unknownAborted": 0,
+      "fertilizedAlive": 16,
+      "fertilizedTotal": 35,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 32.99772157790035,
+      "d90MaxDiam": 56.079109308376005,
+      "d60Visible": 2,
+      "d90Visible": 6,
+      "d60Cohort": 11,
+      "d90Cohort": 16,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_051",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.1,
+        "fruitSetRate": 0.8,
+        "abortionThresholdRatio": 0.18,
+        "abortionLagDays": 10
+      },
+      "flowerDrop": 0,
+      "starvationAborted": 7,
+      "pruningAborted": 6,
+      "unknownAborted": 0,
+      "fertilizedAlive": 20,
+      "fertilizedTotal": 35,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 32.995326713753116,
+      "d90MaxDiam": 55.91337127208394,
+      "d60Visible": 2,
+      "d90Visible": 6,
+      "d60Cohort": 12,
+      "d90Cohort": 18,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_052",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.1,
+        "fruitSetRate": 0.8,
+        "abortionThresholdRatio": 0.15,
+        "abortionLagDays": 4
+      },
+      "flowerDrop": 0,
+      "starvationAborted": 11,
+      "pruningAborted": 6,
+      "unknownAborted": 0,
+      "fertilizedAlive": 16,
+      "fertilizedTotal": 35,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 32.98998814577701,
+      "d90MaxDiam": 56.135869572141424,
+      "d60Visible": 2,
+      "d90Visible": 6,
+      "d60Cohort": 9,
+      "d90Cohort": 15,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_053",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.1,
+        "fruitSetRate": 0.8,
+        "abortionThresholdRatio": 0.15,
+        "abortionLagDays": 7
+      },
+      "flowerDrop": 0,
+      "starvationAborted": 11,
+      "pruningAborted": 6,
+      "unknownAborted": 0,
+      "fertilizedAlive": 16,
+      "fertilizedTotal": 35,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 32.99772157790035,
+      "d90MaxDiam": 56.079109308376005,
+      "d60Visible": 2,
+      "d90Visible": 6,
+      "d60Cohort": 11,
+      "d90Cohort": 16,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_054",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.1,
+        "fruitSetRate": 0.8,
+        "abortionThresholdRatio": 0.15,
+        "abortionLagDays": 10
+      },
+      "flowerDrop": 0,
+      "starvationAborted": 7,
+      "pruningAborted": 6,
+      "unknownAborted": 0,
+      "fertilizedAlive": 20,
+      "fertilizedTotal": 35,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 0,
+      "d60MaxDiam": 32.995326713753116,
+      "d90MaxDiam": 55.91337127208394,
+      "d60Visible": 2,
+      "d90Visible": 6,
+      "d60Cohort": 12,
+      "d90Cohort": 18,
+      "hardGatePass": true
+    },
+    {
+      "runId": "run_003",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.08,
+        "fruitSetRate": 0.6,
+        "abortionThresholdRatio": 0.25,
+        "abortionLagDays": 10
+      },
+      "flowerDrop": 9,
+      "starvationAborted": 7,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 15,
+      "fertilizedTotal": 26,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 3.308898346412295,
+      "d60MaxDiam": 36.11019458689266,
+      "d90MaxDiam": 54.861815052889405,
+      "d60Visible": 2,
+      "d90Visible": 8,
+      "d60Cohort": 12,
+      "d90Cohort": 15,
+      "hardGatePass": false
+    },
+    {
+      "runId": "run_005",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.08,
+        "fruitSetRate": 0.6,
+        "abortionThresholdRatio": 0.18,
+        "abortionLagDays": 7
+      },
+      "flowerDrop": 9,
+      "starvationAborted": 9,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 13,
+      "fertilizedTotal": 26,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 3.308106592226341,
+      "d60MaxDiam": 36.11250245005006,
+      "d90MaxDiam": 54.92732391872736,
+      "d60Visible": 2,
+      "d90Visible": 8,
+      "d60Cohort": 11,
+      "d90Cohort": 15,
+      "hardGatePass": false
+    },
+    {
+      "runId": "run_006",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.08,
+        "fruitSetRate": 0.6,
+        "abortionThresholdRatio": 0.18,
+        "abortionLagDays": 10
+      },
+      "flowerDrop": 9,
+      "starvationAborted": 7,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 15,
+      "fertilizedTotal": 26,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 3.308898346412295,
+      "d60MaxDiam": 36.11019458689266,
+      "d90MaxDiam": 54.861815052889405,
+      "d60Visible": 2,
+      "d90Visible": 8,
+      "d60Cohort": 12,
+      "d90Cohort": 15,
+      "hardGatePass": false
+    },
+    {
+      "runId": "run_008",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.08,
+        "fruitSetRate": 0.6,
+        "abortionThresholdRatio": 0.15,
+        "abortionLagDays": 7
+      },
+      "flowerDrop": 9,
+      "starvationAborted": 9,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 13,
+      "fertilizedTotal": 26,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 3.308106592226341,
+      "d60MaxDiam": 36.11250245005006,
+      "d90MaxDiam": 54.92732391872736,
+      "d60Visible": 2,
+      "d90Visible": 8,
+      "d60Cohort": 11,
+      "d90Cohort": 15,
+      "hardGatePass": false
+    },
+    {
+      "runId": "run_009",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.08,
+        "fruitSetRate": 0.6,
+        "abortionThresholdRatio": 0.15,
+        "abortionLagDays": 10
+      },
+      "flowerDrop": 9,
+      "starvationAborted": 7,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 15,
+      "fertilizedTotal": 26,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 3.308898346412295,
+      "d60MaxDiam": 36.11019458689266,
+      "d90MaxDiam": 54.861815052889405,
+      "d60Visible": 2,
+      "d90Visible": 8,
+      "d60Cohort": 12,
+      "d90Cohort": 15,
+      "hardGatePass": false
+    },
+    {
+      "runId": "run_012",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.08,
+        "fruitSetRate": 0.7,
+        "abortionThresholdRatio": 0.25,
+        "abortionLagDays": 10
+      },
+      "flowerDrop": 6,
+      "starvationAborted": 7,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 18,
+      "fertilizedTotal": 29,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 3.308898346412295,
+      "d60MaxDiam": 36.11019458689266,
+      "d90MaxDiam": 54.85264525165719,
+      "d60Visible": 2,
+      "d90Visible": 8,
+      "d60Cohort": 12,
+      "d90Cohort": 16,
+      "hardGatePass": false
+    },
+    {
+      "runId": "run_014",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.08,
+        "fruitSetRate": 0.7,
+        "abortionThresholdRatio": 0.18,
+        "abortionLagDays": 7
+      },
+      "flowerDrop": 6,
+      "starvationAborted": 10,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 15,
+      "fertilizedTotal": 29,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 3.308106592226341,
+      "d60MaxDiam": 36.11250245005006,
+      "d90MaxDiam": 54.918296299098266,
+      "d60Visible": 2,
+      "d90Visible": 8,
+      "d60Cohort": 11,
+      "d90Cohort": 16,
+      "hardGatePass": false
+    },
+    {
+      "runId": "run_015",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.08,
+        "fruitSetRate": 0.7,
+        "abortionThresholdRatio": 0.18,
+        "abortionLagDays": 10
+      },
+      "flowerDrop": 6,
+      "starvationAborted": 7,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 18,
+      "fertilizedTotal": 29,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 3.308898346412295,
+      "d60MaxDiam": 36.11019458689266,
+      "d90MaxDiam": 54.85264525165719,
+      "d60Visible": 2,
+      "d90Visible": 8,
+      "d60Cohort": 12,
+      "d90Cohort": 16,
+      "hardGatePass": false
+    },
+    {
+      "runId": "run_017",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.08,
+        "fruitSetRate": 0.7,
+        "abortionThresholdRatio": 0.15,
+        "abortionLagDays": 7
+      },
+      "flowerDrop": 6,
+      "starvationAborted": 10,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 15,
+      "fertilizedTotal": 29,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 3.308106592226341,
+      "d60MaxDiam": 36.11250245005006,
+      "d90MaxDiam": 54.918296299098266,
+      "d60Visible": 2,
+      "d90Visible": 8,
+      "d60Cohort": 11,
+      "d90Cohort": 16,
+      "hardGatePass": false
+    },
+    {
+      "runId": "run_018",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.08,
+        "fruitSetRate": 0.7,
+        "abortionThresholdRatio": 0.15,
+        "abortionLagDays": 10
+      },
+      "flowerDrop": 6,
+      "starvationAborted": 7,
+      "pruningAborted": 2,
+      "unknownAborted": 0,
+      "fertilizedAlive": 18,
+      "fertilizedTotal": 29,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 3.308898346412295,
+      "d60MaxDiam": 36.11019458689266,
+      "d90MaxDiam": 54.85264525165719,
+      "d60Visible": 2,
+      "d90Visible": 8,
+      "d60Cohort": 12,
+      "d90Cohort": 16,
+      "hardGatePass": false
+    },
+    {
+      "runId": "run_019",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.08,
+        "fruitSetRate": 0.8,
+        "abortionThresholdRatio": 0.25,
+        "abortionLagDays": 4
+      },
+      "flowerDrop": 0,
+      "starvationAborted": 10,
+      "pruningAborted": 6,
+      "unknownAborted": 0,
+      "fertilizedAlive": 17,
+      "fertilizedTotal": 35,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 3.6683830682828438,
+      "d60MaxDiam": 36.766194256553725,
+      "d90MaxDiam": 54.8974147786132,
+      "d60Visible": 2,
+      "d90Visible": 8,
+      "d60Cohort": 9,
+      "d90Cohort": 16,
+      "hardGatePass": false
+    },
+    {
+      "runId": "run_020",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.08,
+        "fruitSetRate": 0.8,
+        "abortionThresholdRatio": 0.25,
+        "abortionLagDays": 7
+      },
+      "flowerDrop": 0,
+      "starvationAborted": 9,
+      "pruningAborted": 6,
+      "unknownAborted": 0,
+      "fertilizedAlive": 18,
+      "fertilizedTotal": 35,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 3.670484877003632,
+      "d60MaxDiam": 36.775861093339394,
+      "d90MaxDiam": 54.866201300768154,
+      "d60Visible": 2,
+      "d90Visible": 8,
+      "d60Cohort": 11,
+      "d90Cohort": 18,
+      "hardGatePass": false
+    },
+    {
+      "runId": "run_022",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.08,
+        "fruitSetRate": 0.8,
+        "abortionThresholdRatio": 0.18,
+        "abortionLagDays": 4
+      },
+      "flowerDrop": 0,
+      "starvationAborted": 9,
+      "pruningAborted": 6,
+      "unknownAborted": 0,
+      "fertilizedAlive": 18,
+      "fertilizedTotal": 35,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 3.6683830682828438,
+      "d60MaxDiam": 36.766194256553725,
+      "d90MaxDiam": 54.87562750229418,
+      "d60Visible": 2,
+      "d90Visible": 8,
+      "d60Cohort": 9,
+      "d90Cohort": 17,
+      "hardGatePass": false
+    },
+    {
+      "runId": "run_025",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.08,
+        "fruitSetRate": 0.8,
+        "abortionThresholdRatio": 0.15,
+        "abortionLagDays": 4
+      },
+      "flowerDrop": 0,
+      "starvationAborted": 9,
+      "pruningAborted": 6,
+      "unknownAborted": 0,
+      "fertilizedAlive": 18,
+      "fertilizedTotal": 35,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 3.6683830682828438,
+      "d60MaxDiam": 36.766194256553725,
+      "d90MaxDiam": 54.87562750229418,
+      "d60Visible": 2,
+      "d90Visible": 8,
+      "d60Cohort": 9,
+      "d90Cohort": 17,
+      "hardGatePass": false
+    },
+    {
+      "runId": "run_021",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.08,
+        "fruitSetRate": 0.8,
+        "abortionThresholdRatio": 0.25,
+        "abortionLagDays": 10
+      },
+      "flowerDrop": 0,
+      "starvationAborted": 6,
+      "pruningAborted": 6,
+      "unknownAborted": 0,
+      "fertilizedAlive": 20,
+      "fertilizedTotal": 35,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 3.6707608404613694,
+      "d60MaxDiam": 36.75406090308377,
+      "d90MaxDiam": 54.782608507029416,
+      "d60Visible": 3,
+      "d90Visible": 8,
+      "d60Cohort": 13,
+      "d90Cohort": 18,
+      "hardGatePass": false
+    },
+    {
+      "runId": "run_023",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.08,
+        "fruitSetRate": 0.8,
+        "abortionThresholdRatio": 0.18,
+        "abortionLagDays": 7
+      },
+      "flowerDrop": 0,
+      "starvationAborted": 8,
+      "pruningAborted": 6,
+      "unknownAborted": 0,
+      "fertilizedAlive": 18,
+      "fertilizedTotal": 35,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 3.670665798852979,
+      "d60MaxDiam": 36.757202083280205,
+      "d90MaxDiam": 54.85136593238864,
+      "d60Visible": 3,
+      "d90Visible": 8,
+      "d60Cohort": 12,
+      "d90Cohort": 18,
+      "hardGatePass": false
+    },
+    {
+      "runId": "run_024",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.08,
+        "fruitSetRate": 0.8,
+        "abortionThresholdRatio": 0.18,
+        "abortionLagDays": 10
+      },
+      "flowerDrop": 0,
+      "starvationAborted": 6,
+      "pruningAborted": 6,
+      "unknownAborted": 0,
+      "fertilizedAlive": 20,
+      "fertilizedTotal": 35,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 3.6707608404613694,
+      "d60MaxDiam": 36.75406090308377,
+      "d90MaxDiam": 54.782608507029416,
+      "d60Visible": 3,
+      "d90Visible": 8,
+      "d60Cohort": 13,
+      "d90Cohort": 18,
+      "hardGatePass": false
+    },
+    {
+      "runId": "run_026",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.08,
+        "fruitSetRate": 0.8,
+        "abortionThresholdRatio": 0.15,
+        "abortionLagDays": 7
+      },
+      "flowerDrop": 0,
+      "starvationAborted": 8,
+      "pruningAborted": 6,
+      "unknownAborted": 0,
+      "fertilizedAlive": 18,
+      "fertilizedTotal": 35,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 3.670665798852979,
+      "d60MaxDiam": 36.757202083280205,
+      "d90MaxDiam": 54.85136593238864,
+      "d60Visible": 3,
+      "d90Visible": 8,
+      "d60Cohort": 12,
+      "d90Cohort": 18,
+      "hardGatePass": false
+    },
+    {
+      "runId": "run_027",
+      "variant": {
+        "inflectionC": 1,
+        "rateB": 0.06,
+        "exponentScaling": 0.08,
+        "fruitSetRate": 0.8,
+        "abortionThresholdRatio": 0.15,
+        "abortionLagDays": 10
+      },
+      "flowerDrop": 0,
+      "starvationAborted": 6,
+      "pruningAborted": 6,
+      "unknownAborted": 0,
+      "fertilizedAlive": 20,
+      "fertilizedTotal": 35,
+      "d30MaxDiam": 0,
+      "d33MaxDiam": 3.6707608404613694,
+      "d60MaxDiam": 36.75406090308377,
+      "d90MaxDiam": 54.782608507029416,
+      "d60Visible": 3,
+      "d90Visible": 8,
+      "d60Cohort": 13,
+      "d90Cohort": 18,
+      "hardGatePass": false
+    }
+  ],
+  "marginalEffects": {
+    "fruitSetRate": {
+      "flower_drop": {
+        "values": [
+          9,
+          6,
+          0
+        ],
+        "byAxisValue": {
+          "0.6": 9,
+          "0.7": 6,
+          "0.8": 0
+        },
+        "range": 9,
+        "trend": "↓"
+      },
+      "starvation_aborted": {
+        "values": [
+          10.296296296296296,
+          10.962962962962964,
+          9.407407407407407
+        ],
+        "byAxisValue": {
+          "0.6": 10.296296296296296,
+          "0.7": 10.962962962962964,
+          "0.8": 9.407407407407407
+        },
+        "range": 1.5555555555555571,
+        "trend": "↓"
+      },
+      "pruning_aborted": {
+        "values": [
+          2,
+          2,
+          6
+        ],
+        "byAxisValue": {
+          "0.6": 2,
+          "0.7": 2,
+          "0.8": 6
+        },
+        "range": 4,
+        "trend": "↑"
+      },
+      "fertilized_alive": {
+        "values": [
+          12.518518518518519,
+          14.851851851851851,
+          17.40740740740741
+        ],
+        "byAxisValue": {
+          "0.6": 12.518518518518519,
+          "0.7": 14.851851851851851,
+          "0.8": 17.40740740740741
+        },
+        "range": 4.888888888888889,
+        "trend": "↑"
+      },
+      "fertilized_total": {
+        "values": [
+          26,
+          29,
+          35
+        ],
+        "byAxisValue": {
+          "0.6": 26,
+          "0.7": 29,
+          "0.8": 35
+        },
+        "range": 9,
+        "trend": "↑"
+      },
+      "D30_maxDiam": {
+        "values": [
+          0,
+          0,
+          0
+        ],
+        "byAxisValue": {
+          "0.6": 0,
+          "0.7": 0,
+          "0.8": 0
+        },
+        "range": 0,
+        "trend": "·"
+      },
+      "D33_maxDiam": {
+        "values": [
+          0.612700304581095,
+          0.612700304581095,
+          1.2233054889237864
+        ],
+        "byAxisValue": {
+          "0.6": 0.612700304581095,
+          "0.7": 0.612700304581095,
+          "0.8": 1.2233054889237864
+        },
+        "range": 0.6106051843426914,
+        "trend": "↑"
+      },
+      "D60_maxDiam": {
+        "values": [
+          28.471310735713633,
+          28.471310735713633,
+          32.9538381747847
+        ],
+        "byAxisValue": {
+          "0.6": 28.471310735713633,
+          "0.7": 28.471310735713633,
+          "0.8": 32.9538381747847
+        },
+        "range": 4.482527439071067,
+        "trend": "↑"
+      },
+      "D90_maxDiam": {
+        "values": [
+          56.039332878434955,
+          56.0291498478371,
+          55.94892216731086
+        ],
+        "byAxisValue": {
+          "0.6": 56.039332878434955,
+          "0.7": 56.0291498478371,
+          "0.8": 55.94892216731086
+        },
+        "range": 0.09041071112409327,
+        "trend": "↓"
+      },
+      "D60_visible": {
+        "values": [
+          1.1851851851851851,
+          1.1851851851851851,
+          2.185185185185185
+        ],
+        "byAxisValue": {
+          "0.6": 1.1851851851851851,
+          "0.7": 1.1851851851851851,
+          "0.8": 2.185185185185185
+        },
+        "range": 1,
+        "trend": "↑"
+      },
+      "D90_visible": {
+        "values": [
+          6,
+          6,
+          6
+        ],
+        "byAxisValue": {
+          "0.6": 6,
+          "0.7": 6,
+          "0.8": 6
+        },
+        "range": 0,
+        "trend": "·"
+      },
+      "D60_cohort": {
+        "values": [
+          9.851851851851851,
+          9.851851851851851,
+          10.851851851851851
+        ],
+        "byAxisValue": {
+          "0.6": 9.851851851851851,
+          "0.7": 9.851851851851851,
+          "0.8": 10.851851851851851
+        },
+        "range": 1,
+        "trend": "↑"
+      },
+      "D90_cohort": {
+        "values": [
+          13.62962962962963,
+          14.62962962962963,
+          16.62962962962963
+        ],
+        "byAxisValue": {
+          "0.6": 13.62962962962963,
+          "0.7": 14.62962962962963,
+          "0.8": 16.62962962962963
+        },
+        "range": 3,
+        "trend": "↑"
+      }
+    },
+    "abortionThresholdRatio": {
+      "flower_drop": {
+        "values": [
+          5,
+          5,
+          5
+        ],
+        "byAxisValue": {
+          "0.15": 5,
+          "0.18": 5,
+          "0.25": 5
+        },
+        "range": 0,
+        "trend": "·"
+      },
+      "starvation_aborted": {
+        "values": [
+          10.148148148148149,
+          10.148148148148149,
+          10.37037037037037
+        ],
+        "byAxisValue": {
+          "0.15": 10.148148148148149,
+          "0.18": 10.148148148148149,
+          "0.25": 10.37037037037037
+        },
+        "range": 0.22222222222222143,
+        "trend": "↑"
+      },
+      "pruning_aborted": {
+        "values": [
+          3.3333333333333335,
+          3.3333333333333335,
+          3.3333333333333335
+        ],
+        "byAxisValue": {
+          "0.15": 3.3333333333333335,
+          "0.18": 3.3333333333333335,
+          "0.25": 3.3333333333333335
+        },
+        "range": 0,
+        "trend": "·"
+      },
+      "fertilized_alive": {
+        "values": [
+          14.962962962962964,
+          14.962962962962964,
+          14.851851851851851
+        ],
+        "byAxisValue": {
+          "0.15": 14.962962962962964,
+          "0.18": 14.962962962962964,
+          "0.25": 14.851851851851851
+        },
+        "range": 0.11111111111111249,
+        "trend": "↓"
+      },
+      "fertilized_total": {
+        "values": [
+          30,
+          30,
+          30
+        ],
+        "byAxisValue": {
+          "0.15": 30,
+          "0.18": 30,
+          "0.25": 30
+        },
+        "range": 0,
+        "trend": "·"
+      },
+      "D30_maxDiam": {
+        "values": [
+          0,
+          0,
+          0
+        ],
+        "byAxisValue": {
+          "0.15": 0,
+          "0.18": 0,
+          "0.25": 0
+        },
+        "range": 0,
+        "trend": "·"
+      },
+      "D33_maxDiam": {
+        "values": [
+          0.8979192438842395,
+          0.8979192438842395,
+          0.6528676103174975
+        ],
+        "byAxisValue": {
+          "0.15": 0.8979192438842395,
+          "0.18": 0.8979192438842395,
+          "0.25": 0.6528676103174975
+        },
+        "range": 0.24505163356674198,
+        "trend": "↓"
+      },
+      "D60_maxDiam": {
+        "values": [
+          30.06709687287586,
+          30.06709687287586,
+          29.762265900460253
+        ],
+        "byAxisValue": {
+          "0.15": 30.06709687287586,
+          "0.18": 30.06709687287586,
+          "0.25": 29.762265900460253
+        },
+        "range": 0.3048309724156084,
+        "trend": "↓"
+      },
+      "D90_maxDiam": {
+        "values": [
+          56.00461014146621,
+          56.00465950720227,
+          56.00813524491443
+        ],
+        "byAxisValue": {
+          "0.15": 56.00461014146621,
+          "0.18": 56.00465950720227,
+          "0.25": 56.00813524491443
+        },
+        "range": 0.0035251034482186583,
+        "trend": "·"
+      },
+      "D60_visible": {
+        "values": [
+          1.5555555555555556,
+          1.5555555555555556,
+          1.4444444444444444
+        ],
+        "byAxisValue": {
+          "0.15": 1.5555555555555556,
+          "0.18": 1.5555555555555556,
+          "0.25": 1.4444444444444444
+        },
+        "range": 0.11111111111111116,
+        "trend": "↓"
+      },
+      "D90_visible": {
+        "values": [
+          6,
+          6,
+          6
+        ],
+        "byAxisValue": {
+          "0.15": 6,
+          "0.18": 6,
+          "0.25": 6
+        },
+        "range": 0,
+        "trend": "·"
+      },
+      "D60_cohort": {
+        "values": [
+          10.222222222222221,
+          10.222222222222221,
+          10.11111111111111
+        ],
+        "byAxisValue": {
+          "0.15": 10.222222222222221,
+          "0.18": 10.222222222222221,
+          "0.25": 10.11111111111111
+        },
+        "range": 0.11111111111111072,
+        "trend": "↓"
+      },
+      "D90_cohort": {
+        "values": [
+          15,
+          15,
+          14.88888888888889
+        ],
+        "byAxisValue": {
+          "0.15": 15,
+          "0.18": 15,
+          "0.25": 14.88888888888889
+        },
+        "range": 0.11111111111111072,
+        "trend": "↓"
+      }
+    },
+    "abortionLagDays": {
+      "flower_drop": {
+        "values": [
+          5,
+          5,
+          5
+        ],
+        "byAxisValue": {
+          "4": 5,
+          "7": 5,
+          "10": 5
+        },
+        "range": 0,
+        "trend": "·"
+      },
+      "starvation_aborted": {
+        "values": [
+          11.555555555555555,
+          11.11111111111111,
+          8
+        ],
+        "byAxisValue": {
+          "4": 11.555555555555555,
+          "7": 11.11111111111111,
+          "10": 8
+        },
+        "range": 3.5555555555555554,
+        "trend": "↓"
+      },
+      "pruning_aborted": {
+        "values": [
+          3.3333333333333335,
+          3.3333333333333335,
+          3.3333333333333335
+        ],
+        "byAxisValue": {
+          "4": 3.3333333333333335,
+          "7": 3.3333333333333335,
+          "10": 3.3333333333333335
+        },
+        "range": 0,
+        "trend": "·"
+      },
+      "fertilized_alive": {
+        "values": [
+          13.777777777777779,
+          14,
+          17
+        ],
+        "byAxisValue": {
+          "4": 13.777777777777779,
+          "7": 14,
+          "10": 17
+        },
+        "range": 3.2222222222222214,
+        "trend": "↑"
+      },
+      "fertilized_total": {
+        "values": [
+          30,
+          30,
+          30
+        ],
+        "byAxisValue": {
+          "4": 30,
+          "7": 30,
+          "10": 30
+        },
+        "range": 0,
+        "trend": "·"
+      },
+      "D30_maxDiam": {
+        "values": [
+          0,
+          0,
+          0
+        ],
+        "byAxisValue": {
+          "4": 0,
+          "7": 0,
+          "10": 0
+        },
+        "range": 0,
+        "trend": "·"
+      },
+      "D33_maxDiam": {
+        "values": [
+          0.40759811869809376,
+          0.8979349201338872,
+          1.1431730592539955
+        ],
+        "byAxisValue": {
+          "4": 0.40759811869809376,
+          "7": 0.8979349201338872,
+          "10": 1.1431730592539955
+        },
+        "range": 0.7355749405559018,
+        "trend": "↑"
+      },
+      "D60_maxDiam": {
+        "values": [
+          29.45194067254618,
+          30.070715625962315,
+          30.373803347703483
+        ],
+        "byAxisValue": {
+          "4": 29.45194067254618,
+          "7": 30.070715625962315,
+          "10": 30.373803347703483
+        },
+        "range": 0.9218626751573034,
+        "trend": "↑"
+      },
+      "D90_maxDiam": {
+        "values": [
+          56.082233795308575,
+          56.03505547908072,
+          55.90011561919364
+        ],
+        "byAxisValue": {
+          "4": 56.082233795308575,
+          "7": 56.03505547908072,
+          "10": 55.90011561919364
+        },
+        "range": 0.1821181761149333,
+        "trend": "↓"
+      },
+      "D60_visible": {
+        "values": [
+          1.3333333333333333,
+          1.5555555555555556,
+          1.6666666666666667
+        ],
+        "byAxisValue": {
+          "4": 1.3333333333333333,
+          "7": 1.5555555555555556,
+          "10": 1.6666666666666667
+        },
+        "range": 0.3333333333333335,
+        "trend": "↑"
+      },
+      "D90_visible": {
+        "values": [
+          6,
+          6,
+          6
+        ],
+        "byAxisValue": {
+          "4": 6,
+          "7": 6,
+          "10": 6
+        },
+        "range": 0,
+        "trend": "·"
+      },
+      "D60_cohort": {
+        "values": [
+          8.333333333333334,
+          10.555555555555555,
+          11.666666666666666
+        ],
+        "byAxisValue": {
+          "4": 8.333333333333334,
+          "7": 10.555555555555555,
+          "10": 11.666666666666666
+        },
+        "range": 3.333333333333332,
+        "trend": "↑"
+      },
+      "D90_cohort": {
+        "values": [
+          13.88888888888889,
+          15,
+          16
+        ],
+        "byAxisValue": {
+          "4": 13.88888888888889,
+          "7": 15,
+          "10": 16
+        },
+        "range": 2.1111111111111107,
+        "trend": "↑"
+      }
+    },
+    "exponentScaling": {
+      "flower_drop": {
+        "values": [
+          5,
+          5,
+          5
+        ],
+        "byAxisValue": {
+          "0.08": 5,
+          "0.1": 5,
+          "0.12": 5
+        },
+        "range": 0,
+        "trend": "·"
+      },
+      "starvation_aborted": {
+        "values": [
+          8.777777777777779,
+          10.555555555555555,
+          11.333333333333334
+        ],
+        "byAxisValue": {
+          "0.08": 8.777777777777779,
+          "0.1": 10.555555555555555,
+          "0.12": 11.333333333333334
+        },
+        "range": 2.5555555555555554,
+        "trend": "↑"
+      },
+      "pruning_aborted": {
+        "values": [
+          3.3333333333333335,
+          3.3333333333333335,
+          3.3333333333333335
+        ],
+        "byAxisValue": {
+          "0.08": 3.3333333333333335,
+          "0.1": 3.3333333333333335,
+          "0.12": 3.3333333333333335
+        },
+        "range": 0,
+        "trend": "·"
+      },
+      "fertilized_alive": {
+        "values": [
+          16,
+          14.777777777777779,
+          14
+        ],
+        "byAxisValue": {
+          "0.08": 16,
+          "0.1": 14.777777777777779,
+          "0.12": 14
+        },
+        "range": 2,
+        "trend": "↓"
+      },
+      "fertilized_total": {
+        "values": [
+          30,
+          30,
+          30
+        ],
+        "byAxisValue": {
+          "0.08": 30,
+          "0.1": 30,
+          "0.12": 30
+        },
+        "range": 0,
+        "trend": "·"
+      },
+      "D30_maxDiam": {
+        "values": [
+          0,
+          0,
+          0
+        ],
+        "byAxisValue": {
+          "0.08": 0,
+          "0.1": 0,
+          "0.12": 0
+        },
+        "range": 0,
+        "trend": "·"
+      },
+      "D33_maxDiam": {
+        "values": [
+          2.448706098085976,
+          0,
+          0
+        ],
+        "byAxisValue": {
+          "0.08": 2.448706098085976,
+          "0.1": 0,
+          "0.12": 0
+        },
+        "range": 2.448706098085976,
+        "trend": "↓"
+      },
+      "D60_maxDiam": {
+        "values": [
+          35.10369549319715,
+          29.48933332640807,
+          25.30343082660674
+        ],
+        "byAxisValue": {
+          "0.08": 35.10369549319715,
+          "0.1": 29.48933332640807,
+          "0.12": 25.30343082660674
+        },
+        "range": 9.800264666590412,
+        "trend": "↓"
+      },
+      "D90_maxDiam": {
+        "values": [
+          54.88563870017564,
+          56.098941188043895,
+          57.0328250053634
+        ],
+        "byAxisValue": {
+          "0.08": 54.88563870017564,
+          "0.1": 56.098941188043895,
+          "0.12": 57.0328250053634
+        },
+        "range": 2.147186305187759,
+        "trend": "↑"
+      },
+      "D60_visible": {
+        "values": [
+          1.8888888888888888,
+          1.3333333333333333,
+          1.3333333333333333
+        ],
+        "byAxisValue": {
+          "0.08": 1.8888888888888888,
+          "0.1": 1.3333333333333333,
+          "0.12": 1.3333333333333333
+        },
+        "range": 0.5555555555555556,
+        "trend": "↓"
+      },
+      "D90_visible": {
+        "values": [
+          8,
+          6,
+          4
+        ],
+        "byAxisValue": {
+          "0.08": 8,
+          "0.1": 6,
+          "0.12": 4
+        },
+        "range": 4,
+        "trend": "↓"
+      },
+      "D60_cohort": {
+        "values": [
+          10.555555555555555,
+          10,
+          10
+        ],
+        "byAxisValue": {
+          "0.08": 10.555555555555555,
+          "0.1": 10,
+          "0.12": 10
+        },
+        "range": 0.5555555555555554,
+        "trend": "↓"
+      },
+      "D90_cohort": {
+        "values": [
+          15.88888888888889,
+          14.666666666666666,
+          14.333333333333334
+        ],
+        "byAxisValue": {
+          "0.08": 15.88888888888889,
+          "0.1": 14.666666666666666,
+          "0.12": 14.333333333333334
+        },
+        "range": 1.5555555555555554,
+        "trend": "↓"
+      }
+    }
+  }
+}
