@@ -257,7 +257,12 @@
         // Iter 9 (SSOT #116): cell_division phase per-step Gompertz demand × fraction.
         //   default 1.0 = noop (후방호환). divisionPhaseMassFraction (cumulative cap)와 보완관계.
         //   sweep 후보: 0.10, 0.20, 0.40. ⚠ enabled=true AND cell_division phase 일 때만 적용.
-        "cellDivisionStepDemandFraction": 1.0
+        "cellDivisionStepDemandFraction": 1.0,
+        // Iter 10 (SSOT #123): smoothstep transition zone width (GDD).
+        //   default 0 = binary (Iter 9 동작 유지, 후방호환).
+        //   sweep 후보: 40, 80, 120 GDD (≈ 3-10 days at T_eff=12).
+        //   cellDiv 경계 [cellDivDur - zone/2, cellDivDur + zone/2] 안에서 multiplier smooth blend.
+        "transitionZoneGDD": 0
       },
       "debug": true,                         // snapshot에 debug fields 출력
       // Iter 6h (SSOT #74, #76): visibility gate — calibration-only.
@@ -340,6 +345,7 @@
     "fruitDevelopment.massFlow.phaseAwareMassGrowth.ripeningPhaseGrowthMultiplier": "active",
     "fruitDevelopment.massFlow.phaseAwareMassGrowth.expansionClockMode": "active",
     "fruitDevelopment.massFlow.phaseAwareMassGrowth.cellDivisionStepDemandFraction": "active",
+    "fruitDevelopment.massFlow.phaseAwareMassGrowth.transitionZoneGDD": "active",
     "fruitDevelopment.massFlow.visibilityGateMode": "active",
     "fruitDevelopment.massFlow.minFruitAgeGDDForVisible": "active",
     "fruitDevelopment.massFlow.debug": "active"

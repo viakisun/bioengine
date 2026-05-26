@@ -90,6 +90,8 @@ interface CliArgs {
     phaseAwareClockMode?: 'fertilization_based' | 'expansion_start_based';
     // Iter 9 (SSOT #116) — phaseAwareMassGrowth.cellDivisionStepDemandFraction
     phaseAwareCellDivStepDemandFraction?: number;  // 0..1
+    // Iter 10 (SSOT #123) — phaseAwareMassGrowth.transitionZoneGDD
+    phaseAwareTransitionZoneGDD?: number;          // >= 0
   };
   /** Iter 8 (SSOT #108) — source capacity override (global, photosynthesis layer).
    *  format: "lueScale=1.2". Multiplies ACTIVE_MODEL.photosynthesis.LUE_gDM_per_mol_PAR. */
@@ -207,6 +209,9 @@ function parseOverrideMassFlow(s?: string): CliArgs['overrideMassFlow'] {
     } else if (k === 'phaseAwareCellDivStepDemandFraction' || k === 'cellDivStepDemandFraction') {
       const n = Number(v);
       if (Number.isFinite(n) && n > 0 && n <= 1) out.phaseAwareCellDivStepDemandFraction = n;
+    } else if (k === 'phaseAwareTransitionZoneGDD' || k === 'transitionZoneGDD') {
+      const n = Number(v);
+      if (Number.isFinite(n) && n >= 0) out.phaseAwareTransitionZoneGDD = n;
     }
   }
   return out;
@@ -400,6 +405,7 @@ function applyOverrideMassFlow(args: CliArgs): void {
   if (ov.phaseAwareRipeningMultiplier !== undefined) mf.phaseAwareMassGrowth.ripeningPhaseGrowthMultiplier = ov.phaseAwareRipeningMultiplier;
   if (ov.phaseAwareClockMode !== undefined) mf.phaseAwareMassGrowth.expansionClockMode = ov.phaseAwareClockMode;
   if (ov.phaseAwareCellDivStepDemandFraction !== undefined) mf.phaseAwareMassGrowth.cellDivisionStepDemandFraction = ov.phaseAwareCellDivStepDemandFraction;
+  if (ov.phaseAwareTransitionZoneGDD !== undefined) mf.phaseAwareMassGrowth.transitionZoneGDD = ov.phaseAwareTransitionZoneGDD;
   for (const c of Object.values(CULTIVARS)) {
     const mf2 = c.resolvedBotanical.fruitDevelopment.massFlow;
     if (ov.surplusPolicy !== undefined) mf2.surplusPolicy = ov.surplusPolicy;
@@ -414,8 +420,9 @@ function applyOverrideMassFlow(args: CliArgs): void {
     if (ov.phaseAwareRipeningMultiplier !== undefined) mf2.phaseAwareMassGrowth.ripeningPhaseGrowthMultiplier = ov.phaseAwareRipeningMultiplier;
     if (ov.phaseAwareClockMode !== undefined) mf2.phaseAwareMassGrowth.expansionClockMode = ov.phaseAwareClockMode;
     if (ov.phaseAwareCellDivStepDemandFraction !== undefined) mf2.phaseAwareMassGrowth.cellDivisionStepDemandFraction = ov.phaseAwareCellDivStepDemandFraction;
+    if (ov.phaseAwareTransitionZoneGDD !== undefined) mf2.phaseAwareMassGrowth.transitionZoneGDD = ov.phaseAwareTransitionZoneGDD;
   }
-  console.log(`[override] massFlow: surplusPolicy=${ov.surplusPolicy ?? '-'}, fruitPriorityRedistributionFraction=${ov.fruitPriorityRedistributionFraction ?? '-'}, capRelaxByPhase cellDiv/Exp/Ripen=${ov.cellDivisionRelax ?? '-'}/${ov.cellExpansionRelax ?? '-'}/${ov.ripeningRelax ?? '-'}, phaseAware enabled=${ov.phaseAwareEnabled ?? '-'} divFrac=${ov.phaseAwareDivisionFraction ?? '-'} expMul=${ov.phaseAwareExpansionMultiplier ?? '-'} ripMul=${ov.phaseAwareRipeningMultiplier ?? '-'} clockMode=${ov.phaseAwareClockMode ?? '-'} cellDivStepDemandFrac=${ov.phaseAwareCellDivStepDemandFraction ?? '-'}`);
+  console.log(`[override] massFlow: surplusPolicy=${ov.surplusPolicy ?? '-'}, fruitPriorityRedistributionFraction=${ov.fruitPriorityRedistributionFraction ?? '-'}, capRelaxByPhase cellDiv/Exp/Ripen=${ov.cellDivisionRelax ?? '-'}/${ov.cellExpansionRelax ?? '-'}/${ov.ripeningRelax ?? '-'}, phaseAware enabled=${ov.phaseAwareEnabled ?? '-'} divFrac=${ov.phaseAwareDivisionFraction ?? '-'} expMul=${ov.phaseAwareExpansionMultiplier ?? '-'} ripMul=${ov.phaseAwareRipeningMultiplier ?? '-'} clockMode=${ov.phaseAwareClockMode ?? '-'} cellDivStepDemandFrac=${ov.phaseAwareCellDivStepDemandFraction ?? '-'} transitionZoneGDD=${ov.phaseAwareTransitionZoneGDD ?? '-'}`);
 }
 
 /** Iter 8 (SSOT #108) — source override.
@@ -903,6 +910,8 @@ function buildFruitSummaryCsv(snapshots: DaySnapshot[]): string {
     'raw_sink_demand_g', 'max_step_demand_g', 'demand_was_limited',
     'dry_mass_before_cap_g', 'cumulative_dry_cap_g', 'cumulative_cap_was_applied',
     'allocated_dry_growth_g',
+    // Iter 10 (SSOT #124) — per-fruit phase multiplier (smoothstep transition zone tracking)
+    'phase_multiplier',
     // Iter 5b — Gompertz fresh mass + allowed diameter (fresh, audit table용)
     'gompertz_cap_fresh_g', 'gompertz_allowed_diameter_mm',
     'diameter_source',
@@ -941,6 +950,7 @@ function buildFruitSummaryCsv(snapshots: DaySnapshot[]): string {
           d ? (Number.isFinite(d.cumulativeDryCapG) ? d.cumulativeDryCapG : 'inf') : null,
           d?.cumulativeCapWasApplied ?? null,
           d?.allocatedDryGrowthG ?? null,
+          d?.phaseMultiplier ?? null,
           gompertzFreshCap, gompertzAllowedDiamMm,
           massFlow?.mode ?? 'sink_allocation_mass_curve',
         ]));

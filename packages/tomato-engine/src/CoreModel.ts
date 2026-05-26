@@ -40,6 +40,34 @@ import { phytomerCountFromTT } from './SimulationContext';
 // stepMinutely). Returns per-truss-per-fruit MAX dry demand (g/step)
 // in the same time unit as `stepGdd`.
 // ─────────────────────────────────────────────────────────────────────
+/** Iter 10 (SSOT #123) — phase-aware step demand multiplier with smoothstep transition.
+ *  cell_division → cell_expansion phase 전환을 transitionZoneGDD 폭 안에서 smooth blend.
+ *  transitionZoneGDD=0이면 Iter 9 binary 동작 (후방호환). enabled=false면 항상 1.0. */
+function computePhaseMul(
+  gddSinceFert: number,
+  cellDivEnd: number,
+  cellExpEnd: number,
+  pamg: import('./BotanicalSpec').MassFlowSpec['phaseAwareMassGrowth'],
+): number {
+  if (!pamg.enabled) return 1.0;
+  if (gddSinceFert >= cellExpEnd) return pamg.ripeningPhaseGrowthMultiplier;
+  const transZone = pamg.transitionZoneGDD;
+  if (transZone <= 0) {
+    // binary (Iter 9)
+    return gddSinceFert < cellDivEnd
+      ? pamg.cellDivisionStepDemandFraction
+      : pamg.expansionPhaseGrowthMultiplier;
+  }
+  const transStart = cellDivEnd - transZone / 2;
+  const transEnd = cellDivEnd + transZone / 2;
+  if (gddSinceFert <= transStart) return pamg.cellDivisionStepDemandFraction;
+  if (gddSinceFert >= transEnd) return pamg.expansionPhaseGrowthMultiplier;
+  const t = (gddSinceFert - transStart) / transZone;
+  const s = t * t * (3 - 2 * t);  // smoothstep (C¹ continuous)
+  return pamg.cellDivisionStepDemandFraction +
+         (pamg.expansionPhaseGrowthMultiplier - pamg.cellDivisionStepDemandFraction) * s;
+}
+
 function gompertzParamsOf(cultivar: Cultivar): GompertzMassParams {
   // resolvedBotanical.gompertz는 Phase E에서 cultivar로부터 read하므로
   // 본 helper는 cultivar.gompertzRateB/InflectionC만 본다.
@@ -84,16 +112,9 @@ function computePerFruitGompertzDemand(
     const capMul = gddSinceFert < cellDivEnd
       ? crp.cellDivision
       : (gddSinceFert < cellExpEnd ? crp.cellExpansion : crp.ripening);
-    // Iter 7b: expansion / ripening rate multiplier.
-    // Iter 9 (SSOT #116): cell_division phase now uses cellDivisionStepDemandFraction
-    //   (default 1.0 = noop). divisionPhaseMassFraction (cumulative cap)와 보완관계.
-    const phaseMul = pamg.enabled
-      ? (gddSinceFert < cellDivEnd
-          ? pamg.cellDivisionStepDemandFraction
-          : (gddSinceFert < cellExpEnd
-              ? pamg.expansionPhaseGrowthMultiplier
-              : pamg.ripeningPhaseGrowthMultiplier))
-      : 1.0;
+    // Iter 7b/9/10: phase-aware multiplier (delegated to computePhaseMul for smoothstep
+    // transition zone support — Iter 10 SSOT #123). transitionZoneGDD=0이면 binary.
+    const phaseMul = computePhaseMul(gddSinceFert, cellDivEnd, cellExpEnd, pamg);
     return baseDemand * capMul * phaseMul;
   }));
 }
@@ -202,6 +223,9 @@ export interface FruitCohort {
     cumulativeCapWasApplied: boolean;
     allocatedDryGrowthG: number;
     finalDryMassG: number;
+    /** Iter 10 (SSOT #124) — phase-aware multiplier at this step (smoothstep value
+     *  in transition zone, else binary phase rate). 1.0 when phaseAware disabled. */
+    phaseMultiplier: number;
   };
 }
 
@@ -654,6 +678,12 @@ export function stepMinutely(
             cumulativeCapWasApplied,
             allocatedDryGrowthG: allocatedStep,
             finalDryMassG: fruit.W_fruit_dry,
+            phaseMultiplier: computePhaseMul(
+              gddSinceFert,
+              cultivar.cellDivisionDurationGDD,
+              cultivar.cellDivisionDurationGDD + cultivar.cellExpansionDurationGDD,
+              pamg,
+            ),
           };
         }
       }
@@ -960,6 +990,12 @@ function _legacyStepDaily(
             cumulativeCapWasApplied,
             allocatedDryGrowthG: allocatedToday,
             finalDryMassG: fruit.W_fruit_dry,
+            phaseMultiplier: computePhaseMul(
+              gddSinceFert,
+              cultivar.cellDivisionDurationGDD,
+              cultivar.cellDivisionDurationGDD + cultivar.cellExpansionDurationGDD,
+              pamg,
+            ),
           };
         }
       }

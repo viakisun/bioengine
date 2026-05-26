@@ -188,6 +188,14 @@ export interface MassFlowSpec {
      *  ⚠ enabled=true AND cell_division phase (gddSinceFert < cellDivisionDurationGDD)일 때만
      *  적용. cell_expansion/ripening phase는 영향 없음 (D90 visible 회복 보전). 0..1. */
     cellDivisionStepDemandFraction: number;
+    /** Iter 10 (SSOT #123) — smoothstep transition zone width (GDD).
+     *  cell_division → cell_expansion phase 전환 시 multiplier가 즉시
+     *  `cellDivisionStepDemandFraction` → `expansionPhaseGrowthMultiplier`가 아닌,
+     *  `transitionZoneGDD` 폭 안에서 smoothstep로 점진적으로 전환.
+     *  transition zone = [cellDivisionDurationGDD - zone/2, cellDivisionDurationGDD + zone/2].
+     *  default 0 = binary (Iter 9 동작 유지, 후방호환).
+     *  Recommended 40~120 GDD (≈ 3-10 days at T_eff=12). */
+    transitionZoneGDD: number;
   };
   /** snapshot에 fruit debug fields 출력 on/off. */
   debug: boolean;
@@ -430,6 +438,13 @@ export function validateFull(spec: BotanicalSpec): void {
   if (pamg.cellDivisionStepDemandFraction <= 0 || pamg.cellDivisionStepDemandFraction > 1) {
     throw new BotanicalValidationError(
       `fruitDevelopment.massFlow.phaseAwareMassGrowth.cellDivisionStepDemandFraction must be in (0, 1], got ${pamg.cellDivisionStepDemandFraction}`,
+    );
+  }
+  // Iter 10 (SSOT #123) — transitionZoneGDD validator (>= 0, 0 = binary)
+  requireFiniteNumber(pamg.transitionZoneGDD, 'fruitDevelopment.massFlow.phaseAwareMassGrowth.transitionZoneGDD');
+  if (pamg.transitionZoneGDD < 0) {
+    throw new BotanicalValidationError(
+      `fruitDevelopment.massFlow.phaseAwareMassGrowth.transitionZoneGDD must be >= 0 (0 = binary, Iter 9 동작), got ${pamg.transitionZoneGDD}`,
     );
   }
   // Iter 7c (SSOT #106/#107) — expansionClockMode enum validator

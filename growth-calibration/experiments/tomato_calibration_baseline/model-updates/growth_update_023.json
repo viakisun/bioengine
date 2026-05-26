@@ -1,0 +1,135 @@
+{
+  "schemaVersion": "growthCalibration.v1",
+  "updateId": "growth_update_023",
+  "previousModelVersion": "growthModel.tomato.v0.11.3-reproductive-partial-tuned",
+  "newModelVersion": "growthModel.tomato.v0.11.3-reproductive-partial-tuned",
+  "status": "strong_promote_infrastructure_validated_override_pattern",
+  "date": "2026-05-27",
+  "triggerComparisons": [
+    "(Iter 10 transitionZoneGDD smoothstep — Iter 9 Diagnostic Success 후속 architectural refactor 1순위)"
+  ],
+  "triggerRuleIds": ["common_truss_status_too_behind"],
+  "reason": [
+    "Iter 9 (commit 580d04c, v0.11.3 유지) — cellDivisionStepDemandFraction 메커니즘 확정 (D90 visible +3.80 ensemble) BUT D33 protection seed-dependent + D90 mx under-band. 원인: binary GDD phase transition.",
+    "Iter 10은 next_lever_decision.md SSOT #121 1순위 lever 실행: BotanicalSpec.phaseAwareMassGrowth에 transitionZoneGDD 신규 field 추가. cell_division → cell_expansion phase 전환을 cellDivEnd 중심 [cellDivEnd - zone/2, cellDivEnd + zone/2] 폭 안에서 smoothstep로 점진적 multiplier 전환.",
+    "Phase A1 engine extension: BotanicalSpec.ts에 transitionZoneGDD field (default 0 = binary, 후방호환) + validator (>= 0). CoreModel.ts에 신규 computePhaseMul helper function 추가 — smoothstep transition zone 로직 (C¹ continuous). computePerFruitGompertzDemand cell_division branch가 helper로 위임. FruitCohort.debug.phaseMultiplier field 추가 (Iter 10 SSOT #124).",
+    "Phase A2 CLI extension: dump-growth-checkpoints + extract-calibration-observations parseOverrideMassFlow + applyOverrideMassFlow에 phaseAwareTransitionZoneGDD key (alias: transitionZoneGDD).",
+    "Phase A3 sweep harness: run-gompertz-sweep.ts에 phaseAwareTransitionZoneGDD cross-product axis 추가.",
+    "Phase A4 Preflight 2 runs: zone=0 (Iter 9 reproduction) ✅ + zone=80 (D33 mx 0 → 36.2 broken). Architectural discovery: cumulative cap (divisionPhaseMassFraction=0.10)이 cell_division phase boundary에 종속, transition zone이 cell_expansion으로 over-extend되면 cap 무력화.",
+    "Phase B Round 1 (27 runs at exp=0.10): 모든 27 runs D33 hard gate FAIL (best 37.45mm). exp=0.10이 Iter 9 baseline부터 D33 mx 37+ 만들어 sweep 무의미. Round 1b 추가 실행 (exp=0.08, cellDiv=250, frac=0.10, zone {0,40,80,120}).",
+    "Round 1b 결정적 발견 (single seed): zone=0/40 → D33 mx=0 ✅ + D90 vis=21. zone=80/120 → D33 mx=36+ ❌. **zone=40이 architectural sweet spot** — transition zone의 절반이 cell_division 안에 있어 cumulative cap 보호 유지.",
+    "Round 2 10-seed ensemble verification (zone=40): 🎉 BREAKTHROUGH. D33 mx avg 0.00 [0,0] ALL 10 seeds (Iter 9 4.85 → 0.00, seed lottery 완전 제거). D90 visible avg 19.10 [16,21] (baseline 4.20 → +355%). D90 maxDiam avg 52.87 [51,54] (target band [40,75] 정확 도달, Iter 9 32.75 under-band 해소). D100 visible avg 23.10 (baseline ~7, 2× recovery).",
+    "잔존 issue: D60 maxDiam avg 3.00 (target [18,40] 미달, valley). Trade-off — cumulative cap의 cell_division endpoint clamp가 D60 시점 fruit growth 출발점 낮춤. D90까지 catch up은 정상.",
+    "**Strong Promote at Infrastructure level**: transitionZoneGDD field + computePhaseMul + phaseMultiplier debug 영구 promote. default 0 (binary, 후방호환) 유지.",
+    "**Validated Override Pattern**: Iter 10 winning override (cellDiv=250, exp=0.08, inflectionC=0.55, rateB=0.05, phaseAwareEnabled=true, divFrac=0.10, cellDivStepDemandFraction=0.10, transitionZoneGDD=40) — cultivar JSONC mutation은 Iter 11에서 D60 valley 해소 + Gompertz shift regression 검증 후 진행.",
+    "**Iter 11 추천 (1순위)**: cumulativeCapTransitionZoneGDD 신규 field — Iter 10 step demand smoothing의 mirror로 cumulative cap에도 sigmoid smoothing 적용. D60 valley 해소 + cultivar JSONC 정식 promote 동시 시도."
+  ],
+  "parameterChanges": [
+    {
+      "parameter": "BotanicalSpec.phaseAwareMassGrowth.transitionZoneGDD (engine schema)",
+      "oldValue": "(없음)",
+      "newValue": "number >= 0 (default 0 = binary, Iter 9 후방호환)",
+      "file": "packages/tomato-engine/src/BotanicalSpec.ts (interface + validator) + models/botanical/tomato.jsonc (default + enforcementStatus)",
+      "unit": "schema + engine_logic",
+      "citation": "Iter 10 SSOT #123",
+      "reason": "cell_division → cell_expansion phase 전환 시 multiplier가 cellDivStepDemandFraction → expansionPhaseGrowthMultiplier로 smoothstep blend. transition zone = [cellDivEnd - zone/2, cellDivEnd + zone/2].",
+      "changeType": "engine_logic_addition",
+      "enforcementStatus": "active",
+      "expectedEffect": "behavior_noop_when_default"
+    },
+    {
+      "parameter": "CoreModel.ts computePhaseMul helper + computePerFruitGompertzDemand refactor",
+      "oldValue": "binary cell_division/cell_expansion phase boundary 하드코드 (Iter 9)",
+      "newValue": "computePhaseMul helper function (smoothstep transition zone). cell_division branch delegated.",
+      "file": "packages/tomato-engine/src/CoreModel.ts",
+      "unit": "engine_logic",
+      "citation": "Iter 10 SSOT #123/#127",
+      "reason": "single helper function으로 smoothstep transition 일관 적용. C¹ continuous (slope=0 at endpoints, perceived smooth). transitionZoneGDD=0이면 binary (후방호환).",
+      "changeType": "engine_logic_modification",
+      "enforcementStatus": "active",
+      "expectedEffect": "behavior_noop_when_default"
+    },
+    {
+      "parameter": "FruitCohort.debug.phaseMultiplier (per-fruit audit)",
+      "oldValue": "(없음)",
+      "newValue": "number (smoothstep value in transition zone, else binary phase rate)",
+      "file": "packages/tomato-engine/src/CoreModel.ts (interface + 2 write sites)",
+      "unit": "engine_logic + debug",
+      "citation": "Iter 10 SSOT #124",
+      "reason": "transition zone 안에서 각 fruit이 받는 multiplier 추적. fruit_summary.csv phase_multiplier column으로 D33 per-fruit audit 가능.",
+      "changeType": "engine_logic_addition",
+      "enforcementStatus": "active",
+      "expectedEffect": "calibration_observability_addition"
+    },
+    {
+      "parameter": "CLI --overrideMassFlow phaseAwareTransitionZoneGDD (calibration-only)",
+      "oldValue": "(없음)",
+      "newValue": "string key parsing + mutation (alias: transitionZoneGDD)",
+      "file": "growth-calibration/scripts/dump-growth-checkpoints.ts + extract-calibration-observations.ts",
+      "unit": "CLI",
+      "citation": "Iter 10 Phase A2",
+      "reason": "Iter 9 CLI pattern mirror. Iter 11 cumulative cap smoothing 등 후속 Iter에서 재사용.",
+      "changeType": "refactor",
+      "enforcementStatus": "active",
+      "expectedEffect": "calibration_tooling_addition"
+    },
+    {
+      "parameter": "run-gompertz-sweep.ts phaseAwareTransitionZoneGDD axis",
+      "oldValue": "(없음)",
+      "newValue": "number[] cross-product axis in nested loop",
+      "file": "growth-calibration/scripts/run-gompertz-sweep.ts",
+      "unit": "harness",
+      "citation": "Iter 10 Phase A3",
+      "reason": "Iter 11 transition smoothing + cumulative cap smoothing 결합 sweep에서 재사용.",
+      "changeType": "refactor",
+      "enforcementStatus": "active",
+      "expectedEffect": "calibration_tooling_addition"
+    },
+    {
+      "parameter": "fruit_summary.csv phase_multiplier column",
+      "oldValue": "(없음)",
+      "newValue": "per-day per-fruit phaseMultiplier value (smoothstep audit)",
+      "file": "growth-calibration/scripts/dump-growth-checkpoints.ts",
+      "unit": "CSV column",
+      "citation": "Iter 10 Phase A1",
+      "reason": "transition zone 안에서 fruit별 multiplier 추적. Iter 11 cumulative cap smoothing 검증에도 재사용.",
+      "changeType": "refactor",
+      "enforcementStatus": "active",
+      "expectedEffect": "calibration_observability_addition"
+    },
+    {
+      "parameter": "tomimaru-muchoo cultivar parameters",
+      "oldValue": "v0.11.3 winner (fSR=0.80, lag=10, thresh=0.25, cellDiv=300, exp=0.10)",
+      "newValue": "유지 (Iter 11에서 D60 valley 해소 + Gompertz regression 검증 후 promote)",
+      "changeType": "no_change_deferred_promote",
+      "enforcementStatus": "active",
+      "expectedEffect": "behavior_noop_at_default"
+    }
+  ],
+  "validationPlan": {
+    "replayDays": [30, 33, 60, 90, 100],
+    "forwardDays": [],
+    "targetMetrics": [
+      "Phase A1 typecheck PASS (npx tsc --noEmit -p .)",
+      "Phase A4 Preflight: zone=0 reproduces Iter 9 run_007 exactly + zone=80 reveals architectural interaction (D33 broken)",
+      "Phase B Round 1 27 runs at exp=0.10: all FAIL D33 (exp=0.10 baseline 부적합)",
+      "Round 1b 4 runs at exp=0.08, cellDiv=250, frac=0.10: zone=40 sweet spot (D33 mx=0, D90 vis=21 single seed)",
+      "Round 2 10-seed ensemble zone=40: D33 mx avg 0.00 [0,0] ALL seeds, D90 vis avg 19.10 [16,21], D90 mx avg 52.87 [51,54] in band",
+      "Iter 6i invariant: unknown_aborted_count == 0 모든 27+4+10 runs PASS",
+      "phaseMultiplier debug field 정상 출력 (smoothstep 정확 verification)"
+    ]
+  },
+  "outcome": {
+    "runDate": "2026-05-27",
+    "replayScoreDelta": 0,
+    "forwardScoreDelta": 0,
+    "verdict": "strong_promote_infrastructure_validated_override_pattern — v0.11.3 유지 + transitionZoneGDD engine + computePhaseMul + phaseMultiplier debug + CLI + sweep axis 영구. Validated Override Pattern: Iter 10 winning override (cellDiv=250+exp=0.08+inflectionC=0.55+rateB=0.05+phaseAwareEnabled=true+divFrac=0.10+cellDivStepDemandFraction=0.10+transitionZoneGDD=40)이 ensemble-level D33 protection + D90 visible 19.10 + D90 mx in-band 달성. cultivar JSONC mutation은 Iter 11 (D60 valley 해소 + Gompertz regression 검증) 후 진행.",
+    "notes": "Iter 10 핵심 발견 (🎉 BREAKTHROUGH): (1) transitionZoneGDD=40 (smoothstep transition zone) → 10-seed ensemble D33 mx avg 0.00 [0,0] ALL seeds (Iter 9 4.85 → 0.00, seed lottery 완전 제거). (2) D90 visible avg 19.10 [16,21] (baseline 4.20 → +355%, Iter 9 8.00 → +138%). (3) D90 maxDiam avg 52.87 [51,54] (target band [40,75] 정확 도달, Iter 9 32.75 under-band 해소). (4) D100 visible avg 23.10 (baseline ~7, 2× recovery). (5) **Architectural insight (SSOT #126)**: transitionZoneGDD ≤ 40이 안전, > 40이 D33 broken. cumulative cap이 cell_division phase boundary에 종속되어 transition zone이 cell_expansion으로 over-extend되면 cap 무력화. (6) **3-stage mechanism (SSOT #127)**: Stage 1 (gdd < transStart, full clamp) + Stage 2 (transition zone, smooth blend) + Stage 3 (gdd > transEnd, normal). D33 protection + D90 cohort/mass recovery + D60 mild valley 패턴. (7) **잔존 issue**: D60 mx avg 3.00 (visibility threshold 직전 valley). Iter 11 cumulative cap sigmoid smoothing (1순위) 또는 cell_expansion early multiplier (2순위)로 해소. (8) **Iter 10 vs Iter 6~9 비교**: Iter 6~9 모두 reject 또는 partial. Iter 10이 **첫 Strong Promote 후보**. Iter 6 (gompertz inflectionC base), Iter 6e-3 (capRelaxation), Iter 6h (visibility), Iter 6i (lifecycle aggregate), Iter 6k (v0.11.3 partial promote), Iter 7 (interaction map), Iter 7b (phaseAware mass clamp), Iter 7c (expansionClockMode), Iter 8 (hit-oriented sweep), Iter 9 (cellDivisionStepDemandFraction) — 누적 학습이 Iter 10 transitionZoneGDD에 결실."
+  },
+  "followUp": [
+    "Iter 11 (cumulative cap sigmoid smoothing) ⭐ 1순위 — BotanicalSpec.phaseAwareMassGrowth에 cumulativeCapTransitionZoneGDD 신규 field 추가. CoreModel.ts mass clamp 로직 (line 657)을 cumulative cap이 transition zone 안에서 smoothstep으로 점진적 relaxation. D60 mx 3 → 18+ 도달 시도.",
+    "Iter 11 alt 2순위 — cell_expansion 초반 multiplier > 1.0: expansionPhaseGrowthMultiplier 1.0 → 1.25 또는 신규 early acceleration field. cumulative cap 풀린 직후 빠르게 mass 회복.",
+    "Iter 11 cultivar JSONC promote 검증 — Iter 10 winning override (특히 Gompertz shift: inflectionC 1.00 → 0.55, rateB 0.06 → 0.05, exp 0.10 → 0.08)이 다른 cultivar/scenario에 regression 없음 검증. 통과 시 tomimaru-muchoo.jsonc botanicalOverride에 promote, v0.11.3 → v0.12-transition-smooth 정식 진입.",
+    "Iter 11 220 ensemble harness 재시작 — D60 valley 해소 candidate가 hard gate 95%+ pass + Strong Promote criteria 만족 시 220 ensemble로 최종 검증."
+  ]
+}
