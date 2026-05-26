@@ -88,6 +88,9 @@ interface SweepVariant {
   // Iter 6e-3 (SSOT #87) — phase-aware cap multiplier (cellDivision은 1.0 고정, sweep 안 함)
   capCellExpansionRelax?: number;
   capRipeningRelax?: number;
+  // Iter 7b (SSOT #103) — phaseAwareMassGrowth
+  phaseAwareDivisionFraction?: number;
+  phaseAwareExpansionMultiplier?: number;
 }
 
 interface SweepRanking {
@@ -165,16 +168,21 @@ function evalCandidate(args: CliArgs, runId: string, v: SweepVariant): EvalCandi
         v.minFruitAgeGDDForVisible !== undefined ? `minFruitAgeGDDForVisible=${v.minFruitAgeGDDForVisible}` : '',
       ].filter(Boolean).join(',')
     : undefined;
-  // Iter 6e — massFlow override (if variant has surplusPolicy). Iter 6e-2 — fraction 포함. Iter 6e-3 — capRelax 포함.
+  // Iter 6e — massFlow override (if variant has surplusPolicy). Iter 6e-2 — fraction 포함. Iter 6e-3 — capRelax 포함. Iter 7b — phaseAware 포함.
   const massFlowStr = (v.surplusPolicy !== undefined
                     || v.fruitPriorityFraction !== undefined
                     || v.capCellExpansionRelax !== undefined
-                    || v.capRipeningRelax !== undefined)
+                    || v.capRipeningRelax !== undefined
+                    || v.phaseAwareDivisionFraction !== undefined
+                    || v.phaseAwareExpansionMultiplier !== undefined)
     ? [
         v.surplusPolicy !== undefined ? `surplusPolicy=${v.surplusPolicy}` : '',
         v.fruitPriorityFraction !== undefined ? `fruitPriorityRedistributionFraction=${v.fruitPriorityFraction}` : '',
         v.capCellExpansionRelax !== undefined ? `cellExpansionRelax=${v.capCellExpansionRelax}` : '',
         v.capRipeningRelax !== undefined ? `ripeningRelax=${v.capRipeningRelax}` : '',
+        v.phaseAwareDivisionFraction !== undefined ? `phaseAwareEnabled=true` : '',
+        v.phaseAwareDivisionFraction !== undefined ? `phaseAwareDivisionFraction=${v.phaseAwareDivisionFraction}` : '',
+        v.phaseAwareExpansionMultiplier !== undefined ? `phaseAwareExpansionMultiplier=${v.phaseAwareExpansionMultiplier}` : '',
       ].filter(Boolean).join(',')
     : undefined;
   const extraOverride = [

@@ -77,6 +77,12 @@ interface CliArgs {
     cellDivisionRelax?: number;
     cellExpansionRelax?: number;
     ripeningRelax?: number;
+    // Iter 7b (SSOT #103) — phaseAwareMassGrowth fields
+    phaseAwareEnabled?: boolean;
+    phaseAwareDivisionFraction?: number;
+    phaseAwareDivisionMaxDiameter?: number;
+    phaseAwareExpansionMultiplier?: number;
+    phaseAwareRipeningMultiplier?: number;
   };
 }
 
@@ -167,6 +173,20 @@ function parseOverrideMassFlow(s?: string): CliArgs['overrideMassFlow'] {
     } else if (k === 'ripeningRelax') {
       const n = Number(v);
       if (Number.isFinite(n) && n > 0) out.ripeningRelax = n;
+    } else if (k === 'phaseAwareEnabled') {
+      out.phaseAwareEnabled = (v === 'true' || v === '1');
+    } else if (k === 'phaseAwareDivisionFraction' || k === 'divisionFraction') {
+      const n = Number(v);
+      if (Number.isFinite(n) && n >= 0 && n <= 1) out.phaseAwareDivisionFraction = n;
+    } else if (k === 'phaseAwareDivisionMaxDiameter' || k === 'divisionMaxDiameter') {
+      const n = Number(v);
+      if (Number.isFinite(n) && n > 0) out.phaseAwareDivisionMaxDiameter = n;
+    } else if (k === 'phaseAwareExpansionMultiplier' || k === 'expansionMultiplier') {
+      const n = Number(v);
+      if (Number.isFinite(n) && n > 0) out.phaseAwareExpansionMultiplier = n;
+    } else if (k === 'phaseAwareRipeningMultiplier' || k === 'ripeningMultiplier') {
+      const n = Number(v);
+      if (Number.isFinite(n) && n > 0) out.phaseAwareRipeningMultiplier = n;
     }
   }
   return out;
@@ -309,6 +329,12 @@ function applyOverrideMassFlow(args: CliArgs): void {
   if (ov.cellDivisionRelax !== undefined) mf.capRelaxationByPhase.cellDivision = ov.cellDivisionRelax;
   if (ov.cellExpansionRelax !== undefined) mf.capRelaxationByPhase.cellExpansion = ov.cellExpansionRelax;
   if (ov.ripeningRelax !== undefined) mf.capRelaxationByPhase.ripening = ov.ripeningRelax;
+  // Iter 7b (SSOT #103) — phaseAwareMassGrowth override
+  if (ov.phaseAwareEnabled !== undefined) mf.phaseAwareMassGrowth.enabled = ov.phaseAwareEnabled;
+  if (ov.phaseAwareDivisionFraction !== undefined) mf.phaseAwareMassGrowth.divisionPhaseMassFraction = ov.phaseAwareDivisionFraction;
+  if (ov.phaseAwareDivisionMaxDiameter !== undefined) mf.phaseAwareMassGrowth.divisionPhaseMaxDiameterMm = ov.phaseAwareDivisionMaxDiameter;
+  if (ov.phaseAwareExpansionMultiplier !== undefined) mf.phaseAwareMassGrowth.expansionPhaseGrowthMultiplier = ov.phaseAwareExpansionMultiplier;
+  if (ov.phaseAwareRipeningMultiplier !== undefined) mf.phaseAwareMassGrowth.ripeningPhaseGrowthMultiplier = ov.phaseAwareRipeningMultiplier;
   for (const c of Object.values(CULTIVARS)) {
     const mf2 = c.resolvedBotanical.fruitDevelopment.massFlow;
     if (ov.surplusPolicy !== undefined) mf2.surplusPolicy = ov.surplusPolicy;
@@ -316,8 +342,13 @@ function applyOverrideMassFlow(args: CliArgs): void {
     if (ov.cellDivisionRelax !== undefined) mf2.capRelaxationByPhase.cellDivision = ov.cellDivisionRelax;
     if (ov.cellExpansionRelax !== undefined) mf2.capRelaxationByPhase.cellExpansion = ov.cellExpansionRelax;
     if (ov.ripeningRelax !== undefined) mf2.capRelaxationByPhase.ripening = ov.ripeningRelax;
+    if (ov.phaseAwareEnabled !== undefined) mf2.phaseAwareMassGrowth.enabled = ov.phaseAwareEnabled;
+    if (ov.phaseAwareDivisionFraction !== undefined) mf2.phaseAwareMassGrowth.divisionPhaseMassFraction = ov.phaseAwareDivisionFraction;
+    if (ov.phaseAwareDivisionMaxDiameter !== undefined) mf2.phaseAwareMassGrowth.divisionPhaseMaxDiameterMm = ov.phaseAwareDivisionMaxDiameter;
+    if (ov.phaseAwareExpansionMultiplier !== undefined) mf2.phaseAwareMassGrowth.expansionPhaseGrowthMultiplier = ov.phaseAwareExpansionMultiplier;
+    if (ov.phaseAwareRipeningMultiplier !== undefined) mf2.phaseAwareMassGrowth.ripeningPhaseGrowthMultiplier = ov.phaseAwareRipeningMultiplier;
   }
-  console.log(`[extract override] massFlow: surplusPolicy=${ov.surplusPolicy ?? '-'}, fruitPriorityRedistributionFraction=${ov.fruitPriorityRedistributionFraction ?? '-'}, capRelaxByPhase cellDiv/Exp/Ripen=${ov.cellDivisionRelax ?? '-'}/${ov.cellExpansionRelax ?? '-'}/${ov.ripeningRelax ?? '-'}`);
+  console.log(`[extract override] massFlow: surplusPolicy=${ov.surplusPolicy ?? '-'}, fruitPriorityRedistributionFraction=${ov.fruitPriorityRedistributionFraction ?? '-'}, capRelaxByPhase cellDiv/Exp/Ripen=${ov.cellDivisionRelax ?? '-'}/${ov.cellExpansionRelax ?? '-'}/${ov.ripeningRelax ?? '-'}, phaseAware enabled=${ov.phaseAwareEnabled ?? '-'} divFrac=${ov.phaseAwareDivisionFraction ?? '-'} expMul=${ov.phaseAwareExpansionMultiplier ?? '-'}`);
 }
 
 // ── Status mapping (engine → schema enum) ─────────────────────────────

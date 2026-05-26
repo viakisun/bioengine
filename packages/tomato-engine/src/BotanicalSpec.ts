@@ -151,6 +151,27 @@ export interface MassFlowSpec {
     cellExpansion: number;    // default 1.0, sweep 후보 1.25~2.0
     ripening: number;         // default 1.0, sweep 후보 1.0~1.25
   };
+  /** Iter 7b (SSOT #103/#104/#105) — phase-aware fruit mass growth refactor.
+   *  cell_division phase 단계 mass growth 강하게 제한 + cell_expansion 빠른 accumulation 허용.
+   *  default: enabled=false → behavior unchanged (Iter 7 baseline v0.11.3과 동일, 후방호환).
+   *
+   *  핵심 아이디어: 단일 Gompertz curve가 "D33 보호" + "D90 visible 회복" conflicting goals
+   *  동시에 못 풀던 문제 해결. cell_division phase에 mass hard ceiling + cell_expansion에
+   *  rate multiplier로 phase 분리.
+   *
+   *  ⚠ dry mass clamp PRIMARY (biology-level), diameter clamp SAFETY (warning if triggered). */
+  phaseAwareMassGrowth: {
+    enabled: boolean;
+    /** cell_division phase에서 fruit mass max (potential dry mass × fraction). 0..1. */
+    divisionPhaseMassFraction: number;
+    /** cell_division phase diameter safety ceiling (mm). dry mass clamp 작동 후
+     *  diameter > 이 값이면 warning-only clamp (보조 안전망). */
+    divisionPhaseMaxDiameterMm: number;
+    /** cell_expansion phase per-step demand multiplier (≥ 1.0 acceleration, default 1.0). */
+    expansionPhaseGrowthMultiplier: number;
+    /** ripening phase per-step demand multiplier (≤ 1.0 moderation, default 0.8). */
+    ripeningPhaseGrowthMultiplier: number;
+  };
   /** snapshot에 fruit debug fields 출력 on/off. */
   debug: boolean;
 }
@@ -365,6 +386,28 @@ export function validateFull(spec: BotanicalSpec): void {
       `fruitDevelopment.massFlow.capRelaxationByPhase multipliers must be > 0, got cellDivision=${crp.cellDivision}, cellExpansion=${crp.cellExpansion}, ripening=${crp.ripening}`,
     );
   }
+  // Iter 7b (SSOT #103) — phaseAwareMassGrowth validator
+  requireObject(fd.massFlow.phaseAwareMassGrowth, 'fruitDevelopment.massFlow.phaseAwareMassGrowth');
+  const pamg = fd.massFlow.phaseAwareMassGrowth;
+  if (typeof pamg.enabled !== 'boolean') {
+    throw new BotanicalValidationError('fruitDevelopment.massFlow.phaseAwareMassGrowth.enabled must be boolean');
+  }
+  requireFiniteNumber(pamg.divisionPhaseMassFraction, 'fruitDevelopment.massFlow.phaseAwareMassGrowth.divisionPhaseMassFraction');
+  requireFiniteNumber(pamg.divisionPhaseMaxDiameterMm, 'fruitDevelopment.massFlow.phaseAwareMassGrowth.divisionPhaseMaxDiameterMm');
+  requireFiniteNumber(pamg.expansionPhaseGrowthMultiplier, 'fruitDevelopment.massFlow.phaseAwareMassGrowth.expansionPhaseGrowthMultiplier');
+  requireFiniteNumber(pamg.ripeningPhaseGrowthMultiplier, 'fruitDevelopment.massFlow.phaseAwareMassGrowth.ripeningPhaseGrowthMultiplier');
+  if (pamg.divisionPhaseMassFraction < 0 || pamg.divisionPhaseMassFraction > 1) {
+    throw new BotanicalValidationError(
+      `fruitDevelopment.massFlow.phaseAwareMassGrowth.divisionPhaseMassFraction must be in [0, 1], got ${pamg.divisionPhaseMassFraction}`,
+    );
+  }
+  if (pamg.divisionPhaseMaxDiameterMm <= 0
+   || pamg.expansionPhaseGrowthMultiplier <= 0
+   || pamg.ripeningPhaseGrowthMultiplier <= 0) {
+    throw new BotanicalValidationError(
+      `fruitDevelopment.massFlow.phaseAwareMassGrowth: divisionPhaseMaxDiameterMm/expansionPhaseGrowthMultiplier/ripeningPhaseGrowthMultiplier must be > 0`,
+    );
+  }
   // Iter 6h — visibility gate validators (SSOT #74)
   if (fd.massFlow.visibilityGateMode !== 'diameter_only'
    && fd.massFlow.visibilityGateMode !== 'phase'
@@ -575,6 +618,10 @@ function mergeFruitDevelopment(
         ...base.massFlow.capRelaxationByPhase,
         ...(ov.massFlow?.capRelaxationByPhase ?? {}),
       },
+      phaseAwareMassGrowth: {
+        ...base.massFlow.phaseAwareMassGrowth,
+        ...(ov.massFlow?.phaseAwareMassGrowth ?? {}),
+      },
     },
   };
 }
@@ -618,6 +665,7 @@ export function cloneBotanical(src: BotanicalSpec): BotanicalSpec {
       massFlow: {
         ...src.fruitDevelopment.massFlow,
         capRelaxationByPhase: { ...src.fruitDevelopment.massFlow.capRelaxationByPhase },
+        phaseAwareMassGrowth: { ...src.fruitDevelopment.massFlow.phaseAwareMassGrowth },
       },
     },
     parameterNotes: src.parameterNotes ? { ...src.parameterNotes } : undefined,

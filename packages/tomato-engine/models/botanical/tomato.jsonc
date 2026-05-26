@@ -238,6 +238,18 @@
         "cellExpansion": 1.0,
         "ripening": 1.0
       },
+      // Iter 7b (SSOT #103/#104/#105): phase-aware fruit mass growth refactor.
+      //   cell_division 단계 mass growth 강하게 제한 + cell_expansion 빠른 accumulation 허용.
+      //   default enabled=false → behavior unchanged (v0.11.3 baseline 동일, 후방호환).
+      //   promote 시 enabled=true + winner values 갱신.
+      //   ⚠ dry mass clamp PRIMARY (biology-level), diameter clamp SAFETY (warning if triggered).
+      "phaseAwareMassGrowth": {
+        "enabled": false,
+        "divisionPhaseMassFraction": 0.03,
+        "divisionPhaseMaxDiameterMm": 3,
+        "expansionPhaseGrowthMultiplier": 1.0,
+        "ripeningPhaseGrowthMultiplier": 0.8
+      },
       "debug": true,                         // snapshot에 debug fields 출력
       // Iter 6h (SSOT #74, #76): visibility gate — calibration-only.
       //   diameter_only: 기본 (v0.11.1 후방호환). Iter 6h sweep으로 phase/phase_and_gdd 평가.
@@ -311,6 +323,12 @@
     "fruitDevelopment.massFlow.capRelaxationByPhase.cellDivision": "active",
     "fruitDevelopment.massFlow.capRelaxationByPhase.cellExpansion": "active",
     "fruitDevelopment.massFlow.capRelaxationByPhase.ripening": "active",
+    "fruitDevelopment.massFlow.phaseAwareMassGrowth": "active",
+    "fruitDevelopment.massFlow.phaseAwareMassGrowth.enabled": "active",
+    "fruitDevelopment.massFlow.phaseAwareMassGrowth.divisionPhaseMassFraction": "active",
+    "fruitDevelopment.massFlow.phaseAwareMassGrowth.divisionPhaseMaxDiameterMm": "active",
+    "fruitDevelopment.massFlow.phaseAwareMassGrowth.expansionPhaseGrowthMultiplier": "active",
+    "fruitDevelopment.massFlow.phaseAwareMassGrowth.ripeningPhaseGrowthMultiplier": "active",
     "fruitDevelopment.massFlow.visibilityGateMode": "active",
     "fruitDevelopment.massFlow.minFruitAgeGDDForVisible": "active",
     "fruitDevelopment.massFlow.debug": "active"

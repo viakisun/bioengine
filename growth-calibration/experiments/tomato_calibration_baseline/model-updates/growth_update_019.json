@@ -1,0 +1,80 @@
+{
+  "schemaVersion": "growthCalibration.v1",
+  "updateId": "growth_update_019",
+  "previousModelVersion": "growthModel.tomato.v0.11.3-reproductive-partial-tuned",
+  "newModelVersion": "growthModel.tomato.v0.11.3-reproductive-partial-tuned",
+  "status": "rejected_infrastructure_only",
+  "date": "2026-05-26",
+  "triggerComparisons": [
+    "(Iter 7b architectural refactor SSOT #103/#104/#105 — Iter 7 Section 8b Case B 해결 시도, phase-aware mass curve)"
+  ],
+  "triggerRuleIds": ["common_truss_status_too_behind"],
+  "reason": [
+    "Iter 7 (commit 8766437, v0.11.3 유지) Section 8b Case B 영구 확정 — cellDiv↓ averaged synergy (D90 visible 12.17) BUT hard gate 100% FAIL (D33=11.35mm). 사용자 기준 '≥10mm = stage transition 자체 문제' 진단.",
+    "사용자 추천 옵션 (c) 2-segment Gompertz / phase-aware mass curve 채택 — engine biology-level architectural refactor.",
+    "Phase A1 engine refactor: MassFlowSpec.phaseAwareMassGrowth 신규 block + CoreModel.ts dry mass clamp PRIMARY (stepMinutely line ~595 + legacy line ~890) + diameter SAFETY + computePerFruitGompertzDemand expansion/ripening multiplier. 총 ~32 LOC engine change.",
+    "Phase A2 CLI + sweep: --overrideMassFlow phaseAware* parsing (dump + extract) + 2 new sweep axes (phaseAwareDivisionFraction, phaseAwareExpansionMultiplier). 총 ~40 LOC harness.",
+    "Phase A3 Preflight L 4 runs: ✓ clamp 작동 confirmed (Iter 7 D33 11.35mm → Iter 7b cellDiv=200+phaseAware D33 4.29mm, 62% 감소). ⚠ D33 ≤3mm 목표 미달. Run 3 == Run 4 (fraction 0.03 vs 0.01 동일 결과) — 근본 원인: T1 fertilization ~Day 4, cellDiv=200 = ~17일 → cell_division 종료 ~Day 21, Day 33은 이미 cell_expansion phase에 있어서 mass clamp 영향 안 받음.",
+    "Phase B Round 1 16-run narrow (cellDiv 200/250 × divFrac 0.005/0.01/0.03/0.05 × expMul 1.0/1.25): 모든 16 후보 hard gate fail. cellDiv=250 group D33=0 보호 성공 BUT D90=29-32 (under 40 lower bound). cellDiv=200 group D33=4.29-4.62 BUT D90=36-39 (under 40). divFrac 4 값 모두 동일 결과.",
+    "Section 8b Case A 매칭 — clamp 작동하지만 D60/D90 maxDiam band 위반. 본질: cell_division mass clamp만으로는 부족, cumulative cap도 phase-aware 필요. cell_division 동안 못 받은 mass가 cell_expansion 진입 후 normal trajectory로 회귀해 D60 over + D90 under.",
+    "Phase C 220 ensemble 생략 — Round 1 모든 후보 hard gate fail, 시간 절약. REJECT 확정.",
+    "**영구 산출물 확보** (infrastructure): MassFlowSpec.phaseAwareMassGrowth field + CoreModel.ts dry mass clamp + CLI/sweep axes. default enabled=false (후방호환). 후속 Iter 7c (cumulative cap phase-aware) 또는 Iter 6h V3 (visibility gate) 또는 Iter 8 (photosynthesis source) 에서 재사용 가능."
+  ],
+  "parameterChanges": [
+    {
+      "parameter": "MassFlowSpec.phaseAwareMassGrowth field (engine schema)",
+      "oldValue": "(없음)",
+      "newValue": "{ enabled, divisionPhaseMassFraction, divisionPhaseMaxDiameterMm, expansionPhaseGrowthMultiplier, ripeningPhaseGrowthMultiplier }",
+      "file": "packages/tomato-engine/src/BotanicalSpec.ts + models/botanical/tomato.jsonc + CoreModel.ts (3 sites)",
+      "unit": "schema + engine_logic",
+      "citation": "Iter 7b SSOT #103/#104/#105",
+      "reason": "phase-aware fruit mass curve 인프라 영구 — cell_division 단계 mass growth 제한 + cell_expansion 빠른 accumulation. default enabled=false (v0.11.3 baseline 후방호환). Iter 7b winner 없지만 인프라 후속 Iter 7c/8 재사용.",
+      "changeType": "refactor + engine_logic",
+      "enforcementStatus": "active",
+      "expectedEffect": "behavior_noop_when_disabled"
+    },
+    {
+      "parameter": "tomimaru-muchoo cultivar parameters",
+      "oldValue": "v0.11.3 winner (fSR=0.80, lag=10, thresh=0.25, cellDiv=300, exp=0.10)",
+      "newValue": "유지 (no change)",
+      "changeType": "no_change_reject",
+      "enforcementStatus": "active",
+      "expectedEffect": "behavior_noop"
+    },
+    {
+      "parameter": "calibration scripts CLI + sweep axes",
+      "oldValue": "(없음)",
+      "newValue": "dump-growth-checkpoints / extract-calibration-observations --overrideMassFlow phaseAwareEnabled/phaseAwareDivisionFraction/phaseAwareExpansionMultiplier/etc. run-gompertz-sweep + run-top-candidates-comparison 2 new axes",
+      "file": "growth-calibration/scripts/* (4 files)",
+      "unit": "CLI + logic",
+      "citation": "Iter 7b Phase A2",
+      "reason": "phase-aware sweep harness 영구 — 후속 Iter 7c/8에서 재사용 (특히 Iter 7c cumulative cap phase-aware 시 동일 axes 활용).",
+      "changeType": "refactor",
+      "enforcementStatus": "active",
+      "expectedEffect": "calibration_tooling_addition"
+    }
+  ],
+  "validationPlan": {
+    "replayDays": [30, 33, 60, 90, 100],
+    "forwardDays": [],
+    "targetMetrics": [
+      "Phase A1 typecheck (jsonc?raw 외 0 errors)",
+      "Preflight L Run 2 acceptance: enabled=true+cellDiv=300 → baseline ±2mm tolerance (사용자 검토 #3) — PASS (D90 -1.6mm)",
+      "Preflight L Run 3 (KEY): cellDiv=200+phaseAware → D33 보호 작동 (Iter 7 11.35→4.29mm, 62% 감소)",
+      "Round 1 16-run: 모든 후보 D33 OR D90 hard gate fail → REJECT",
+      "Iter 6i invariant: unknown_aborted_count == 0 모든 runs PASS"
+    ]
+  },
+  "outcome": {
+    "runDate": "2026-05-26",
+    "replayScoreDelta": 0,
+    "forwardScoreDelta": 0,
+    "verdict": "rejected_infrastructure_only — v0.11.3 유지 + phaseAwareMassGrowth infrastructure 영구 구축. Section 8b Case A 매칭 (clamp 작동하지만 D60/D90 maxDiam band 위반). Iter 7c (cumulative cap phase-aware) 가 다음 정확한 lever.",
+    "notes": "Iter 7b 핵심 발견: (1) phase-aware mass clamp 인프라 영구 구축 (BotanicalSpec.phaseAwareMassGrowth + CoreModel 3 sites + CLI/sweep axes). default enabled=false로 v0.11.3 behavior 유지. (2) Preflight L 핵심 진단 — clamp 작동 확인 (Iter 7 D33 11.35→4.29mm 62% 감소) BUT D33 ≤3mm 목표 미달. 근본 원인: T1 Day 33 측정 시점 fruit이 이미 cell_expansion phase에 있어서 mass clamp 영향 제한. (3) Round 1 16-run: cellDiv=250 group D33=0 보호 성공 BUT D60 over/D90 under 모든 후보 hard gate fail (D90 maxDiam < 40). divFrac 4 값 (0.005~0.05) 모두 동일 결과 — fraction lever 자체 무력화. (4) **다음 lever 명확**: Iter 7c — cumulative cap phase-aware (effective gddSinceFert shift). cell_division 동안 못 받은 mass가 cell_expansion 진입 후 정상 trajectory로 회귀하는 것을 방지. (5) Iter 6i invariant 모든 4+16 runs PASS (unknown_aborted = 0). (6) Phase C 220 ensemble 생략 — 시간 절약."
+  },
+  "followUp": [
+    "Iter 7c (cumulative cap phase-aware — architectural ⭐⭐) 본 Iter 7b가 가리킨 정확한 다음 lever: cell_division 동안 못 받은 mass가 cell_expansion 진입 후 영구 못 받음 (effective gddSinceFert shift). cumulativeDryCapG = potentialFreshMassG(gddSinceFert - cellDivisionDurationGDD) + divisionDryMassCap.",
+    "Iter 6h V3 (visibility gate phase_and_gdd 활성화 — calibration-only filter): biology 안 건드리고 visible count metric 조정. D90 visible 의미적 회복 가능.",
+    "Iter 8 (photosynthesis source 증가): fallback lever, source pool 자체 키워 cohort 더 살아남게."
+  ]
+}

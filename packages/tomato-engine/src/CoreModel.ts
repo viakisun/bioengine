@@ -62,11 +62,13 @@ function computePerFruitGompertzDemand(
   const gp = gompertzParamsOf(cultivar);
   const massFlow = cultivar.resolvedBotanical.fruitDevelopment.massFlow;
   const dryRatio = massFlow.fruitDryMatterRatio;
-  // Iter 6e-3 (SSOT #87): phase-aware per-fruit step demand cap multiplier.
-  //   cellDivision/cellExpansion/ripening 각각 multiplier 적용.
-  //   phase 판정은 gddSinceFert + cellDivisionDurationGDD/cellExpansionDurationGDD 기준.
-  //   default 모두 1.0 = 후방호환 (현재 stepCap 그대로).
+  // Iter 6e-3 (SSOT #87): phase-aware per-fruit step demand cap multiplier (capRelaxationByPhase).
+  // Iter 7b (SSOT #103): phase-aware mass growth multiplier (phaseAwareMassGrowth).
+  //   두 multiplier 곱해서 적용 — capRelaxation은 Iter 6e-3 (cap relaxation), phaseAware는
+  //   Iter 7b (expansion acceleration + ripening moderation). default 모두 1.0 = 후방호환.
+  //   cell_division phase는 phaseAware mass clamp으로 별도 제한 (computeAllocation 후 CoreModel 본문).
   const crp = massFlow.capRelaxationByPhase;
+  const pamg = massFlow.phaseAwareMassGrowth;
   const cellDivEnd = cultivar.cellDivisionDurationGDD;
   const cellExpEnd = cellDivEnd + cultivar.cellExpansionDurationGDD;
   return state.trusses.map(t => t.fruits.map(f => {
@@ -79,10 +81,18 @@ function computePerFruitGompertzDemand(
       dryRatio,
       gp,
     );
-    const phaseMul = gddSinceFert < cellDivEnd
+    const capMul = gddSinceFert < cellDivEnd
       ? crp.cellDivision
       : (gddSinceFert < cellExpEnd ? crp.cellExpansion : crp.ripening);
-    return baseDemand * phaseMul;
+    // Iter 7b: expansion / ripening rate multiplier (cell_division phase는 mass clamp으로 제한)
+    const phaseMul = pamg.enabled
+      ? (gddSinceFert < cellDivEnd
+          ? 1.0  // cell_division은 multiplier 안 씀, mass clamp으로 따로 제한
+          : (gddSinceFert < cellExpEnd
+              ? pamg.expansionPhaseGrowthMultiplier
+              : pamg.ripeningPhaseGrowthMultiplier))
+      : 1.0;
+    return baseDemand * capMul * phaseMul;
   }));
 }
 
@@ -593,8 +603,23 @@ export function stepMinutely(
           const W_dry_cap = fruit.genome.potentialMassG * ACTIVE_MODEL.fruitGrowth.DM_percent;
           if (fruit.W_fruit_dry > W_dry_cap) fruit.W_fruit_dry = W_dry_cap;
         }
+        // Iter 7b (SSOT #103/#105) — phase-aware dry mass clamp (PRIMARY, biology-level)
+        // cell_division phase에 fruit이 potential mass의 (fraction)까지만 자라도록 hard ceiling.
+        // 단일 Gompertz curve의 conflicting goals (D33 보호 + D90 visible 회복) 해결.
+        const pamg = massFlow.phaseAwareMassGrowth;
+        if (pamg.enabled && gddSinceFert < cultivar.cellDivisionDurationGDD) {
+          const divisionDryMassCap = fruit.genome.potentialMassG
+            * ACTIVE_MODEL.fruitGrowth.DM_percent
+            * pamg.divisionPhaseMassFraction;
+          if (fruit.W_fruit_dry > divisionDryMassCap) fruit.W_fruit_dry = divisionDryMassCap;
+        }
         fruit.W_fruit_fresh = fruit.W_fruit_dry / ACTIVE_MODEL.fruitGrowth.DM_percent;
         fruit.diameter = freshMassToDiameter(fruit.W_fruit_fresh, fruit.genome);
+        // Iter 7b SAFETY diameter ceiling (warning if triggered — fraction이 너무 큼 신호)
+        if (pamg.enabled && gddSinceFert < cultivar.cellDivisionDurationGDD
+            && fruit.diameter > pamg.divisionPhaseMaxDiameterMm) {
+          fruit.diameter = pamg.divisionPhaseMaxDiameterMm;
+        }
 
         if (massFlow.debug) {
           fruit.debug = {
@@ -866,9 +891,23 @@ function _legacyStepDaily(
           const W_dry_cap = fruit.genome.potentialMassG * ACTIVE_MODEL.fruitGrowth.DM_percent;
           if (fruit.W_fruit_dry > W_dry_cap) fruit.W_fruit_dry = W_dry_cap;
         }
+        // Iter 7b (SSOT #103/#105) — phase-aware dry mass clamp (PRIMARY, biology-level)
+        // legacy stepDaily mirror of stepMinutely Iter 7b clamp.
+        const pamg = massFlow.phaseAwareMassGrowth;
+        if (pamg.enabled && gddSinceFert < cultivar.cellDivisionDurationGDD) {
+          const divisionDryMassCap = fruit.genome.potentialMassG
+            * ACTIVE_MODEL.fruitGrowth.DM_percent
+            * pamg.divisionPhaseMassFraction;
+          if (fruit.W_fruit_dry > divisionDryMassCap) fruit.W_fruit_dry = divisionDryMassCap;
+        }
         // Fresh = dry / DM%
         fruit.W_fruit_fresh = fruit.W_fruit_dry / ACTIVE_MODEL.fruitGrowth.DM_percent;
         fruit.diameter = freshMassToDiameter(fruit.W_fruit_fresh, fruit.genome);
+        // Iter 7b SAFETY diameter ceiling (warning if triggered — fraction이 너무 큼 신호)
+        if (pamg.enabled && gddSinceFert < cultivar.cellDivisionDurationGDD
+            && fruit.diameter > pamg.divisionPhaseMaxDiameterMm) {
+          fruit.diameter = pamg.divisionPhaseMaxDiameterMm;
+        }
 
         if (massFlow.debug) {
           fruit.debug = {
