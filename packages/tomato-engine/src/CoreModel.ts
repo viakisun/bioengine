@@ -214,6 +214,8 @@ export interface PlantPhysiologyState {
   dailyFruitDemandLimitedByCapG: number;// sum of alloc.fruitDemandLimitedByCapG
   dailyUnusedAssimilateG: number;       // sum of alloc.unusedAssimilateG (unused_pool only)
   dailyVegetativeAllocatedG: number;    // sum of alloc.totalVegetativeAllocatedG
+  /** Iter 6e-2 (SSOT #82/#86) — fruit_priority_limited 정책에서 fruit으로 재분배된 누적. */
+  dailyFruitRedistributedToFruitG: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -243,6 +245,8 @@ export function createPlant(seed: number): PlantPhysiologyState {
     dailyFruitDemandLimitedByCapG: 0,
     dailyUnusedAssimilateG: 0,
     dailyVegetativeAllocatedG: 0,
+    // Iter 6e-2 fruit-priority redistribution audit
+    dailyFruitRedistributedToFruitG: 0,
   };
 }
 
@@ -488,6 +492,8 @@ export function stepMinutely(
     const alloc = allocateDM(newDM_min, state, cultivar, {
       perFruitMaxDemandG: perFruitMaxMin,
       surplusPolicy: massFlow.surplusPolicy,
+      // Iter 6e-2: fruit_priority_limited 정책 강도
+      fruitPriorityFraction: massFlow.fruitPriorityRedistributionFraction,
     });
     // Iter 6e (SSOT #80) — daily source-sink audit 누적 (Site A — minutely)
     state.dailySourceG += alloc.totalAvailableDmG;
@@ -496,6 +502,7 @@ export function stepMinutely(
     state.dailyFruitDemandLimitedByCapG += alloc.fruitDemandLimitedByCapG;
     state.dailyUnusedAssimilateG += alloc.unusedAssimilateG ?? 0;
     state.dailyVegetativeAllocatedG += alloc.totalVegetativeAllocatedG;
+    state.dailyFruitRedistributedToFruitG += alloc.fruitRedistributedToFruitG;
     const gp = gompertzParamsOf(cultivar);
 
     for (let ti = 0; ti < state.trusses.length; ti++) {
@@ -755,6 +762,8 @@ function _legacyStepDaily(
     const alloc = allocateDM(newDM, state, cultivar, {
       perFruitMaxDemandG: perFruitMaxDaily,
       surplusPolicy: massFlow.surplusPolicy,
+      // Iter 6e-2: fruit_priority_limited 정책 강도
+      fruitPriorityFraction: massFlow.fruitPriorityRedistributionFraction,
     });
     // Iter 6e (SSOT #80) — daily source-sink audit 누적 (Site B — daily)
     state.dailySourceG += alloc.totalAvailableDmG;
@@ -763,6 +772,7 @@ function _legacyStepDaily(
     state.dailyFruitDemandLimitedByCapG += alloc.fruitDemandLimitedByCapG;
     state.dailyUnusedAssimilateG += alloc.unusedAssimilateG ?? 0;
     state.dailyVegetativeAllocatedG += alloc.totalVegetativeAllocatedG;
+    state.dailyFruitRedistributedToFruitG += alloc.fruitRedistributedToFruitG;
     const gp = gompertzParamsOf(cultivar);
 
     // Increment per-fruit dry weight, then derive fresh & diameter +

@@ -70,9 +70,13 @@ interface CliArgs {
    *  ACTIVE_BOTANICAL + 모든 CULTIVARS의 resolvedBotanical mutate (global, calibration-only). */
   overrideVisibility?: { gateMode?: 'diameter_only' | 'phase' | 'phase_and_gdd'; minFruitAgeGDDForVisible?: number };
   /** Iter 6e — massFlow override (botanical-level, SSOT #78).
-   *  format: "surplusPolicy=redistribute_to_vegetative".
-   *  ACTIVE_BOTANICAL + 모든 CULTIVARS mutate (global, engine-side via SinkAllocation.ts:244-251). */
-  overrideMassFlow?: { surplusPolicy?: 'unused_pool' | 'redistribute_to_vegetative' };
+   *  Iter 6e-2: surplusPolicy enum 확장 ('fruit_priority_limited') + fruitPriorityRedistributionFraction (0..1).
+   *  format: "surplusPolicy=fruit_priority_limited,fruitPriorityRedistributionFraction=0.50".
+   *  ACTIVE_BOTANICAL + 모든 CULTIVARS mutate (global, engine-side via SinkAllocation.ts). */
+  overrideMassFlow?: {
+    surplusPolicy?: 'unused_pool' | 'redistribute_to_vegetative' | 'fruit_priority_limited';
+    fruitPriorityRedistributionFraction?: number;
+  };
 }
 
 function parseOverride(s?: string): CliArgs['overrideGompertz'] {
@@ -145,11 +149,14 @@ function parseOverrideVisibility(s?: string): CliArgs['overrideVisibility'] {
 
 function parseOverrideMassFlow(s?: string): CliArgs['overrideMassFlow'] {
   if (!s) return undefined;
-  const out: { surplusPolicy?: 'unused_pool' | 'redistribute_to_vegetative' } = {};
+  const out: { surplusPolicy?: 'unused_pool' | 'redistribute_to_vegetative' | 'fruit_priority_limited'; fruitPriorityRedistributionFraction?: number } = {};
   for (const pair of s.split(',')) {
     const [k, v] = pair.split('=').map(t => t.trim());
     if (k === 'surplusPolicy') {
-      if (v === 'unused_pool' || v === 'redistribute_to_vegetative') out.surplusPolicy = v;
+      if (v === 'unused_pool' || v === 'redistribute_to_vegetative' || v === 'fruit_priority_limited') out.surplusPolicy = v;
+    } else if (k === 'fruitPriorityRedistributionFraction' || k === 'fruitPriorityFraction') {
+      const n = Number(v);
+      if (Number.isFinite(n) && n >= 0 && n <= 1) out.fruitPriorityRedistributionFraction = n;
     }
   }
   return out;
@@ -304,11 +311,13 @@ function applyOverrideMassFlow(args: CliArgs): void {
   if (!ov) return;
   const mf = ACTIVE_BOTANICAL.tomato.fruitDevelopment.massFlow;
   if (ov.surplusPolicy !== undefined) mf.surplusPolicy = ov.surplusPolicy;
+  if (ov.fruitPriorityRedistributionFraction !== undefined) mf.fruitPriorityRedistributionFraction = ov.fruitPriorityRedistributionFraction;
   for (const c of Object.values(CULTIVARS)) {
     const mf2 = c.resolvedBotanical.fruitDevelopment.massFlow;
     if (ov.surplusPolicy !== undefined) mf2.surplusPolicy = ov.surplusPolicy;
+    if (ov.fruitPriorityRedistributionFraction !== undefined) mf2.fruitPriorityRedistributionFraction = ov.fruitPriorityRedistributionFraction;
   }
-  console.log(`[override] massFlow: surplusPolicy=${ov.surplusPolicy ?? '-'}`);
+  console.log(`[override] massFlow: surplusPolicy=${ov.surplusPolicy ?? '-'}, fruitPriorityRedistributionFraction=${ov.fruitPriorityRedistributionFraction ?? '-'}`);
 }
 
 // ── Engine snapshot per day ───────────────────────────────────────────
@@ -372,6 +381,8 @@ interface PlantOverall {
   cumulativeUnusedAssimilateG: number;        // 누적 unused (surplusPolicy 'unused_pool'일 때만)
   cumulativeVegetativeAllocatedG: number;     // 누적 vegetative allocation
   surplusFraction: number;                    // = unused / source (0~1)
+  // Iter 6e-2 (SSOT #82/#86) — fruit-priority redistribution audit
+  cumulativeFruitRedistributedToFruitG: number;
   // Backward-compat aliases (= visible 기준)
   fruitCountTotal: number;             // = visibleFruitCount
   maxFruitDiameterMm: number;          // = maxVisibleFruitDiameterMm
@@ -529,6 +540,8 @@ function plantOverall(snap: DaySnapshot): PlantOverall {
     cumulativeUnusedAssimilateG: cumUnused,
     cumulativeVegetativeAllocatedG: physiology.dailyVegetativeAllocatedG ?? 0,
     surplusFraction,
+    // Iter 6e-2: fruit_priority_limited 정책에서 fruit으로 재분배된 누적
+    cumulativeFruitRedistributedToFruitG: physiology.dailyFruitRedistributedToFruitG ?? 0,
     // Backward-compat aliases (= visible 기준 — Reference Pack과 비교)
     fruitCountTotal: visibleCount,
     maxFruitDiameterMm: maxVisibleDiam,
@@ -601,6 +614,8 @@ function buildPlantSummaryCsv(rows: PlantOverall[], bundle: ReferenceBundle): st
     'cumulative_limited_fruit_demand_g', 'cumulative_fruit_demand_limited_by_cap_g',
     'cumulative_unused_assimilate_g', 'cumulative_vegetative_allocated_g',
     'surplus_fraction',
+    // Iter 6e-2 — fruit-priority redistribution audit (SSOT #82/#86)
+    'cumulative_fruit_redistributed_to_fruit_g',
     'height_band', 'height_in_band',
     'node_band', 'node_in_band',
     'truss_band', 'truss_in_band',
@@ -623,6 +638,7 @@ function buildPlantSummaryCsv(rows: PlantOverall[], bundle: ReferenceBundle): st
       r.cumulativeLimitedFruitDemandG, r.cumulativeFruitDemandLimitedByCapG,
       r.cumulativeUnusedAssimilateG, r.cumulativeVegetativeAllocatedG,
       r.surplusFraction,
+      r.cumulativeFruitRedistributedToFruitG,
       bandStr(pb?.height ?? null), pb?.height ? inBandFlag(r.heightCm, pb.height) : 'no_target',
       bandStr(pb?.nodeCount ?? null), pb?.nodeCount ? inBandFlag(r.nodeCount, pb.nodeCount) : 'no_target',
       bandStr(pb?.visibleTruss ?? null), pb?.visibleTruss ? inBandFlag(r.visibleTrussCount, pb.visibleTruss) : 'no_target',

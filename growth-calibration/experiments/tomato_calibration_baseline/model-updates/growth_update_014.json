@@ -1,0 +1,90 @@
+{
+  "schemaVersion": "growthCalibration.v1",
+  "updateId": "growth_update_014",
+  "previousModelVersion": "growthModel.tomato.v0.11.1-stage-fixed",
+  "newModelVersion": "growthModel.tomato.v0.11.1-stage-fixed",
+  "status": "rejected",
+  "date": "2026-05-26",
+  "triggerComparisons": [
+    "(Iter 6e audit SSOT #82 — fruit-priority redistribution이 진짜 Layer 6 lever인지 검증)"
+  ],
+  "triggerRuleIds": [
+    "common_truss_status_too_behind"
+  ],
+  "reason": [
+    "Iter 6e-2 controlled exploration loop (SSOT #69) — 최소 3-round 항상 진행 (사용자 검토).",
+    "PARAM phase 산출물 #1 (영구): BotanicalSpec.SurplusAssimilatePolicy에 'fruit_priority_limited' enum 추가 (사용자 검토 #1 — redistribute_to_unmet_sinks는 enum 정의도 안 함). MassFlowSpec.fruitPriorityRedistributionFraction (0..1, default 0.5) 신규 필드 + validator.",
+    "SinkAllocation.ts 새 branch (~30 LOC): per-fruit unmet = stepCap 여유, surplusBudget = unused × fraction, share = surplusBudget × unmet/totalUnmet (cap 재침범 방지). vegetative와 분리 (SSOT #84).",
+    "OrganAllocation.fruitRedistributedToFruitG + PlantPhysiologyState.dailyFruitRedistributedToFruitG accumulator + plant_summary.csv cumulative_fruit_redistributed_to_fruit_g 컬럼.",
+    "Phase B Preflight G PASS (계측 검증): cumulative_fruit_redistributed_to_fruit_g = 0.194g/Day 90 (fraction 0.5). branch + audit 정상 작동.",
+    "**핵심 진단**: 0.194g는 surplus 462g의 0.042% — per-fruit stepCap이 거의 모든 fruit에 saturate되어 'cap에 안 닿은 fruit'이 받을 capacity 거의 없음.",
+    "Phase C Round 1 (4 runs: baseline + fraction 0.25/0.50/0.75): redistributed 0.172/0.194/0.204g (fraction 비례). maxDiam +0.7mm noise. cohort 16/visible 8 모두 동일. 진입 조건 모두 미달 → Case 2 진행.",
+    "Phase D Round 2 Case 2 (4 runs surplus × abortion 강 결합): surplusPolicy 차이 maxDiam +0.78mm만. cohort 18/visible 8 동일. abortion 효과만 보임 (cohort 16→18).",
+    "Phase E Round 3 (220 comparison 2 candidates): unused vs fpl 0.5 — S=0.702 P=0.566 truss_too_behind=77 D60vis=2 D90vis=8 D60coh=12 D90coh=15 D90abortRate=60% **모두 0.001 차이도 없음**. fruit_priority_limited 영구 무영향 확정.",
+    "**H4 negative 영구 확정**: per-fruit stepCap saturation으로 redistribute capacity 부족. Section 8b reject Case A 매칭 + 신규 카테고리 'stepCap_saturation'.",
+    "**Layer 6 영구 진단 (Iter 6e + 6e-2 합산, 산출물 #5)**: redistribute 정책 자체 (vegetative or fruit-priority)가 reproductive 부족 해결 도구 아님. 진짜 lever는 cap layer 자체 완화 (Iter 6e-3) 또는 stage transition (Iter 6i)."
+  ],
+  "parameterChanges": [
+    {
+      "parameter": "SurplusAssimilatePolicy enum + MassFlowSpec.fruitPriorityRedistributionFraction",
+      "oldValue": "'unused_pool' | 'redistribute_to_vegetative'",
+      "newValue": "+ 'fruit_priority_limited' enum + fruitPriorityRedistributionFraction: number (0..1)",
+      "file": "packages/tomato-engine/src/BotanicalSpec.ts + models/botanical/tomato.jsonc",
+      "unit": "schema",
+      "citation": "Iter 6e-2 spec SSOT #82, #85",
+      "reason": "fruit-priority surplus redistribution 정책 추가 (정의 + 구현). default fraction 0.5 (후방호환).",
+      "changeType": "engine_logic",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "SinkAllocation.ts fruit_priority_limited branch + OrganAllocation field",
+      "oldValue": "unused_pool, redistribute_to_vegetative branch만",
+      "newValue": "+ fruit_priority_limited branch (~30 LOC): unmet=stepCap 여유, surplusBudget=unused×fraction, share=surplusBudget×unmet/totalUnmet (cap 재침범 방지). vegetative와 분리. OrganAllocation.fruitRedistributedToFruitG 신규 필드.",
+      "file": "packages/tomato-engine/src/SinkAllocation.ts",
+      "unit": "logic",
+      "citation": "Iter 6e-2 spec SSOT #82, #84",
+      "reason": "fruit-to-fruit redistribution 정책 구현. SSOT #84 vegetative pool과 명시적 분리.",
+      "changeType": "engine_logic",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "CoreModel.ts dailyFruitRedistributedToFruitG accumulator + allocateDM fraction 전달",
+      "oldValue": "(no fruit_redistributed audit)",
+      "newValue": "PlantPhysiologyState.dailyFruitRedistributedToFruitG + 2 call site 누적 + allocateDM에 fruitPriorityFraction 전달",
+      "file": "packages/tomato-engine/src/CoreModel.ts",
+      "unit": "schema",
+      "citation": "Iter 6e-2 spec SSOT #86",
+      "reason": "per-fruit redistribution audit 영구 노출.",
+      "changeType": "schema_only_calibration",
+      "enforcementStatus": "active"
+    },
+    {
+      "parameter": "calibration scripts override + sweep --fruitPriorityFraction axis",
+      "oldValue": "--overrideMassFlow surplusPolicy만",
+      "newValue": "+ fruitPriorityRedistributionFraction parsing. run-gompertz-sweep --fruitPriorityFraction axis + variant + spawn",
+      "file": "growth-calibration/scripts/dump-growth-checkpoints.ts + extract-calibration-observations.ts + run-gompertz-sweep.ts + run-top-candidates-comparison.ts",
+      "unit": "CLI + logic",
+      "citation": "Iter 6e-2 spec",
+      "reason": "sweep harness에 fraction 강도 axis 추가.",
+      "changeType": "engine_logic",
+      "enforcementStatus": "active"
+    }
+  ],
+  "validationPlan": {
+    "replayDays": [30, 33, 60, 90],
+    "forwardDays": [],
+    "targetMetrics": ["cumulative_fruit_redistributed_to_fruit_g 측정", "fraction 0.25/0.50/0.75 비교", "redistribution이 cohort/visible에 미치는 영향"]
+  },
+  "outcome": {
+    "runDate": "2026-05-26",
+    "replayScoreDelta": 0,
+    "forwardScoreDelta": 0,
+    "verdict": "rejected — v0.11.1 유지 (SSOT #45). H4 negative 영구 확정. Layer 6 redistribute 정책 자체 무효 (Iter 6e + 6e-2 합산 진단).",
+    "notes": "Iter 6e-2 핵심 발견: (1) fruit_priority_limited branch + audit 정상 작동 (산출물 #1 영구 인프라). (2) Preflight G + Round 1/2/3 모두 redistributed ≤ 0.4g (surplus 462g 대비 0.087%) — per-fruit stepCap saturation으로 'cap에 안 닿은 fruit'이 받을 capacity 거의 없음. (3) 220 ensemble (Round 3)에서도 S/P/cohort/visible 0.001 차이도 없음 = fruit_priority_limited는 fruit metric에 영구 무영향. (4) Section 8b reject Case A + 신규 카테고리 stepCap_saturation. (5) **Layer 6 영구 진단**: redistribute 정책 자체 (vegetative or fruit-priority)가 reproductive 부족 해결 도구 아님. 진짜 lever는 cap layer 자체 (Iter 6e-3 — stepCap 완화) 또는 stage transition (Iter 6i)."
+  },
+  "followUp": [
+    "Iter 6e-3 (per-fruit cap layer 완화) ⭐ 본 Iter가 가리킨 정확한 진짜 lever: stepCap (또는 cumulative cap) 자체를 풀어줘 fruit이 더 받을 수 있게. Iter 6e-2 negative가 가리킨 lever.",
+    "Iter 6i (stage transition rule 분리): abortion 메커니즘 자체 재설계. cell_division 단계 fruit이 starvation 신호 받지 않게 분리. 6e-3와 mutually exclusive 가능.",
+    "Iter 7 (Stem calibration): 본 Iter 결과와 무관, 병렬 진행 가능."
+  ]
+}

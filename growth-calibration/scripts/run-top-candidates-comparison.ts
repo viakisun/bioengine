@@ -81,8 +81,10 @@ interface SweepVariant {
   // Iter 6h — visibility gate (optional, SSOT #74)
   visibilityGateMode?: 'diameter_only' | 'phase' | 'phase_and_gdd';
   minFruitAgeGDDForVisible?: number;
-  // Iter 6e — surplusPolicy (optional, SSOT #78)
-  surplusPolicy?: 'unused_pool' | 'redistribute_to_vegetative';
+  // Iter 6e — surplusPolicy (optional, SSOT #78). Iter 6e-2 — fruit_priority_limited 추가.
+  surplusPolicy?: 'unused_pool' | 'redistribute_to_vegetative' | 'fruit_priority_limited';
+  // Iter 6e-2 — fruit_priority_limited 강도 (0..1, SSOT #85)
+  fruitPriorityFraction?: number;
 }
 
 interface SweepRanking {
@@ -160,8 +162,13 @@ function evalCandidate(args: CliArgs, runId: string, v: SweepVariant): EvalCandi
         v.minFruitAgeGDDForVisible !== undefined ? `minFruitAgeGDDForVisible=${v.minFruitAgeGDDForVisible}` : '',
       ].filter(Boolean).join(',')
     : undefined;
-  // Iter 6e — massFlow override (if variant has surplusPolicy)
-  const massFlowStr = v.surplusPolicy !== undefined ? `surplusPolicy=${v.surplusPolicy}` : undefined;
+  // Iter 6e — massFlow override (if variant has surplusPolicy). Iter 6e-2 — fraction 포함.
+  const massFlowStr = (v.surplusPolicy !== undefined || v.fruitPriorityFraction !== undefined)
+    ? [
+        v.surplusPolicy !== undefined ? `surplusPolicy=${v.surplusPolicy}` : '',
+        v.fruitPriorityFraction !== undefined ? `fruitPriorityRedistributionFraction=${v.fruitPriorityFraction}` : '',
+      ].filter(Boolean).join(',')
+    : undefined;
   const extraOverride = [
     ...(phenologyStr ? ['--overridePhenology', phenologyStr] : []),
     ...(cohortStr ? ['--overrideCohort', cohortStr] : []),

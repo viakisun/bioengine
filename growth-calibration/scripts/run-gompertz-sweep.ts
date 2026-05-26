@@ -46,8 +46,10 @@ interface CliArgs {
   /** Iter 6h (SSOT #74) — visibility gate sweep axes (optional). */
   visibilityGateMode?: Array<'diameter_only' | 'phase' | 'phase_and_gdd'>;
   minFruitAgeGDDForVisible?: number[];
-  /** Iter 6e (SSOT #78) — surplusPolicy sweep axis (optional). */
-  surplusPolicy?: Array<'unused_pool' | 'redistribute_to_vegetative'>;
+  /** Iter 6e (SSOT #78) — surplusPolicy sweep axis (optional). Iter 6e-2 — fruit_priority_limited 추가. */
+  surplusPolicy?: Array<'unused_pool' | 'redistribute_to_vegetative' | 'fruit_priority_limited'>;
+  /** Iter 6e-2 (SSOT #85) — fruit_priority_limited 정책 강도 sweep (0..1). */
+  fruitPriorityFraction?: number[];
   seed: number;
   days: number[];
   cultivar: string;
@@ -100,8 +102,9 @@ function parseArgs(argv: string[]): CliArgs {
       : undefined,
     minFruitAgeGDDForVisible: opts.minFruitAgeGDDForVisible ? parseList(opts.minFruitAgeGDDForVisible, []) : undefined,
     surplusPolicy: opts.surplusPolicy
-      ? (opts.surplusPolicy.split(',').map(s => s.trim()).filter(s => s === 'unused_pool' || s === 'redistribute_to_vegetative') as Array<'unused_pool' | 'redistribute_to_vegetative'>)
+      ? (opts.surplusPolicy.split(',').map(s => s.trim()).filter(s => s === 'unused_pool' || s === 'redistribute_to_vegetative' || s === 'fruit_priority_limited') as Array<'unused_pool' | 'redistribute_to_vegetative' | 'fruit_priority_limited'>)
       : undefined,
+    fruitPriorityFraction: opts.fruitPriorityFraction ? parseList(opts.fruitPriorityFraction, []) : undefined,
     seed: opts.seed ? Number(opts.seed) : 20260525,
     days: parseList(opts.days, [30, 33, 60, 90]),
     cultivar: opts.cultivar ?? 'tomimaru-muchoo',
@@ -128,8 +131,10 @@ interface Variant {
   // Iter 6h — visibility gate (optional)
   visibilityGateMode?: 'diameter_only' | 'phase' | 'phase_and_gdd';
   minFruitAgeGDDForVisible?: number;
-  // Iter 6e — surplusPolicy (optional)
-  surplusPolicy?: 'unused_pool' | 'redistribute_to_vegetative';
+  // Iter 6e — surplusPolicy (optional). Iter 6e-2 — fruit_priority_limited 추가.
+  surplusPolicy?: 'unused_pool' | 'redistribute_to_vegetative' | 'fruit_priority_limited';
+  // Iter 6e-2 — fruit_priority_limited 강도 (0..1)
+  fruitPriorityFraction?: number;
 }
 
 function genVariants(args: CliArgs): Variant[] {
@@ -154,6 +159,8 @@ function genVariants(args: CliArgs): Variant[] {
   const vagList = args.minFruitAgeGDDForVisible ?? [undefined];
   // Iter 6e (SSOT #78): surplusPolicy axis
   const spList = args.surplusPolicy ?? [undefined];
+  // Iter 6e-2 (SSOT #85): fruitPriorityFraction axis
+  const fpfList = args.fruitPriorityFraction ?? [undefined];
   for (const ic of args.inflectionC) {
     for (const rb of args.rateB) {
       for (const exp of args.exponentScaling) {
@@ -165,14 +172,17 @@ function genVariants(args: CliArgs): Variant[] {
                   for (const vgm of vgmList) {
                     for (const vag of vagList) {
                       for (const sp of spList) {
-                        out.push({
-                          inflectionC: ic, rateB: rb, exponentScaling: exp,
-                          cellDivisionDurationGDD: cdd, cellExpansionDurationGDD: ced,
-                          flowersPerTrussMu: fpt, fruitSetRate: fsr,
-                          abortionThresholdRatio: ab.thresh, abortionLagDays: ab.lag,
-                          visibilityGateMode: vgm, minFruitAgeGDDForVisible: vag,
-                          surplusPolicy: sp,
-                        });
+                        for (const fpf of fpfList) {
+                          out.push({
+                            inflectionC: ic, rateB: rb, exponentScaling: exp,
+                            cellDivisionDurationGDD: cdd, cellExpansionDurationGDD: ced,
+                            flowersPerTrussMu: fpt, fruitSetRate: fsr,
+                            abortionThresholdRatio: ab.thresh, abortionLagDays: ab.lag,
+                            visibilityGateMode: vgm, minFruitAgeGDDForVisible: vag,
+                            surplusPolicy: sp,
+                            fruitPriorityFraction: fpf,
+                          });
+                        }
                       }
                     }
                   }
@@ -249,9 +259,12 @@ function runVariant(args: CliArgs, runId: string, v: Variant): RunOutput {
     if (v.minFruitAgeGDDForVisible !== undefined) parts.push(`minFruitAgeGDDForVisible=${v.minFruitAgeGDDForVisible}`);
     cliArgs.push('--overrideVisibility', parts.join(','));
   }
-  // Iter 6e — massFlow surplusPolicy override
-  if (v.surplusPolicy !== undefined) {
-    cliArgs.push('--overrideMassFlow', `surplusPolicy=${v.surplusPolicy}`);
+  // Iter 6e — massFlow surplusPolicy override. Iter 6e-2 — fruitPriorityFraction 추가.
+  if (v.surplusPolicy !== undefined || v.fruitPriorityFraction !== undefined) {
+    const parts: string[] = [];
+    if (v.surplusPolicy !== undefined) parts.push(`surplusPolicy=${v.surplusPolicy}`);
+    if (v.fruitPriorityFraction !== undefined) parts.push(`fruitPriorityRedistributionFraction=${v.fruitPriorityFraction}`);
+    cliArgs.push('--overrideMassFlow', parts.join(','));
   }
   const res = spawnSync('npx', cliArgs, { cwd: args.repoRoot, stdio: 'pipe', encoding: 'utf-8' });
 
@@ -426,6 +439,7 @@ function main(): void {
   if (args.visibilityGateMode) axes.push(`visGateMode=${args.visibilityGateMode.length}`);
   if (args.minFruitAgeGDDForVisible) axes.push(`visGDD=${args.minFruitAgeGDDForVisible.length}`);
   if (args.surplusPolicy) axes.push(`surplus=${args.surplusPolicy.length}`);
+  if (args.fruitPriorityFraction) axes.push(`fpf=${args.fruitPriorityFraction.length}`);
   console.log(`  variants: ${variants.length} (${axes.join(' × ')})`);
   console.log(`  output: ${join(args.sweepRoot, args.sweepId)}`);
 
@@ -444,7 +458,8 @@ function main(): void {
       ? ` abortThresh=${v.abortionThresholdRatio ?? '-'} abortLag=${v.abortionLagDays ?? '-'}` : '';
     const viStr = (v.visibilityGateMode !== undefined || v.minFruitAgeGDDForVisible !== undefined)
       ? ` visMode=${v.visibilityGateMode ?? '-'} visGDD=${v.minFruitAgeGDDForVisible ?? '-'}` : '';
-    const spStr = (v.surplusPolicy !== undefined) ? ` surplus=${v.surplusPolicy}` : '';
+    const spStr = (v.surplusPolicy !== undefined || v.fruitPriorityFraction !== undefined)
+      ? ` surplus=${v.surplusPolicy ?? '-'} fpf=${v.fruitPriorityFraction ?? '-'}` : '';
     process.stdout.write(`  [${i + 1}/${variants.length}] ${runId} inflectionC=${v.inflectionC} rateB=${v.rateB} exp=${v.exponentScaling}${phStr}${coStr}${abStr}${viStr}${spStr} ... `);
     const out = runVariant(args, runId, v);
     runs.push(out);

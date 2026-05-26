@@ -225,7 +225,10 @@
                                               //   phase ∈ {cell_expansion, ripening_*} 도 함께 확인.
       "enableTrajectoryCap": true,           // cumulative W_dry trajectory cap
       "enableStepDemandLimit": true,         // per-fruit per-step demand clamp
-      "surplusPolicy": "unused_pool",        // clamp surplus는 vegetative로 안 흐름
+      "surplusPolicy": "unused_pool",        // clamp surplus는 vegetative로 안 흐름. Iter 6e-2: 'fruit_priority_limited' 옵트인 가능.
+      // Iter 6e-2 (SSOT #85): fruit_priority_limited 정책에서 surplus의 몇 %를 fruit에 재분배할지.
+      //   default 0.5. surplusPolicy != 'fruit_priority_limited'이면 무시.
+      "fruitPriorityRedistributionFraction": 0.5,
       "debug": true,                         // snapshot에 debug fields 출력
       // Iter 6h (SSOT #74, #76): visibility gate — calibration-only.
       //   diameter_only: 기본 (v0.11.1 후방호환). Iter 6h sweep으로 phase/phase_and_gdd 평가.
@@ -294,6 +297,7 @@
     "fruitDevelopment.massFlow.enableTrajectoryCap": "active",
     "fruitDevelopment.massFlow.enableStepDemandLimit": "active",
     "fruitDevelopment.massFlow.surplusPolicy": "active",
+    "fruitDevelopment.massFlow.fruitPriorityRedistributionFraction": "active",
     "fruitDevelopment.massFlow.visibilityGateMode": "active",
     "fruitDevelopment.massFlow.minFruitAgeGDDForVisible": "active",
     "fruitDevelopment.massFlow.debug": "active"

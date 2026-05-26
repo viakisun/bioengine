@@ -102,7 +102,8 @@ export interface StemGrowthSpec {
 /** Iter 5b — 잉여 DM 처리 정책. clamp surplus를 어디로 보낼지. */
 export type SurplusAssimilatePolicy =
   | 'unused_pool'                  // Iter 5b 기본값. 잉여 DM은 어디로도 안 흐름 (질량 보존 X, but fruit fix 단독 측정 가능).
-  | 'redistribute_to_vegetative';  // 후속 옵션. Heuvelink hierarchy로 leaf → stem → root 흐름.
+  | 'redistribute_to_vegetative'   // Heuvelink hierarchy로 leaf → stem → root 흐름. Iter 6e H3 negative 확정.
+  | 'fruit_priority_limited';      // Iter 6e-2 — surplus를 unmet fruit sink에 fraction × unmet 비례 priority redistribute. vegetative와 분리 (SSOT #84).
 
 /** Iter 5b — fruit mass flow 정책. Gompertz curve가 sink demand에 영향을
  *  주는지 + cumulative cap 시간별 trajectory 적용 여부. */
@@ -136,6 +137,11 @@ export interface MassFlowSpec {
   enableStepDemandLimit: boolean;
   /** 잉여 DM 처리. Iter 5b 기본 'unused_pool'. */
   surplusPolicy: SurplusAssimilatePolicy;
+  /** Iter 6e-2 (SSOT #82/#85) — fruit_priority_limited 정책에서
+   *  unused surplus 중 fruit unmet sink에 재분배할 최대 비율 (0..1).
+   *  나머지 (1-fraction) × surplus는 unused_pool에 그대로 유지 (SSOT #84 — vegetative와 분리).
+   *  surplusPolicy != 'fruit_priority_limited'일 때는 무시됨. default 0.5. */
+  fruitPriorityRedistributionFraction: number;
   /** snapshot에 fruit debug fields 출력 on/off. */
   debug: boolean;
 }
@@ -326,9 +332,17 @@ export function validateFull(spec: BotanicalSpec): void {
     throw new BotanicalValidationError('fruitDevelopment.massFlow flags must be boolean');
   }
   if (fd.massFlow.surplusPolicy !== 'unused_pool'
-   && fd.massFlow.surplusPolicy !== 'redistribute_to_vegetative') {
+   && fd.massFlow.surplusPolicy !== 'redistribute_to_vegetative'
+   && fd.massFlow.surplusPolicy !== 'fruit_priority_limited') {
     throw new BotanicalValidationError(
       `fruitDevelopment.massFlow.surplusPolicy invalid: ${String(fd.massFlow.surplusPolicy)}`,
+    );
+  }
+  // Iter 6e-2 (SSOT #85) — fruitPriorityRedistributionFraction validator: 0..1 range
+  requireFiniteNumber(fd.massFlow.fruitPriorityRedistributionFraction, 'fruitDevelopment.massFlow.fruitPriorityRedistributionFraction');
+  if (fd.massFlow.fruitPriorityRedistributionFraction < 0 || fd.massFlow.fruitPriorityRedistributionFraction > 1) {
+    throw new BotanicalValidationError(
+      `fruitDevelopment.massFlow.fruitPriorityRedistributionFraction must be in [0, 1], got ${fd.massFlow.fruitPriorityRedistributionFraction}`,
     );
   }
   // Iter 6h — visibility gate validators (SSOT #74)

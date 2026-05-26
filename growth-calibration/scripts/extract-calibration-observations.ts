@@ -68,8 +68,12 @@ interface CliArgs {
   /** Iter 6h — visibility gate override (botanical-level, SSOT #74).
    *  format: "gateMode=phase_and_gdd,minFruitAgeGDDForVisible=80" */
   overrideVisibility?: { gateMode?: 'diameter_only' | 'phase' | 'phase_and_gdd'; minFruitAgeGDDForVisible?: number };
-  /** Iter 6e — massFlow surplusPolicy override (botanical-level, SSOT #78). */
-  overrideMassFlow?: { surplusPolicy?: 'unused_pool' | 'redistribute_to_vegetative' };
+  /** Iter 6e — massFlow surplusPolicy override (botanical-level, SSOT #78).
+   *  Iter 6e-2: surplusPolicy enum 확장 + fruitPriorityRedistributionFraction. */
+  overrideMassFlow?: {
+    surplusPolicy?: 'unused_pool' | 'redistribute_to_vegetative' | 'fruit_priority_limited';
+    fruitPriorityRedistributionFraction?: number;
+  };
 }
 
 function parseOverride(s?: string): CliArgs['overrideGompertz'] {
@@ -142,11 +146,14 @@ function parseOverrideVisibility(s?: string): CliArgs['overrideVisibility'] {
 
 function parseOverrideMassFlow(s?: string): CliArgs['overrideMassFlow'] {
   if (!s) return undefined;
-  const out: { surplusPolicy?: 'unused_pool' | 'redistribute_to_vegetative' } = {};
+  const out: { surplusPolicy?: 'unused_pool' | 'redistribute_to_vegetative' | 'fruit_priority_limited'; fruitPriorityRedistributionFraction?: number } = {};
   for (const pair of s.split(',')) {
     const [k, v] = pair.split('=').map(t => t.trim());
     if (k === 'surplusPolicy') {
-      if (v === 'unused_pool' || v === 'redistribute_to_vegetative') out.surplusPolicy = v;
+      if (v === 'unused_pool' || v === 'redistribute_to_vegetative' || v === 'fruit_priority_limited') out.surplusPolicy = v;
+    } else if (k === 'fruitPriorityRedistributionFraction' || k === 'fruitPriorityFraction') {
+      const n = Number(v);
+      if (Number.isFinite(n) && n >= 0 && n <= 1) out.fruitPriorityRedistributionFraction = n;
     }
   }
   return out;
@@ -284,11 +291,13 @@ function applyOverrideMassFlow(args: CliArgs): void {
   if (!ov) return;
   const mf = ACTIVE_BOTANICAL.tomato.fruitDevelopment.massFlow;
   if (ov.surplusPolicy !== undefined) mf.surplusPolicy = ov.surplusPolicy;
+  if (ov.fruitPriorityRedistributionFraction !== undefined) mf.fruitPriorityRedistributionFraction = ov.fruitPriorityRedistributionFraction;
   for (const c of Object.values(CULTIVARS)) {
     const mf2 = c.resolvedBotanical.fruitDevelopment.massFlow;
     if (ov.surplusPolicy !== undefined) mf2.surplusPolicy = ov.surplusPolicy;
+    if (ov.fruitPriorityRedistributionFraction !== undefined) mf2.fruitPriorityRedistributionFraction = ov.fruitPriorityRedistributionFraction;
   }
-  console.log(`[extract override] massFlow: surplusPolicy=${ov.surplusPolicy ?? '-'}`);
+  console.log(`[extract override] massFlow: surplusPolicy=${ov.surplusPolicy ?? '-'}, fruitPriorityRedistributionFraction=${ov.fruitPriorityRedistributionFraction ?? '-'}`);
 }
 
 // ── Status mapping (engine → schema enum) ─────────────────────────────

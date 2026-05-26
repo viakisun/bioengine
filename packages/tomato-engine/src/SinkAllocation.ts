@@ -39,6 +39,9 @@ export interface OrganAllocation {
   totalLimitedFruitDemandG: number;         // sum(trussFruitsG) after clamp
   fruitDemandLimitedByCapG: number;         // = rawFruit - limitedFruit (Iter 5b cap 효과)
   totalVegetativeAllocatedG: number;        // leafG + stemG + rootG (after surplus redistribution)
+  /** Iter 6e-2 (SSOT #82/#86) — fruit_priority_limited 정책에서 fruit으로 재분배된 양.
+   *  surplusPolicy != 'fruit_priority_limited'일 때는 0. */
+  fruitRedistributedToFruitG: number;
 }
 
 /** Iter 5b — allocateDM options. */
@@ -49,8 +52,12 @@ export interface AllocateDmOptions {
   perFruitMaxDemandG?: number[][];  // [trussIdx][fruitIdx]
   /** 'unused_pool' (Iter 5b 기본): clamp surplus는 어디로도 흐르지 않고
    *   unusedAssimilateG에만 기록.
-   *  'redistribute_to_vegetative': surplus를 leaf pool에 합산 (Heuvelink hierarchy). */
+   *  'redistribute_to_vegetative': surplus를 leaf pool에 합산 (Heuvelink hierarchy).
+   *  'fruit_priority_limited' (Iter 6e-2): surplus를 fraction × unmet 비례로 unmet fruit에 재분배. */
   surplusPolicy?: SurplusAssimilatePolicy;
+  /** Iter 6e-2 (SSOT #85) — fruit_priority_limited 정책 강도 (0..1).
+   *  unused surplus 중 fruit unmet sink에 재분배할 최대 비율. 나머지는 unused_pool 유지. */
+  fruitPriorityFraction?: number;
 }
 
 /** Truss sink strength as a Gaussian function of (TT - TT_anthesis).
@@ -162,6 +169,7 @@ export function allocateDM(
       totalLimitedFruitDemandG: 0,
       fruitDemandLimitedByCapG: 0,
       totalVegetativeAllocatedG: 0,
+      fruitRedistributedToFruitG: 0,
     };
   }
 
@@ -187,6 +195,7 @@ export function allocateDM(
       totalLimitedFruitDemandG: 0,
       fruitDemandLimitedByCapG: 0,
       totalVegetativeAllocatedG: newDM,
+      fruitRedistributedToFruitG: 0,
     };
   }
 
@@ -271,11 +280,65 @@ export function allocateDM(
     // 'unused_pool': unusedAssimilateG에 남겨두고 어디로도 안 보냄
   }
 
+  // Iter 6e-2 (SSOT #82/#84/#85): fruit_priority_limited branch
+  // - surplus를 unmet fruit sink에 fraction × unmet 비례 priority redistribute
+  // - vegetative로 안 흘림 (SSOT #84 — Iter 6e H3 negative 반영)
+  // - 4-condition cap min (rawDemand + stepCap + cumulativeCap + requestedShare)
+  let fruitRedistributedToFruitG = 0;
+  if (unusedAssimilateG > 0 && surplusPolicy === 'fruit_priority_limited' && perFruitMax && trussFruitsGRaw) {
+    const fraction = options?.fruitPriorityFraction ?? 0.5;
+    // Step 2: per-fruit unmet capacity = stepCap까지 여유 (raw demand 제약 제거).
+    // 이유: cap 안 막힌 fruit은 raw 받았으므로 unmetRaw=0, cap 막힌 fruit은 remainingStepCap=0.
+    // 둘 다 0이면 redistribute 불가. 진짜 의도는 "cap까지 여유 있는 fruit이 추가 받음" (raw 이상 가능).
+    // (cumulative trajectory cap은 SinkAllocation에서 못 보므로 stepCap만 적용.
+    //  CoreModel updateFruits에서 trajectory cap이 추가 보호 — surplus 받아도 trajectory 위반 시 잘림.)
+    const unmet: number[][] = [];
+    let totalUnmet = 0;
+    for (let ti = 0; ti < trussFruitsG.length; ti++) {
+      unmet.push([]);
+      const truss = state.trusses[ti];
+      const rowMax = perFruitMax[ti] ?? [];
+      for (let fi = 0; fi < trussFruitsG[ti].length; fi++) {
+        const fruit = truss.fruits[fi];
+        if (!fruit || fruit.aborted || fruit.harvested || fruit.fertilizationTT < 0) {
+          unmet[ti].push(0); continue;
+        }
+        const max = rowMax[fi];
+        if (max === undefined || max === null || !Number.isFinite(max)) {
+          unmet[ti].push(0); continue;
+        }
+        const allocated = trussFruitsG[ti][fi];
+        const u = Math.max(0, max - allocated);  // stepCap까지 여유 (raw 이상 가능)
+        unmet[ti].push(u);
+        totalUnmet += u;
+      }
+    }
+    // Step 3: fraction × unmet 비례 priority redistribute
+    if (totalUnmet > 0) {
+      const surplusBudget = unusedAssimilateG * fraction;
+      for (let ti = 0; ti < trussFruitsG.length; ti++) {
+        for (let fi = 0; fi < trussFruitsG[ti].length; fi++) {
+          const u = unmet[ti][fi];
+          if (u <= 0) continue;
+          const requestedShare = surplusBudget * (u / totalUnmet);
+          const additionalAlloc = Math.min(requestedShare, u);  // u가 이미 4-condition min
+          trussFruitsG[ti][fi] += additionalAlloc;
+          trussG[ti] += additionalAlloc;
+          fruitRedistributedToFruitG += additionalAlloc;
+          unusedAssimilateG -= additionalAlloc;
+        }
+      }
+    }
+    // Step 4 (fallback): 남은 surplus는 unusedAssimilateG에 그대로 유지 (vegetative로 안 흘림)
+  }
+
   // Iter 6e (SSOT #80) — audit metrics 계산
   const sum2d = (arr: number[][]): number => arr.reduce((a, row) => a + row.reduce((b, v) => b + v, 0), 0);
   const totalRawFruitDemandG = trussFruitsGRaw ? sum2d(trussFruitsGRaw) : sum2d(trussFruitsG);
-  const totalLimitedFruitDemandG = sum2d(trussFruitsG);
-  const fruitDemandLimitedByCapG = Math.max(0, totalRawFruitDemandG - totalLimitedFruitDemandG);
+  const totalLimitedFruitDemandG = sum2d(trussFruitsG);  // fruit_priority_limited 적용 후 (재분배 포함)
+  // fruitDemandLimitedByCapG는 cap clamp 효과 (재분배 전 surplus origin). raw - clampedAfterStep1.
+  // Iter 6e-2: fruit_priority_limited가 다시 채워 넣은 양은 fruitRedistributedToFruitG로 별도 노출.
+  const fruitDemandLimitedByCapG = Math.max(0, totalRawFruitDemandG - totalLimitedFruitDemandG + fruitRedistributedToFruitG);
 
   return {
     leafG, stemG, rootG, trussG, trussFruitsG,
@@ -286,5 +349,6 @@ export function allocateDM(
     totalLimitedFruitDemandG,
     fruitDemandLimitedByCapG,
     totalVegetativeAllocatedG: leafG + stemG + rootG,
+    fruitRedistributedToFruitG,
   };
 }
