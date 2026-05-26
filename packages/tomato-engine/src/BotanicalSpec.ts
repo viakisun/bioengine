@@ -196,6 +196,14 @@ export interface MassFlowSpec {
      *  default 0 = binary (Iter 9 동작 유지, 후방호환).
      *  Recommended 40~120 GDD (≈ 3-10 days at T_eff=12). */
     transitionZoneGDD: number;
+    /** Iter 11 (SSOT #129) — cumulative cap smoothstep transition zone (GDD).
+     *  cell_division phase의 divisionDryMassCap (potential × divisionPhaseMassFraction)에서
+     *  cell_expansion phase의 trajectory cumulativeDryCapG로 부드럽게 lerp.
+     *  transition zone = [cellDivisionDurationGDD - zone/2, cellDivisionDurationGDD + zone/2].
+     *  Iter 10 step demand smoothing의 mirror — D60 valley (cap binary jump 부산물) 해소.
+     *  default 0 (Iter 10 binary 동작 유지, 후방호환).
+     *  Recommended 20~60 GDD (≈ 1.5-5 days at T_eff=12). */
+    cumulativeCapTransitionZoneGDD: number;
   };
   /** snapshot에 fruit debug fields 출력 on/off. */
   debug: boolean;
@@ -445,6 +453,13 @@ export function validateFull(spec: BotanicalSpec): void {
   if (pamg.transitionZoneGDD < 0) {
     throw new BotanicalValidationError(
       `fruitDevelopment.massFlow.phaseAwareMassGrowth.transitionZoneGDD must be >= 0 (0 = binary, Iter 9 동작), got ${pamg.transitionZoneGDD}`,
+    );
+  }
+  // Iter 11 (SSOT #129) — cumulativeCapTransitionZoneGDD validator (>= 0, 0 = binary)
+  requireFiniteNumber(pamg.cumulativeCapTransitionZoneGDD, 'fruitDevelopment.massFlow.phaseAwareMassGrowth.cumulativeCapTransitionZoneGDD');
+  if (pamg.cumulativeCapTransitionZoneGDD < 0) {
+    throw new BotanicalValidationError(
+      `fruitDevelopment.massFlow.phaseAwareMassGrowth.cumulativeCapTransitionZoneGDD must be >= 0 (0 = binary, Iter 10 동작), got ${pamg.cumulativeCapTransitionZoneGDD}`,
     );
   }
   // Iter 7c (SSOT #106/#107) — expansionClockMode enum validator

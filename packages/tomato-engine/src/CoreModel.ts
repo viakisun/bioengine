@@ -226,6 +226,14 @@ export interface FruitCohort {
     /** Iter 10 (SSOT #124) — phase-aware multiplier at this step (smoothstep value
      *  in transition zone, else binary phase rate). 1.0 when phaseAware disabled. */
     phaseMultiplier: number;
+    /** Iter 11 (SSOT #130) — cumulative cap blend factor (0=divisionCap, 1=trajectory).
+     *  smoothstep value in transition zone, 0 before transStart, 1 after transEnd.
+     *  When phaseAware disabled or cumulativeCapTransitionZoneGDD=0, factor is binary
+     *  (0 in cell_division, 1 elsewhere). */
+    cumulativeCapBlendFactor: number;
+    /** Iter 11 (SSOT #130) — divisionDryMassCap value at this step (g dry mass).
+     *  potential × DM_percent × divisionPhaseMassFraction. Audit-only. */
+    divisionDryMassCapG: number;
   };
 }
 
@@ -651,14 +659,54 @@ export function stepMinutely(
           const W_dry_cap = fruit.genome.potentialMassG * ACTIVE_MODEL.fruitGrowth.DM_percent;
           if (fruit.W_fruit_dry > W_dry_cap) fruit.W_fruit_dry = W_dry_cap;
         }
-        // Iter 7b (SSOT #103/#105) — phase-aware dry mass clamp (PRIMARY, biology-level)
-        // cell_division phase에 fruit이 potential mass의 (fraction)까지만 자라도록 hard ceiling.
-        // 단일 Gompertz curve의 conflicting goals (D33 보호 + D90 visible 회복) 해결.
-        if (pamg.enabled && gddSinceFert < cultivar.cellDivisionDurationGDD) {
+        // Iter 7b/10/11 (SSOT #103/#105/#129) — phase-aware dry mass clamp.
+        // Iter 11: cumulativeCapTransitionZoneGDD smoothstep blend between
+        //   divisionDryMassCap (cell_division 보호) → cumulativeDryCapG (trajectory).
+        // ccZone=0 → Iter 10 binary 동작 유지 (후방호환).
+        let divisionDryMassCapG_audit = 0;
+        let cumulativeCapBlendFactor_audit = 0;
+        if (pamg.enabled) {
           const divisionDryMassCap = fruit.genome.potentialMassG
             * ACTIVE_MODEL.fruitGrowth.DM_percent
             * pamg.divisionPhaseMassFraction;
-          if (fruit.W_fruit_dry > divisionDryMassCap) fruit.W_fruit_dry = divisionDryMassCap;
+          divisionDryMassCapG_audit = divisionDryMassCap;
+          const ccTransZone = pamg.cumulativeCapTransitionZoneGDD;
+          const cellDivEndGdd = cultivar.cellDivisionDurationGDD;
+          let phaseAwareCap: number;
+          if (ccTransZone <= 0) {
+            // Iter 10 binary: cell_division phase에만 divisionDryMassCap, 이후 풀림
+            if (gddSinceFert < cellDivEndGdd) {
+              phaseAwareCap = divisionDryMassCap;
+              cumulativeCapBlendFactor_audit = 0;
+            } else {
+              phaseAwareCap = Number.POSITIVE_INFINITY;
+              cumulativeCapBlendFactor_audit = 1;
+            }
+          } else {
+            const ccTransStart = cellDivEndGdd - ccTransZone / 2;
+            const ccTransEnd = cellDivEndGdd + ccTransZone / 2;
+            if (gddSinceFert <= ccTransStart) {
+              phaseAwareCap = divisionDryMassCap;
+              cumulativeCapBlendFactor_audit = 0;
+            } else if (gddSinceFert >= ccTransEnd) {
+              phaseAwareCap = Number.POSITIVE_INFINITY;
+              cumulativeCapBlendFactor_audit = 1;
+            } else {
+              const t = (gddSinceFert - ccTransStart) / ccTransZone;
+              const s = t * t * (3 - 2 * t);  // smoothstep (C¹ continuous)
+              // Iter 11 SSOT #133 monotonic safety: cumulativeDryCapG가 divisionDryMassCap보다
+              // 작아도 lerp 역전 방지 → max() upper bound.
+              const rawUpperBound = Number.isFinite(cumulativeDryCapG)
+                ? cumulativeDryCapG
+                : fruit.genome.potentialMassG * ACTIVE_MODEL.fruitGrowth.DM_percent;
+              const upperBound = Math.max(rawUpperBound, divisionDryMassCap);
+              phaseAwareCap = divisionDryMassCap + (upperBound - divisionDryMassCap) * s;
+              cumulativeCapBlendFactor_audit = s;
+            }
+          }
+          if (Number.isFinite(phaseAwareCap) && fruit.W_fruit_dry > phaseAwareCap) {
+            fruit.W_fruit_dry = phaseAwareCap;
+          }
         }
         fruit.W_fruit_fresh = fruit.W_fruit_dry / ACTIVE_MODEL.fruitGrowth.DM_percent;
         fruit.diameter = freshMassToDiameter(fruit.W_fruit_fresh, fruit.genome);
@@ -684,6 +732,8 @@ export function stepMinutely(
               cultivar.cellDivisionDurationGDD + cultivar.cellExpansionDurationGDD,
               pamg,
             ),
+            cumulativeCapBlendFactor: cumulativeCapBlendFactor_audit,
+            divisionDryMassCapG: divisionDryMassCapG_audit,
           };
         }
       }
@@ -963,13 +1013,49 @@ function _legacyStepDaily(
           const W_dry_cap = fruit.genome.potentialMassG * ACTIVE_MODEL.fruitGrowth.DM_percent;
           if (fruit.W_fruit_dry > W_dry_cap) fruit.W_fruit_dry = W_dry_cap;
         }
-        // Iter 7b (SSOT #103/#105) — phase-aware dry mass clamp (PRIMARY, biology-level)
-        // legacy stepDaily mirror of stepMinutely Iter 7b clamp.
-        if (pamg.enabled && gddSinceFert < cultivar.cellDivisionDurationGDD) {
+        // Iter 7b/10/11 (SSOT #103/#105/#129) — phase-aware dry mass clamp.
+        // legacy stepDaily mirror of stepMinutely Iter 11 cumulative cap smoothstep blend.
+        let divisionDryMassCapG_audit = 0;
+        let cumulativeCapBlendFactor_audit = 0;
+        if (pamg.enabled) {
           const divisionDryMassCap = fruit.genome.potentialMassG
             * ACTIVE_MODEL.fruitGrowth.DM_percent
             * pamg.divisionPhaseMassFraction;
-          if (fruit.W_fruit_dry > divisionDryMassCap) fruit.W_fruit_dry = divisionDryMassCap;
+          divisionDryMassCapG_audit = divisionDryMassCap;
+          const ccTransZone = pamg.cumulativeCapTransitionZoneGDD;
+          const cellDivEndGdd = cultivar.cellDivisionDurationGDD;
+          let phaseAwareCap: number;
+          if (ccTransZone <= 0) {
+            if (gddSinceFert < cellDivEndGdd) {
+              phaseAwareCap = divisionDryMassCap;
+              cumulativeCapBlendFactor_audit = 0;
+            } else {
+              phaseAwareCap = Number.POSITIVE_INFINITY;
+              cumulativeCapBlendFactor_audit = 1;
+            }
+          } else {
+            const ccTransStart = cellDivEndGdd - ccTransZone / 2;
+            const ccTransEnd = cellDivEndGdd + ccTransZone / 2;
+            if (gddSinceFert <= ccTransStart) {
+              phaseAwareCap = divisionDryMassCap;
+              cumulativeCapBlendFactor_audit = 0;
+            } else if (gddSinceFert >= ccTransEnd) {
+              phaseAwareCap = Number.POSITIVE_INFINITY;
+              cumulativeCapBlendFactor_audit = 1;
+            } else {
+              const t = (gddSinceFert - ccTransStart) / ccTransZone;
+              const s = t * t * (3 - 2 * t);
+              const rawUpperBound = Number.isFinite(cumulativeDryCapG)
+                ? cumulativeDryCapG
+                : fruit.genome.potentialMassG * ACTIVE_MODEL.fruitGrowth.DM_percent;
+              const upperBound = Math.max(rawUpperBound, divisionDryMassCap);
+              phaseAwareCap = divisionDryMassCap + (upperBound - divisionDryMassCap) * s;
+              cumulativeCapBlendFactor_audit = s;
+            }
+          }
+          if (Number.isFinite(phaseAwareCap) && fruit.W_fruit_dry > phaseAwareCap) {
+            fruit.W_fruit_dry = phaseAwareCap;
+          }
         }
         // Fresh = dry / DM%
         fruit.W_fruit_fresh = fruit.W_fruit_dry / ACTIVE_MODEL.fruitGrowth.DM_percent;
@@ -996,6 +1082,8 @@ function _legacyStepDaily(
               cultivar.cellDivisionDurationGDD + cultivar.cellExpansionDurationGDD,
               pamg,
             ),
+            cumulativeCapBlendFactor: cumulativeCapBlendFactor_audit,
+            divisionDryMassCapG: divisionDryMassCapG_audit,
           };
         }
       }

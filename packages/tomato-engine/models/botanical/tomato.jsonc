@@ -262,7 +262,13 @@
         //   default 0 = binary (Iter 9 동작 유지, 후방호환).
         //   sweep 후보: 40, 80, 120 GDD (≈ 3-10 days at T_eff=12).
         //   cellDiv 경계 [cellDivDur - zone/2, cellDivDur + zone/2] 안에서 multiplier smooth blend.
-        "transitionZoneGDD": 0
+        "transitionZoneGDD": 0,
+        // Iter 11 (SSOT #129): cumulative cap smoothstep transition zone (GDD).
+        //   default 0 = binary (Iter 10 동작 유지, 후방호환).
+        //   sweep 후보: 20, 40, 60 GDD.
+        //   divisionDryMassCap → trajectory cumulativeDryCapG로 cellDiv 경계 안에서 lerp.
+        //   D60 valley (cap binary jump 부산물) 해소 lever.
+        "cumulativeCapTransitionZoneGDD": 0
       },
       "debug": true,                         // snapshot에 debug fields 출력
       // Iter 6h (SSOT #74, #76): visibility gate — calibration-only.
@@ -345,6 +351,7 @@
     "fruitDevelopment.massFlow.phaseAwareMassGrowth.ripeningPhaseGrowthMultiplier": "active",
     "fruitDevelopment.massFlow.phaseAwareMassGrowth.expansionClockMode": "active",
     "fruitDevelopment.massFlow.phaseAwareMassGrowth.cellDivisionStepDemandFraction": "active",
+    "fruitDevelopment.massFlow.phaseAwareMassGrowth.cumulativeCapTransitionZoneGDD": "active",
     "fruitDevelopment.massFlow.phaseAwareMassGrowth.transitionZoneGDD": "active",
     "fruitDevelopment.massFlow.visibilityGateMode": "active",
     "fruitDevelopment.massFlow.minFruitAgeGDDForVisible": "active",

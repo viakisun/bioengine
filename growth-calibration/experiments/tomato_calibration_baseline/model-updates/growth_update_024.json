@@ -1,0 +1,137 @@
+{
+  "schemaVersion": "growthCalibration.v1",
+  "updateId": "growth_update_024",
+  "previousModelVersion": "growthModel.tomato.v0.11.3-reproductive-partial-tuned",
+  "newModelVersion": "growthModel.tomato.v0.11.3-reproductive-partial-tuned",
+  "status": "diagnostic_success_infrastructure_only_negative_result",
+  "date": "2026-05-27",
+  "triggerComparisons": [
+    "(Iter 11 cumulativeCapTransitionZoneGDD — Iter 10 Strong Promote Infrastructure + D60 valley 잔존 후속, valley 해소 시도)"
+  ],
+  "triggerRuleIds": ["common_truss_status_too_behind"],
+  "reason": [
+    "Iter 10 (commit 76840eb, v0.11.3 유지) — transitionZoneGDD=40 smoothstep으로 Iter 6~10 첫 Strong Promote 후보 도달. 10-seed ensemble: D33 mx avg 0.00, D90 visible avg 19.10, D90 mx avg 52.87. BUT D60 mx avg 3.00mm (target band [18,40] under, valley).",
+    "Iter 11은 next_lever_decision.md SSOT #128 1순위 lever 실행: BotanicalSpec.phaseAwareMassGrowth에 cumulativeCapTransitionZoneGDD 신규 field. cumulative cap (divisionDryMassCap → trajectory cumulativeDryCapG) smoothstep blend로 Iter 10 D60 valley 해소 시도.",
+    "Phase A1 engine extension: BotanicalSpec.ts에 cumulativeCapTransitionZoneGDD field (default 0 = binary, 후방호환) + validator (>= 0). CoreModel.ts mass clamp 로직 (stepMinutely line 657-662 + _legacyStepDaily line 962-967, 2 sites mirror) smoothstep blend refactor. FruitCohort.debug.{cumulativeCapBlendFactor, divisionDryMassCapG} per-fruit audit field 추가.",
+    "Phase A1 SSOT #133 monotonic safety: upperBound = Math.max(cumulativeDryCapG, divisionDryMassCap) — cumulativeDryCapG가 일시적으로 divisionDryMassCap보다 작아도 lerp 역전 방지.",
+    "Phase A2 CLI extension: dump-growth-checkpoints + extract-calibration-observations parseOverrideMassFlow + applyOverrideMassFlow에 phaseAwareCumulativeCapTransitionZoneGDD key. fruit_summary.csv 신규 columns: cumulative_cap_blend_factor + division_dry_mass_cap_g.",
+    "Phase A3 sweep harness: run-gompertz-sweep.ts에 phaseAwareCumulativeCapTransitionZoneGDD cross-product axis.",
+    "Phase A4 Preflight STOP gate ✅ PASS: ccZone=0 default mode가 Iter 10 zone=40 결과 byte-perfect 재현 (D90 mx=54.34092589440503 정확 일치). backwards-compat 보장.",
+    "Phase A4 Preflight Run 2 (ccZone=40) + Run 3 (ccZone=60): D33/D60/D90 outcome 모두 ccZone=0과 동일. 첫 negative signal.",
+    "Phase B Round 1 12 runs (4 ccZone × 3 frac): 🚨 **모든 4 ccZone 값이 frac별로 BYTE-IDENTICAL output** — frac=0.05/0.10/0.20 각각에서 ccZone 변화 0. cumulative cap smoothing mechanism은 firing되지만 outcome 영향 없음.",
+    "Per-fruit D60 audit (architectural diagnosis): 모든 fruit이 cap의 6-10%만 사용. D60 시점 fruit dry_mass 0.099-0.110g vs cumulativeCap 1.4-1.8g, divisionCap 1.0-1.4g. **cumulative cap이 binding constraint가 아님**. SSOT #134 영구.",
+    "진짜 D60 valley 원인 (SSOT #135): (A) Truss 1 fruits cell_division 동안 mass starvation으로 모두 abortion (diameter=3 visibility threshold ghost), (B) Truss 2 fruits D60 시점 아직 cell_division phase (gdd 240-250 < cellDivEnd=250). cumulative cap 무관.",
+    "Iter 12 direction probe (validated): expansionPhaseGrowthMultiplier=2.0 (extreme) 테스트 → D60 mx 3→75mm (over-correction이지만 진짜 lever 확인). D30/D33 mx 0→36/44 (over-band). expansionMul이 D60 fruit growth의 진짜 lever.",
+    "**Iter 12 추천 (1순위)**: expansionPhaseGrowthMultiplier sweep 1.0-1.5 (sweet spot 추정). Round 1 sweep: 4×3 = 12 runs (expansionMul × cellDivStepDemandFraction). Strong Promote criteria — Iter 10 보호 유지 + D60 mx ∈ [18,40] valley 해소.",
+    "Iter 11 Infrastructure 영구 (cumulativeCapTransitionZoneGDD + smoothstep blend + audit fields). default 0 (binary, Iter 10 동작 유지). 향후 cellDivStepDemandFraction을 0.5+로 올려 cumulative cap binding constraint 되는 시나리오에서 mechanism 재활성 가능 (SSOT #137)."
+  ],
+  "parameterChanges": [
+    {
+      "parameter": "BotanicalSpec.phaseAwareMassGrowth.cumulativeCapTransitionZoneGDD (engine schema)",
+      "oldValue": "(없음)",
+      "newValue": "number >= 0 (default 0 = binary, Iter 10 후방호환)",
+      "file": "packages/tomato-engine/src/BotanicalSpec.ts (interface + validator) + models/botanical/tomato.jsonc (default + enforcementStatus)",
+      "unit": "schema + engine_logic",
+      "citation": "Iter 11 SSOT #129",
+      "reason": "cumulative cap (divisionDryMassCap → cumulativeDryCapG) smoothstep transition. transition zone = [cellDivEnd - zone/2, cellDivEnd + zone/2].",
+      "changeType": "engine_logic_addition",
+      "enforcementStatus": "active",
+      "expectedEffect": "behavior_noop_when_default"
+    },
+    {
+      "parameter": "CoreModel.ts mass clamp smoothstep blend (stepMinutely + _legacyStepDaily 2 sites)",
+      "oldValue": "binary clamp at cellDivisionDurationGDD",
+      "newValue": "smoothstep lerp(divisionDryMassCap, cumulativeDryCapG) across transition zone + monotonic safety (Math.max upper bound)",
+      "file": "packages/tomato-engine/src/CoreModel.ts:657-662 + :962-967",
+      "unit": "engine_logic",
+      "citation": "Iter 11 SSOT #129/#133",
+      "reason": "cumulative cap smoothing infrastructure 추가. ccZone=0이면 Iter 10 binary 동작 유지. SSOT #133 monotonic safety: upperBound = Math.max(cumulativeDryCapG, divisionDryMassCap)로 lerp 역전 방지.",
+      "changeType": "engine_logic_modification",
+      "enforcementStatus": "active",
+      "expectedEffect": "behavior_noop_when_default"
+    },
+    {
+      "parameter": "FruitCohort.debug.{cumulativeCapBlendFactor, divisionDryMassCapG} (per-fruit audit)",
+      "oldValue": "(없음)",
+      "newValue": "cumulativeCapBlendFactor (0=divCap, 1=trajectory) + divisionDryMassCapG (g) per-fruit",
+      "file": "packages/tomato-engine/src/CoreModel.ts (interface + 2 write sites)",
+      "unit": "engine_logic + debug",
+      "citation": "Iter 11 SSOT #130",
+      "reason": "cumulative cap transition mechanism per-fruit 추적. fruit_summary.csv 신규 columns로 D60 valley diagnosis 가능.",
+      "changeType": "engine_logic_addition",
+      "enforcementStatus": "active",
+      "expectedEffect": "calibration_observability_addition"
+    },
+    {
+      "parameter": "CLI --overrideMassFlow phaseAwareCumulativeCapTransitionZoneGDD (calibration-only)",
+      "oldValue": "(없음)",
+      "newValue": "string key parsing + mutation (alias: cumulativeCapTransitionZoneGDD)",
+      "file": "growth-calibration/scripts/dump-growth-checkpoints.ts + extract-calibration-observations.ts",
+      "unit": "CLI",
+      "citation": "Iter 11 Phase A2",
+      "reason": "Iter 10 CLI pattern mirror. Iter 12 (expansionPhaseGrowthMultiplier sweep) 등 후속 Iter에서 재사용.",
+      "changeType": "refactor",
+      "enforcementStatus": "active",
+      "expectedEffect": "calibration_tooling_addition"
+    },
+    {
+      "parameter": "run-gompertz-sweep.ts phaseAwareCumulativeCapTransitionZoneGDD axis",
+      "oldValue": "(없음)",
+      "newValue": "number[] cross-product axis in nested loop",
+      "file": "growth-calibration/scripts/run-gompertz-sweep.ts",
+      "unit": "harness",
+      "citation": "Iter 11 Phase A3",
+      "reason": "Iter 12+에서 cumulative cap이 binding constraint 되는 시나리오에서 재사용 가능.",
+      "changeType": "refactor",
+      "enforcementStatus": "active",
+      "expectedEffect": "calibration_tooling_addition"
+    },
+    {
+      "parameter": "fruit_summary.csv {cumulative_cap_blend_factor, division_dry_mass_cap_g} columns",
+      "oldValue": "(없음)",
+      "newValue": "per-day per-fruit blendFactor + divisionDryMassCap values",
+      "file": "growth-calibration/scripts/dump-growth-checkpoints.ts",
+      "unit": "CSV columns",
+      "citation": "Iter 11 SSOT #130",
+      "reason": "Iter 11 architectural diagnosis (binding constraint = step demand level)에 결정적 기여. 후속 Iter에서 cumulative cap mechanism activation 검증에 재사용.",
+      "changeType": "refactor",
+      "enforcementStatus": "active",
+      "expectedEffect": "calibration_observability_addition"
+    },
+    {
+      "parameter": "tomimaru-muchoo cultivar parameters",
+      "oldValue": "v0.11.3 winner (fSR=0.80, lag=10, thresh=0.25, cellDiv=300, exp=0.10)",
+      "newValue": "유지 (Iter 12에서 D60 valley 해소 후 종합 promote)",
+      "changeType": "no_change_deferred_promote",
+      "enforcementStatus": "active",
+      "expectedEffect": "behavior_noop_at_default"
+    }
+  ],
+  "validationPlan": {
+    "replayDays": [30, 33, 60, 90, 100],
+    "forwardDays": [],
+    "targetMetrics": [
+      "Phase A1 typecheck PASS (npx tsc --noEmit -p .)",
+      "Phase A4 STOP gate ✅: ccZone=0 byte-perfect reproduces Iter 10 zone=40 (D90 mx=54.34092589440503 정확)",
+      "Phase A4 Run 2/3 (ccZone=40/60): outcome 모두 ccZone=0과 동일 (first negative signal)",
+      "Phase B Round 1 12 runs: 🚨 모든 4 ccZone 값이 frac별 BYTE-IDENTICAL — cumulative cap smoothing이 D60 outcome에 영향 0",
+      "Per-fruit D60 audit: cap utilization 6-10% (binding constraint 아님 확인)",
+      "Iter 6i invariant: unknown_aborted_count == 0 모든 12+3 runs PASS",
+      "Iter 12 direction probe: expansionPhaseGrowthMultiplier=2.0 → D60 mx 3→75mm (진짜 lever 확인)"
+    ]
+  },
+  "outcome": {
+    "runDate": "2026-05-27",
+    "replayScoreDelta": 0,
+    "forwardScoreDelta": 0,
+    "verdict": "diagnostic_success_infrastructure_only_negative_result — v0.11.3 유지 + cumulativeCapTransitionZoneGDD engine + smoothstep blend + per-fruit audit fields + CLI + sweep axis 영구. Negative result discovery: ccZone smoothing mechanism은 정확히 작동 (byte-perfect STOP gate + per-fruit debug verified) BUT D60 valley outcome에 영향 zero. 원인: fruit이 cumulative cap의 6-10%만 사용, binding constraint = step demand level. 진짜 D60 valley는 (1) Truss 1 cell_division 동안 mass starvation abortion + (2) Truss 2 D60 시점 cell_division 정체. → Iter 12 1순위: expansionPhaseGrowthMultiplier sweep 1.0-1.5 (probe로 2.0 → D60 mx 3→75 over-correction 확인, sweet spot 1.0-1.5 추정).",
+    "notes": "Iter 11 핵심 발견: (1) STOP gate ✅ PASS — ccZone=0 default mode byte-perfect reproduces Iter 10 zone=40 (D90 mx=54.34092589440503 정확 일치). (2) Mechanism firing verified — per-fruit cumulative_cap_blend_factor가 transition zone 안에서 smoothstep 정확 (gdd=235 blend=0.207, gdd=243 blend=0.671, gdd=250 blend=1.000). (3) 🚨 **Critical Negative Finding**: Round 1 12 runs 모든 4 ccZone 값이 frac별 BYTE-IDENTICAL output. cumulative cap smoothing이 outcome에 영향 0. (4) **Architectural insight (SSOT #134)**: cellDivStepDemandFraction=0.10 setup에서 fruit이 cumulative cap의 6-10%만 사용. cumulative cap이 binding constraint가 아님. (5) **D60 valley root cause (SSOT #135)**: Truss 1 fruits cell_division 동안 mass starvation으로 모두 abortion (diameter=3 visibility ghost) + Truss 2 fruits D60 시점 아직 cell_division (gdd 240-250). cumulative cap 무관. (6) **Iter 12 direction validated (SSOT #136)**: expansionPhaseGrowthMultiplier=2.0 probe → D60 mx 3→75mm (over-correction). D30/D33 mx 0→36/44 (over-band). expansionMul이 D60 fruit growth의 진짜 lever. Iter 12 sweep 1.0-1.5에서 sweet spot 탐색. (7) **Negative result의 영구 가치 (SSOT #137)**: ccZone smoothing이 mechanism은 작동하지만 effect 없는 lever를 영구 배제. 단, 후속 Iter (예: cellDivStepDemandFraction을 0.5+로 올려 cumulative cap binding constraint로 만드는) 시점에서는 mechanism 재활성 가능. infrastructure 영구의 정당화."
+  },
+  "followUp": [
+    "Iter 12 (expansionPhaseGrowthMultiplier sweep) ⭐ 1순위 — 기존 pamg.expansionPhaseGrowthMultiplier 활용 (신규 field 불필요). Round 1 sweep: 4×3 = 12 runs (expansionMul {1.0, 1.1, 1.25, 1.5} × cellDivStepDemandFraction {0.05, 0.10, 0.20}). Strong Promote criteria: D33 mx ≤ 3 (Iter 10 유지) + D60 mx ∈ [18,40] (valley 해소) + D90 mx in band + D90 vis ≥ 16.",
+    "Iter 12 alt 2순위 — expansionEarlyAccelerationMultiplier 신규 field: cell_expansion 초반 한정 가속 (D60 catch up, D90 over-band 회피).",
+    "Iter 12 alt 3순위 — cellDivisionAbortionThresholdRelaxation: cell_division phase 동안 abortion threshold relax (Truss 1 fruits 생존 증가).",
+    "Iter 11 infrastructure (cumulativeCapTransitionZoneGDD + smoothstep + audit fields) — 향후 시나리오 (예: cellDivStepDemandFraction=0.5+로 cumulative cap binding constraint 되는 경우) 활성화 가능. 영구 유지.",
+    "cultivar JSONC promotion — Iter 12 D60 valley 해소 후 종합 진입 (cellDiv=250 + botanicalOverride: Gompertz + phaseAwareMassGrowth full enable + expansionPhaseGrowthMultiplier Iter 12 winner)."
+  ]
+}

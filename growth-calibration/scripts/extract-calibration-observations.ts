@@ -89,6 +89,8 @@ interface CliArgs {
     phaseAwareCellDivStepDemandFraction?: number;  // 0..1
     // Iter 10 (SSOT #123) — transitionZoneGDD
     phaseAwareTransitionZoneGDD?: number;          // >= 0
+    // Iter 11 (SSOT #129) — cumulativeCapTransitionZoneGDD
+    phaseAwareCumulativeCapTransitionZoneGDD?: number;  // >= 0
   };
   /** Iter 8 (SSOT #108) — source capacity override (photosynthesis layer, global).
    *  format: "lueScale=1.2". Multiplies ACTIVE_MODEL.photosynthesis.LUE_gDM_per_mol_PAR. */
@@ -207,6 +209,9 @@ function parseOverrideMassFlow(s?: string): CliArgs['overrideMassFlow'] {
     } else if (k === 'phaseAwareTransitionZoneGDD' || k === 'transitionZoneGDD') {
       const n = Number(v);
       if (Number.isFinite(n) && n >= 0) out.phaseAwareTransitionZoneGDD = n;
+    } else if (k === 'phaseAwareCumulativeCapTransitionZoneGDD' || k === 'cumulativeCapTransitionZoneGDD') {
+      const n = Number(v);
+      if (Number.isFinite(n) && n >= 0) out.phaseAwareCumulativeCapTransitionZoneGDD = n;
     }
   }
   return out;
@@ -385,6 +390,7 @@ function applyOverrideMassFlow(args: CliArgs): void {
   if (ov.phaseAwareClockMode !== undefined) mf.phaseAwareMassGrowth.expansionClockMode = ov.phaseAwareClockMode;
   if (ov.phaseAwareCellDivStepDemandFraction !== undefined) mf.phaseAwareMassGrowth.cellDivisionStepDemandFraction = ov.phaseAwareCellDivStepDemandFraction;
   if (ov.phaseAwareTransitionZoneGDD !== undefined) mf.phaseAwareMassGrowth.transitionZoneGDD = ov.phaseAwareTransitionZoneGDD;
+  if (ov.phaseAwareCumulativeCapTransitionZoneGDD !== undefined) mf.phaseAwareMassGrowth.cumulativeCapTransitionZoneGDD = ov.phaseAwareCumulativeCapTransitionZoneGDD;
   for (const c of Object.values(CULTIVARS)) {
     const mf2 = c.resolvedBotanical.fruitDevelopment.massFlow;
     if (ov.surplusPolicy !== undefined) mf2.surplusPolicy = ov.surplusPolicy;
@@ -400,8 +406,9 @@ function applyOverrideMassFlow(args: CliArgs): void {
     if (ov.phaseAwareClockMode !== undefined) mf2.phaseAwareMassGrowth.expansionClockMode = ov.phaseAwareClockMode;
     if (ov.phaseAwareCellDivStepDemandFraction !== undefined) mf2.phaseAwareMassGrowth.cellDivisionStepDemandFraction = ov.phaseAwareCellDivStepDemandFraction;
     if (ov.phaseAwareTransitionZoneGDD !== undefined) mf2.phaseAwareMassGrowth.transitionZoneGDD = ov.phaseAwareTransitionZoneGDD;
+    if (ov.phaseAwareCumulativeCapTransitionZoneGDD !== undefined) mf2.phaseAwareMassGrowth.cumulativeCapTransitionZoneGDD = ov.phaseAwareCumulativeCapTransitionZoneGDD;
   }
-  console.log(`[extract override] massFlow: surplusPolicy=${ov.surplusPolicy ?? '-'}, fruitPriorityRedistributionFraction=${ov.fruitPriorityRedistributionFraction ?? '-'}, capRelaxByPhase cellDiv/Exp/Ripen=${ov.cellDivisionRelax ?? '-'}/${ov.cellExpansionRelax ?? '-'}/${ov.ripeningRelax ?? '-'}, phaseAware enabled=${ov.phaseAwareEnabled ?? '-'} divFrac=${ov.phaseAwareDivisionFraction ?? '-'} expMul=${ov.phaseAwareExpansionMultiplier ?? '-'} clockMode=${ov.phaseAwareClockMode ?? '-'} cellDivStepDemandFrac=${ov.phaseAwareCellDivStepDemandFraction ?? '-'} transitionZoneGDD=${ov.phaseAwareTransitionZoneGDD ?? '-'}`);
+  console.log(`[extract override] massFlow: surplusPolicy=${ov.surplusPolicy ?? '-'}, fruitPriorityRedistributionFraction=${ov.fruitPriorityRedistributionFraction ?? '-'}, capRelaxByPhase cellDiv/Exp/Ripen=${ov.cellDivisionRelax ?? '-'}/${ov.cellExpansionRelax ?? '-'}/${ov.ripeningRelax ?? '-'}, phaseAware enabled=${ov.phaseAwareEnabled ?? '-'} divFrac=${ov.phaseAwareDivisionFraction ?? '-'} expMul=${ov.phaseAwareExpansionMultiplier ?? '-'} clockMode=${ov.phaseAwareClockMode ?? '-'} cellDivStepDemandFrac=${ov.phaseAwareCellDivStepDemandFraction ?? '-'} transitionZoneGDD=${ov.phaseAwareTransitionZoneGDD ?? '-'} ccTransitionZoneGDD=${ov.phaseAwareCumulativeCapTransitionZoneGDD ?? '-'}`);
 }
 
 /** Iter 8 (SSOT #108) — source override (LUE × scale). global, photosynthesis layer. */
