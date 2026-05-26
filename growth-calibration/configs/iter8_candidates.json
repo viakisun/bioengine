@@ -1,0 +1,247 @@
+{
+  "schemaVersion": "growthCalibration.iter8.candidateSet.v1",
+  "iter": "iter8",
+  "comment": "Iter 8 Round 1 Signal Finding — HIT 10 + Broad 17 = 27 candidates. Each entry composes the dump/extract override-* CLI flag strings. candidateType: biology | sink_balance | canopy | observation_diagnostic | mixed_biology_observation. Strong Promote (v0.12) only allows candidateType=biology.",
+  "baseline": {
+    "id": "baseline",
+    "label": "v0.11.3 baseline (cellDiv=300 fSR=0.80 lag=10 thresh=0.25 exp=0.10, phaseAware disabled)",
+    "candidateType": "biology",
+    "flags": {}
+  },
+  "candidates": [
+    {
+      "id": "HIT-1",
+      "label": "cellDiv=200 (pure signal, D33 fail expected)",
+      "candidateType": "biology",
+      "flags": {
+        "overridePhenology": "cellDivisionDurationGDD=200"
+      }
+    },
+    {
+      "id": "HIT-2",
+      "label": "cellDiv=200 + exp=0.12 (Gompertz guard 1)",
+      "candidateType": "biology",
+      "flags": {
+        "overridePhenology": "cellDivisionDurationGDD=200",
+        "overrideGompertz": "exponentScaling=0.12"
+      }
+    },
+    {
+      "id": "HIT-3",
+      "label": "cellDiv=200 + exp=0.12 + LUE×1.2 (Gompertz guard + source)",
+      "candidateType": "biology",
+      "flags": {
+        "overridePhenology": "cellDivisionDurationGDD=200",
+        "overrideGompertz": "exponentScaling=0.12",
+        "overrideSource": "lueScale=1.2"
+      }
+    },
+    {
+      "id": "HIT-4",
+      "label": "cellDiv=250 + exp=0.12 + LUE×1.2 (mild cellDiv + guard + source)",
+      "candidateType": "biology",
+      "flags": {
+        "overridePhenology": "cellDivisionDurationGDD=250",
+        "overrideGompertz": "exponentScaling=0.12",
+        "overrideSource": "lueScale=1.2"
+      }
+    },
+    {
+      "id": "HIT-5",
+      "label": "cellDiv=200 + phaseAware mass clamp (Iter 7b guard)",
+      "candidateType": "biology",
+      "flags": {
+        "overridePhenology": "cellDivisionDurationGDD=200",
+        "overrideMassFlow": "phaseAwareEnabled=true,phaseAwareDivisionFraction=0.10,phaseAwareDivisionMaxDiameter=3.0"
+      }
+    },
+    {
+      "id": "HIT-6",
+      "label": "cellDiv=200 + phaseAware + LUE×1.2 (mass clamp + source)",
+      "candidateType": "biology",
+      "flags": {
+        "overridePhenology": "cellDivisionDurationGDD=200",
+        "overrideMassFlow": "phaseAwareEnabled=true,phaseAwareDivisionFraction=0.10,phaseAwareDivisionMaxDiameter=3.0",
+        "overrideSource": "lueScale=1.2"
+      }
+    },
+    {
+      "id": "HIT-7",
+      "label": "cellDiv=250 + phaseAware + LUE×1.2 (mild + mass clamp + source)",
+      "candidateType": "biology",
+      "flags": {
+        "overridePhenology": "cellDivisionDurationGDD=250",
+        "overrideMassFlow": "phaseAwareEnabled=true,phaseAwareDivisionFraction=0.10,phaseAwareDivisionMaxDiameter=3.0",
+        "overrideSource": "lueScale=1.2"
+      }
+    },
+    {
+      "id": "HIT-8",
+      "label": "cellDiv=200 + exp=0.12 + visibilityGate=phase_and_gdd (filter guard)",
+      "candidateType": "mixed_biology_observation",
+      "flags": {
+        "overridePhenology": "cellDivisionDurationGDD=200",
+        "overrideGompertz": "exponentScaling=0.12",
+        "overrideVisibility": "gateMode=phase_and_gdd,minFruitAgeGDDForVisible=80"
+      }
+    },
+    {
+      "id": "HIT-9",
+      "label": "cellDiv=250 + exp=0.12 + visibilityGate=phase_and_gdd (mild + filter)",
+      "candidateType": "mixed_biology_observation",
+      "flags": {
+        "overridePhenology": "cellDivisionDurationGDD=250",
+        "overrideGompertz": "exponentScaling=0.12",
+        "overrideVisibility": "gateMode=phase_and_gdd,minFruitAgeGDDForVisible=80"
+      }
+    },
+    {
+      "id": "HIT-10",
+      "label": "cellDiv=200 + exp=0.12 + LUE×1.2 + visibilityGate=phase_and_gdd (all guards)",
+      "candidateType": "mixed_biology_observation",
+      "flags": {
+        "overridePhenology": "cellDivisionDurationGDD=200",
+        "overrideGompertz": "exponentScaling=0.12",
+        "overrideSource": "lueScale=1.2",
+        "overrideVisibility": "gateMode=phase_and_gdd,minFruitAgeGDDForVisible=80"
+      }
+    },
+    {
+      "id": "A1",
+      "label": "LUE × 1.2 (source alone)",
+      "candidateType": "biology",
+      "flags": {
+        "overrideSource": "lueScale=1.2"
+      }
+    },
+    {
+      "id": "A2",
+      "label": "LUE × 1.4 (source extreme)",
+      "candidateType": "biology",
+      "flags": {
+        "overrideSource": "lueScale=1.4"
+      }
+    },
+    {
+      "id": "A3",
+      "label": "LUE × 1.2 + SLA × 1.2 (source + canopy)",
+      "candidateType": "biology",
+      "flags": {
+        "overrideSource": "lueScale=1.2",
+        "overrideCanopy": "slaScale=1.2"
+      }
+    },
+    {
+      "id": "B1",
+      "label": "sinkStrengthLeaf × 0.7 (sink balance — favor fruit)",
+      "candidateType": "sink_balance",
+      "flags": {
+        "overrideCanopy": "leafSinkScale=0.7"
+      }
+    },
+    {
+      "id": "B2",
+      "label": "sinkStrengthLeaf × 0.5 (sink balance extreme)",
+      "candidateType": "sink_balance",
+      "flags": {
+        "overrideCanopy": "leafSinkScale=0.5"
+      }
+    },
+    {
+      "id": "B3",
+      "label": "sinkStrengthLeaf × 0.7 + LUE × 1.2 (sink + source)",
+      "candidateType": "sink_balance",
+      "flags": {
+        "overrideCanopy": "leafSinkScale=0.7",
+        "overrideSource": "lueScale=1.2"
+      }
+    },
+    {
+      "id": "C1",
+      "label": "abortionLagDays=12 (survival refine)",
+      "candidateType": "biology",
+      "flags": {
+        "overrideAbortion": "lagDays=12"
+      }
+    },
+    {
+      "id": "C2",
+      "label": "abortion thresh=0.18 + lag=12 (lenient abortion)",
+      "candidateType": "biology",
+      "flags": {
+        "overrideAbortion": "thresholdRatio=0.18,lagDays=12"
+      }
+    },
+    {
+      "id": "C3",
+      "label": "abortionLagDays=14 (extreme lenient)",
+      "candidateType": "biology",
+      "flags": {
+        "overrideAbortion": "lagDays=14"
+      }
+    },
+    {
+      "id": "D1",
+      "label": "phaseAware expansionMultiplier=1.25 (mass-rate boost)",
+      "candidateType": "biology",
+      "flags": {
+        "overrideMassFlow": "phaseAwareEnabled=true,phaseAwareDivisionFraction=1.0,phaseAwareDivisionMaxDiameter=3.0,phaseAwareExpansionMultiplier=1.25"
+      }
+    },
+    {
+      "id": "D2",
+      "label": "phaseAware + clockMode=expansion_start_based + expMul=1.25",
+      "candidateType": "biology",
+      "flags": {
+        "overrideMassFlow": "phaseAwareEnabled=true,phaseAwareDivisionFraction=0.10,phaseAwareDivisionMaxDiameter=3.0,phaseAwareExpansionMultiplier=1.25,phaseAwareClockMode=expansion_start_based"
+      }
+    },
+    {
+      "id": "D3",
+      "label": "phaseAware + divFrac=0.01 + clockMode=expansion_start_based (extreme clamp + clock)",
+      "candidateType": "biology",
+      "flags": {
+        "overrideMassFlow": "phaseAwareEnabled=true,phaseAwareDivisionFraction=0.01,phaseAwareDivisionMaxDiameter=3.0,phaseAwareClockMode=expansion_start_based"
+      }
+    },
+    {
+      "id": "E1",
+      "label": "SLA × 1.2 (canopy alone — separate from source)",
+      "candidateType": "canopy",
+      "flags": {
+        "overrideCanopy": "slaScale=1.2"
+      }
+    },
+    {
+      "id": "E2",
+      "label": "SLA × 1.4 (canopy extreme)",
+      "candidateType": "canopy",
+      "flags": {
+        "overrideCanopy": "slaScale=1.4"
+      }
+    },
+    {
+      "id": "F1",
+      "label": "visibilityGate=phase (observation diagnostic only)",
+      "candidateType": "observation_diagnostic",
+      "flags": {
+        "overrideVisibility": "gateMode=phase"
+      }
+    },
+    {
+      "id": "F2",
+      "label": "visibilityGate=phase_and_gdd (observation diagnostic only)",
+      "candidateType": "observation_diagnostic",
+      "flags": {
+        "overrideVisibility": "gateMode=phase_and_gdd,minFruitAgeGDDForVisible=80"
+      }
+    },
+    {
+      "id": "F3",
+      "label": "minVisibleDiameterMm=2.5 (observation diagnostic — NOT WIRED YET)",
+      "candidateType": "observation_diagnostic",
+      "flags": {},
+      "skipReason": "minVisibleDiameterMm not exposed via CLI override; observation-side filter only, would require additional flag wiring. Skipped in Round 1 — covered effectively by F1/F2 if needed."
+    }
+  ]
+}

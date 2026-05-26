@@ -29,7 +29,7 @@ import { GrowthEngine } from '../../packages/tomato-engine/src/GrowthEngine';
 import { getCultivar, CULTIVARS } from '../../packages/tomato-engine/src/Cultivar';
 import { DEFAULT_CLIMATE } from '../../packages/tomato-engine/src/CoreModel';
 import { potentialFreshMassG } from '../../packages/tomato-engine/src/FruitGrowth';
-import { ACTIVE_BOTANICAL } from '../../packages/tomato-engine/src/ModelRegistry';
+import { ACTIVE_BOTANICAL, ACTIVE_MODEL } from '../../packages/tomato-engine/src/ModelRegistry';
 import { computePlantGeometry } from '../../src/plant/PlantBase';
 import {
   loadReferenceBundle,
@@ -89,6 +89,14 @@ interface CliArgs {
     // Iter 7c (SSOT #106/#107) — phaseAwareMassGrowth.expansionClockMode
     phaseAwareClockMode?: 'fertilization_based' | 'expansion_start_based';
   };
+  /** Iter 8 (SSOT #108) — source capacity override (global, photosynthesis layer).
+   *  format: "lueScale=1.2". Multiplies ACTIVE_MODEL.photosynthesis.LUE_gDM_per_mol_PAR. */
+  overrideSource?: { lueScale?: number };
+  /** Iter 8 (SSOT #108) — canopy / sink balance override (cultivar-level).
+   *  format: "slaScale=1.2,leafSinkScale=0.7".
+   *  Multiplies cultivar.SLA and cultivar.sinkStrengthLeaf for ALL cultivars
+   *  (mirrors gompertz override pattern). */
+  overrideCanopy?: { slaScale?: number; leafSinkScale?: number };
 }
 
 function parseOverride(s?: string): CliArgs['overrideGompertz'] {
@@ -199,6 +207,31 @@ function parseOverrideMassFlow(s?: string): CliArgs['overrideMassFlow'] {
   return out;
 }
 
+function parseOverrideSource(s?: string): CliArgs['overrideSource'] {
+  if (!s) return undefined;
+  const out: { lueScale?: number } = {};
+  for (const pair of s.split(',')) {
+    const [k, v] = pair.split('=').map(t => t.trim());
+    const n = Number(v);
+    if (!Number.isFinite(n) || n <= 0) continue;
+    if (k === 'lueScale') out.lueScale = n;
+  }
+  return out;
+}
+
+function parseOverrideCanopy(s?: string): CliArgs['overrideCanopy'] {
+  if (!s) return undefined;
+  const out: { slaScale?: number; leafSinkScale?: number } = {};
+  for (const pair of s.split(',')) {
+    const [k, v] = pair.split('=').map(t => t.trim());
+    const n = Number(v);
+    if (!Number.isFinite(n) || n <= 0) continue;
+    if (k === 'slaScale') out.slaScale = n;
+    else if (k === 'leafSinkScale') out.leafSinkScale = n;
+  }
+  return out;
+}
+
 function parseArgs(argv: string[]): CliArgs {
   const opts: Record<string, string> = {};
   for (let i = 0; i < argv.length; i++) {
@@ -226,6 +259,8 @@ function parseArgs(argv: string[]): CliArgs {
     overrideAbortion: parseOverrideAbortion(opts.overrideAbortion),
     overrideVisibility: parseOverrideVisibility(opts.overrideVisibility),
     overrideMassFlow: parseOverrideMassFlow(opts.overrideMassFlow),
+    overrideSource: parseOverrideSource(opts.overrideSource),
+    overrideCanopy: parseOverrideCanopy(opts.overrideCanopy),
   };
 }
 
@@ -374,6 +409,32 @@ function applyOverrideMassFlow(args: CliArgs): void {
     if (ov.phaseAwareClockMode !== undefined) mf2.phaseAwareMassGrowth.expansionClockMode = ov.phaseAwareClockMode;
   }
   console.log(`[override] massFlow: surplusPolicy=${ov.surplusPolicy ?? '-'}, fruitPriorityRedistributionFraction=${ov.fruitPriorityRedistributionFraction ?? '-'}, capRelaxByPhase cellDiv/Exp/Ripen=${ov.cellDivisionRelax ?? '-'}/${ov.cellExpansionRelax ?? '-'}/${ov.ripeningRelax ?? '-'}, phaseAware enabled=${ov.phaseAwareEnabled ?? '-'} divFrac=${ov.phaseAwareDivisionFraction ?? '-'} expMul=${ov.phaseAwareExpansionMultiplier ?? '-'} ripMul=${ov.phaseAwareRipeningMultiplier ?? '-'} clockMode=${ov.phaseAwareClockMode ?? '-'}`);
+}
+
+/** Iter 8 (SSOT #108) — source override.
+ *  Multiplies ACTIVE_MODEL.photosynthesis.LUE_gDM_per_mol_PAR (global, photosynthesis layer).
+ *  Photosynthesis.ts default-reads ACTIVE_MODEL each call so mutation propagates. */
+function applyOverrideSource(args: CliArgs): void {
+  const ov = args.overrideSource;
+  if (!ov) return;
+  if (ov.lueScale !== undefined) {
+    ACTIVE_MODEL.photosynthesis.LUE_gDM_per_mol_PAR *= ov.lueScale;
+  }
+  console.log(`[override] source: lueScale=${ov.lueScale ?? '-'} → LUE=${ACTIVE_MODEL.photosynthesis.LUE_gDM_per_mol_PAR.toFixed(4)}`);
+}
+
+/** Iter 8 (SSOT #108) — canopy / sink-balance override.
+ *  cultivar.SLA * slaScale + cultivar.sinkStrengthLeaf * leafSinkScale.
+ *  Mirrors gompertz override pattern: mutates ALL cultivars (calibration-only). */
+function applyOverrideCanopy(args: CliArgs): void {
+  const ov = args.overrideCanopy;
+  if (!ov) return;
+  for (const c of Object.values(CULTIVARS)) {
+    if (ov.slaScale !== undefined) c.SLA *= ov.slaScale;
+    if (ov.leafSinkScale !== undefined) c.sinkStrengthLeaf *= ov.leafSinkScale;
+  }
+  const target = CULTIVARS[args.cultivar];
+  console.log(`[override] canopy: slaScale=${ov.slaScale ?? '-'} leafSinkScale=${ov.leafSinkScale ?? '-'} → cultivar=${args.cultivar} SLA=${target?.SLA.toFixed(4) ?? '-'} sinkStrengthLeaf=${target?.sinkStrengthLeaf.toFixed(4) ?? '-'}`);
 }
 
 // ── Engine snapshot per day ───────────────────────────────────────────
@@ -1192,6 +1253,8 @@ function main() {
   applyOverrideAbortion(args);   // Iter 6f
   applyOverrideVisibility(args); // Iter 6h
   applyOverrideMassFlow(args);   // Iter 6e
+  applyOverrideSource(args);     // Iter 8 (SSOT #108)
+  applyOverrideCanopy(args);     // Iter 8 (SSOT #108)
 
   const bundle = loadReferenceBundle(args.referenceBundle);
 

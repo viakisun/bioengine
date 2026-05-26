@@ -1,0 +1,109 @@
+{
+  "schemaVersion": "growthCalibration.v1",
+  "updateId": "growth_update_021",
+  "previousModelVersion": "growthModel.tomato.v0.11.3-reproductive-partial-tuned",
+  "newModelVersion": "growthModel.tomato.v0.11.3-reproductive-partial-tuned",
+  "status": "rejected_infrastructure_only",
+  "date": "2026-05-26",
+  "triggerComparisons": [
+    "(Iter 8 hit-oriented broad causal sweep — Iter 7c REJECT 후속 architectural pivot 결정 Iter)"
+  ],
+  "triggerRuleIds": ["common_truss_status_too_behind"],
+  "reason": [
+    "Iter 7c (commit 22706c6, v0.11.3 유지) — phase-aware expansionClockMode 영구 infrastructure 확보 BUT D33 보호 실패. Iter 6/7/7b/7c 4-Iter 동안 source-side biological lever 누적 reject.",
+    "사용자 핵심 reframe: '문제를 좁히지 말고, 해결을 해놓고 해결을 좁히자' — 이미 알려진 visible recovery signal (Iter 7 cellDiv=200×exp=0.08 averaged D90 visible=12.17)을 hard gate 안으로 가져오는 hit-oriented sweep 설계.",
+    "Phase A1 engine CLI extension: dump-growth-checkpoints + extract-calibration-observations에 --overrideSource (lueScale) + --overrideCanopy (slaScale, leafSinkScale) 신규 추가. ACTIVE_MODEL.photosynthesis.LUE_gDM_per_mol_PAR + cultivar.SLA + cultivar.sinkStrengthLeaf 직접 mutation.",
+    "Phase A2 candidate harness: run-candidate-set.ts NEW (~310 LOC) + iter8_candidates.json NEW (HIT-1~10 + Group A/B/C/D/E/F = 27 candidates with candidateType tag). hit-oriented + group-balanced pool classification (Pool 1/2/3) 자동 생성.",
+    "Phase A3 Preflight 5 runs PASS: LUE×1.4 source +44.5%, SLA×1.4 source +3.0%, sinkLeaf×0.5 vegetative -51% (3개 lever mechanism 모두 confirmed). HIT-3/HIT-5 smoke tests (3+ override 조합) PASS.",
+    "Phase B Round 1 (28 candidates incl. baseline, single-seed): HG-PASS 15 candidates 모두 D90 visible=6 (baseline 동일). HG-FAIL 11 candidates max=7 (HIT-1/5/6 cellDiv=200 group). Pool 1+Pool 2 모두 empty (D90 vis≥9 미달).",
+    "Round 1.5 (10-seed signal verification ensemble, baseline + HIT-1): baseline D90 vis avg=4.20 [2,6], HIT-1 D90 vis avg=7.10 [5,10] — Signal +2.9 visible (+69%) confirmed BUT HIT-1 D33 maxDiam avg=3.42mm (100% seeds break hard gate). Iter 7 averaged 12.17은 미달이지만 signal direction 확정.",
+    "Round 2 (220 ensemble) + Round 4 (narrow refinement) SKIP: Pool 1+Pool 2 empty이고 모든 guard 결합 (Gompertz exp / phaseAware mass clamp / LUE source / visibilityGate filter) Round 1 HIT-2~10에서 이미 실험 → hard gate 복구 불가능 확정.",
+    "Architectural finding: D33 시점 fruit이 cell_expansion phase에 진입 → step demand cap이 maxDiam ~3.4-4.3mm 만듦. cellDiv↓ signal과 D33 ≤3mm guard는 현재 architecture에서 mutually exclusive.",
+    "Source/sink/canopy lever 영구 reject: A2 LUE×1.4 → vegetative biomass만 변동 (cohort survival 무영향). B2 leafSink×0.5 → 동일. E2 SLA×1.4 → 미미. 진짜 bottleneck은 source 부족이 아니라 cell_division phase의 fruit mass demand timing.",
+    "Infrastructure 영구 확보: source/canopy CLI override + run-candidate-set.ts hit-oriented harness + candidateType 태그 시스템 + group-balanced markdown rendering. Iter 9 step demand cap flattening 후보군 재사용 가능.",
+    "**Iter 9 추천 (1순위)**: cellDivisionStepDemandFraction 신규 field (BotanicalSpec.phaseAwareMassGrowth) → cell_division phase per-step mass demand × scale로 줄여 D33 ≤3mm 보호. cellDiv=200 + cellDivStepDemandFraction=0.20 등 조합으로 visible 회복 + hard gate 동시 시도."
+  ],
+  "parameterChanges": [
+    {
+      "parameter": "CLI --overrideSource lueScale (calibration-only)",
+      "oldValue": "(없음)",
+      "newValue": "lueScale → ACTIVE_MODEL.photosynthesis.LUE_gDM_per_mol_PAR *= lueScale",
+      "file": "growth-calibration/scripts/dump-growth-checkpoints.ts + extract-calibration-observations.ts",
+      "unit": "CLI + logic",
+      "citation": "Iter 8 SSOT #108",
+      "reason": "Hit-oriented sweep에서 source pool 자체를 조정하는 lever 필요. global mutation (모든 cultivar 영향), calibration-only.",
+      "changeType": "refactor",
+      "enforcementStatus": "active",
+      "expectedEffect": "calibration_tooling_addition"
+    },
+    {
+      "parameter": "CLI --overrideCanopy slaScale,leafSinkScale (calibration-only)",
+      "oldValue": "(없음)",
+      "newValue": "slaScale → cultivar.SLA *= slaScale, leafSinkScale → cultivar.sinkStrengthLeaf *= leafSinkScale (all cultivars)",
+      "file": "growth-calibration/scripts/dump-growth-checkpoints.ts + extract-calibration-observations.ts",
+      "unit": "CLI + logic",
+      "citation": "Iter 8 SSOT #108",
+      "reason": "Canopy (SLA via leaf area) + sink balance (leaf demand) 두 lever를 묶음. gompertz override pattern mirror.",
+      "changeType": "refactor",
+      "enforcementStatus": "active",
+      "expectedEffect": "calibration_tooling_addition"
+    },
+    {
+      "parameter": "run-candidate-set.ts (NEW harness)",
+      "oldValue": "(없음)",
+      "newValue": "JSON config → per-candidate dump child process + group-balanced summary + Pool 1/2/3 classification + candidateType tag (biology / sink_balance / canopy / observation_diagnostic / mixed_biology_observation)",
+      "file": "growth-calibration/scripts/run-candidate-set.ts (NEW, ~310 LOC)",
+      "unit": "harness",
+      "citation": "Iter 8 SSOT #109/#110",
+      "reason": "run-gompertz-sweep cross-product 대신 명시적 named candidate set용 harness. hit-oriented 4-Round workflow의 Round 1 도구.",
+      "changeType": "engine_logic_addition",
+      "enforcementStatus": "active",
+      "expectedEffect": "calibration_tooling_addition"
+    },
+    {
+      "parameter": "iter8_candidates.json (NEW config)",
+      "oldValue": "(없음)",
+      "newValue": "HIT-1~10 explicit guard combinations + Group A/B/C/D/E/F (27 candidates with candidateType)",
+      "file": "growth-calibration/configs/iter8_candidates.json (NEW)",
+      "unit": "config",
+      "citation": "Iter 8 SSOT #109",
+      "reason": "Iter 8 hit-oriented Round 1 sweep 정의. Iter 9 이후에도 architectural refactor 후보군 reference로 재사용 가능.",
+      "changeType": "config_addition",
+      "enforcementStatus": "active",
+      "expectedEffect": "calibration_tooling_addition"
+    },
+    {
+      "parameter": "tomimaru-muchoo cultivar parameters",
+      "oldValue": "v0.11.3 winner (fSR=0.80, lag=10, thresh=0.25, cellDiv=300, exp=0.10)",
+      "newValue": "유지 (no change)",
+      "changeType": "no_change_reject",
+      "enforcementStatus": "active",
+      "expectedEffect": "behavior_noop"
+    }
+  ],
+  "validationPlan": {
+    "replayDays": [30, 33, 60, 90, 100],
+    "forwardDays": [],
+    "targetMetrics": [
+      "Phase A1 typecheck PASS (npx tsc --noEmit -p .)",
+      "Phase A3 Preflight 5 levers + 2 smoke tests PASS (LUE/SLA/sinkLeaf mechanism confirmed)",
+      "Round 1 28 candidates (incl. baseline) PASS execution",
+      "Iter 6i invariant: unknown_aborted_count == 0 모든 38 runs PASS",
+      "10-seed verification: HIT-1 D90 visible avg > baseline (+2.9 confirmed)",
+      "Verdict 결정 evidence: signal real (cellDiv=200 → +2.9 vis) AND recovery impossible (D33 maxDiam=3.42 > 3mm) AND source-side biological lever 무력 (A2/B2/E2 visible=6 동일)"
+    ]
+  },
+  "outcome": {
+    "runDate": "2026-05-26",
+    "replayScoreDelta": 0,
+    "forwardScoreDelta": 0,
+    "verdict": "rejected_infrastructure_only — v0.11.3 유지 + source/canopy CLI override + run-candidate-set.ts hit-oriented harness 영구. Verdict: Signal_Found_Recovery_Failed → Iter 9 architectural refactor (step demand cap flattening 1순위, fruit stage transition smooth 2순위, per-truss cohort acropetal limiter 3순위). Source/canopy/sink_balance/visibility/cumulative cap/abortion/phaseAware mass clamp lever 모두 영구 배제.",
+    "notes": "Iter 8 핵심 발견: (1) Hit-oriented sweep 27 candidates Round 1 + 10-seed verification으로 v0.11.3가 현재 single-cohort biology architecture 안의 ceiling임 확정. (2) cellDiv=200이 D90 visible +2.9 회복하는 유일한 signal BUT D33 maxDiam 3.42mm로 hard gate 100% break. (3) Source/canopy/sink_balance lever는 vegetative biomass만 변동, fruit cohort survival 무영향. 진짜 bottleneck은 cell_division phase의 fruit mass demand timing. (4) Round 2 220 ensemble + Round 4 narrow refinement SKIP: Pool 1+Pool 2 empty이고 모든 guard 결합 (Gompertz/phaseAware/LUE/visibilityGate) Round 1에서 이미 실험됨. (5) **다음 lever 명확**: Iter 9 step demand cap flattening — cellDivisionStepDemandFraction 신규 field로 cell_division phase per-step mass demand 자체 작게 만들어 cellDiv=200 + D33 ≤3mm 동시 달성 시도. (6) **Iter 9 명시적 배제 lever**: source/canopy/sink_balance, visibility filter, cumulative cap, abortion alone, pure phaseAware mass clamp. 같은 lever 재시도 금지 — Iter 6~8 누적 evidence."
+  },
+  "followUp": [
+    "Iter 9 (step demand cap flattening) ⭐ 1순위 — BotanicalSpec.phaseAwareMassGrowth에 cellDivisionStepDemandFraction 신규 field 추가. CoreModel.ts per-fruit per-step demand 계산에서 cell_division phase일 때 × scale 적용. cellDiv=200 + cellDivStepDemandFraction=0.20 조합으로 D33 보호 + visible 회복 동시 시도.",
+    "Iter 9 alt 2순위 — Fruit stage transition smooth: GDD binary cutoff (cell_division ↔ cell_expansion) → sigmoid transition zone. transitionZoneGDD 신규 field.",
+    "Iter 9 alt 3순위 — Per-truss cohort acropetal limiter: within-truss fruit fertilization acropetal delay (basal first, distal later). withinTrussCellExpansionAcropetalSpreadGDD 신규 field.",
+    "220 ensemble harness (run-top-candidates-comparison) Iter 9 후보 검증에 재사용 — 본 Iter 8은 architectural pivot point 확정이 목표라 220 skip."
+  ]
+}
