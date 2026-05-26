@@ -149,6 +149,25 @@ export interface FruitCohort {
   /** True if this fruit was aborted (assimilate competition). */
   aborted: boolean;
 
+  /** Iter 6i (SSOT #90) — abortion reason discriminator (OBSERVATION-ONLY, READ-ONLY).
+   *
+   *  ⚠ MUST NOT be used in simulation logic / branching / cap / allocation.
+   *  ⚠ `fruit.aborted` boolean 이 여전히 source-of-truth.
+   *  ⚠ dropReason 추가는 behavior preservation (220 ensemble 0 차이 검증).
+   *
+   *  null when alive or harvested.
+   *  'fruit_set_fail' when aborted at anthesis (pre-fertilization fruitSetRate fail).
+   *  'starvation' when aborted via Marcelis ratio (post-fertilization updateAbortionTracker).
+   *  'pruning' when scenario.management.fruitPruning prunes excess live fruits to target count.
+   *    (horticultural — neither biology fruit_set_fail nor source-sink starvation;
+   *     calibration-side scenario rule that reuses the aborted=true flag.)
+   *
+   *  관측 metric 분리용 — Iter 6f-revisit (starvation-only target) 와 Iter 6j
+   *  (flowering/fertilization timing, distal truss flower_drop) 가 정확한 lever를
+   *  갖도록 audit / plant_summary CSV 라벨링.
+   */
+  dropReason: 'fruit_set_fail' | 'starvation' | 'pruning' | null;
+
   /** True if this fruit was picked off the truss (scenario.management
    *  .harvest). Harvested fruit no longer grow and are hidden from the
    *  visual. v3.0 Phase 4C. */
@@ -323,6 +342,7 @@ function emergeTruss(
       ripenFraction: 0,
       genome: fruitGenome,
       aborted: false,
+      dropReason: null,
       harvested: false,
       starvedDays: 0,
     });
@@ -413,6 +433,7 @@ export function stepMinutely(
           fruit.fertilizationTT = state.TT;
         } else {
           fruit.aborted = true;
+          fruit.dropReason = 'fruit_set_fail';
           continue;
         }
       }
@@ -461,7 +482,10 @@ export function stepMinutely(
           const live = truss.fruits.filter((f) => !f.aborted);
           if (live.length > target) {
             live.sort((a, b) => a.index - b.index);
-            for (let k = target; k < live.length; k++) live[k].aborted = true;
+            for (let k = target; k < live.length; k++) {
+              live[k].aborted = true;
+              live[k].dropReason = 'pruning';
+            }
           }
         }
       }
@@ -541,6 +565,7 @@ export function stepMinutely(
         fruit.starvedDays = tracker.starvedDays;
         if (tracker.abort) {
           fruit.aborted = true;
+          fruit.dropReason = 'starvation';
           continue;
         }
 
@@ -696,6 +721,7 @@ function _legacyStepDaily(
           fruit.fertilizationTT = state.TT;
         } else {
           fruit.aborted = true;
+          fruit.dropReason = 'fruit_set_fail';
           continue;
         }
       }
@@ -753,6 +779,7 @@ function _legacyStepDaily(
         live.sort((a, b) => a.index - b.index);
         for (let k = cultivar.trussTargetFruitCount; k < live.length; k++) {
           live[k].aborted = true;
+          live[k].dropReason = 'pruning';
         }
       }
     }
@@ -811,6 +838,7 @@ function _legacyStepDaily(
         fruit.starvedDays = tracker.starvedDays;
         if (tracker.abort) {
           fruit.aborted = true;
+          fruit.dropReason = 'starvation';
           continue;
         }
 

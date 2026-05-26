@@ -387,11 +387,23 @@ interface PlantOverall {
   expandingFruitCount: number;
   // Iter 6d — cohort generation breakdown (sums across all trusses, SSOT #56)
   flowerBudTotal: number;          // sum of truss.flowerCount (initial bud allocation)
-  fertilizedTotal: number;         // fruits with fertilizationTT > 0 (alive + aborted)
-  abortedTotal: number;            // fruits with aborted=true (combined: starvation + pruning)
+  fertilizedTotal: number;         // fruits with fertilizationTT > 0 (alive + aborted + harvested)
+  abortedTotal: number;            // fruits with aborted=true (combined: drop + starve + pruning — backward-compat alias)
   harvestedTotal: number;          // fruits with harvested=true
   nonAbortedCohortTotal: number;   // !aborted && !harvested (fertilized + pre-fertilization buds)
   starvedOngoingTotal: number;     // alive but starvedDays > 0 (at-risk, not yet aborted)
+  // Iter 6i (SSOT #90/#91) — 7-state lifecycle aggregate (per-fruit instance, sum == total fruit slots)
+  flowerBudCount: number;            // f.fertilizationTT < 0 && TT < f.anthesisTT (pre-anthesis)
+  openFlowerTransientCount: number;  // f.fertilizationTT < 0 && TT >= f.anthesisTT && !f.aborted (1-tick)
+  flowerDropCount: number;           // f.aborted && f.dropReason === 'fruit_set_fail'
+  fertilizedAliveCount: number;      // f.fertilizationTT > 0 && !f.aborted && !f.harvested (current cohort)
+  starvationAbortedCount: number;    // f.aborted && f.dropReason === 'starvation'
+  pruningAbortedCount: number;       // f.aborted && f.dropReason === 'pruning' (horticultural)
+  // harvestedCount = harvestedTotal (alias)
+  // Iter 6i (SSOT #93) — fertilized total/alive 분리
+  fertilizedTotalCount: number;      // = fertilizedTotal (alias, for clarity)
+  // Iter 6i — invariant 감시 (사용자 검토 #3)
+  unknownAbortedCount: number;       // f.aborted && f.dropReason === null (정상이면 0)
   // Iter 6e — source-sink balance (cumulative since day 0, SSOT #80)
   cumulativeSourceG: number;                  // 누적 newDM (simulation 시작부터)
   cumulativeRawFruitDemandG: number;          // 누적 fruit raw demand
@@ -474,6 +486,14 @@ function plantOverall(snap: DaySnapshot): PlantOverall {
   let harvestedTotal = 0;
   let nonAbortedCohortTotal = 0;
   let starvedOngoingTotal = 0;
+  // Iter 6i (SSOT #90/#91) — 7-state lifecycle aggregate
+  let flowerBudCount = 0;
+  let openFlowerTransientCount = 0;
+  let flowerDropCount = 0;
+  let fertilizedAliveCount = 0;
+  let starvationAbortedCount = 0;
+  let pruningAbortedCount = 0;
+  let unknownAbortedCount = 0;
   // Iter 5b — minVisibleDiameterMm from massFlow (default 0 if missing)
   const minVisibleDiameterMm =
     snap.cultivar.resolvedBotanical?.fruitDevelopment.massFlow.minVisibleDiameterMm ?? 0;
@@ -498,6 +518,23 @@ function plantOverall(snap: DaySnapshot): PlantOverall {
       if (!f.aborted && !f.harvested) {
         nonAbortedCohortTotal++;
         if (f.starvedDays > 0) starvedOngoingTotal++;
+      }
+      // Iter 6i (SSOT #91) — 7-state classification (per-fruit, exclusive)
+      // dropReason is the discriminator for aborted; alive/harvested split via aborted/harvested flags.
+      if (f.harvested) {
+        // harvestedCount tracked via harvestedTotal above
+      } else if (f.aborted) {
+        const dr = (f as { dropReason?: 'fruit_set_fail' | 'starvation' | 'pruning' | null }).dropReason ?? null;
+        if (dr === 'fruit_set_fail') flowerDropCount++;
+        else if (dr === 'starvation') starvationAbortedCount++;
+        else if (dr === 'pruning') pruningAbortedCount++;
+        else unknownAbortedCount++;
+      } else if (f.fertilizationTT > 0) {
+        fertilizedAliveCount++;
+      } else if (physiology.TT < f.anthesisTT) {
+        flowerBudCount++;
+      } else {
+        openFlowerTransientCount++;
       }
       if (f.aborted || f.harvested) continue;
       if (f.fertilizationTT <= 0) continue;
@@ -551,6 +588,15 @@ function plantOverall(snap: DaySnapshot): PlantOverall {
     harvestedTotal,
     nonAbortedCohortTotal,
     starvedOngoingTotal,
+    // Iter 6i (SSOT #90/#91/#93) — 7-state lifecycle + fert total/alive + invariant 감시
+    flowerBudCount,
+    openFlowerTransientCount,
+    flowerDropCount,
+    fertilizedAliveCount,
+    starvationAbortedCount,
+    pruningAbortedCount,
+    fertilizedTotalCount: fertilizedTotal,
+    unknownAbortedCount,
     // Iter 6e — source-sink cumulative
     cumulativeSourceG: cumSource,
     cumulativeRawFruitDemandG: physiology.dailyTotalRawFruitDemandG ?? 0,
@@ -628,6 +674,10 @@ function buildPlantSummaryCsv(rows: PlantOverall[], bundle: ReferenceBundle): st
     // Iter 6d — cohort generation breakdown (SSOT #56)
     'flower_bud_total', 'fertilized_total', 'aborted_total', 'harvested_total',
     'non_aborted_cohort_total', 'starved_ongoing_total',
+    // Iter 6i (SSOT #90/#91/#93) — 7-state lifecycle aggregate (conservation: sum == total fruit slots)
+    'flower_bud_count', 'open_flower_transient_count', 'flower_drop_count',
+    'fertilized_alive_count', 'starvation_aborted_count', 'pruning_aborted_count',
+    'fertilized_total_count', 'unknown_aborted_count',
     // Iter 6e — source-sink balance cumulative (SSOT #80)
     'cumulative_source_g', 'cumulative_raw_fruit_demand_g',
     'cumulative_limited_fruit_demand_g', 'cumulative_fruit_demand_limited_by_cap_g',
@@ -653,6 +703,9 @@ function buildPlantSummaryCsv(rows: PlantOverall[], bundle: ReferenceBundle): st
       r.totalFruitFreshMassG,
       r.flowerBudTotal, r.fertilizedTotal, r.abortedTotal, r.harvestedTotal,
       r.nonAbortedCohortTotal, r.starvedOngoingTotal,
+      r.flowerBudCount, r.openFlowerTransientCount, r.flowerDropCount,
+      r.fertilizedAliveCount, r.starvationAbortedCount, r.pruningAbortedCount,
+      r.fertilizedTotalCount, r.unknownAbortedCount,
       r.cumulativeSourceG, r.cumulativeRawFruitDemandG,
       r.cumulativeLimitedFruitDemandG, r.cumulativeFruitDemandLimitedByCapG,
       r.cumulativeUnusedAssimilateG, r.cumulativeVegetativeAllocatedG,

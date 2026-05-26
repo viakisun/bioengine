@@ -1,0 +1,87 @@
+{
+  "schemaVersion": "growthCalibration.v1",
+  "updateId": "growth_update_016",
+  "previousModelVersion": "growthModel.tomato.v0.11.1-stage-fixed",
+  "newModelVersion": "growthModel.tomato.v0.11.2-lifecycle-semantics",
+  "status": "promoted",
+  "date": "2026-05-26",
+  "triggerComparisons": [
+    "(Iter 6i audit SSOT #90/#91/#92/#93 — fruit lifecycle state 의미론 정리, calibration 전 단계)"
+  ],
+  "triggerRuleIds": [
+    "(none — refactor, not calibration)"
+  ],
+  "reason": [
+    "Iter 6e/6e-2/6e-3 합산으로 Layer 6 source-sink + cap layer 가 cohort/abortion lever 아님 영구 확정 (commit eb9ec1c, e78b244). 동시 phenology audit이 lifecycle state semantics 혼합 노출 (T1 100% abortion, T6/T7 abort > fertilized, openFlowerCount = pre-anthesis bud).",
+    "근본 문제: `fruit.aborted = true` 가 두 다른 event에서 같은 필드 set — (A) pre-fert fruitSet fail (B) post-fert starvation. 외부에서 둘 구분 불가, 진단 noise.",
+    "Phase A audit (산출물 #1, 영구): dump-per-flower-lifecycle.ts NEW (~280 LOC). per-fruit timeline + 6-state aggregate (derive-only) + per-truss conversion funnel + summary.md. T1 80% abortion (1 drop + 3 starve + 1 harvest) / T7 drop 3 > fert 2 확정 / openFlowerCount label 오류 confirmed.",
+    "사용자 결정 (Phase A pause): Case 2 매칭 — starvation_aborted dominant (13 vs drop 9, derive-only) → Phase B 진행 + Iter 6f-revisit 다음 우선 (starvation-only target).",
+    "Phase B 구현 중 3번째 abortion path 발견: scenario.management.fruitPruning (tomimaru-muchoo 기본 enabled). dropReason union을 'fruit_set_fail' | 'starvation' | 'pruning' | null 4-way로 확장 (사용자 검토 #3 invariant 유지 위해). → 7-state aggregate.",
+    "Phase B1/B2/B3: FruitCohort.dropReason OBSERVATION-ONLY 필드 + 6 abortion call sites (stepMinutely 3 + legacy 3) + emergeTruss 초기화. ⚠ MUST NOT used in simulation logic (사용자 검토 #4 — fruit.aborted boolean 이 source-of-truth).",
+    "Phase B4: plant_summary.csv 8 신규 컬럼 (flower_bud, open_flower_transient, flower_drop, fertilized_total, fertilized_alive, starvation_aborted, pruning_aborted, unknown_aborted). aborted_total / fruit_cohort_count 후방호환 유지.",
+    "Phase B5: dump-flower-fruit-phenology-audit.ts 업데이트. openFlowerCount DEPRECATED (SSOT #92) → flowerBud + openFlowerTransient 분리. abortedCount → 4-way split. cause categories: pre_anthesis_flower_drop / post_fert_starvation_abortion / pruning_to_target / unknown_aborted_warn.",
+    "Phase B6: dump-per-flower-lifecycle.ts refactor — dropReason 직접 read (derive 아닌 source 사용). pruning_aborted + unknown_aborted state 추가.",
+    "Phase C1 Conservation ✓: 매 day 매 truss 7-state sum == fruits.length (정확히). unknown_aborted_count == 0 모든 day (legacy aborted path 없음 confirmed).",
+    "Phase C2 Behavior preservation ✓ (220 ensemble, baseline vs v0.11.2): S=0.703/P=0.572/too_behind=748/D60vis=1/D90vis=8/D60coh=8/D90coh=13/D90abortRate=72% — exact match (0 차이). relabel only 검증.",
+    "Phase C3 Audit re-run with dropReason: Phase A '13 starvation'이 실제로는 11 starvation + 2 pruning 임을 확정 — pruning이 starvation에 섞여 있던 진단 noise 해결. T1/T6/T7 anomaly 분리 진단 명확."
+  ],
+  "parameterChanges": [
+    {
+      "parameter": "FruitCohort.dropReason field",
+      "oldValue": "(없음 — aborted boolean 단독, drop/starve/prune 3 reason 섞임)",
+      "newValue": "dropReason: 'fruit_set_fail' | 'starvation' | 'pruning' | null (OBSERVATION-ONLY, SSOT #90)",
+      "file": "packages/tomato-engine/src/CoreModel.ts (FruitCohort interface + 6 abortion call sites + emergeTruss init)",
+      "unit": "schema",
+      "citation": "Iter 6i Phase B SSOT #90, #91, #92, #93. 사용자 검토 #2~#5.",
+      "reason": "abortion path 분리 measurement. ⚠ engine behavior 영향 없음 (aborted boolean 여전히 source-of-truth, dropReason은 simulation logic 사용 금지). 관측 metric only.",
+      "changeType": "refactor",
+      "enforcementStatus": "active",
+      "expectedEffect": "behavior_noop"
+    },
+    {
+      "parameter": "plant_summary.csv columns (8 신규)",
+      "oldValue": "aborted_total (혼합 — drop + starve + prune)",
+      "newValue": "flower_bud_count / open_flower_transient_count / flower_drop_count / fertilized_total_count / fertilized_alive_count / starvation_aborted_count / pruning_aborted_count / unknown_aborted_count 분리. aborted_total / fruit_cohort_count 후방호환 유지.",
+      "file": "growth-calibration/scripts/dump-growth-checkpoints.ts (PlantOverall interface + plantOverall computation + buildPlantSummaryCsv)",
+      "unit": "schema",
+      "citation": "Iter 6i Phase B4 SSOT #91, #93. 사용자 검토 #1 (6-state→7-state 통일), #3 (unknown_aborted invariant 감시).",
+      "reason": "7-state lifecycle aggregate + fert total/alive 분리 + invariant 감시. unknown_aborted_count > 0 시 STOP (engine 어딘가 dropReason 미설정).",
+      "changeType": "schema_only_calibration",
+      "enforcementStatus": "active",
+      "expectedEffect": "behavior_noop"
+    },
+    {
+      "parameter": "audit scripts (3 files)",
+      "oldValue": "openFlowerCount = pre-anthesis bud + transient 혼합. abortedCount 4-way 섞임.",
+      "newValue": "openFlowerCount DEPRECATED (SSOT #92). flowerBud + openFlowerTransient 분리. abortion 4-way split. cause_classification 신규: pre_anthesis_flower_drop / post_fert_starvation_abortion / pruning_to_target / unknown_aborted_warn.",
+      "file": "growth-calibration/scripts/dump-per-flower-lifecycle.ts (NEW) + dump-flower-fruit-phenology-audit.ts (update)",
+      "unit": "schema + logic",
+      "citation": "Iter 6i Phase A/B5/B6.",
+      "reason": "audit script semantics 정리. dropReason 직접 read 가능 → Phase A derive 결과 (13 starve) vs Phase B 실제 (11 starve + 2 prune) 정확 분리.",
+      "changeType": "refactor",
+      "enforcementStatus": "active",
+      "expectedEffect": "behavior_noop"
+    }
+  ],
+  "validationPlan": {
+    "replayDays": [30, 33, 60, 90, 100],
+    "forwardDays": [],
+    "targetMetrics": [
+      "Conservation: 7-state sum == fruits.length 모든 day",
+      "Invariant: unknown_aborted_count == 0 모든 day (사용자 검토 #3)",
+      "Behavior preservation: S/P/cohort/visible/aborted_total/maxDiam 0 차이 (220 ensemble, 사용자 검토 #5 per-truss slot count 동일)"
+    ]
+  },
+  "outcome": {
+    "runDate": "2026-05-26",
+    "replayScoreDelta": 0,
+    "forwardScoreDelta": 0,
+    "verdict": "promoted — relabel only, behavior 0 차이 (220 ensemble + conservation + aborted-without-dropReason==0 검증). Iter 6f-revisit (starvation_aborted-only target) / Iter 6j (flower_drop / distal truss timing) 정확한 lever 진단 가능.",
+    "notes": "Iter 6i 핵심 발견: (1) FruitCohort.dropReason 추가 + 4 abortion path 분리 (drop/starve/prune/null) ✓ Conservation invariant 검증. (2) Phase A '13 starvation' 이 실제로는 11 starvation + 2 pruning 으로 분리 — pruning(scenario.management.fruitPruning, tomimaru 기본 enabled) 이 starvation에 섞여 있던 진단 noise 영구 해결. (3) openFlowerCount DEPRECATED 확정 (실제 의미는 pre-anthesis bud + 1-tick transient). (4) 220 ensemble S=0.703/P=0.572/cohort/visible/aborted_total 모두 0 차이 — relabel only 검증 통과. (5) **다음 lever 정확 분리**: T1~T3 starvation_aborted dominant → Iter 6f-revisit starvation-only target / T6/T7 flower_drop dominant + T8 anthesis 미도달 → Iter 6j distal truss timing. (6) **영구 invariant**: unknown_aborted_count == 0 (engine 어떤 abortion path도 dropReason 설정)."
+  },
+  "followUp": [
+    "Iter 6f-revisit (post-fertilization starvation abortion calibration) ⭐ — starvation_aborted-ONLY target. flower_drop / pruning_aborted은 baseline 유지 (절대 건드리지 않음). 이전 Iter 6f과 핵심 차이.",
+    "Iter 6j (flowering / fertilization timing — distal truss focus): flower_drop 9 (T6/T7/T8 dominant) + T8 anthesis 미도달. fruitSetRate / setDelayDays 활성화 / anthesisDelayGDD 검토.",
+    "Iter 7 (Stem calibration): reproductive와 무관, 병렬 진행 가능."
+  ]
+}
