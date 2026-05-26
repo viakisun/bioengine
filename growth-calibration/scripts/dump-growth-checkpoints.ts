@@ -86,6 +86,8 @@ interface CliArgs {
     phaseAwareDivisionMaxDiameter?: number;     // > 0
     phaseAwareExpansionMultiplier?: number;     // > 0
     phaseAwareRipeningMultiplier?: number;      // > 0
+    // Iter 7c (SSOT #106/#107) — phaseAwareMassGrowth.expansionClockMode
+    phaseAwareClockMode?: 'fertilization_based' | 'expansion_start_based';
   };
 }
 
@@ -190,6 +192,8 @@ function parseOverrideMassFlow(s?: string): CliArgs['overrideMassFlow'] {
     } else if (k === 'phaseAwareRipeningMultiplier' || k === 'ripeningMultiplier') {
       const n = Number(v);
       if (Number.isFinite(n) && n > 0) out.phaseAwareRipeningMultiplier = n;
+    } else if (k === 'phaseAwareClockMode' || k === 'clockMode') {
+      if (v === 'fertilization_based' || v === 'expansion_start_based') out.phaseAwareClockMode = v;
     }
   }
   return out;
@@ -354,6 +358,7 @@ function applyOverrideMassFlow(args: CliArgs): void {
   if (ov.phaseAwareDivisionMaxDiameter !== undefined) mf.phaseAwareMassGrowth.divisionPhaseMaxDiameterMm = ov.phaseAwareDivisionMaxDiameter;
   if (ov.phaseAwareExpansionMultiplier !== undefined) mf.phaseAwareMassGrowth.expansionPhaseGrowthMultiplier = ov.phaseAwareExpansionMultiplier;
   if (ov.phaseAwareRipeningMultiplier !== undefined) mf.phaseAwareMassGrowth.ripeningPhaseGrowthMultiplier = ov.phaseAwareRipeningMultiplier;
+  if (ov.phaseAwareClockMode !== undefined) mf.phaseAwareMassGrowth.expansionClockMode = ov.phaseAwareClockMode;
   for (const c of Object.values(CULTIVARS)) {
     const mf2 = c.resolvedBotanical.fruitDevelopment.massFlow;
     if (ov.surplusPolicy !== undefined) mf2.surplusPolicy = ov.surplusPolicy;
@@ -366,8 +371,9 @@ function applyOverrideMassFlow(args: CliArgs): void {
     if (ov.phaseAwareDivisionMaxDiameter !== undefined) mf2.phaseAwareMassGrowth.divisionPhaseMaxDiameterMm = ov.phaseAwareDivisionMaxDiameter;
     if (ov.phaseAwareExpansionMultiplier !== undefined) mf2.phaseAwareMassGrowth.expansionPhaseGrowthMultiplier = ov.phaseAwareExpansionMultiplier;
     if (ov.phaseAwareRipeningMultiplier !== undefined) mf2.phaseAwareMassGrowth.ripeningPhaseGrowthMultiplier = ov.phaseAwareRipeningMultiplier;
+    if (ov.phaseAwareClockMode !== undefined) mf2.phaseAwareMassGrowth.expansionClockMode = ov.phaseAwareClockMode;
   }
-  console.log(`[override] massFlow: surplusPolicy=${ov.surplusPolicy ?? '-'}, fruitPriorityRedistributionFraction=${ov.fruitPriorityRedistributionFraction ?? '-'}, capRelaxByPhase cellDiv/Exp/Ripen=${ov.cellDivisionRelax ?? '-'}/${ov.cellExpansionRelax ?? '-'}/${ov.ripeningRelax ?? '-'}, phaseAware enabled=${ov.phaseAwareEnabled ?? '-'} divFrac=${ov.phaseAwareDivisionFraction ?? '-'} expMul=${ov.phaseAwareExpansionMultiplier ?? '-'} ripMul=${ov.phaseAwareRipeningMultiplier ?? '-'}`);
+  console.log(`[override] massFlow: surplusPolicy=${ov.surplusPolicy ?? '-'}, fruitPriorityRedistributionFraction=${ov.fruitPriorityRedistributionFraction ?? '-'}, capRelaxByPhase cellDiv/Exp/Ripen=${ov.cellDivisionRelax ?? '-'}/${ov.cellExpansionRelax ?? '-'}/${ov.ripeningRelax ?? '-'}, phaseAware enabled=${ov.phaseAwareEnabled ?? '-'} divFrac=${ov.phaseAwareDivisionFraction ?? '-'} expMul=${ov.phaseAwareExpansionMultiplier ?? '-'} ripMul=${ov.phaseAwareRipeningMultiplier ?? '-'} clockMode=${ov.phaseAwareClockMode ?? '-'}`);
 }
 
 // ── Engine snapshot per day ───────────────────────────────────────────

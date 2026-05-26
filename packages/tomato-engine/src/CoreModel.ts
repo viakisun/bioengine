@@ -591,10 +591,32 @@ export function stepMinutely(
         // Cap — trajectory or legacy depending on massFlow
         let cumulativeDryCapG = Number.POSITIVE_INFINITY;
         let cumulativeCapWasApplied = false;
+        const pamg = massFlow.phaseAwareMassGrowth;
         if (massFlow.enableTrajectoryCap) {
-          cumulativeDryCapG = potentialFreshMassG(
-            gddSinceFert, fruit.genome.potentialMassG, gp,
-          ) * massFlow.fruitDryMatterRatio;
+          // Iter 7c (SSOT #106/#107): expansionClockMode='expansion_start_based' 시 effective GDD shift
+          if (pamg.enabled && pamg.expansionClockMode === 'expansion_start_based'
+              && gddSinceFert >= cultivar.cellDivisionDurationGDD) {
+            const effectiveExpansionGdd = gddSinceFert - cultivar.cellDivisionDurationGDD;
+            const divisionDryMassCap = fruit.genome.potentialMassG
+              * ACTIVE_MODEL.fruitGrowth.DM_percent
+              * pamg.divisionPhaseMassFraction;
+            // Gompertz(0) baseline offset 제거 (이중 계산 방지)
+            const expansionFreshMass = Math.max(
+              0,
+              potentialFreshMassG(effectiveExpansionGdd, fruit.genome.potentialMassG, gp)
+                - potentialFreshMassG(0, fruit.genome.potentialMassG, gp),
+            );
+            cumulativeDryCapG = divisionDryMassCap
+              + expansionFreshMass * massFlow.fruitDryMatterRatio;
+            // final potential dry mass 초과 방지 (Math.min 상한)
+            const finalDryMassCap = fruit.genome.potentialMassG * ACTIVE_MODEL.fruitGrowth.DM_percent;
+            cumulativeDryCapG = Math.min(cumulativeDryCapG, finalDryMassCap);
+          } else {
+            // Iter 5b baseline: fertilization-based clock
+            cumulativeDryCapG = potentialFreshMassG(
+              gddSinceFert, fruit.genome.potentialMassG, gp,
+            ) * massFlow.fruitDryMatterRatio;
+          }
           if (fruit.W_fruit_dry > cumulativeDryCapG) {
             fruit.W_fruit_dry = cumulativeDryCapG;
             cumulativeCapWasApplied = true;
@@ -606,7 +628,6 @@ export function stepMinutely(
         // Iter 7b (SSOT #103/#105) — phase-aware dry mass clamp (PRIMARY, biology-level)
         // cell_division phase에 fruit이 potential mass의 (fraction)까지만 자라도록 hard ceiling.
         // 단일 Gompertz curve의 conflicting goals (D33 보호 + D90 visible 회복) 해결.
-        const pamg = massFlow.phaseAwareMassGrowth;
         if (pamg.enabled && gddSinceFert < cultivar.cellDivisionDurationGDD) {
           const divisionDryMassCap = fruit.genome.potentialMassG
             * ACTIVE_MODEL.fruitGrowth.DM_percent
@@ -879,10 +900,29 @@ function _legacyStepDaily(
         // Cap — trajectory (Iter 5b) or legacy
         let cumulativeDryCapG = Number.POSITIVE_INFINITY;
         let cumulativeCapWasApplied = false;
+        const pamg = massFlow.phaseAwareMassGrowth;
         if (massFlow.enableTrajectoryCap) {
-          cumulativeDryCapG = potentialFreshMassG(
-            gddSinceFert, fruit.genome.potentialMassG, gp,
-          ) * massFlow.fruitDryMatterRatio;
+          // Iter 7c (SSOT #106/#107): expansionClockMode='expansion_start_based' 시 effective GDD shift (legacy mirror)
+          if (pamg.enabled && pamg.expansionClockMode === 'expansion_start_based'
+              && gddSinceFert >= cultivar.cellDivisionDurationGDD) {
+            const effectiveExpansionGdd = gddSinceFert - cultivar.cellDivisionDurationGDD;
+            const divisionDryMassCap = fruit.genome.potentialMassG
+              * ACTIVE_MODEL.fruitGrowth.DM_percent
+              * pamg.divisionPhaseMassFraction;
+            const expansionFreshMass = Math.max(
+              0,
+              potentialFreshMassG(effectiveExpansionGdd, fruit.genome.potentialMassG, gp)
+                - potentialFreshMassG(0, fruit.genome.potentialMassG, gp),
+            );
+            cumulativeDryCapG = divisionDryMassCap
+              + expansionFreshMass * massFlow.fruitDryMatterRatio;
+            const finalDryMassCap = fruit.genome.potentialMassG * ACTIVE_MODEL.fruitGrowth.DM_percent;
+            cumulativeDryCapG = Math.min(cumulativeDryCapG, finalDryMassCap);
+          } else {
+            cumulativeDryCapG = potentialFreshMassG(
+              gddSinceFert, fruit.genome.potentialMassG, gp,
+            ) * massFlow.fruitDryMatterRatio;
+          }
           if (fruit.W_fruit_dry > cumulativeDryCapG) {
             fruit.W_fruit_dry = cumulativeDryCapG;
             cumulativeCapWasApplied = true;
@@ -893,7 +933,6 @@ function _legacyStepDaily(
         }
         // Iter 7b (SSOT #103/#105) — phase-aware dry mass clamp (PRIMARY, biology-level)
         // legacy stepDaily mirror of stepMinutely Iter 7b clamp.
-        const pamg = massFlow.phaseAwareMassGrowth;
         if (pamg.enabled && gddSinceFert < cultivar.cellDivisionDurationGDD) {
           const divisionDryMassCap = fruit.genome.potentialMassG
             * ACTIVE_MODEL.fruitGrowth.DM_percent

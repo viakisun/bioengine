@@ -57,6 +57,8 @@ interface CliArgs {
   phaseAwareDivisionFraction?: number[];
   /** Iter 7b (SSOT #103) — phaseAwareMassGrowth.expansionPhaseGrowthMultiplier sweep (>0). */
   phaseAwareExpansionMultiplier?: number[];
+  /** Iter 7c (SSOT #106/#107) — phaseAwareMassGrowth.expansionClockMode sweep. */
+  phaseAwareExpansionClockMode?: Array<'fertilization_based' | 'expansion_start_based'>;
   seed: number;
   days: number[];
   cultivar: string;
@@ -127,6 +129,9 @@ function parseArgs(argv: string[]): CliArgs {
     capRelaxPairs: parseCapRelaxPairs(opts.capRelaxPairs),
     phaseAwareDivisionFraction: opts.phaseAwareDivisionFraction ? parseList(opts.phaseAwareDivisionFraction, []) : undefined,
     phaseAwareExpansionMultiplier: opts.phaseAwareExpansionMultiplier ? parseList(opts.phaseAwareExpansionMultiplier, []) : undefined,
+    phaseAwareExpansionClockMode: opts.phaseAwareExpansionClockMode
+      ? (opts.phaseAwareExpansionClockMode.split(',').map(s => s.trim()).filter(s => s === 'fertilization_based' || s === 'expansion_start_based') as Array<'fertilization_based' | 'expansion_start_based'>)
+      : undefined,
     seed: opts.seed ? Number(opts.seed) : 20260525,
     days: parseList(opts.days, [30, 33, 60, 90]),
     cultivar: opts.cultivar ?? 'tomimaru-muchoo',
@@ -163,6 +168,8 @@ interface Variant {
   // Iter 7b (SSOT #103) — phaseAwareMassGrowth
   phaseAwareDivisionFraction?: number;
   phaseAwareExpansionMultiplier?: number;
+  // Iter 7c (SSOT #106/#107) — expansionClockMode
+  phaseAwareClockMode?: 'fertilization_based' | 'expansion_start_based';
 }
 
 function genVariants(args: CliArgs): Variant[] {
@@ -197,6 +204,9 @@ function genVariants(args: CliArgs): Variant[] {
   // Iter 7b (SSOT #103): phaseAware axes
   const padfList = args.phaseAwareDivisionFraction ?? [undefined];
   const paemList = args.phaseAwareExpansionMultiplier ?? [undefined];
+  // Iter 7c (SSOT #106/#107): expansionClockMode axis
+  const pacmList: Array<'fertilization_based' | 'expansion_start_based' | undefined> =
+    args.phaseAwareExpansionClockMode ?? [undefined];
   for (const ic of args.inflectionC) {
     for (const rb of args.rateB) {
       for (const exp of args.exponentScaling) {
@@ -212,19 +222,22 @@ function genVariants(args: CliArgs): Variant[] {
                           for (const crp of crpList) {
                             for (const padf of padfList) {
                               for (const paem of paemList) {
-                                out.push({
-                                  inflectionC: ic, rateB: rb, exponentScaling: exp,
-                                  cellDivisionDurationGDD: cdd, cellExpansionDurationGDD: ced,
-                                  flowersPerTrussMu: fpt, fruitSetRate: fsr,
-                                  abortionThresholdRatio: ab.thresh, abortionLagDays: ab.lag,
-                                  visibilityGateMode: vgm, minFruitAgeGDDForVisible: vag,
-                                  surplusPolicy: sp,
-                                  fruitPriorityFraction: fpf,
-                                  capCellExpansionRelax: crp.cellExpansion,
-                                  capRipeningRelax: crp.ripening,
-                                  phaseAwareDivisionFraction: padf,
-                                  phaseAwareExpansionMultiplier: paem,
-                                });
+                                for (const pacm of pacmList) {
+                                  out.push({
+                                    inflectionC: ic, rateB: rb, exponentScaling: exp,
+                                    cellDivisionDurationGDD: cdd, cellExpansionDurationGDD: ced,
+                                    flowersPerTrussMu: fpt, fruitSetRate: fsr,
+                                    abortionThresholdRatio: ab.thresh, abortionLagDays: ab.lag,
+                                    visibilityGateMode: vgm, minFruitAgeGDDForVisible: vag,
+                                    surplusPolicy: sp,
+                                    fruitPriorityFraction: fpf,
+                                    capCellExpansionRelax: crp.cellExpansion,
+                                    capRipeningRelax: crp.ripening,
+                                    phaseAwareDivisionFraction: padf,
+                                    phaseAwareExpansionMultiplier: paem,
+                                    phaseAwareClockMode: pacm,
+                                  });
+                                }
                               }
                             }
                           }
@@ -324,6 +337,7 @@ function runVariant(args: CliArgs, runId: string, v: Variant): RunOutput {
       parts.push(`phaseAwareDivisionFraction=${v.phaseAwareDivisionFraction}`);
     }
     if (v.phaseAwareExpansionMultiplier !== undefined) parts.push(`phaseAwareExpansionMultiplier=${v.phaseAwareExpansionMultiplier}`);
+    if (v.phaseAwareClockMode !== undefined) parts.push(`phaseAwareClockMode=${v.phaseAwareClockMode}`);
     cliArgs.push('--overrideMassFlow', parts.join(','));
   }
   const res = spawnSync('npx', cliArgs, { cwd: args.repoRoot, stdio: 'pipe', encoding: 'utf-8' });
@@ -503,6 +517,7 @@ function main(): void {
   if (args.capRelaxPairs) axes.push(`capRelaxPairs=${args.capRelaxPairs.length}`);
   if (args.phaseAwareDivisionFraction) axes.push(`phaseAwareDivFrac=${args.phaseAwareDivisionFraction.length}`);
   if (args.phaseAwareExpansionMultiplier) axes.push(`phaseAwareExpMul=${args.phaseAwareExpansionMultiplier.length}`);
+  if (args.phaseAwareExpansionClockMode) axes.push(`phaseAwareClockMode=${args.phaseAwareExpansionClockMode.length}`);
   console.log(`  variants: ${variants.length} (${axes.join(' × ')})`);
   console.log(`  output: ${join(args.sweepRoot, args.sweepId)}`);
 
@@ -525,8 +540,8 @@ function main(): void {
       ? ` surplus=${v.surplusPolicy ?? '-'} fpf=${v.fruitPriorityFraction ?? '-'}` : '';
     const crStr = (v.capCellExpansionRelax !== undefined || v.capRipeningRelax !== undefined)
       ? ` capExp=${v.capCellExpansionRelax ?? '-'} capRip=${v.capRipeningRelax ?? '-'}` : '';
-    const paStr = (v.phaseAwareDivisionFraction !== undefined || v.phaseAwareExpansionMultiplier !== undefined)
-      ? ` pa.divFrac=${v.phaseAwareDivisionFraction ?? '-'} pa.expMul=${v.phaseAwareExpansionMultiplier ?? '-'}` : '';
+    const paStr = (v.phaseAwareDivisionFraction !== undefined || v.phaseAwareExpansionMultiplier !== undefined || v.phaseAwareClockMode !== undefined)
+      ? ` pa.divFrac=${v.phaseAwareDivisionFraction ?? '-'} pa.expMul=${v.phaseAwareExpansionMultiplier ?? '-'} pa.clock=${v.phaseAwareClockMode ?? '-'}` : '';
     process.stdout.write(`  [${i + 1}/${variants.length}] ${runId} inflectionC=${v.inflectionC} rateB=${v.rateB} exp=${v.exponentScaling}${phStr}${coStr}${abStr}${viStr}${spStr}${crStr}${paStr} ... `);
     const out = runVariant(args, runId, v);
     runs.push(out);

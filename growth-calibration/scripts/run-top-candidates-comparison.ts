@@ -91,6 +91,8 @@ interface SweepVariant {
   // Iter 7b (SSOT #103) — phaseAwareMassGrowth
   phaseAwareDivisionFraction?: number;
   phaseAwareExpansionMultiplier?: number;
+  // Iter 7c (SSOT #106/#107) — expansionClockMode
+  phaseAwareClockMode?: 'fertilization_based' | 'expansion_start_based';
 }
 
 interface SweepRanking {
@@ -174,7 +176,8 @@ function evalCandidate(args: CliArgs, runId: string, v: SweepVariant): EvalCandi
                     || v.capCellExpansionRelax !== undefined
                     || v.capRipeningRelax !== undefined
                     || v.phaseAwareDivisionFraction !== undefined
-                    || v.phaseAwareExpansionMultiplier !== undefined)
+                    || v.phaseAwareExpansionMultiplier !== undefined
+                    || v.phaseAwareClockMode !== undefined)
     ? [
         v.surplusPolicy !== undefined ? `surplusPolicy=${v.surplusPolicy}` : '',
         v.fruitPriorityFraction !== undefined ? `fruitPriorityRedistributionFraction=${v.fruitPriorityFraction}` : '',
@@ -183,6 +186,7 @@ function evalCandidate(args: CliArgs, runId: string, v: SweepVariant): EvalCandi
         v.phaseAwareDivisionFraction !== undefined ? `phaseAwareEnabled=true` : '',
         v.phaseAwareDivisionFraction !== undefined ? `phaseAwareDivisionFraction=${v.phaseAwareDivisionFraction}` : '',
         v.phaseAwareExpansionMultiplier !== undefined ? `phaseAwareExpansionMultiplier=${v.phaseAwareExpansionMultiplier}` : '',
+        v.phaseAwareClockMode !== undefined ? `phaseAwareClockMode=${v.phaseAwareClockMode}` : '',
       ].filter(Boolean).join(',')
     : undefined;
   const extraOverride = [

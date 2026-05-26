@@ -1,0 +1,81 @@
+{
+  "schemaVersion": "growthCalibration.v1",
+  "updateId": "growth_update_020",
+  "previousModelVersion": "growthModel.tomato.v0.11.3-reproductive-partial-tuned",
+  "newModelVersion": "growthModel.tomato.v0.11.3-reproductive-partial-tuned",
+  "status": "rejected_infrastructure_only",
+  "date": "2026-05-26",
+  "triggerComparisons": [
+    "(Iter 7c phase-aware cumulative cap / effective GDD shift SSOT #106/#107 — Iter 7b D33 보호 실패 후속 architectural extension)"
+  ],
+  "triggerRuleIds": ["common_truss_status_too_behind"],
+  "reason": [
+    "Iter 7b (commit 223ee23, v0.11.3 유지) Section 8b Case A 매칭 — phase-aware mass clamp 작동 confirmed (D33 11.35→4.29mm 62% 감소) BUT D33 ≤3mm 미달 (Day 33 시점 이미 cell_expansion phase, fraction lever 무력화).",
+    "사용자 추천 architectural extension — cumulative cap의 Gompertz clock을 cell_expansion 시작 시점부터 재시작 (effective GDD shift).",
+    "Phase A1 engine extension: BotanicalSpec.phaseAwareMassGrowth.expansionClockMode 신규 enum 추가 + CoreModel.ts cumulativeDryCapG 계산에 effective GDD shift 적용 (stepMinutely line ~592 + legacy line ~900). 사용자 검토 #1 (W(0) baseline offset 제거) + 검토 #2 (Math.min final cap) 반영.",
+    "Phase A2 CLI + sweep: --overrideMassFlow phaseAwareClockMode parsing + 1 new sweep axis (phaseAwareExpansionClockMode).",
+    "Phase A3 Preflight M 4 runs: ✅ Mechanism PASS (Run 2 Iter 7b 정확히 재현, Run 3 clock shift D60/D90 감소 확인, Run 4 fraction lever expansion phase에도 영향). ❌ Calibration FAIL (Run 3 D33=4.288mm 그대로, Iter 7b와 동일 — clock shift는 lifecycle delay만 영향, D33 보호 못함).",
+    "근본 진단: T1 fertilization ~Day 4, cellDiv=200=~17일, cell_division 종료 ~Day 21. Day 33은 cell_expansion phase ~12일째. clock shift cumulative cap 작아도 step demand가 한꺼번에 mass 채워서 D33 ~4mm.",
+    "Phase B Round 1 24-run (3 cellDiv × 2 divFrac × 2 clockMode × 2 expMul): Hard gate PASS 4 runs (run_017/019/021/023) — 모두 cellDiv=300 + fertilization_based (Iter 7c effect 없는 baseline equivalent). clock shift (expansion_start_based) 활성화 모든 후보 D60/D90 under (over-correction).",
+    "D90 visible 모든 후보 baseline (6) 수준 — Iter 7c도 D90 visible 회복 못함. Iter 7/7b/7c 3-Iter 모두 reject.",
+    "Phase C 220 ensemble 생략 — Hard gate PASS 4 runs는 Iter 7c effect 없는 baseline, 의미 없음.",
+    "**Infrastructure 영구 확보** (default 'fertilization_based', v0.11.3 후방호환): expansionClockMode field + cumulative cap effective GDD shift logic. Iter 8 (photosynthesis source) 또는 architectural step demand cap refactor 시 재사용 가능."
+  ],
+  "parameterChanges": [
+    {
+      "parameter": "MassFlowSpec.phaseAwareMassGrowth.expansionClockMode (engine schema)",
+      "oldValue": "(없음)",
+      "newValue": "'fertilization_based' | 'expansion_start_based' enum",
+      "file": "packages/tomato-engine/src/BotanicalSpec.ts + models/botanical/tomato.jsonc + CoreModel.ts (2 sites)",
+      "unit": "schema + engine_logic",
+      "citation": "Iter 7c SSOT #106/#107",
+      "reason": "cumulative Gompertz cap clock을 cell_expansion 진입 시점부터 재시작하는 option. default 'fertilization_based' (Iter 5b/7b 후방호환). 'expansion_start_based' 활성화 시 effective GDD shift.",
+      "changeType": "refactor + engine_logic",
+      "enforcementStatus": "active",
+      "expectedEffect": "behavior_noop_when_default"
+    },
+    {
+      "parameter": "tomimaru-muchoo cultivar parameters",
+      "oldValue": "v0.11.3 winner (fSR=0.80, lag=10, thresh=0.25, cellDiv=300, exp=0.10)",
+      "newValue": "유지 (no change)",
+      "changeType": "no_change_reject",
+      "enforcementStatus": "active",
+      "expectedEffect": "behavior_noop"
+    },
+    {
+      "parameter": "calibration scripts CLI + sweep axes",
+      "oldValue": "(Iter 7b까지)",
+      "newValue": "+ phaseAwareClockMode parsing + 1 new sweep axis (phaseAwareExpansionClockMode)",
+      "file": "growth-calibration/scripts/* (4 files)",
+      "unit": "CLI + logic",
+      "citation": "Iter 7c Phase A2",
+      "reason": "후속 Iter 8/architectural refactor에서 재사용.",
+      "changeType": "refactor",
+      "enforcementStatus": "active",
+      "expectedEffect": "calibration_tooling_addition"
+    }
+  ],
+  "validationPlan": {
+    "replayDays": [30, 33, 60, 90, 100],
+    "forwardDays": [],
+    "targetMetrics": [
+      "Phase A1 typecheck PASS (jsonc?raw 외 0 errors)",
+      "Preflight M Mechanism PASS: Run 2 = Iter 7b 정확 재현, Run 3 D60/D90 감소 (clock shift 작동), Run 4 ≠ Run 3 (fraction lever 작동)",
+      "Preflight M Calibration FAIL: Run 3 D33 = 4.288mm (Iter 7b와 동일, clock shift는 D33 보호 못함)",
+      "Round 1 24-run: hard gate PASS 4 runs = cellDiv=300 + fertilization_based (Iter 7c effect 없는 baseline)",
+      "Iter 6i invariant: unknown_aborted_count == 0 모든 4+24 runs PASS"
+    ]
+  },
+  "outcome": {
+    "runDate": "2026-05-26",
+    "replayScoreDelta": 0,
+    "forwardScoreDelta": 0,
+    "verdict": "rejected_infrastructure_only — v0.11.3 유지 + phaseAwareMassGrowth.expansionClockMode infrastructure 영구. Iter 7c clock shift mechanism 작동 confirmed BUT D33 보호 못함 (Day 33은 cell_expansion phase). D60/D90 over-correction. 다음 lever: Iter 8 photosynthesis source (1순위) / Iter 6h V3 visibility gate (2순위) / step demand cap 평탄화 (3순위).",
+    "notes": "Iter 7c 핵심 발견: (1) Clock shift infrastructure 영구 구축 (expansionClockMode enum + CoreModel.ts effective GDD shift). default 'fertilization_based'로 v0.11.3 후방호환. (2) Preflight M mechanism PASS: Run 2 (fertilization_based) Iter 7b 정확 재현, Run 3 (expansion_start_based) D60 45→30, D90 36→27 (clock shift 효과 confirmed). Run 4 fraction lever expansion phase에도 영향 (Iter 7b와 다른 점). (3) Calibration FAIL: Run 3 D33 = 4.288mm 그대로 (Iter 7b와 동일). clock shift는 lifecycle delay만 만들고 D33 보호 못함 — Day 33 시점 fruit이 cell_expansion phase에 있어 step demand가 한꺼번에 mass 채움. (4) Round 1 24-run: hard gate PASS 4 runs 모두 cellDiv=300 + fertilization_based = Iter 7c effect 없는 baseline equivalent. clock shift 활성화 모든 후보 D60/D90 under (over-correction). D90 visible 모든 후보 baseline 6 수준. (5) Phase C 220 ensemble 생략 — hard gate PASS가 Iter 7c effect 없는 baseline이라 의미 없음. (6) **다음 lever 명확**: 본 Iter 7c가 step demand cap 자체가 진짜 문제임을 가리킴. Iter 8 (photosynthesis source) 또는 step demand cap 평탄화 architectural refactor 필요. Iter 6h V3 (visibility gate)는 보수적 fallback."
+  },
+  "followUp": [
+    "Iter 8 (photosynthesis source 증가) ⭐ 1순위 — fruitDevelopment 외부 lever (canopy photosynthesis, LAI 등). Iter 6/7/7b/7c 4-Iter source-side reject 후 자연스러운 fallback. source pool 자체 키워 cohort 더 살아남게.",
+    "Iter 6h V3 (visibility gate phase_and_gdd 활성화) — 2순위 보수적 fallback, biology 안 건드리는 filter rule. D90 visible 의미적 회복.",
+    "Step demand cap 자체 평탄화 architectural refactor (3순위) — cell_division phase의 step demand cap 자체 작게 (Gompertz curve 평탄화). 본 Iter 7b/7c는 cumulative cap 조정, 다음은 step demand 자체 조정 시도."
+  ]
+}

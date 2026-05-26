@@ -171,6 +171,16 @@ export interface MassFlowSpec {
     expansionPhaseGrowthMultiplier: number;
     /** ripening phase per-step demand multiplier (≤ 1.0 moderation, default 0.8). */
     ripeningPhaseGrowthMultiplier: number;
+    /** Iter 7c (SSOT #106/#107) — cumulative Gompertz cap clock 기준.
+     *  'fertilization_based' (default, Iter 5b/7b 동작 유지, 후방호환):
+     *    cumulativeDryCap = potentialFreshMassG(gddSinceFert) — phase-naive trajectory.
+     *  'expansion_start_based' (Iter 7c 신규):
+     *    cell_expansion 진입 후 effective GDD shift,
+     *    cumulativeDryCap = divisionDryMassCap + potentialFreshMassG(gddSinceFert - cellDivisionDurationGDD).
+     *    cell_division 동안 못 받은 mass가 영구 못 받음 — D33 보호 + D60/D90 maxDiam band 유지.
+     *
+     *  ⚠ enabled=true AND expansionClockMode='expansion_start_based' 동시 필요. */
+    expansionClockMode: 'fertilization_based' | 'expansion_start_based';
   };
   /** snapshot에 fruit debug fields 출력 on/off. */
   debug: boolean;
@@ -406,6 +416,13 @@ export function validateFull(spec: BotanicalSpec): void {
    || pamg.ripeningPhaseGrowthMultiplier <= 0) {
     throw new BotanicalValidationError(
       `fruitDevelopment.massFlow.phaseAwareMassGrowth: divisionPhaseMaxDiameterMm/expansionPhaseGrowthMultiplier/ripeningPhaseGrowthMultiplier must be > 0`,
+    );
+  }
+  // Iter 7c (SSOT #106/#107) — expansionClockMode enum validator
+  if (pamg.expansionClockMode !== 'fertilization_based'
+   && pamg.expansionClockMode !== 'expansion_start_based') {
+    throw new BotanicalValidationError(
+      `fruitDevelopment.massFlow.phaseAwareMassGrowth.expansionClockMode invalid: ${String(pamg.expansionClockMode)}`,
     );
   }
   // Iter 6h — visibility gate validators (SSOT #74)
