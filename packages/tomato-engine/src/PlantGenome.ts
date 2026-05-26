@@ -47,6 +47,19 @@ export interface PlantGenome {
   internodeElongDelay: number;     // delay before elongation starts (days), 3-6
   internodeElongMid: number;       // sigmoid midpoint for elongation (days after delay), 6-10
 
+  // Per-plant stem sway around the vertical anchor (Lever A').
+  // Real tomatoes are tied to a twine: they wander left/right but are pulled
+  // back toward the vertical line. amplitude × cos(height·freq + phase) gives
+  // each plant its own sway pattern; restoring force keeps it bounded.
+  swayAmplitude: number;           // dimensionless lean amplitude (~0.02-0.08)
+  swayFrequencyRadPerM: number;    // sway rotation per metre of stem height
+  swayPhaseOffsetRad: number;      // starting phase (0..2π)
+
+  // Wire-compressed slide azimuth (Lever D). Used once the plant tops out at
+  // the overhead wire and the stem is forced sideways. Replaces the old
+  // `seed % 17` bucket which collapsed hundreds of plants into 17 directions.
+  wireSlideAzimuthRad: number;     // slide direction (0..2π)
+
   // Planting time offset (days)
   plantingDayOffset: number;
 }
@@ -127,6 +140,22 @@ export function generateGenomeWithBotanical(
     // Apex-driven internode elongation: read from botanical (elongation)
     internodeElongDelay: clamp(rng.gaussian(eDelay.mu, eDelay.sigma), eDelay.min, eDelay.max),
     internodeElongMid: clamp(rng.gaussian(eMid.mu, eMid.sigma), eMid.min, eMid.max),
+
+    // Per-plant sway (Lever A'). Hardcoded distribution for now; can move to
+    // botanical spec later. RNG calls added at the end so earlier fields stay
+    // byte-identical to the pre-sway genome — only the snapshot baseline that
+    // covers stem geometry needs refresh.
+    //
+    // freq is intentionally low (0.1..0.6 rad/m): over a ~3m stem the phase
+    // only sweeps ~0.3..1.8 rad, so the lean stays largely in one direction
+    // instead of oscillating into a net-zero spiral.
+    swayAmplitude: clamp(rng.gaussian(0.10, 0.025), 0.05, 0.15),
+    swayFrequencyRadPerM: clamp(rng.gaussian(0.3, 0.15), 0.1, 0.6),
+    swayPhaseOffsetRad: rng.range(0, 2 * Math.PI),
+
+    // Wire-compressed slide azimuth (Lever D). Uniform 0..2π instead of the
+    // 17-bucket `seed % 17` formula in walkSkeleton.
+    wireSlideAzimuthRad: rng.range(0, 2 * Math.PI),
 
     // Planting offset: some plants are a few days ahead or behind
     plantingDayOffset: clamp(rng.gaussian(0, 2), -5, 5),

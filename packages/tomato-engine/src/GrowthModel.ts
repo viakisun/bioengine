@@ -316,21 +316,43 @@ function normalize3(v: { x: number; y: number; z: number }) {
   return { x: v.x / len, y: v.y / len, z: v.z / len };
 }
 
+// Restoring strength toward the anchor's vertical line. Lower = the stem can
+// bend further before being pulled back; higher = the stem stays more rigidly
+// vertical. 0.25 gives a visible bend while still keeping the plant within a
+// rough ±30cm horizontal envelope around the anchor over a 3m stem.
+const STEM_RESTORE_K = 0.25;
+
 function synthesizeGrowthDir(
   prevDir: { x: number; y: number; z: number },
+  prevPos: { x: number; y: number; z: number },
+  anchor: { x: number; z: number },
   age: number,
   massAboveKg: number,
   rng: SeededRandom,
+  sway: { amp: number; freq: number; phase: number },
 ): { x: number; y: number; z: number } {
   const noiseX = rng.gaussian(0, 0.12);
   const noiseY = rng.gaussian(0, 0.04);
   const noiseZ = rng.gaussian(0, 0.12);
   const sagFactor = Math.min(0.3, age * 0.0005 + massAboveKg * 0.02);
+
+  // Per-plant sway: each plant rotates around its anchor at its own frequency
+  // and phase, so two plants at the same height bend in different directions.
+  const swayPhase = prevPos.y * sway.freq + sway.phase;
+  const swayX = sway.amp * Math.cos(swayPhase);
+  const swayZ = sway.amp * Math.sin(swayPhase);
+
+  // Anchor restoring: pull the stem back toward the (anchor.x, anchor.z)
+  // vertical line so the plant ends up "tied to a twine" — wanders, but stays
+  // near vertical overall.
+  const dx = prevPos.x - anchor.x;
+  const dz = prevPos.z - anchor.z;
+
   // light = (0, 1, 0) approx noon sun direction (up). Phototropism weight 0.10.
   return normalize3({
-    x: prevDir.x * 0.65 + noiseX,
+    x: prevDir.x * 0.65 + noiseX + swayX - dx * STEM_RESTORE_K,
     y: prevDir.y * 0.65 + 0.25 + 0.10 + noiseY - sagFactor,
-    z: prevDir.z * 0.65 + noiseZ,
+    z: prevDir.z * 0.65 + noiseZ + swayZ - dz * STEM_RESTORE_K,
   });
 }
 
@@ -460,7 +482,18 @@ function populateSideShootChain(
       y: pos.y + dir.y * internodeM,
       z: pos.z + dir.z * internodeM,
     };
-    const nextDir = synthesizeGrowthDir(dir, shootAge, 0, rng);
+    // Side shoots are out of scope for the Lever A' rework. Pass amp=0 and
+    // anchor=pos so neither sway nor restoring kicks in — keeps pre-sway
+    // shoot geometry byte-identical (modulo the new RNG calls in the genome).
+    const nextDir = synthesizeGrowthDir(
+      dir,
+      pos,
+      { x: pos.x, z: pos.z },
+      shootAge,
+      0,
+      rng,
+      { amp: 0, freq: 0, phase: 0 },
+    );
 
     // Per-node age (older at base, younger at tip). Same biology as main.
     const nodeAge = Math.max(0, shootAge - k * 3);
@@ -984,16 +1017,31 @@ export function computePlantState(
 
   if (nodes.length > 0) {
     nodes[0].position = { x: 0, y: hypocotylCm / 100, z: 0 };
+
+    // Anchor = the vertical line the plant should stay near. Take the base
+    // node's horizontal position so the restoring force is in plant-local
+    // space (works even if a future change shifts the base off origin).
+    const anchor = { x: nodes[0].position.x, z: nodes[0].position.z };
+    const sway = {
+      amp: genome.swayAmplitude,
+      freq: genome.swayFrequencyRadPerM,
+      phase: genome.swayPhaseOffsetRad,
+    };
+
     nodes[0].growthDir = synthesizeGrowthDir(
       { x: 0, y: 1, z: 0 },
+      nodes[0].position,
+      anchor,
       nodes[0].age,
       0,
       skeletonRng,
+      sway,
     );
 
-    // Plant gets a deterministic wire-slide direction once compressed:
-    // points along +X with a tiny per-plant rotation.
-    const wireAz = ((genome.seed % 17) - 8) * 0.05; // ~±0.4 rad jitter
+    // Lever D — once compressed, the stem slides along the overhead wire in
+    // a per-plant azimuth sampled in the genome (uniform 0..2π) instead of
+    // the old 17-bucket `seed % 17` formula.
+    const wireAz = genome.wireSlideAzimuthRad;
     const wireDir = { x: Math.cos(wireAz), y: 0, z: Math.sin(wireAz) };
 
     for (let i = 1; i < nodes.length; i++) {
@@ -1018,9 +1066,12 @@ export function computePlantState(
         };
         nodes[i].growthDir = synthesizeGrowthDir(
           prev.growthDir,
+          prev.position,
+          anchor,
           nodes[i].age,
           nodes[i].massAboveKg,
           skeletonRng,
+          sway,
         );
       }
     }
