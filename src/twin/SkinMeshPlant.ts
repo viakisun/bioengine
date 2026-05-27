@@ -32,7 +32,6 @@ import {
   SeededRandom,
   overlayPhysiologyFruits,
   getCultivar,
-  CULTIVAR_JSONS,
 } from '@farmsim/tomato-engine';
 import { computePlantGeometry, type PlantBase, type AxisBase } from '../plant/PlantBase';
 import { getStemMaterial } from '../plant/StemGenerator';
@@ -46,15 +45,14 @@ import { createSkeletonOverlay, type SkeletonOverlayHandle } from './SkeletonOve
 import { useTwinStore } from '../store/twinStore';
 import { buildTomatoSkeletonGraph } from '../plant/skeleton/buildTomatoSkeletonGraph';
 import { buildPlantSkinMesh } from '../plant/skin/buildPlantSkinMesh';
-// === Plant Morphology Engine — Leaf Module v0.1 ===
-import { resolveLeafShape } from '../plant/leaf/LeafShapeSchema';
-import {
-  buildTomatoLeafOrganGraph,
-  sampleLeafGenome,
-} from '../plant/leaf/buildTomatoLeafOrganGraph';
-import { buildLeafBladeMesh } from '../plant/leaf/buildLeafBladeMesh';
-import { makeGrowthVertexColorAt } from '../plant/leaf/leafVertexColor';
-import { getLeafBladeMaterial } from '../plant/leaf/material/getLeafBladeMaterial';
+// Iter 17 SSOT #173: legacy per-leaf createLeafMeshFromNode pipeline. Same
+// approach SupportingPlant/ShowcasePlant already use successfully — each
+// leaf becomes its own Mesh rotated by phyllotaxis azimuth + droop, so the
+// canopy has 3D volume from every camera angle. The previous single-mesh
+// Leaf Module v0.1 (buildLeafBladeMesh) locked all leaflet planes to
+// horizontal via pickInitialBinormal = cross(tangent, world_up), producing
+// the "half the canopy disappears at parallel-camera angles" symptom.
+import { createLeafMeshFromNode, getLeafMaterial, getYellowLeafMaterial } from '../plant/LeafGenerator';
 import type { ShowcasePlantHandle } from './ShowcasePlant';
 
 // SkinMeshPlant implements the same surface API as ShowcasePlant so it
@@ -127,8 +125,9 @@ export function createSkinMeshPlant(
 
   const cotyledonMat = getCotyledonMaterial(scene);
   const skinMat = getSkinMeshMaterial(scene);
-  const leafBladeMat = getLeafBladeMaterial(scene);
-  const leafColorBaker = makeGrowthVertexColorAt();
+  // Iter 17 — legacy leaf materials (matches SupportingPlant/ShowcasePlant).
+  const leafMat = getLeafMaterial(scene);
+  const yellowLeafMat = getYellowLeafMaterial(scene);
   void getStemMaterial;  // import-graph stability — kept for parity, not used directly
 
   let currentMeshes: Mesh[] = [];
@@ -242,45 +241,42 @@ export function createSkinMeshPlant(
       currentParts.stem = skin.mesh;
     }
 
-    // === Leaf blades — single LeafOrganGraph → single LeafBladeMesh ===
-    //   Plant Morphology Engine Leaf Module v0.1.
-    //   Per-leaf createLeafBladeMesh attachment is GONE — replaced by a
-    //   single procedural blade surface built from PERSISTENT leaf morphology
-    //   (rachisGuide + leaflet midribs) for every visible compound leaf.
-    //   Single Babylon Mesh, single VertexData buffer (same principle as
-    //   stem skin), shading-isolated (double-sided + vertex color).
-    const cultivarJson = CULTIVAR_JSONS[cultivarKey];
-    const leafShape = resolveLeafShape(cultivarJson?.leafShape);
-    const leafGenome = sampleLeafGenome(seed, leafShape);
-    const leafGraph = buildTomatoLeafOrganGraph(plantBase, graph, {
-      leafShape, genome: leafGenome,
-    });
-    const blade = buildLeafBladeMesh(scene, leafGraph, {
-      vertexColorAt: leafColorBaker,
-    });
-    console.log(
-      `[skinplant.leaf] compoundLeaves=${blade.stats.compoundLeafCount} ` +
-      `leaflets=${blade.stats.leafletCount} ` +
-      `verts=${blade.stats.vertexCount} tris=${blade.stats.triangleCount} ` +
-      `buildMs=${blade.stats.buildMs.toFixed(1)} cultivar=${cultivarKey} ` +
-      `provenance=${leafShape.provenance.sourceLevel}/${leafShape.provenance.confidence}`,
-    );
-    if (blade.stats.vertexCount > 0) {
-      blade.mesh.name = `skinplant_leaf_${seed}`;
-      blade.mesh.parent = lushGroup;
-      blade.mesh.material = leafBladeMat;
-      // Phase 5 cut/picking metadata — leafletGroups primary lookup table.
-      blade.mesh.metadata = {
-        leafOrganGraphSchemaVersion: leafGraph.schemaVersion,
-        leafletGroups: blade.leafletGroups,
-        leafletIdByIdx: blade.leafletIdByIdx,
-        vertexLeafletTag: blade.vertexLeafletTag,
-        // Weak-ref hint for downstream tools (DO NOT mutate from inspector).
-        leafOrganGraphRef: leafGraph,
-      };
-      currentMeshes.push(blade.mesh);
-      currentParts.leaves.push(blade.mesh);
+    // === Leaf blades — legacy per-leaf createLeafMeshFromNode pattern ===
+    //   Iter 17 SSOT #173: replaces single-mesh Leaf Module v0.1
+    //   (buildLeafBladeMesh) which locked all leaflet planes to horizontal
+    //   via pickInitialBinormal = cross(tangent, up). Per-leaf meshes get
+    //   rotated by their own phyllotaxis azimuth + droop, so the canopy is
+    //   3D-volumetric and visible from any camera angle.
+    const genome = engine.getGenome(seed)!;
+    const leafAxes: AxisBase[] = [plantBase.mainAxis, ...plantBase.sideShoots];
+    let leafMeshCount = 0;
+    for (let axisIdx = 0; axisIdx < leafAxes.length; axisIdx++) {
+      const axisBase = leafAxes[axisIdx];
+      for (const leafBase of axisBase.leaves) {
+        if (!leafBase.visibility.visible) continue;
+        const node = state.nodes[leafBase.nodeIdx];
+        if (!node || node.leafMaturity < 0.05) continue;
+        // Petiole tip = leaf blade attach point (matches SupportingPlant).
+        const tip = leafBase.petioleCurve && leafBase.petioleCurve.length > 0
+          ? leafBase.petioleCurve[leafBase.petioleCurve.length - 1]
+          : leafBase.attachPosition;
+        const leafRng = new SeededRandom(seed * 1009 + axisIdx * 9173 + leafBase.nodeIdx * 31 + 11);
+        const leafMesh = createLeafMeshFromNode(
+          `skinplant_leaf_${seed}_a${axisIdx}_n${leafBase.nodeIdx}`,
+          scene, node, genome, state.day, leafRng,
+        );
+        leafMesh.parent = lushGroup;
+        leafMesh.position = new Vector3(tip.x, tip.y, tip.z);
+        leafMesh.rotationQuaternion = Quaternion.RotationAxis(Vector3.Up(), leafBase.azimuthRad)
+          .multiply(Quaternion.RotationAxis(new Vector3(0, 0, 1), -leafBase.droopRad));
+        leafMesh.material = node.yellowing > 0.4 ? yellowLeafMat : leafMat;
+        currentMeshes.push(leafMesh);
+        currentParts.leaves.push(leafMesh);
+        leafMeshCount++;
+      }
     }
+    console.log(`[skinplant.leaf] per-leaf meshes=${leafMeshCount} (legacy createLeafMeshFromNode)`);
+    void cultivarKey;
 
     // === Truss organs (fruit body / calyx / flower only) — unchanged ===
     const baseAxes: AxisBase[] = [plantBase.mainAxis, ...plantBase.sideShoots];

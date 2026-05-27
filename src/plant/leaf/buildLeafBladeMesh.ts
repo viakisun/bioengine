@@ -334,14 +334,12 @@ function emitLeafletBlade(
       const b = baseVertexOffset + i * colCount + k + 1;
       const c = baseVertexOffset + (i + 1) * colCount + k;
       const d = baseVertexOffset + (i + 1) * colCount + k + 1;
-      // Iter 16 fix: emit BOTH windings so the blade is genuinely double-sided.
-      // Material backFaceCulling=false alone wasn't enough — PBR shading on a
-      // flipped normal made the reverse side invisible from 180° viewpoints,
-      // producing the "half the leaves missing depending on camera" symptom.
+      // Wind so that the surface normal points along frame.normal (toward sky).
+      // (Iter 16 reverse-winding double-side hack reverted in Iter 17 — the
+      // SkinMeshPlant consumer switched to the legacy createLeafMeshFromNode
+      // pipeline, which doesn't go through this function anymore.)
       indices.push(a, c, b);
       indices.push(b, c, d);
-      indices.push(a, b, c);
-      indices.push(b, d, c);
     }
     const stripIndexCount = indices.length - stripStartIdx;
     if (i === 0) {
