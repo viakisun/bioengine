@@ -96,4 +96,22 @@ test.describe('Iter 16 — Early Onset visual check (post engine + label fix)', 
       });
     });
   }
+
+  // Multi-angle rotation check (Issue B — 180° backface-culling regression).
+  // Pause timeline; capture D29 + D45 at 4 azimuths. If only half the leaves
+  // render at some angles, the leaf-blade mesh is still single-sided.
+  for (const day of [29, 45]) {
+    for (const alpha of [-Math.PI / 2, 0, Math.PI / 2, Math.PI]) {
+      const tag = `a${alpha.toFixed(2).replace('-', 'n').replace('.', '_')}`;
+      test(`day ${day} azimuth ${alpha.toFixed(2)} (B 180° check)`, async ({ page }) => {
+        await scrubToDay(page, day);
+        await setCamera(page, { alpha, beta: Math.PI / 2 - 0.08, radius: 1.8, targetY: 1.2 });
+        await page.waitForTimeout(800);
+        await page.screenshot({
+          path: `test-results/plant-calibration/iter16/day${String(day).padStart(2, '0')}_${tag}.png`,
+          fullPage: false,
+        });
+      });
+    }
+  }
 });

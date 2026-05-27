@@ -777,7 +777,15 @@ export function computePlantState(
     // turns the canopy from "sparse skeleton" into "dense bush."
     const positionFactor = Math.sin(nodeFrac * Math.PI);
     const potentialSize = (0.85 + 0.20 * positionFactor) * genome.leafSizeMultiplier;
-    const leafSizeFactor = potentialSize * leafExpansion;
+    // Iter 16 SSOT #169 — plant-wide juvenile leaf scale.
+    // initialNodeCountAtTransplant=5 treats Day 0 plant as a 4-week seedling
+    // with nodes "born" 28-30 days before transplant, so leafExpansion=1.0
+    // makes every visible leaf full-size on Day 0. The user-visible result
+    // contradicts the seedling expectation (떡잎+1-2 small true leaves).
+    // Ramp 0.3 → 1.0 across the first 15 days so the canopy starts small
+    // and grows in. Side-shoot path unaffected (covered separately).
+    const plantJuvenileScale = day < 15 ? 0.3 + 0.7 * (day / 15) : 1.0;
+    const leafSizeFactor = potentialSize * leafExpansion * plantJuvenileScale;
 
     // --- Leaf area & mass ---
     // 720 → 880 cm² — closer to the upper end of beefsteak compound
