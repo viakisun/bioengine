@@ -12,6 +12,7 @@ import type { PlantSkeletonGraph } from '../skeleton/PlantSkeletonGraph';
 import {
   buildStemFamilyTubeNetwork,
   type PlantFaceGroup,
+  type PlantStemFamilyMesh,
   type StemFamilyTubeOpts,
 } from './StemFamilyTubeNetworkBuilder';
 
@@ -24,13 +25,8 @@ export interface PlantSkinMesh {
   vertexEdgeTag: Uint16Array;
   /** Reverse lookup: vertexEdgeTag[v] → edge id. */
   edgeIdByIdx: string[];
-  stats: {
-    edgeCount: number;
-    branchCount: number;
-    vertexCount: number;
-    triangleCount: number;
-    buildMs: number;
-  };
+  /** Iter 18A: full stats including per-edge-type breakdown + floating audit. */
+  stats: PlantStemFamilyMesh['stats'];
 }
 
 export interface PlantSkinMeshOptions extends StemFamilyTubeOpts {}

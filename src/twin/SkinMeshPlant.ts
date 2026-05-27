@@ -225,6 +225,31 @@ export function createSkinMeshPlant(
       `verts=${skin.stats.vertexCount} tris=${skin.stats.triangleCount} ` +
       `buildMs=${skin.stats.buildMs.toFixed(1)}`,
     );
+    // Iter 18A SSOT #176 — per-edge-type fidelity audit dump.
+    const edgeTypes = ['mainStem', 'sideShoot', 'petiole', 'peduncle', 'rachis', 'pedicel'] as const;
+    const typeRows = edgeTypes.map((t) => {
+      const inGraph = skin.stats.edgesByType[t] ?? 0;
+      const emitted = skin.stats.emittedByType[t] ?? 0;
+      const bio = skin.stats.biologicalRadiusByType[t];
+      const ren = skin.stats.renderRadiusByType[t];
+      const fmt = (r: typeof bio) => r
+        ? `bio[${(r.min * 1000).toFixed(2)}/${(r.median * 1000).toFixed(2)}/${(r.max * 1000).toFixed(2)}mm n=${r.count}]`
+        : 'bio=∅';
+      const renFmt = ren
+        ? `ren[${(ren.min * 1000).toFixed(2)}/${(ren.median * 1000).toFixed(2)}/${(ren.max * 1000).toFixed(2)}mm]`
+        : 'ren=∅';
+      return `  ${t.padEnd(10)} graph=${String(inGraph).padStart(3)} emitted=${String(emitted).padStart(3)} ${fmt(bio)} ${renFmt}`;
+    });
+    console.log(`[skinplant] per-edge-type breakdown:\n${typeRows.join('\n')}`);
+    if (skin.stats.floatingCandidateCount > 0) {
+      console.warn(
+        `[skinplant] ⚠ floating candidates=${skin.stats.floatingCandidateCount}: `
+        + skin.stats.floatingCandidateIds.slice(0, 8).join(', ')
+        + (skin.stats.floatingCandidateIds.length > 8 ? ' …' : ''),
+      );
+    }
+    // Expose for browser-side inspection (dev-only debug — does not affect rendering).
+    (window as unknown as { __skinplantStats?: typeof skin.stats }).__skinplantStats = skin.stats;
     if (skin.stats.vertexCount > 0) {
       // Rename the mesh to include the seed for ownership audit prefixes.
       skin.mesh.name = `skinplant_skin_${seed}`;

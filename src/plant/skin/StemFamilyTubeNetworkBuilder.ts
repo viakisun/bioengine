@@ -61,7 +61,25 @@ export interface PlantStemFamilyMesh {
     vertexCount: number;
     triangleCount: number;
     buildMs: number;
+    // Iter 18A SSOT #176 — per-edge-type instrumentation for fidelity audit.
+    edgesByType: Partial<Record<SkeletonEdgeType, number>>;
+    emittedByType: Partial<Record<SkeletonEdgeType, number>>;
+    /** Per-type biological radius (graph edge bonePath[0].r0) — min/median/max/count. */
+    biologicalRadiusByType: Partial<Record<SkeletonEdgeType, RadiusStat>>;
+    /** Per-type effective render radius (after rootRadiusScale + swelling). */
+    renderRadiusByType: Partial<Record<SkeletonEdgeType, RadiusStat>>;
+    /** Child edges whose start point is farther than 1mm from parent surface
+     *  along the radial direction — surfaces "floating" relative to parent. */
+    floatingCandidateCount: number;
+    floatingCandidateIds: string[];
   };
+}
+
+export interface RadiusStat {
+  min: number;
+  median: number;
+  max: number;
+  count: number;
 }
 
 export interface StemFamilyTubeOpts {
@@ -415,6 +433,17 @@ export function buildStemFamilyTubeNetwork(
   const edgeIdByIdx: string[] = [];
   let branchCount = 0;
 
+  // Iter 18A SSOT #176 — instrumentation accumulators.
+  const edgesByType: Partial<Record<SkeletonEdgeType, number>> = {};
+  const emittedByType: Partial<Record<SkeletonEdgeType, number>> = {};
+  const bioRadiiByType: Partial<Record<SkeletonEdgeType, number[]>> = {};
+  const renderRadiiByType: Partial<Record<SkeletonEdgeType, number[]>> = {};
+  const floatingCandidateIds: string[] = [];
+  const FLOATING_GAP_THRESHOLD_M = 0.001; // 1mm
+  for (const e of graph.edges.values()) {
+    edgesByType[e.type] = (edgesByType[e.type] ?? 0) + 1;
+  }
+
   // Pass 3 — DFS from root edge
   const rootEdge = graph.edges.get(graph.rootEdgeId);
   if (rootEdge) {
@@ -424,6 +453,10 @@ export function buildStemFamilyTubeNetwork(
   function emitEdgeRecursive(edge: SkeletonEdge, parentInfo: ParentInfo | null): void {
     const swollenBones = bonePathByEdge.get(edge.id);
     if (!swollenBones || swollenBones.length === 0) return;
+
+    // Iter 18A: per-type biological radius (graph value, pre-embed).
+    const bioR0 = edge.bonePath[0]?.r0 ?? 0;
+    (bioRadiiByType[edge.type] ??= []).push(bioR0);
 
     let effectiveBonePath = swollenBones;
     let capStart: boolean;
@@ -464,9 +497,22 @@ export function buildStemFamilyTubeNetwork(
       effectiveBonePath = [rootBone, ...swollenBones];
       capStart = false;
       branchCount++;
+
+      // Iter 18A: floating candidate detection — radial gap between graph
+      // child start (pre-embed) and parent surface.
+      const childGraphStart = edge.bonePath[0].p0;
+      const radialGap = vlen(vsub(childGraphStart, parentSurfacePoint));
+      if (radialGap > FLOATING_GAP_THRESHOLD_M) {
+        floatingCandidateIds.push(edge.id);
+      }
     } else {
       capStart = true;  // root (mainStem) — base sits on ground
     }
+
+    // Iter 18A: per-type effective render radius (after embed, swelling, scale).
+    const renderR0 = effectiveBonePath[0]?.r0 ?? 0;
+    (renderRadiiByType[edge.type] ??= []).push(renderR0);
+    emittedByType[edge.type] = (emittedByType[edge.type] ?? 0) + 1;
 
     // capEnd: children + attached organ check
     const childIds = childIndex.get(edge.id) ?? [];
@@ -528,6 +574,16 @@ export function buildStemFamilyTubeNetwork(
 
   const t1 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
+  // Iter 18A: finalize per-type radius stats.
+  const biologicalRadiusByType: Partial<Record<SkeletonEdgeType, RadiusStat>> = {};
+  for (const [type, vals] of Object.entries(bioRadiiByType) as Array<[SkeletonEdgeType, number[]]>) {
+    biologicalRadiusByType[type] = radiusStat(vals);
+  }
+  const renderRadiusByType: Partial<Record<SkeletonEdgeType, RadiusStat>> = {};
+  for (const [type, vals] of Object.entries(renderRadiiByType) as Array<[SkeletonEdgeType, number[]]>) {
+    renderRadiusByType[type] = radiusStat(vals);
+  }
+
   return {
     mesh,
     faceGroups,
@@ -539,6 +595,22 @@ export function buildStemFamilyTubeNetwork(
       vertexCount: positions.length / 3,
       triangleCount: indices.length / 3,
       buildMs: t1 - t0,
+      edgesByType,
+      emittedByType,
+      biologicalRadiusByType,
+      renderRadiusByType,
+      floatingCandidateCount: floatingCandidateIds.length,
+      floatingCandidateIds,
     },
   };
+}
+
+function radiusStat(values: number[]): RadiusStat {
+  if (values.length === 0) return { min: 0, median: 0, max: 0, count: 0 };
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = sorted.length >> 1;
+  const median = sorted.length % 2 === 0
+    ? (sorted[mid - 1] + sorted[mid]) / 2
+    : sorted[mid];
+  return { min: sorted[0], median, max: sorted[sorted.length - 1], count: sorted.length };
 }
