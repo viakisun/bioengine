@@ -138,6 +138,13 @@ const DEFAULT_EMBED_DEPTH_FLOOR_M: Record<SkeletonEdgeType, number> = {
   pedicel:   0.0010,  // 1.0mm
 };
 
+// Iter 18A SSOT #177 — render-time pixel-visibility radius floor (meters).
+// engine biological radius (edge.bonePath[i].r0/r1)는 변경 없이 유지.
+// 이 floor는 swelling/embed clone된 bone에만 적용 — 0.5mm 이하 organ이
+// sub-pixel로 사라지지 않도록 보장. biological 값과 분리 (debug overlay에서
+// 두 값 비교 가능, SSOT #176 stats.biologicalRadiusByType vs renderRadiusByType).
+const RENDER_RADIUS_FLOOR_M = 0.0008;  // 0.8mm
+
 // ── frame (sweepTube-compatible, world-up referenced) ──────────────────
 
 interface Frame {
@@ -360,6 +367,10 @@ function preprocessBonePathsWithSwelling(
       const nid1 = posToNodeId.get(nodePosKey(bone.p1));
       if (nid0 && junctions.has(nid0)) bone.r0 *= swellingScale;
       if (nid1 && junctions.has(nid1)) bone.r1 *= swellingScale;
+      // Iter 18A SSOT #177 — render radius floor (biological values in
+      // edge.bonePath untouched).
+      bone.r0 = Math.max(bone.r0, RENDER_RADIUS_FLOOR_M);
+      bone.r1 = Math.max(bone.r1, RENDER_RADIUS_FLOOR_M);
     }
     out.set(edgeId, swollen);
   }
@@ -506,11 +517,13 @@ export function buildStemFamilyTubeNetwork(
       const childStart = vsub(parentSurfacePoint, vscale(radialDir, embedDepth));
 
       const origFirst = swollenBones[0];
+      // Iter 18A SSOT #177 — rootBone radii also subject to render floor.
+      // (swollenBones already pre-floored in preprocess; rootBone is post-hoc.)
       const rootBone: SkeletonBone = {
         p0: childStart,
         p1: origFirst.p0,
-        r0: origFirst.r0 * rootRadiusScale,
-        r1: origFirst.r0 * 1.05,
+        r0: Math.max(origFirst.r0 * rootRadiusScale, RENDER_RADIUS_FLOOR_M),
+        r1: Math.max(origFirst.r0 * 1.05, RENDER_RADIUS_FLOOR_M),
       };
       effectiveBonePath = [rootBone, ...swollenBones];
       capStart = false;
