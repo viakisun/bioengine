@@ -58,6 +58,10 @@ export interface LeafBuildParams {
    *  buildLeafBladeOnly only. Leaflets remain at their mesh-local positions
    *  along the (now-invisible) rachis line. */
   omitRachis?: boolean;
+  /** Iter 18B PR 6 — Skin variant: omit the per-leaflet petiolule cylinders
+   *  (small 8mm sticks between rachis and each leaflet). buildLeafBladeOnly
+   *  only. Leaflets remain in place (petiolule was cosmetic). */
+  omitPetiolules?: boolean;
 }
 
 export function buildLeafChunk(paramsArg: LeafBuildParams, rng: SeededRandom): GeoChunk {
@@ -325,20 +329,23 @@ export function buildLeafBladeOnly(paramsArg: LeafBuildParams, rng: SeededRandom
         translateChunk(leaflet, posAlongRachis, yOff, side * 0.025 * baseSizeMod);
         chunks.push(leaflet);
 
-        // Petiolule — same as buildLeafChunk (small cylinder between
-        // rachis and each leaflet). Kept for visual completeness.
-        const petioluleLen = 0.008 * baseSizeMod;
-        const petiolule = createCylinderChunk(
-          0.0004 * sizeFactor,
-          0.0006 * sizeFactor,
-          petioluleLen,
-          3,
-          1,
-          true,
-        );
-        rotateChunkX(petiolule, Math.PI / 2);
-        translateChunk(petiolule, posAlongRachis, yOff, side * petioluleLen * 0.5);
-        chunks.push(petiolule);
+        // Iter 18B PR 6 — Petiolule omission option. Skin variant uses
+        // omitPetiolules=true (사용자가 본 "빨대" 후보 #3: 8mm × 0.4-0.6mm
+        // sticks 각 leaflet마다 2개). Leaflets는 위에서 이미 push됨.
+        if (!paramsArg.omitPetiolules) {
+          const petioluleLen = 0.008 * baseSizeMod;
+          const petiolule = createCylinderChunk(
+            0.0004 * sizeFactor,
+            0.0006 * sizeFactor,
+            petioluleLen,
+            3,
+            1,
+            true,
+          );
+          rotateChunkX(petiolule, Math.PI / 2);
+          translateChunk(petiolule, posAlongRachis, yOff, side * petioluleLen * 0.5);
+          chunks.push(petiolule);
+        }
       }
 
       if (intCount >= 5 && i < pairs && rng.next() > 0.3) {

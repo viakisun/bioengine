@@ -216,6 +216,9 @@ export function createLeafBladeOnlyMesh(
       // 보임 ("빨대" 후보 #2). leaflets은 mesh-local 위치 그대로 유지하므로
       // 시각 영향 = rachis line 사라짐만.
       omitRachis: true,
+      // Iter 18B PR 6 — petiolule sticks ("빨대" 후보 #3, 각 leaflet마다 2개)
+      // 도 제거. leaflets는 영향 없음 (이미 push됨).
+      omitPetiolules: true,
     },
     rng,
   );
