@@ -68,7 +68,7 @@ async function setView(page: Page, mode: 'stem' | 'full') {
 }
 
 test(`Phase ${PHASE} baseline capture — D45 × ${AZIMUTHS} azimuth × stem/full`, async ({ page }) => {
-  test.setTimeout(300_000);
+  test.setTimeout(600_000);  // 10min — self-heal shot 1 (PR 3 timeout fix)
   await fs.mkdir(OUT_DIR, { recursive: true });
   await enterSkin(page);
 
