@@ -217,6 +217,15 @@ export function buildLeafChunk(paramsArg: LeafBuildParams, rng: SeededRandom): G
 }
 
 /**
+ * Iter 18B PR 7 — `buildLeafChunkSkin` is the Skin-mode preset of this
+ * function. It calls `buildLeafBladeOnly` with `omitRachis: true` and
+ * `omitPetiolules: true` so the leaf mesh contains LEAFLETS ONLY (no internal
+ * cylinders). Use this from SkinMeshPlant via createLeafBladeOnlyMesh.
+ *
+ * `buildLeafChunk` (with embedded petiole + rachis + petiolules) is unchanged
+ * and continues to power ShowcasePlant for backward compatibility — its mesh
+ * count and vertex count are byte-perfect identical to before.
+ *
  * Build a leaf mesh WITHOUT the petiole cylinder. The rachis cylinder
  * and petiolule cylinders are KEPT so the blade remains visually
  * coherent (leaflets attached to a central midrib).
@@ -234,6 +243,21 @@ export function buildLeafChunk(paramsArg: LeafBuildParams, rng: SeededRandom): G
  * `buildLeafChunk` itself is untouched; SkinMeshPlant calls this
  * dedicated function.
  */
+/**
+ * Iter 18B PR 7 — Skin-mode preset of buildLeafBladeOnly. Calls the underlying
+ * blade builder with omitRachis=true + omitPetiolules=true so the resulting
+ * mesh contains LEAFLETS ONLY (no petiole, no rachis spine, no petiolule
+ * sticks). Backed by SkeletonGraph's petiole edge (separate stem skin mesh)
+ * for visual continuity. See SSOT #182 (leaflet positioning intentionally
+ * mesh-local).
+ *
+ * Use this from SkinMeshPlant via createLeafBladeOnlyMesh. ShowcasePlant keeps
+ * buildLeafChunk for backward-compat (byte-perfect mesh count).
+ */
+export function buildLeafChunkSkin(paramsArg: LeafBuildParams, rng: SeededRandom): GeoChunk {
+  return buildLeafBladeOnly({ ...paramsArg, omitRachis: true, omitPetiolules: true }, rng);
+}
+
 export function buildLeafBladeOnly(paramsArg: LeafBuildParams, rng: SeededRandom): GeoChunk {
   const params = paramsArg.shape ?? DEFAULT_LEAF_PARAMS;
   const stageInfo = paramsArg.stageInfo;

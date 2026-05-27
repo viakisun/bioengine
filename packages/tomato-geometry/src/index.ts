@@ -15,7 +15,12 @@ export {
   transformChunk,
 } from './types';
 
-export { buildLeafChunk, buildLeafBladeOnly, DEFAULT_LEAF_PARAMS } from './leafChunk';
+export {
+  buildLeafChunk,        // Legacy — used by ShowcasePlant. embeds petiole + rachis + petiolules.
+  buildLeafBladeOnly,    // Iter 18A — option-driven variant (omitRachis / omitPetiolules).
+  buildLeafChunkSkin,    // Iter 18B PR 7 — Skin preset: leaflets only (omit-all).
+  DEFAULT_LEAF_PARAMS,
+} from './leafChunk';
 export type { LeafBuildParams, LeafShapeParams } from './leafChunk';
 
 export { buildLeafColorBytes, buildLeafNormalBytes, LEAF_TEX_SIZE } from './leafTexture';

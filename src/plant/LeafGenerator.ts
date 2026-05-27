@@ -18,8 +18,8 @@ import {
   type PlantGenome,
 } from '@farmsim/tomato-engine';
 import {
-  buildLeafChunk,
-  buildLeafBladeOnly,
+  buildLeafChunk,        // Legacy ShowcasePlant path.
+  buildLeafChunkSkin,    // Iter 18B PR 7 Skin preset (omit-all leaflets-only).
   type GeoChunk,
   type LeafShapeParams,
 } from '@farmsim/tomato-geometry';
@@ -203,7 +203,10 @@ export function createLeafBladeOnlyMesh(
   const ageFromAge = Math.min(1, node.age / 80);
   const ageFrac = Math.max(ageFromDroop, ageFromAge) + node.waterStress * 0.3;
   const curl = 0.12 + node.yellowing * 0.15;
-  const chunk = buildLeafBladeOnly(
+  // Iter 18B PR 7 — `buildLeafChunkSkin` 명시적 Skin preset 사용.
+  // PR 4-6의 omitRachis + omitPetiolules + buildLeafBladeOnly(petiole omit)
+  // 조합을 단일 entry로 wrap. ShowcasePlant는 buildLeafChunk (legacy) 그대로.
+  const chunk = buildLeafChunkSkin(
     {
       stageInfo,
       leafletCount: node.leafletCount,
@@ -212,13 +215,6 @@ export function createLeafBladeOnlyMesh(
       curl,
       ageFrac,
       shape,
-      // Iter 18B PR 5 — rachis spine cylinder는 leaf 안에서 별도 stick으로
-      // 보임 ("빨대" 후보 #2). leaflets은 mesh-local 위치 그대로 유지하므로
-      // 시각 영향 = rachis line 사라짐만.
-      omitRachis: true,
-      // Iter 18B PR 6 — petiolule sticks ("빨대" 후보 #3, 각 leaflet마다 2개)
-      // 도 제거. leaflets는 영향 없음 (이미 push됨).
-      omitPetiolules: true,
     },
     rng,
   );
