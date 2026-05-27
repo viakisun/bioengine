@@ -52,7 +52,11 @@ export function potentialFreshWeight(
   const b = cultivar.gompertzRateB * genome.ripeningSpeedFactor;
   const totalGrowthGDD = cultivar.cellDivisionDurationGDD + cultivar.cellExpansionDurationGDD;
   const tau = totalGrowthGDD * cultivar.gompertzInflectionC;
-  const exponentScale = ACTIVE_BOTANICAL.tomato.fruitDevelopment.gompertz.exponentScaling;
+  // Iter 15 fix (SSOT #161): cultivar.resolvedBotanical 우선 (botanicalOverride 존중).
+  // 기존 코드는 ACTIVE_BOTANICAL을 직접 읽어 cultivar JSONC botanicalOverride.gompertz.exponentScaling이
+  // 무시되는 버그가 있었음. CLI --overrideGompertz는 ACTIVE_BOTANICAL도 mutate해서 동작했음.
+  const exponentScale = cultivar.resolvedBotanical?.fruitDevelopment?.gompertz?.exponentScaling
+    ?? ACTIVE_BOTANICAL.tomato.fruitDevelopment.gompertz.exponentScaling;
   return a * Math.exp(-Math.exp(-b * (gddSinceFert - tau) * exponentScale));
 }
 

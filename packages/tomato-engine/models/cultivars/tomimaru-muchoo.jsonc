@@ -26,17 +26,15 @@
     // Iter 3 attempt 1 (300→360) had no effect — boundary at day 30 TT=360
     // produced same expectedTrussCount=1. v0.7 baseline 300 그대로 유지.
     "GDD_to_first_flower": 300,
-    "GDD_per_truss": 120,
+    // Iter 15 (growth_update_027, 2026-05-27): 120 → 100. Truss timing acceleration —
+    // 10-seed ensemble D60 vis 11.00, D90 vis 24.90 [22-28] target zone bullseye.
+    "GDD_per_truss": 100,
     "GDD_flower_to_red": 800,
-    // Iter 3 (growth_update_004, 2026-05-25): 150 → 300. Reference Pack day 30
-    // target fruitCount=0, maxDiam=0. Sim v0.8: fruitCount=4, maxDiam=87mm.
-    // CoreModel fruit.diameter = freshMassToDiameter(W_fresh, genome) and
-    // W_fresh follows sink allocation, capped at potentialMassG. Cell division
-    // phase 길이를 늘려서 fruit가 cap (200g, 80mm) 도달까지 걸리는 시간 증가.
-    // Gillaspy 1993 cell division phase: tomato 10-14 days post-anthesis;
-    // 22°C @ 12 GDD/day → 120-168 GDD. 300 GDD ≈ 25 days = upper bound for
-    // slow indeterminate beefsteak (still in published range for large fruit).
-    "cellDivisionDurationGDD": 300,
+    // Iter 15 (growth_update_027, 2026-05-27): 300 → 260. T3 phase transition lever
+    // 결합 (T1 truss timing + T3 cellDiv + expansionMul). 10-seed ensemble D33 mx=0
+    // ALL seeds + D60 mx 19.83 [17.86-21.45] target band + D90 mx 57.09 in band.
+    // Iter 6~14 누적 13-Iter calibration의 종합 — v0.12-overdrive-interpolation-tuned 진입.
+    "cellDivisionDurationGDD": 260,
     "cellExpansionDurationGDD": 500,
     "ripeningDurationGDD": 200,
     "trussRipeningSpreadGDD": 100
@@ -232,10 +230,29 @@
   },
 
   // Botanical layer override (botanical.v1).
-  // Iter 6 (growth_update_006): gompertz override 제거.
-  //   이전: rateB.mu=0.05, inflectionC.mu=0.55 (Iter 1A 시점 값).
-  //   현재 base가 sweep-calibrated (rateB.mu=0.05, inflectionC.mu=1.00,
-  //   exponentScaling=0.12)이고 tomimaru-specific 보정이 sweep best와
-  //   일치하므로 override 불필요. base 그대로 read.
-  "botanicalOverride": {}
+  // Iter 15 (growth_update_027, 2026-05-27): v0.12-overdrive-interpolation-tuned 정식 promote.
+  //   Iter 6~14 누적 13-Iter calibration의 종합 결과.
+  //   10-seed ensemble: D33 mx=0 ALL seeds + D60 vis 11.00 mx 19.83 + D90 vis 24.90 mx 57.09
+  //                     (D90 vis target zone [22,28] bullseye, baseline 4.20 대비 +20.70).
+  //   Iter 14에서 MAX overdrive D90 vis=37 (architecture 가능 증명) 후 T1+T3 interpolation으로 도달.
+  //   - gompertz: Iter 10 winner (inflectionC=0.55 + rateB=0.05 + exponentScaling=0.08)
+  //   - phaseAwareMassGrowth: Iter 7b/9/10 stack + Iter 15 expansionMultiplier=1.25 추가
+  "botanicalOverride": {
+    "fruitDevelopment": {
+      "gompertz": {
+        "rateB": { "mu": 0.05 },
+        "inflectionC": { "mu": 0.55 },
+        "exponentScaling": 0.08
+      },
+      "massFlow": {
+        "phaseAwareMassGrowth": {
+          "enabled": true,
+          "divisionPhaseMassFraction": 0.10,
+          "cellDivisionStepDemandFraction": 0.10,
+          "transitionZoneGDD": 40,
+          "expansionPhaseGrowthMultiplier": 1.25
+        }
+      }
+    }
+  }
 }

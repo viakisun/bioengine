@@ -34,6 +34,8 @@ interface CliArgs {
   /** Iter 6c — phenology sweep axes (optional). */
   cellDivisionDurationGDD?: number[];
   cellExpansionDurationGDD?: number[];
+  /** Iter 15 (SSOT #156) — Truss emergence interval sweep axis (cultivar.GDD_per_truss). */
+  gddPerTruss?: number[];
   /** Iter 6d — cohort generation sweep axes (optional, SSOT #53). */
   flowersPerTrussMu?: number[];
   fruitSetRate?: number[];
@@ -119,6 +121,7 @@ function parseArgs(argv: string[]): CliArgs {
     exponentScaling: parseList(opts.exponentScaling, [0.010]),
     cellDivisionDurationGDD: opts.cellDivisionDurationGDD ? parseList(opts.cellDivisionDurationGDD, []) : undefined,
     cellExpansionDurationGDD: opts.cellExpansionDurationGDD ? parseList(opts.cellExpansionDurationGDD, []) : undefined,
+    gddPerTruss: opts.gddPerTruss ? parseList(opts.gddPerTruss, []) : undefined,
     flowersPerTrussMu: opts.flowersPerTrussMu ? parseList(opts.flowersPerTrussMu, []) : undefined,
     fruitSetRate: opts.fruitSetRate ? parseList(opts.fruitSetRate, []) : undefined,
     abortionThresholdRatio: opts.abortionThresholdRatio ? parseList(opts.abortionThresholdRatio, []) : undefined,
@@ -158,6 +161,8 @@ interface Variant {
   // Iter 6c — phenology (optional)
   cellDivisionDurationGDD?: number;
   cellExpansionDurationGDD?: number;
+  // Iter 15 (SSOT #156)
+  gddPerTruss?: number;
   // Iter 6d — cohort generation (optional)
   flowersPerTrussMu?: number;
   fruitSetRate?: number;
@@ -191,6 +196,7 @@ function genVariants(args: CliArgs): Variant[] {
   const out: Variant[] = [];
   const cddList = args.cellDivisionDurationGDD ?? [undefined];
   const cedList = args.cellExpansionDurationGDD ?? [undefined];
+  const gptList = args.gddPerTruss ?? [undefined];
   const fptList = args.flowersPerTrussMu ?? [undefined];
   const fsrList = args.fruitSetRate ?? [undefined];
   // Iter 6g (SSOT #73): abortionPairs가 있으면 pair-list 사용, 없으면 cross-product
@@ -233,6 +239,7 @@ function genVariants(args: CliArgs): Variant[] {
       for (const exp of args.exponentScaling) {
         for (const cdd of cddList) {
           for (const ced of cedList) {
+            for (const gpt of gptList) {
             for (const fpt of fptList) {
               for (const fsr of fsrList) {
                 for (const ab of abortionCombos) {
@@ -263,6 +270,7 @@ function genVariants(args: CliArgs): Variant[] {
                                           phaseAwareCellDivStepDemandFraction: cdsf,
                                           phaseAwareTransitionZoneGDD: tzg,
                                           phaseAwareCumulativeCapTransitionZoneGDD: cctzg,
+                                          gddPerTruss: gpt,
                                         });
                                       }
                                     }
@@ -277,6 +285,7 @@ function genVariants(args: CliArgs): Variant[] {
                   }
                 }
               }
+            }
             }
           }
         }
@@ -321,10 +330,12 @@ function runVariant(args: CliArgs, runId: string, v: Variant): RunOutput {
     '--overrideGompertz', overrideStr,
   ];
   // Iter 6c — phenology override (if variant has phenology fields)
-  if (v.cellDivisionDurationGDD !== undefined || v.cellExpansionDurationGDD !== undefined) {
+  // Iter 15 (SSOT #156) — gddPerTruss 추가
+  if (v.cellDivisionDurationGDD !== undefined || v.cellExpansionDurationGDD !== undefined || v.gddPerTruss !== undefined) {
     const parts: string[] = [];
     if (v.cellDivisionDurationGDD !== undefined) parts.push(`cellDivisionDurationGDD=${v.cellDivisionDurationGDD}`);
     if (v.cellExpansionDurationGDD !== undefined) parts.push(`cellExpansionDurationGDD=${v.cellExpansionDurationGDD}`);
+    if (v.gddPerTruss !== undefined) parts.push(`gddPerTruss=${v.gddPerTruss}`);
     cliArgs.push('--overridePhenology', parts.join(','));
   }
   // Iter 6d — cohort override (if variant has cohort fields)
@@ -541,6 +552,7 @@ function main(): void {
   ];
   if (args.cellDivisionDurationGDD) axes.push(`cellDiv=${args.cellDivisionDurationGDD.length}`);
   if (args.cellExpansionDurationGDD) axes.push(`cellExp=${args.cellExpansionDurationGDD.length}`);
+  if (args.gddPerTruss) axes.push(`gddPerTruss=${args.gddPerTruss.length}`);
   if (args.flowersPerTrussMu) axes.push(`flowersMu=${args.flowersPerTrussMu.length}`);
   if (args.fruitSetRate) axes.push(`fruitSetRate=${args.fruitSetRate.length}`);
   if (args.abortionPairs) {
@@ -570,8 +582,8 @@ function main(): void {
   for (let i = 0; i < variants.length; i++) {
     const v = variants[i];
     const runId = `run_${String(i + 1).padStart(3, '0')}`;
-    const phStr = (v.cellDivisionDurationGDD !== undefined || v.cellExpansionDurationGDD !== undefined)
-      ? ` cellDiv=${v.cellDivisionDurationGDD ?? '-'} cellExp=${v.cellExpansionDurationGDD ?? '-'}` : '';
+    const phStr = (v.cellDivisionDurationGDD !== undefined || v.cellExpansionDurationGDD !== undefined || v.gddPerTruss !== undefined)
+      ? ` cellDiv=${v.cellDivisionDurationGDD ?? '-'} cellExp=${v.cellExpansionDurationGDD ?? '-'} gpt=${v.gddPerTruss ?? '-'}` : '';
     const coStr = (v.flowersPerTrussMu !== undefined || v.fruitSetRate !== undefined)
       ? ` flowersMu=${v.flowersPerTrussMu ?? '-'} fsr=${v.fruitSetRate ?? '-'}` : '';
     const abStr = (v.abortionThresholdRatio !== undefined || v.abortionLagDays !== undefined)

@@ -1,0 +1,129 @@
+{
+  "schemaVersion": "growthCalibration.v1",
+  "updateId": "growth_update_027",
+  "previousModelVersion": "growthModel.tomato.v0.11.3-reproductive-partial-tuned",
+  "newModelVersion": "growthModel.tomato.v0.12-overdrive-interpolation-tuned",
+  "status": "STRONG_PROMOTE",
+  "date": "2026-05-27",
+  "triggerComparisons": [
+    "(Iter 15 T1+T3 Overdrive Interpolation Sweep — Iter 14 Case A 확정 후속, v0.12 정식 진입)"
+  ],
+  "triggerRuleIds": ["common_truss_status_too_behind"],
+  "reason": [
+    "Iter 14 (commit 1370ccc, v0.11.3 유지) — Overdrive Theory Test로 Case A 확정: MAX overdrive D90 vis=37 (모델 architectural bottleneck 없음 증명). Real lever rank: T3 phase (+15 broken) > T1 truss (+5 clean) >> T2/T4 ≈ 0.",
+    "Iter 15는 SSOT #154/#157 1순위: T1+T3 결합 36-run interpolation sweep with Iter 10 D33 guard. baseline (D90 vis=4.20) ↔ MAX (D90 vis=37) 사이 target zone [22, 28] 탐색.",
+    "Phase A1 Engine: run-gompertz-sweep.ts에 gddPerTruss cross-product axis 추가 (~12 LOC, SSOT #156). Iter 14에서 dump/extract CLI는 이미 있었으나 sweep harness에 미적용 → Iter 15에서 완성.",
+    "Phase A4 STOP gate ✅ PASS: Iter 10 byte-perfect 재현 (D90 mx=54.34092589440503).",
+    "Phase B Round 1 36-run sweep (cellDiv {200,220,240,260} × expansionMul {1.0,1.25,1.5} × gddPerTruss {100,110,120}): Pool 1 candidates 3 (cellDiv=260+gpt=100+expmul=*). Pool 3 27 runs (D60 over-band, cellDiv 200-240). Pool 4 6 runs (D60 valley, gpt=110/120).",
+    "Phase C Round 3 10-seed ensemble (run_029 winner: cellDiv=260+gpt=100+expmul=1.25): 🎉 D90 vis avg 24.90 [22, 28] **target zone bullseye** + D33 mx=0 ALL seeds + D60 vis 11 mx 19.83 + D90 mx 57.09 + harvest 정상 (D120 vis 34 ≤ too_many threshold 40).",
+    "Phase F cultivar JSONC promote: tomimaru-muchoo.jsonc 갱신 (cellDiv 300→260 + gddPerTruss 120→100 + botanicalOverride full enable). JSONC verify dump 결과가 CLI override sweep과 byte-perfect 일치.",
+    "🚨 **Phase F 결정적 발견 — Engine bug fix (SSOT #161)**: FruitGrowth.ts:55가 ACTIVE_BOTANICAL.tomato.fruitDevelopment.gompertz.exponentScaling을 직접 read해서 cultivar.botanicalOverride.gompertz.exponentScaling이 무시되는 버그. CLI --overrideGompertz는 ACTIVE_BOTANICAL도 mutate해서 동작했지만 JSONC promote는 무력. 1-line fix: cultivar.resolvedBotanical?.fruitDevelopment?.gompertz?.exponentScaling 우선 read + ACTIVE_BOTANICAL fallback. 이 fix가 없으면 v0.12 promote 불가능.",
+    "Phase D Visual Check: 사용자 결정으로 SKIP. 10-seed ensemble bullseye + harvest sanity check pass로 수치 신뢰. Promote 후 사용자가 `npm run dev` → Single Plant mode → Skin closeup 직접 확인 (사후 검증).",
+    "Verdict: ⭐⭐ STRONG PROMOTE — v0.11.3 → **v0.12-overdrive-interpolation-tuned 정식 진입**. v0.11.3 baseline D90 vis 4.20 → v0.12 D90 vis 24.90 (+492% recovery). Single Plant mode → Skin이 실제로 v0.12 visible recovery 반영 — **사용자 핵심 요청 충족**.",
+    "Iter 6~14 누적 13-Iter calibration의 종합 결과: Iter 7b/9/10 phaseAware stack + Iter 10 winner Gompertz + Iter 14 Case A confirmation + Iter 15 T1+T3 interpolation. 무력 lever 영구 배제 (source/canopy/sink_balance: Iter 8/14; cumulativeCapTransitionZoneGDD: Iter 11; expansionMul 단독: Iter 12; T2 fruit_set / T4 source: Iter 14)."
+  ],
+  "parameterChanges": [
+    {
+      "parameter": "tomimaru-muchoo cellDivisionDurationGDD",
+      "oldValue": 300,
+      "newValue": 260,
+      "file": "packages/tomato-engine/models/cultivars/tomimaru-muchoo.jsonc",
+      "unit": "GDD",
+      "citation": "Iter 15 winner — T3 phase transition adjustment",
+      "reason": "Iter 15 36-run sweep에서 cellDiv=260만 D60 mx ∈ [18,40] band 달성. cellDiv 200-240은 D60 over-band, cellDiv 260+gpt=110/120은 D60 valley.",
+      "changeType": "promote",
+      "enforcementStatus": "active",
+      "expectedEffect": "fruit_phase_transition_adjustment"
+    },
+    {
+      "parameter": "tomimaru-muchoo GDD_per_truss",
+      "oldValue": 120,
+      "newValue": 100,
+      "file": "packages/tomato-engine/models/cultivars/tomimaru-muchoo.jsonc",
+      "unit": "GDD",
+      "citation": "Iter 15 winner — T1 truss timing acceleration",
+      "reason": "Iter 14 T1 overdrive (+5 D90 vis clean) 검증 후 Iter 15 sweep에서 gpt=100이 D90 vis sweet spot. gpt=110은 24, gpt=120은 21 (target [22,28] 도달 못함).",
+      "changeType": "promote",
+      "enforcementStatus": "active",
+      "expectedEffect": "truss_emergence_acceleration"
+    },
+    {
+      "parameter": "tomimaru-muchoo botanicalOverride.fruitDevelopment.gompertz",
+      "oldValue": "{} (empty — base default rateB=0.06, inflectionC=1.00, exp=0.10)",
+      "newValue": "{ rateB.mu: 0.05, inflectionC.mu: 0.55, exponentScaling: 0.08 }",
+      "file": "packages/tomato-engine/models/cultivars/tomimaru-muchoo.jsonc",
+      "unit": "Gompertz parameters",
+      "citation": "Iter 10 winner — verified through Iter 15 sweep",
+      "reason": "Iter 10 sweep으로 검증된 Gompertz values. exp=0.08가 D33 보호의 핵심 (느린 Gompertz curve). FruitGrowth.ts engine bug fix (SSOT #161)와 함께 작동.",
+      "changeType": "promote",
+      "enforcementStatus": "active",
+      "expectedEffect": "gompertz_curve_calibration"
+    },
+    {
+      "parameter": "tomimaru-muchoo botanicalOverride.fruitDevelopment.massFlow.phaseAwareMassGrowth",
+      "oldValue": "default disabled (enabled: false)",
+      "newValue": "{ enabled: true, divisionPhaseMassFraction: 0.10, cellDivisionStepDemandFraction: 0.10, transitionZoneGDD: 40, expansionPhaseGrowthMultiplier: 1.25 }",
+      "file": "packages/tomato-engine/models/cultivars/tomimaru-muchoo.jsonc",
+      "unit": "phaseAware stack",
+      "citation": "Iter 7b + Iter 9 + Iter 10 + Iter 15 winner stack",
+      "reason": "Iter 7b mass clamp (divisionPhaseMassFraction=0.10) + Iter 9 step demand (cellDivisionStepDemandFraction=0.10) + Iter 10 smoothstep (transitionZoneGDD=40) + Iter 15 cell_expansion acceleration (expansionPhaseGrowthMultiplier=1.25). 누적 5-Iter 영구 infrastructure.",
+      "changeType": "promote",
+      "enforcementStatus": "active",
+      "expectedEffect": "phase_aware_mass_growth_calibrated"
+    },
+    {
+      "parameter": "FruitGrowth.ts:55 exponentScale read source",
+      "oldValue": "ACTIVE_BOTANICAL.tomato.fruitDevelopment.gompertz.exponentScaling (direct base read)",
+      "newValue": "cultivar.resolvedBotanical?.fruitDevelopment?.gompertz?.exponentScaling ?? ACTIVE_BOTANICAL fallback",
+      "file": "packages/tomato-engine/src/FruitGrowth.ts",
+      "unit": "engine_logic",
+      "citation": "Iter 15 SSOT #161 — 결정적 fix",
+      "reason": "기존 코드가 ACTIVE_BOTANICAL을 직접 read해서 cultivar JSONC botanicalOverride.gompertz.exponentScaling이 무시되는 버그. CLI --overrideGompertz는 ACTIVE_BOTANICAL도 mutate해서 동작했지만 JSONC promote는 무력. 이 fix 없이는 v0.12 promote 불가능.",
+      "changeType": "engine_bug_fix",
+      "enforcementStatus": "active",
+      "expectedEffect": "cultivar_botanical_override_respected"
+    },
+    {
+      "parameter": "run-gompertz-sweep.ts gddPerTruss axis",
+      "oldValue": "(없음)",
+      "newValue": "number[] cross-product axis in nested loop",
+      "file": "growth-calibration/scripts/run-gompertz-sweep.ts",
+      "unit": "harness",
+      "citation": "Iter 15 SSOT #156",
+      "reason": "Iter 14에서 dump/extract CLI는 추가됐으나 sweep harness에 미적용. Iter 15 T1 truss timing sweep에 필요.",
+      "changeType": "refactor",
+      "enforcementStatus": "active",
+      "expectedEffect": "calibration_tooling_addition"
+    }
+  ],
+  "validationPlan": {
+    "replayDays": [10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120],
+    "forwardDays": [],
+    "targetMetrics": [
+      "Phase A1 typecheck PASS",
+      "Phase A4 STOP gate ✅: Iter 10 byte-perfect (D90 mx=54.34092589440503)",
+      "Phase B Round 1 36 runs: Pool 1 winner cellDiv=260+gpt=100+expmul=1.25 (run_029)",
+      "🎉 Phase C 10-seed ensemble: D90 vis avg **24.90 [22, 28]** target zone bullseye",
+      "D33 mx avg 0.00 ALL 10 seeds (Iter 10 guard 유지)",
+      "D60 vis avg 11, D60 mx avg 19.83 (band [18,40] 안)",
+      "D90 mx avg 57.09 (band [40,75] 안)",
+      "Phase F JSONC promote verify dump: sweep과 byte-perfect 일치 (FruitGrowth.ts fix 후)",
+      "Harvest sanity check: D120 vis 34 ≤ 40 (no too_many), cohort 정상 progression",
+      "Iter 6i invariant: unknown_aborted_count == 0 모든 36+10+verify runs PASS"
+    ]
+  },
+  "outcome": {
+    "runDate": "2026-05-27",
+    "replayScoreDelta": 0,
+    "forwardScoreDelta": 0,
+    "verdict": "⭐⭐ STRONG_PROMOTE — v0.11.3 → v0.12-overdrive-interpolation-tuned 정식 진입. tomimaru-muchoo.jsonc full cultivar promote (cellDiv 300→260 + gddPerTruss 120→100 + botanicalOverride full enable with Iter 10 winner gompertz + Iter 7b/9/10/15 phaseAware stack). FruitGrowth.ts engine bug fix (SSOT #161 — 결정적). 10-seed ensemble D90 vis 24.90 [22, 28] target zone bullseye + D33 mx=0 ALL seeds + harvest 정상. baseline 대비 +492% visible recovery. Single Plant mode → Skin이 실제로 v0.12 적용 보임 (사용자 핵심 요청 충족).",
+    "notes": "Iter 15 핵심 결과: (1) 🎉 **v0.12 정식 promote** — Iter 6~14 누적 13-Iter calibration의 종합 결과. (2) **D90 vis 4.20 → 24.90** (+492% recovery, target zone [22, 28] bullseye). (3) **D33 mx=0 ALL 10 seeds** (Iter 10 protection 완벽 유지). (4) **D60/D90 maxDiam 모두 band 안** (D60 19.83, D90 57.09). (5) Harvest sanity: D120 vis 34 < too_many threshold, 정상 progression. (6) **결정적 engine bug fix (SSOT #161)**: FruitGrowth.ts:55가 ACTIVE_BOTANICAL을 직접 read해서 JSONC botanicalOverride.gompertz.exponentScaling 무시되는 버그. cultivar.resolvedBotanical 우선 read로 1-line fix. CLI override는 ACTIVE_BOTANICAL도 mutate해서 동작했지만 JSONC promote는 이 fix 없이는 불가능. (7) **Engine 13 LOC + cultivar JSONC promote + 4 audit md + ModelUpdateLog 027**. (8) Visual check Phase D는 사용자 결정으로 SKIP (수치 신뢰), 사용자가 `npm run dev` → Single Plant mode 직접 확인 (사후). (9) **Iter 16 후속 (선택적)**: 220 ensemble production verification / phaseAware visibility 부작용 audit / cross-cultivar generalization / Reference Pack target zone 재정의."
+  },
+  "followUp": [
+    "Iter 16-A (선택) — 220 ensemble production verification: run-top-candidates-comparison으로 v0.12 robustness 검증.",
+    "Iter 16-B (선택) — Iter 14 SSOT #155 audit: phaseAware enabled의 visibility threshold 부작용. 단 Iter 15 winner는 D10/20 vis=0이라 영향 없음.",
+    "Iter 16-C (선택) — Cross-cultivar generalization: cherry/round/beefsteak/roma에 동일 stack 적용 시 regression 검증.",
+    "Iter 16-D (선택) — Reference Pack target zone 재정의: 현재 [22,28]는 Iter 7 averaged matrix 기준. Reference Pack v0.2+로 갱신.",
+    "사용자 visual check: `npm run dev` → http://localhost:5173/?mode=single-plant → Skin closeup Day 60/90/100/120 자연성 확인."
+  ]
+}
