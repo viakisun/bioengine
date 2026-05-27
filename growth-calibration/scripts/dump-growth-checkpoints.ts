@@ -57,7 +57,7 @@ interface CliArgs {
   /** Iter 6c — cultivar phenology override (cellDivision/Expansion).
    *  format: "cellDivisionDurationGDD=200,cellExpansionDurationGDD=400".
    *  Target cultivar (args.cultivar)만 mutate (SSOT #49). */
-  overridePhenology?: { cellDivisionDurationGDD?: number; cellExpansionDurationGDD?: number };
+  overridePhenology?: { cellDivisionDurationGDD?: number; cellExpansionDurationGDD?: number; gddPerTruss?: number; gddToFirstFlower?: number };
   /** Iter 6d — cohort generation override (flowersPerTruss.mu / fruitSetRate).
    *  format: "flowersPerTrussMu=7,fruitSetRate=0.75".
    *  Target cultivar (args.cultivar)만 mutate (SSOT #53). */
@@ -121,13 +121,15 @@ function parseOverride(s?: string): CliArgs['overrideGompertz'] {
 
 function parseOverridePhenology(s?: string): CliArgs['overridePhenology'] {
   if (!s) return undefined;
-  const out: { cellDivisionDurationGDD?: number; cellExpansionDurationGDD?: number } = {};
+  const out: { cellDivisionDurationGDD?: number; cellExpansionDurationGDD?: number; gddPerTruss?: number; gddToFirstFlower?: number } = {};
   for (const pair of s.split(',')) {
     const [k, v] = pair.split('=').map(t => t.trim());
     const n = Number(v);
     if (!Number.isFinite(n)) continue;
     if (k === 'cellDivisionDurationGDD') out.cellDivisionDurationGDD = n;
     else if (k === 'cellExpansionDurationGDD') out.cellExpansionDurationGDD = n;
+    else if (k === 'gddPerTruss') out.gddPerTruss = n;
+    else if (k === 'gddToFirstFlower') out.gddToFirstFlower = n;
   }
   return out;
 }
@@ -323,7 +325,10 @@ function applyOverridePhenology(args: CliArgs): void {
   }
   if (ov.cellDivisionDurationGDD !== undefined) c.cellDivisionDurationGDD = ov.cellDivisionDurationGDD;
   if (ov.cellExpansionDurationGDD !== undefined) c.cellExpansionDurationGDD = ov.cellExpansionDurationGDD;
-  console.log(`[override] phenology: cultivar=${args.cultivar} cellDiv=${ov.cellDivisionDurationGDD ?? '-'}, cellExp=${ov.cellExpansionDurationGDD ?? '-'}`);
+  // Iter 14 (SSOT #147) — truss timing levers
+  if (ov.gddPerTruss !== undefined) c.GDD_per_truss = ov.gddPerTruss;
+  if (ov.gddToFirstFlower !== undefined) c.GDD_to_first_flower = ov.gddToFirstFlower;
+  console.log(`[override] phenology: cultivar=${args.cultivar} cellDiv=${ov.cellDivisionDurationGDD ?? '-'}, cellExp=${ov.cellExpansionDurationGDD ?? '-'}, gddPerTruss=${ov.gddPerTruss ?? '-'}, gddToFirstFlower=${ov.gddToFirstFlower ?? '-'}`);
 }
 
 /** Iter 6d — cohort generation override. flowersPerTruss.mu + fruitSetRate
@@ -504,6 +509,9 @@ interface PlantOverall {
   maxVisibleFruitDiameterMm: number;   // visible fruits 중 최대 (없으면 0)
   // Iter 6 — expansion 단계 fruit count (diameter + phase 둘 다 확인)
   expandingFruitCount: number;
+  // Iter 14 (SSOT #151) — harvest-aware metrics. live ripening fruits (ripenStage 1-3, not yet harvested).
+  // harvestedTotal (line 516) already cumulative — answers "수확된 누적".
+  ripeningFruitCount: number;
   // Iter 6d — cohort generation breakdown (sums across all trusses, SSOT #56)
   flowerBudTotal: number;          // sum of truss.flowerCount (initial bud allocation)
   fertilizedTotal: number;         // fruits with fertilizationTT > 0 (alive + aborted + harvested)
@@ -596,6 +604,7 @@ function plantOverall(snap: DaySnapshot): PlantOverall {
   let cohortCount = 0;
   let visibleCount = 0;
   let expandingCount = 0;
+  let ripeningCount = 0;  // Iter 14 (SSOT #151)
   let maxVisibleDiam = 0;
   let totalFresh = 0;
   // Iter 6d — cohort generation breakdown (SSOT #56)
@@ -678,6 +687,10 @@ function plantOverall(snap: DaySnapshot): PlantOverall {
         if (p.phase === 'cell_expansion' || p.phase === 'ripening_early' || p.phase === 'ripening_late') {
           expandingCount++;
         }
+        // Iter 14 (SSOT #151) — live ripening fruits (not harvested yet)
+        if (p.phase === 'ripening_early' || p.phase === 'ripening_late') {
+          ripeningCount++;
+        }
       }
     }
   }
@@ -700,6 +713,7 @@ function plantOverall(snap: DaySnapshot): PlantOverall {
     visibleFruitCount: visibleCount,
     maxVisibleFruitDiameterMm: maxVisibleDiam,
     expandingFruitCount: expandingCount,
+    ripeningFruitCount: ripeningCount,  // Iter 14 (SSOT #151)
     // Iter 6d — cohort generation breakdown
     flowerBudTotal,
     fertilizedTotal,

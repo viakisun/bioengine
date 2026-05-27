@@ -58,7 +58,7 @@ interface CliArgs {
    *  동일 패턴 (process-local mutation). format: "inflectionC=X,rateB=Y,exponentScaling=Z". */
   overrideGompertz?: { inflectionC?: number; rateB?: number; exponentScaling?: number };
   /** Iter 6c — phenology override (target cultivar only). */
-  overridePhenology?: { cellDivisionDurationGDD?: number; cellExpansionDurationGDD?: number };
+  overridePhenology?: { cellDivisionDurationGDD?: number; cellExpansionDurationGDD?: number; gddPerTruss?: number; gddToFirstFlower?: number };
   /** Iter 6d — cohort override (target cultivar only, SSOT #53).
    *  format: "flowersPerTrussMu=7,fruitSetRate=0.75" */
   overrideCohort?: { flowersPerTrussMu?: number; fruitSetRate?: number };
@@ -116,13 +116,15 @@ function parseOverride(s?: string): CliArgs['overrideGompertz'] {
 
 function parseOverridePhenology(s?: string): CliArgs['overridePhenology'] {
   if (!s) return undefined;
-  const out: { cellDivisionDurationGDD?: number; cellExpansionDurationGDD?: number } = {};
+  const out: { cellDivisionDurationGDD?: number; cellExpansionDurationGDD?: number; gddPerTruss?: number; gddToFirstFlower?: number } = {};
   for (const pair of s.split(',')) {
     const [k, v] = pair.split('=').map(t => t.trim());
     const n = Number(v);
     if (!Number.isFinite(n)) continue;
     if (k === 'cellDivisionDurationGDD') out.cellDivisionDurationGDD = n;
     else if (k === 'cellExpansionDurationGDD') out.cellExpansionDurationGDD = n;
+    else if (k === 'gddPerTruss') out.gddPerTruss = n;
+    else if (k === 'gddToFirstFlower') out.gddToFirstFlower = n;
   }
   return out;
 }
@@ -310,7 +312,10 @@ function applyOverridePhenology(args: CliArgs): void {
   }
   if (ov.cellDivisionDurationGDD !== undefined) c.cellDivisionDurationGDD = ov.cellDivisionDurationGDD;
   if (ov.cellExpansionDurationGDD !== undefined) c.cellExpansionDurationGDD = ov.cellExpansionDurationGDD;
-  console.log(`[extract override] phenology: cultivar=${args.cultivar} cellDiv=${ov.cellDivisionDurationGDD ?? '-'}, cellExp=${ov.cellExpansionDurationGDD ?? '-'}`);
+  // Iter 14 (SSOT #147) — truss timing levers
+  if (ov.gddPerTruss !== undefined) c.GDD_per_truss = ov.gddPerTruss;
+  if (ov.gddToFirstFlower !== undefined) c.GDD_to_first_flower = ov.gddToFirstFlower;
+  console.log(`[extract override] phenology: cultivar=${args.cultivar} cellDiv=${ov.cellDivisionDurationGDD ?? '-'}, cellExp=${ov.cellExpansionDurationGDD ?? '-'}, gddPerTruss=${ov.gddPerTruss ?? '-'}, gddToFirstFlower=${ov.gddToFirstFlower ?? '-'}`);
 }
 
 /** Iter 6d — cohort override (target cultivar only, SSOT #53).

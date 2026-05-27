@@ -1,0 +1,109 @@
+{
+  "schemaVersion": "growthCalibration.v1",
+  "updateId": "growth_update_026",
+  "previousModelVersion": "growthModel.tomato.v0.11.3-reproductive-partial-tuned",
+  "newModelVersion": "growthModel.tomato.v0.11.3-reproductive-partial-tuned",
+  "status": "case_a_confirmed_infrastructure_only_exploration",
+  "date": "2026-05-27",
+  "triggerComparisons": [
+    "(Iter 14 Overdrive Theory Test — Iter 6~13 정밀 calibration 한계 reframe, 4 theory × baseline/signal/overdrive 3-state Day 10-120 timeline 비교)"
+  ],
+  "triggerRuleIds": ["common_truss_status_too_behind"],
+  "reason": [
+    "Iter 12 (commit 972d7e0, v0.11.3 유지) — expansionPhaseGrowthMultiplier reject. Iter 13 plan은 작성됐으나 v0.11.3 baseline 재측정 결과 D60 mx=33mm로 이미 target band 안 발견 → 실행 전 폐기.",
+    "사용자 핵심 reframe — 정밀 calibration 중단, 4 theory 의도적 과장 (overdrive) 검증. baseline (v0.11.3) ↔ signal (Iter 10 stack) ↔ overdrive (extreme) 3 지점으로 Day 10-120 전체 timeline 비교. Case A (interpolation) / B (architecture refactor) / C (guard 결합) 결정.",
+    "Phase A1 CLI extension: dump-growth-checkpoints + extract-calibration-observations에 overridePhenology.gddPerTruss + gddToFirstFlower 추가 (~24 LOC). plant_summary.csv에 PlantOverall.ripeningFruitCount 신규 column (SSOT #151 harvest-aware metric).",
+    "Phase A2 Config: iter14_overdrive_candidates.json (7 candidates) — baseline + iter10_signal_stack + T1-4 theory overdrives + MAX combined.",
+    "Phase B Run 7 candidates × Day 10-120: 🎉 MAX overdrive D90 visible = 37 (baseline 6 대비 +31). Case A 확정 — 모델 architectural bottleneck 없음.",
+    "Theory verdict (SSOT #153): T3 phase transition (+15 BUT D33 broken at mx=44) > T1 truss timing (+5 clean) >> T2 fruit set (+0) ≈ T4 source canopy (+0). T2/T4는 Iter 15 이후 deprioritize.",
+    "Harvest-aware decomposition (SSOT #151 검증): T1 D120 vis 14→13 감소는 harvest 누적 (harv 4→7), die-off 아님. MAX D120 vis 39→37도 harvest 폭증 (15→21).",
+    "Overdrive 4-classification (SSOT #150): too_early (D10/20 visible) / too_many (D90 vis>28) / too_large (D60 mx>40) / too_fast_harvest. T1만 clean. MAX는 all 4 guards 필요.",
+    "Interpolation 가능 여부 (사용자 검토 #5 필수 항목): ✅ YES — baseline (D90 vis=6) ↔ MAX (D90 vis=37) 사이 D90 vis 20-28 target zone 명확. T1+T3 mild 결합으로 도달 가능.",
+    "**Iter 15 추천 (1순위, SSOT #154)**: T1+T3 결합 24-run sweep with D33 guard. cellDiv 200-260 × expansionMul 1.0-1.5 × gddPerTruss 100-120. Strong Promote 시 v0.11.3 → v0.12-overdrive-interpolation-tuned 정식 진입.",
+    "**iter10_signal_stack 잔존 부작용 발견 (SSOT #155)**: D10/20 vis=4 (early visible). phaseAware enabled가 visibility threshold (3mm)에서 의도와 다른 효과. Iter 15에서 별도 audit 필요."
+  ],
+  "parameterChanges": [
+    {
+      "parameter": "overridePhenology.gddPerTruss (CLI)",
+      "oldValue": "(없음)",
+      "newValue": "number > 0 — cultivar.GDD_per_truss in-place mutation",
+      "file": "growth-calibration/scripts/dump-growth-checkpoints.ts + extract-calibration-observations.ts",
+      "unit": "CLI",
+      "citation": "Iter 14 SSOT #147",
+      "reason": "Theory 1 (truss timing) overdrive test에 필요. Iter 13 plan에 있었으나 미실행 → Iter 14에서 통합.",
+      "changeType": "refactor",
+      "enforcementStatus": "active",
+      "expectedEffect": "calibration_tooling_addition"
+    },
+    {
+      "parameter": "overridePhenology.gddToFirstFlower (CLI)",
+      "oldValue": "(없음)",
+      "newValue": "number > 0 — cultivar.GDD_to_first_flower in-place mutation",
+      "file": "growth-calibration/scripts/dump-growth-checkpoints.ts + extract-calibration-observations.ts",
+      "unit": "CLI",
+      "citation": "Iter 14 SSOT #147",
+      "reason": "Theory 1 (truss timing) overdrive에 T1 emergence threshold 조정 필요.",
+      "changeType": "refactor",
+      "enforcementStatus": "active",
+      "expectedEffect": "calibration_tooling_addition"
+    },
+    {
+      "parameter": "PlantOverall.ripeningFruitCount + plant_summary.csv column",
+      "oldValue": "(없음 — expandingFruitCount만 분리)",
+      "newValue": "live ripening fruits count (ripening_early + ripening_late phase, not yet harvested)",
+      "file": "growth-calibration/scripts/dump-growth-checkpoints.ts",
+      "unit": "engine_metric + CSV column",
+      "citation": "Iter 14 SSOT #151",
+      "reason": "Day 100~ visible 감소가 die-off인지 harvest인지 분리 필요. harvestedTotal + fertilizedTotal과 함께 harvest-aware analysis 가능.",
+      "changeType": "engine_observation_addition",
+      "enforcementStatus": "active",
+      "expectedEffect": "calibration_observability_addition"
+    },
+    {
+      "parameter": "iter14_overdrive_candidates.json (NEW config)",
+      "oldValue": "(없음)",
+      "newValue": "7 candidates × 4 theory grouping",
+      "file": "growth-calibration/configs/iter14_overdrive_candidates.json (NEW)",
+      "unit": "config",
+      "citation": "Iter 14 SSOT #148",
+      "reason": "Theory exploration framework. Iter 15+ 후속 sweep에서 reference로 재사용.",
+      "changeType": "config_addition",
+      "enforcementStatus": "active",
+      "expectedEffect": "calibration_tooling_addition"
+    },
+    {
+      "parameter": "tomimaru-muchoo cultivar parameters",
+      "oldValue": "v0.11.3 winner (fSR=0.80, lag=10, thresh=0.25, cellDiv=300, exp=0.10, gddPerTruss=120)",
+      "newValue": "유지 (Iter 15 T1+T3 interpolation 통과 후 종합 promote)",
+      "changeType": "no_change_deferred_promote",
+      "enforcementStatus": "active",
+      "expectedEffect": "behavior_noop"
+    }
+  ],
+  "validationPlan": {
+    "replayDays": [10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120],
+    "forwardDays": [],
+    "targetMetrics": [
+      "Phase A1 typecheck PASS",
+      "Phase B 7 candidates × Day 10-120 정상 종료 (Day 120 시뮬레이션 가능 검증)",
+      "🎉 MAX overdrive D90 visible = 37 (Case A 확정 — model architecture 정상)",
+      "T3 phase D90 vis +15 BUT D33 broken (over-correction confirmed)",
+      "T1 truss D90 vis +5 clean (D33 OK, abortion 증가 trade-off)",
+      "T2 fruit_set + T4 source D90 vis Δ=0 (deprioritize confirmed)",
+      "harvest-aware: T1/MAX D120 visible 감소가 harvest 누적 효과임 분리 측정",
+      "Iter 6i invariant: unknown_aborted_count == 0 모든 7 candidates PASS"
+    ]
+  },
+  "outcome": {
+    "runDate": "2026-05-27",
+    "replayScoreDelta": 0,
+    "forwardScoreDelta": 0,
+    "verdict": "case_a_confirmed_infrastructure_only_exploration — v0.11.3 유지 + Iter 14 infrastructure (gddPerTruss + gddToFirstFlower CLI + ripeningFruitCount metric + 7-candidate config) 영구. Case A 확정: MAX overdrive D90 vis=37 (baseline +31)으로 모델 architecture 정상 + interpolation 가능. Real lever rank: T3 (+15 broken) > T1 (+5 clean) >> T2 ≈ T4 ≈ 0. → Iter 15 1순위: T1+T3 결합 24-run sweep with D33 guard (cellDiv 200-260 × expansionMul 1.0-1.5 × gddPerTruss 100-120). v0.12-overdrive-interpolation-tuned 정식 진입 candidate.",
+    "notes": "Iter 14 핵심 발견: (1) **Case A 확정** (SSOT #152) — MAX overdrive D90 vis=37, D90 mx=67.9, 모델 architecture bottleneck 없음. Iter 6~13 정밀 calibration이 vain이 아니라 baseline 자체가 문제 아니었음을 반증. (2) **Theory lever rank finalized** (SSOT #153): T3 phase (+15 BUT D33 broken at mx=44) > T1 truss (+5 clean) >> T2 fruit_set (+0) ≈ T4 source (+0). T2/T4는 영구 deprioritize. (3) **iter10_signal_stack 부작용 발견** (SSOT #155): D10/20 vis=4 (early visible). phaseAware enabled가 visibility threshold (3mm)에서 부작용. Iter 15 별도 audit. (4) **Interpolation 가능 ⭐**: baseline (D90 vis=6) ↔ MAX (D90 vis=37) 사이 target zone 20-28 분명 존재. (5) **Harvest-aware** (SSOT #151): D100~120 visible 감소를 harvest와 die-off 분리. T1/MAX 모두 정상 harvest 누적. (6) **Engine 0 LOC change** — CLI ~24 LOC + ripeningFruitCount column + iter14 config. run-candidate-set.ts (Iter 8) 재사용. (7) **Iter 15 direction (SSOT #154)**: T1+T3 24-run sweep with D33 guard. T3 강도 조절 (cellDiv 220-240, expansionMul 1.25) + T1 mild (gddPerTruss 100-120). target D90 vis 22-28 + D33 mx≤3 + D60/D90 in band."
+  },
+  "followUp": [
+    "Iter 15 (T1+T3 interpolation sweep) ⭐ 1순위 — Sweep axes (4×3×2=24 runs): cellDivisionDurationGDD {200,220,240,260} × expansionPhaseGrowthMultiplier {1.0,1.25,1.5} × gddPerTruss {100,120}. 고정 (Iter 10 guard): phaseAwareEnabled=true + divisionPhaseMassFraction=0.10 + cellDivStepDemandFraction=0.10 + transitionZoneGDD=40. target: D33 mx≤3 + D60 mx∈[18,40] + D90 vis 22-28 + D90 mx∈[40,75]. Strong Promote 시 cultivar JSONC promote → v0.11.3 → v0.12-overdrive-interpolation-tuned 정식 진입.",
+    "Iter 15 audit (SSOT #155): iter10_signal_stack의 D10/20 vis=4 부작용 별도 검증. phaseAware enabled + visibility threshold interaction analysis.",
+    "Iter 15+ 명시적 배제: T2 fruit_set + T4 source 단독 sweep (Iter 14에서 +0 효과 confirmed)."
+  ]
+}

@@ -1,0 +1,73 @@
+{
+  "schemaVersion": "growthCalibration.iter14.candidateSet.v1",
+  "iter": "iter14",
+  "comment": "Iter 14 Overdrive Theory Test — 4 theory hypothesis × baseline/signal/overdrive 3 states = 7 candidates. v0.11.3 pure baseline + iter10_signal_stack (D90 vis +13 BUT D60 valley) + 4 theory overdrives + MAX combined. Timeline 10일 단위 120일. Promote 목적 X — Iter 15 방향 결정용 exploration. SSOT #148.",
+  "baseline": {
+    "id": "baseline",
+    "label": "v0.11.3 pure baseline (Single Plant mode → Skin 현재 모습)",
+    "candidateType": "biology",
+    "flags": {}
+  },
+  "candidates": [
+    {
+      "id": "iter10_signal_stack",
+      "label": "Iter 10 winner override (D90 vis 19.10 signal + D60 mx=3 valley). Reference, NOT target.",
+      "candidateType": "biology",
+      "flags": {
+        "overrideGompertz": "inflectionC=0.55,rateB=0.05,exponentScaling=0.08",
+        "overridePhenology": "cellDivisionDurationGDD=250",
+        "overrideMassFlow": "phaseAwareEnabled=true,phaseAwareDivisionFraction=0.10,phaseAwareCellDivStepDemandFraction=0.10,phaseAwareTransitionZoneGDD=40"
+      }
+    },
+    {
+      "id": "T1_overdrive_truss_timing",
+      "label": "Theory 1 Overdrive — Truss/Flower timing 가속 (GDD_to_first_flower=200 + GDD_per_truss=80)",
+      "candidateType": "biology",
+      "flags": {
+        "overridePhenology": "gddToFirstFlower=200,gddPerTruss=80"
+      }
+    },
+    {
+      "id": "T2_overdrive_fruit_set_survival",
+      "label": "Theory 2 Overdrive — Fruit set + survival 강화 (fSR=0.95 + thresh=0.15 + lag=14)",
+      "candidateType": "biology",
+      "flags": {
+        "overrideCohort": "fruitSetRate=0.95",
+        "overrideAbortion": "thresholdRatio=0.15,lagDays=14"
+      }
+    },
+    {
+      "id": "T3_overdrive_phase_transition",
+      "label": "Theory 3 Overdrive — Phase transition 가속 (cellDiv=200 + cellExp=400 + Iter 10 stack + expansionMul=1.5)",
+      "candidateType": "biology",
+      "flags": {
+        "overrideGompertz": "inflectionC=0.55,rateB=0.05,exponentScaling=0.08",
+        "overridePhenology": "cellDivisionDurationGDD=200,cellExpansionDurationGDD=400",
+        "overrideMassFlow": "phaseAwareEnabled=true,phaseAwareDivisionFraction=0.10,phaseAwareCellDivStepDemandFraction=0.10,phaseAwareTransitionZoneGDD=40,phaseAwareExpansionMultiplier=1.5"
+      }
+    },
+    {
+      "id": "T4_overdrive_source_canopy",
+      "label": "Theory 4 Overdrive — Source/canopy 강화 (nutrient-vigor proxy: LUE×1.4 + SLA×1.4 + leafSink×0.5)",
+      "candidateType": "source",
+      "flags": {
+        "overrideSource": "lueScale=1.4",
+        "overrideCanopy": "slaScale=1.4,leafSinkScale=0.5"
+      }
+    },
+    {
+      "id": "MAX_overdrive_combined",
+      "label": "MAX Overdrive — T1+T2+T3+T4 모두 결합 (모델이 토마토를 정말 많이 만들 수 있는지 극단 테스트)",
+      "candidateType": "overdrive_extreme",
+      "flags": {
+        "overrideGompertz": "inflectionC=0.55,rateB=0.05,exponentScaling=0.08",
+        "overridePhenology": "cellDivisionDurationGDD=200,cellExpansionDurationGDD=400,gddPerTruss=80,gddToFirstFlower=200",
+        "overrideCohort": "fruitSetRate=0.95",
+        "overrideAbortion": "thresholdRatio=0.15,lagDays=14",
+        "overrideMassFlow": "phaseAwareEnabled=true,phaseAwareDivisionFraction=0.10,phaseAwareCellDivStepDemandFraction=0.10,phaseAwareTransitionZoneGDD=40,phaseAwareExpansionMultiplier=1.5",
+        "overrideSource": "lueScale=1.4",
+        "overrideCanopy": "slaScale=1.4,leafSinkScale=0.5"
+      }
+    }
+  ]
+}
