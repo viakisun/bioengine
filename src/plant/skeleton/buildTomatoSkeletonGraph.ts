@@ -38,7 +38,8 @@ import type {
 
 type V3 = { x: number; y: number; z: number };
 
-interface BuildOpts {
+/** Iter 18B PR 9 — exported so SkeletonEngine can re-use. */
+export interface BuildSkeletonOpts {
   /** Curve subdivisions per inter-control-point segment. Higher = denser
    *  bone path, smoother SDF surface. Default 4. */
   curveDivisions?: number;
@@ -46,7 +47,7 @@ interface BuildOpts {
 
 export function buildTomatoSkeletonGraph(
   plantBase: PlantBase,
-  opts: BuildOpts = {},
+  opts: BuildSkeletonOpts = {},
 ): PlantSkeletonGraph {
   const divisions = opts.curveDivisions ?? 4;
   const anatomy = ACTIVE_MODEL.trussAnatomy;

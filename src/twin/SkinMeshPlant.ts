@@ -43,7 +43,9 @@ import type {
 } from '@farmsim/tomato-engine';
 import { createSkeletonOverlay, type SkeletonOverlayHandle } from './SkeletonOverlay';
 import { useTwinStore } from '../store/twinStore';
-import { buildTomatoSkeletonGraph, isLeafOrganVisible, isTrussOrganVisible } from '../plant/skeleton/buildTomatoSkeletonGraph';
+// Iter 18B PR 9 (SSOT #180) — single Skeleton Engine entry. Direct import
+// of buildTomatoSkeletonGraph is no longer allowed from consumers.
+import { buildPlantSkeleton, isLeafOrganVisible, isTrussOrganVisible } from '../plant/skeleton/SkeletonEngine';
 import { buildPlantSkinMesh } from '../plant/skin/buildPlantSkinMesh';
 // Iter 17 SSOT #173: legacy per-leaf createLeafMeshFromNode pipeline. Same
 // approach SupportingPlant/ShowcasePlant already use successfully — each
@@ -215,7 +217,7 @@ export function createSkinMeshPlant(
     //   PlantSkeletonGraph → embedded-branch tube network → 1 Babylon Mesh.
     //   No junction stitching; child tubes start inside parent (no start cap).
     //   Topology is disjoint within the single buffer (SSOT plan 결정).
-    const graph = buildTomatoSkeletonGraph(plantBase, { curveDivisions: 2 });
+    const graph = buildPlantSkeleton(plantBase, { curveDivisions: 2 });
     const skin = buildPlantSkinMesh(scene, graph, {
       radialSegments: 8,
       rootRadiusScale: 1.15,
