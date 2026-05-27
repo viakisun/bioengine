@@ -45,6 +45,9 @@ import type {
 } from '@farmsim/tomato-engine';
 import { createSkeletonOverlay, type SkeletonOverlayHandle } from './SkeletonOverlay';
 import { useTwinStore } from '../store/twinStore';
+// Iter 20 — petiole-stem junction debug overlay.
+import { createPetioleJunctionOverlay, type OverlayOptions } from './dockingOverlay/PetioleJunctionOverlay';
+import { buildPetioleJunctionPairs } from './dockingOverlay/dockingPairs';
 // Iter 18B PR 9 (SSOT #180) — single Skeleton Engine entry. Direct import
 // of buildTomatoSkeletonGraph is no longer allowed from consumers.
 import {
@@ -163,6 +166,15 @@ export function createSkinMeshPlant(
   let segmentationOn = false;
   let skeletonOn = false;
   const skeleton: SkeletonOverlayHandle = createSkeletonOverlay(scene, root);
+  // Iter 20 — petiole-stem junction overlay (Skin mode instance).
+  const dockingOverlay = createPetioleJunctionOverlay(scene, lushGroup);
+  let dockingEnabled = false;
+  let dockingOpts: OverlayOptions = {
+    edgeTypes: ['petiole'],
+    focus: 'stem-junction',
+    labelMode: 'all',
+    worstN: 5,
+  };
 
   function diag(): boolean {
     return useTwinStore.getState().debugDiagnostics;
@@ -463,6 +475,30 @@ export function createSkinMeshPlant(
       return out;
     };
 
+    // Iter 20 — new unified docking overlay API (petiole-stem junction).
+    // Replaces / supplements __skinplantPetioleDock (kept for backward compat).
+    (window as unknown as { __dockingOverlay?: (opts: {
+      enable: boolean;
+      edgeTypes?: string[];
+      focus?: 'stem-junction' | 'all';
+      labelMode?: 'all' | 'worst' | 'none';
+      worstN?: number;
+    }) => void }).__dockingOverlay = (opts) => {
+      dockingEnabled = opts.enable;
+      const merged: OverlayOptions = { ...dockingOpts };
+      if (opts.edgeTypes != null) merged.edgeTypes = opts.edgeTypes;
+      if (opts.focus != null) merged.focus = opts.focus;
+      if (opts.labelMode != null) merged.labelMode = opts.labelMode;
+      if (opts.worstN != null) merged.worstN = opts.worstN;
+      dockingOpts = merged;
+      dockingOverlay.setOptions(merged);
+      dockingOverlay.setVisible(opts.enable);
+      // Iter 20 PR 5 — expose flag so BabylonEngine can enable conditional
+      // shadow-build of skinMeshPlant when overlay is on in Skeleton mode.
+      (window as unknown as { __dockingOverlayEnabled?: boolean }).__dockingOverlayEnabled = opts.enable;
+      console.log(`[dockingOverlay] enable=${opts.enable} edgeTypes=${merged.edgeTypes?.join(',')} focus=${merged.focus} labelMode=${merged.labelMode}`);
+    };
+
     (window as unknown as { __skinplantPetioleDock?: (opts: {
       enable: boolean;
       worstN?: number;
@@ -616,6 +652,23 @@ export function createSkinMeshPlant(
     }
 
     applySegmentationHighlights();
+
+    // Iter 20 — populate petiole-stem junction overlay every rebuild.
+    // Always builds the pair data (cheap); visibility is gated by dockingEnabled.
+    const leafMeshByKey = new Map<string, { position: { x: number; y: number; z: number } }>();
+    for (const m of currentParts.leaves) {
+      const mm = m.name.match(/_a(\d+)_n(\d+)$/);
+      if (mm) leafMeshByKey.set(`a${mm[1]}_n${mm[2]}`, { position: m.position });
+    }
+    const junctionPairs = buildPetioleJunctionPairs({
+      graph,
+      renderedRootByEdgeId: skin.stats.renderedRootByEdgeId,
+      parentContextByEdgeId: skin.stats.parentContextByEdgeId,
+      leafMeshByKey,
+    });
+    dockingOverlay.setData(junctionPairs);
+    // Publish for capture spec / diagnosis report.
+    (window as unknown as { __dockingJunctionPairs?: unknown }).__dockingJunctionPairs = junctionPairs;
   }
 
   return {
