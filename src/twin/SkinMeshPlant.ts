@@ -248,7 +248,9 @@ export function createSkinMeshPlant(
     const engineResult = defaultSkinEngine.render(graph, {
       seed, engine, cultivarKey, state, plantBase,
       scene, parent: lushGroup,
-      stemOpts: { radialSegments: 8, rootRadiusScale: 1.15, parentSwellingScale: 1.25 },
+      // Iter 21 — rootRadiusScale 1.15 → 1.30. petiole 첫 ring을 더 굵게 하여
+      // stem-petiole junction에 자연 collar 효과 강화 (visual emerge 완화).
+      stemOpts: { radialSegments: 8, rootRadiusScale: 1.30, parentSwellingScale: 1.25 },
     });
     // Compatibility shim — preserve the existing `skin.faceGroups` shape so
     // the metadata block below doesn't need rewriting. defaultSkinEngine

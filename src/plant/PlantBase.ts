@@ -476,19 +476,25 @@ function buildLeafBase(
   const tipY = -petioleLengthM * Math.sin(droopRad);
   const tipR = petioleLengthM * Math.cos(droopRad);
   const tip = { x: attachPos.x + cos * tipR, y: attachPos.y + tipY, z: attachPos.z + sin * tipR };
-  // Mid sag — parabolic profile. tip y 의 0.65 × parabolic(t) 만큼 추가
-  // 처짐. c1 (t=0.35) 와 c2 (t=0.70) 의 y 를 cantilever 곡선에 맞춤.
-  const sagAt = (t: number): number => 4 * t * (1 - t);  // parabolic, peak=1 at t=0.5
-  const midSagBase = tipY * 0.5;  // mid 에서 tip 의 50% 까지 처짐 baseline
+  // Iter 21 — radial-emergence first, droop later.
+  //
+  // 이전 (Iter 20 시각 진단 부적합 원인):
+  //   c1 (t=0.35): Y droop을 sagAt(0.35)·midSagBase = 0.91·0.5 = 45.5% 즉시
+  //   c2 (t=0.70): Y droop 82%
+  //   → bone path 첫 절반이 stem axis와 거의 평행으로 떨어져 stem skin 안에
+  //     잠긴 채 emerge. Iter 20 측정: emerge gap D45 worst 13.5mm, D99 71mm.
+  //
+  // 신규: 첫 segment는 거의 순수 horizontal radial. mid c2가 droop의 대부분
+  // 받음. tip (curve[3]) 위치 불변 → leaf mesh / 외부 의존 모듈 무영향.
   const c1 = {
-    x: attachPos.x + cos * tipR * 0.35,
-    y: attachPos.y + midSagBase * sagAt(0.35),
-    z: attachPos.z + sin * tipR * 0.35,
+    x: attachPos.x + cos * tipR * 0.30,
+    y: attachPos.y + tipY * 0.10,   // 10%만 droop (was 45.5%) — radial-first emergence
+    z: attachPos.z + sin * tipR * 0.30,
   };
   const c2 = {
-    x: attachPos.x + cos * tipR * 0.70,
-    y: attachPos.y + midSagBase * sagAt(0.70) + tipY * 0.4,
-    z: attachPos.z + sin * tipR * 0.70,
+    x: attachPos.x + cos * tipR * 0.65,
+    y: attachPos.y + tipY * 0.55,   // 55% droop (mid) — was 82%
+    z: attachPos.z + sin * tipR * 0.65,
   };
   const petioleCurve = [{ ...attachPos }, c1, c2, tip];
 

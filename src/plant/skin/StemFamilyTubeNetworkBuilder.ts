@@ -542,7 +542,10 @@ export function buildStemFamilyTubeNetwork(
       // worst-case embed while preserving weld effect on small stems.
       let embedDepth: number;
       if (edge.type === 'petiole') {
-        embedDepth = Math.min(Math.max(parentRadius * 0.25, 0.0005), 0.0020);
+        // Iter 21 — clamp [0.5,2.0]→[0.2,1.0]mm, frac 0.25→0.15.
+        // rendered root가 stem swollen surface 안쪽 max 1mm까지만 묻혀
+        // occlusion 감소. weld 효과는 parentSwellingScale=1.25로 유지.
+        embedDepth = Math.min(Math.max(parentRadius * 0.15, 0.0002), 0.0010);
       } else {
         const embedFrac = embedDepthFrac[edge.type] ?? 0.6;
         const embedFloor = DEFAULT_EMBED_DEPTH_FLOOR_M[edge.type] ?? 0;
