@@ -216,7 +216,9 @@ export function createSkinMeshPlant(
     const skin = buildPlantSkinMesh(scene, graph, {
       radialSegments: 8,
       rootRadiusScale: 1.15,
-      parentSwellingScale: 1.10,
+      // Iter 18A SSOT #178: junction swelling 1.10 → 1.25.
+      // junction 부근 parent radius 25% 부풀려 child가 시각적으로 "용접"됨.
+      parentSwellingScale: 1.25,
     });
 
     console.log(

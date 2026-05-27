@@ -125,6 +125,19 @@ const DEFAULT_EMBED_DEPTH_FRAC: Record<SkeletonEdgeType, number> = {
   pedicel:   0.5,
 };
 
+// Iter 18A SSOT #178 — absolute floor (meters) per child type. fraction은
+// parent가 두꺼울 때 적합하나, parent radius가 1-2mm 정도면 embed depth
+// < 1mm이 되어 child가 시각적으로 parent에 거의 안 박혀 "꽂혀 있는" 인상.
+// effectiveEmbed = max(fraction * parentRadius, absolute floor).
+const DEFAULT_EMBED_DEPTH_FLOOR_M: Record<SkeletonEdgeType, number> = {
+  mainStem:  0,
+  sideShoot: 0.004,   // 4mm
+  petiole:   0.0015,  // 1.5mm
+  peduncle:  0.0020,  // 2.0mm
+  rachis:    0.0010,  // 1.0mm
+  pedicel:   0.0010,  // 1.0mm
+};
+
 // ── frame (sweepTube-compatible, world-up referenced) ──────────────────
 
 interface Frame {
@@ -466,7 +479,12 @@ export function buildStemFamilyTubeNetwork(
       const parentCenter = parentInfo.centerlinePoint;
       const parentRadius = parentInfo.radius;
       const parentTangent = parentInfo.tangent;
-      const embedDepth = parentRadius * (embedDepthFrac[edge.type] ?? 0.6);
+      // Iter 18A SSOT #178: max(fraction × parentR, absolute floor). Thin
+      // parents get sufficient embed via the absolute floor so child mesh
+      // visibly emerges from inside parent surface.
+      const embedFrac = embedDepthFrac[edge.type] ?? 0.6;
+      const embedFloor = DEFAULT_EMBED_DEPTH_FLOOR_M[edge.type] ?? 0;
+      const embedDepth = Math.max(parentRadius * embedFrac, embedFloor);
 
       const childDir = averageTangent(edge.bonePath, Math.min(3, edge.bonePath.length));
 
