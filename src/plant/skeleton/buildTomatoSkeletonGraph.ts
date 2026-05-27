@@ -136,6 +136,40 @@ function addStemAxis(
   });
 }
 
+// ── Iter 18A SSOT #176 — organ visibility predicates ────────────────────
+//
+// 모든 stem-family edge 생성과 leaf blade / truss organ mesh 생성은 동일
+// predicate를 통과해야 한다. 한 organ을 부분만 렌더하지 않는다 (e.g. petiole
+// 있는데 leaf blade 없는 floating fragment 방지).
+
+/** sizeFactor 하한 — engine pruned threshold (leafMaturity < 0.05)와 통일. */
+export const LEAF_VISIBILITY_THRESHOLD = 0.05;
+
+export function isLeafOrganVisible(leaf: {
+  visibility: { visible: boolean };
+  sizeFactor: number;
+}): boolean {
+  return leaf.visibility.visible && leaf.sizeFactor >= LEAF_VISIBILITY_THRESHOLD;
+}
+
+type TrussWithCurves<T> = T & {
+  peduncleCurve: NonNullable<T extends { peduncleCurve?: infer P } ? P : never>;
+  rachisCurve: NonNullable<T extends { rachisCurve?: infer P } ? P : never>;
+  floralSites: NonNullable<T extends { floralSites?: infer P } ? P : never>;
+};
+
+export function isTrussOrganVisible<T extends {
+  visibility: { visible: boolean };
+  peduncleCurve?: ReadonlyArray<unknown> | unknown[];
+  rachisCurve?: ReadonlyArray<unknown> | unknown[];
+  floralSites?: ReadonlyArray<unknown> | unknown[];
+}>(truss: T): truss is TrussWithCurves<T> {
+  if (!truss.visibility.visible) return false;
+  if (!truss.peduncleCurve || !truss.rachisCurve || !truss.floralSites) return false;
+  if (truss.peduncleCurve.length < 2) return false;
+  return true;
+}
+
 // ── Leaf petioles ─────────────────────────────────────────────────────
 
 function addLeavesForAxis(
@@ -147,7 +181,7 @@ function addLeavesForAxis(
   edges: Map<string, SkeletonEdge>,
 ): void {
   for (const leaf of axis.leaves) {
-    if (!leaf.visibility.visible) continue;
+    if (!isLeafOrganVisible(leaf)) continue;
     if (leaf.petioleCurve.length < 2) continue;
 
     const attachNodeId = stemNodeId(axisIdx, leaf.nodeIdx);
@@ -199,9 +233,7 @@ function addTrussesForAxis(
 ): void {
   for (let trussIdx = 0; trussIdx < axis.trusses.length; trussIdx++) {
     const truss = axis.trusses[trussIdx];
-    if (!truss.visibility.visible) continue;
-    if (!truss.peduncleCurve || !truss.rachisCurve || !truss.floralSites) continue;
-    if (truss.peduncleCurve.length < 2) continue;
+    if (!isTrussOrganVisible(truss)) continue;
 
     const stemAttachNodeId = stemNodeId(axisIdx, truss.nodeIdx);
     const stemAttachNode = nodes.get(stemAttachNodeId);

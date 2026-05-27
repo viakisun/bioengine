@@ -43,7 +43,7 @@ import type {
 } from '@farmsim/tomato-engine';
 import { createSkeletonOverlay, type SkeletonOverlayHandle } from './SkeletonOverlay';
 import { useTwinStore } from '../store/twinStore';
-import { buildTomatoSkeletonGraph } from '../plant/skeleton/buildTomatoSkeletonGraph';
+import { buildTomatoSkeletonGraph, isLeafOrganVisible, isTrussOrganVisible } from '../plant/skeleton/buildTomatoSkeletonGraph';
 import { buildPlantSkinMesh } from '../plant/skin/buildPlantSkinMesh';
 // Iter 17 SSOT #173: legacy per-leaf createLeafMeshFromNode pipeline. Same
 // approach SupportingPlant/ShowcasePlant already use successfully — each
@@ -294,9 +294,12 @@ export function createSkinMeshPlant(
     for (let axisIdx = 0; axisIdx < leafAxes.length; axisIdx++) {
       const axisBase = leafAxes[axisIdx];
       for (const leafBase of axisBase.leaves) {
-        if (!leafBase.visibility.visible) continue;
+        // Iter 18A SSOT #176: same predicate as buildTomatoSkeletonGraph
+        // addLeavesForAxis. petiole 있는데 blade 없는 case 또는 그 반대
+        // 발생 방지 (organ visibility lifecycle 통합).
+        if (!isLeafOrganVisible(leafBase)) continue;
         const node = state.nodes[leafBase.nodeIdx];
-        if (!node || node.leafMaturity < 0.05) continue;
+        if (!node) continue;
         // Petiole tip = leaf blade attach point (matches SupportingPlant).
         const tip = leafBase.petioleCurve && leafBase.petioleCurve.length > 0
           ? leafBase.petioleCurve[leafBase.petioleCurve.length - 1]
@@ -319,13 +322,15 @@ export function createSkinMeshPlant(
     console.log(`[skinplant.leaf] per-leaf meshes=${leafMeshCount} (legacy createLeafMeshFromNode)`);
     void cultivarKey;
 
-    // === Truss organs (fruit body / calyx / flower only) — unchanged ===
+    // === Truss organs (fruit body / calyx / flower only) ===
     const baseAxes: AxisBase[] = [plantBase.mainAxis, ...plantBase.sideShoots];
     for (let axisIdx = 0; axisIdx < baseAxes.length; axisIdx++) {
       const axisBase = baseAxes[axisIdx];
       for (const trussBase of axisBase.trusses) {
-        if (!trussBase.visibility.visible) continue;
-        if (!trussBase.floralSites) continue;
+        // Iter 18A SSOT #176: same predicate as buildTomatoSkeletonGraph
+        // addTrussesForAxis. peduncle/rachis edge가 stem mesh에 있는데 fruit
+        // organ이 없거나, fruit는 있는데 stem edge가 없는 mismatch 방지.
+        if (!isTrussOrganVisible(trussBase)) continue;
         const trussRng = new SeededRandom(
           seed * 7919 + axisIdx * 88883 + trussBase.nodeIdx * 31,
         );
