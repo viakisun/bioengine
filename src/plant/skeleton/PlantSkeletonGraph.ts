@@ -47,6 +47,32 @@ export interface SkeletonBone {
   r1: number;
 }
 
+/**
+ * Iter 18B PR 8 (SSOT #180) — Structured organ anchor.
+ *
+ * Replaces the legacy `attachedOrganIds: string[]` (Phase 5 cut hierarchy
+ * support — kept for backward-compat) with a structured record that the
+ * SkinEngine can consume directly to position non-edge organ meshes (leaf
+ * blade, fruit body, calyx, flower) at the SkeletonGraph's anchor points.
+ *
+ * Each organ kind references the SkeletonNode where its mesh attaches
+ * (typically the edge's endNode — petiole_tip for leaf, pedicel_tip for
+ * fruit). PR 14 uses this to assert mesh.position ≈ anchor.pos for every
+ * rendered organ.
+ *
+ * Note: SSOT #182 — leaflet-internal geometry (rib / vein / leaflet layout)
+ * is intentionally mesh-local and has NO entry here.
+ */
+export type OrganAnchorKind = 'leaf_blade' | 'fruit' | 'flower' | 'calyx';
+
+export interface OrganAnchor {
+  /** Stable id (string form for legacy attachedOrganIds passthrough). */
+  id: string;
+  kind: OrganAnchorKind;
+  /** SkeletonNode id where this organ attaches. */
+  anchorNodeId: string;
+}
+
 /** Edge — a contiguous stem-like organ. */
 export interface SkeletonEdge {
   id: string;                              // unique within graph
@@ -63,9 +89,13 @@ export interface SkeletonEdge {
   cuttable: boolean;
   /** Human / dataset label. e.g. 'main stem', 'leaf 7 petiole'. */
   semanticLabel: string;
-  /** Non-edge organs attached to this edge's end (leaf blade, fruit
-   *  body, calyx). Phase 5 disposes these along with the edge. */
+  /** Legacy — string ids of non-edge organs. Phase 5 cut hierarchy still
+   *  reads this. New code should prefer `organAnchors`. */
   attachedOrganIds: string[];
+  /** Iter 18B PR 8 — structured anchor records (SSOT #180). Optional during
+   *  migration; populated by buildTomatoSkeletonGraph for petiole / pedicel
+   *  edges. */
+  organAnchors?: OrganAnchor[];
 }
 
 export interface PlantSkeletonGraph {

@@ -206,6 +206,9 @@ function addLeavesForAxis(
     });
     attachNode.edgeIds.push(petioleEdgeId);
 
+    // Iter 18B PR 8 (SSOT #180) — structured OrganAnchor for leaf blade.
+    // anchorNodeId = petiole tip (the same node the legacy id encodes).
+    const leafBladeAnchorId = `leaf_blade:axis${axisIdx}:n${leaf.nodeIdx}`;
     edges.set(petioleEdgeId, {
       id: petioleEdgeId,
       type: 'petiole',
@@ -215,7 +218,8 @@ function addLeavesForAxis(
       parentEdgeId: stemEdgeId,
       cuttable: true,
       semanticLabel: `leaf ${leaf.nodeIdx} petiole`,
-      attachedOrganIds: [`leaf_blade:axis${axisIdx}:n${leaf.nodeIdx}`],
+      attachedOrganIds: [leafBladeAnchorId],
+      organAnchors: [{ id: leafBladeAnchorId, kind: 'leaf_blade', anchorNodeId: tipNodeId }],
     });
   }
 }
@@ -337,6 +341,13 @@ function addTrussesForAxis(
           `calyx:axis${axisIdx}:t${trussIdx}:s${site.index}`,
         ];
 
+        // Iter 18B PR 8 (SSOT #180) — structured OrganAnchors for flower /
+        // fruit / calyx at pedicel tip.
+        const organAnchors: import('./PlantSkeletonGraph').OrganAnchor[] = [
+          { id: `flower:axis${axisIdx}:t${trussIdx}:s${site.index}`, kind: 'flower', anchorNodeId: pedicelTipNodeId },
+          { id: `fruit:axis${axisIdx}:t${trussIdx}:s${site.index}`,  kind: 'fruit',  anchorNodeId: pedicelTipNodeId },
+          { id: `calyx:axis${axisIdx}:t${trussIdx}:s${site.index}`,  kind: 'calyx',  anchorNodeId: pedicelTipNodeId },
+        ];
         edges.set(pedicelEdgeId, {
           id: pedicelEdgeId,
           type: 'pedicel',
@@ -347,6 +358,7 @@ function addTrussesForAxis(
           cuttable: true,
           semanticLabel: `pedicel site ${site.index}`,
           attachedOrganIds,
+          organAnchors,
         });
       }
 
