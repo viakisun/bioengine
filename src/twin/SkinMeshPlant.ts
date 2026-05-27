@@ -27,6 +27,8 @@ import { HighlightLayer } from '@babylonjs/core/Layers/highlightLayer';
 import { Vector3, Quaternion } from '@babylonjs/core/Maths/math.vector';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { PBRMaterial } from '@babylonjs/core/Materials/PBR/pbrMaterial';
+import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
+import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
 import { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData';
 import {
   SeededRandom,
@@ -312,6 +314,225 @@ export function createSkinMeshPlant(
         for (const n of currentTransformNodes) n.setEnabled(truOn);
         console.log(`[skinplant.view] mode=${mode} stem=${stemOn} leaf=${leafOn} truss=${truOn}`);
       };
+
+    // Iter 18C — Petiole docking debug overlay (replaces earlier stub).
+    // Usage: window.__skinplantPetioleDock({ enable, worstN, metric }).
+    //
+    // 6 coords per petiole edge (sphere 색상):
+    //   BLACK   stemNodeWorld             = graph.nodes[startNodeId].pos
+    //   ORANGE  plantBasePetioleRootWorld = leaf.petioleCurve[0]
+    //   RED     graphPetioleRootWorld     = edge.bonePath[0].p0
+    //   BLUE    renderedPetioleRootWorld  = stats.renderedRootByEdgeId[edge.id]
+    //   CYAN    petioleTipWorld           = graph.nodes[endNodeId].pos
+    //   YELLOW  leafBaseWorld             = leafMesh.position
+    //
+    // 4 connection lines (yellow color = warn if delta > 1mm):
+    //   BLACK → RED   (= stem radius 기대값)
+    //   ORANGE → RED  (= PlantBase ↔ Graph, 0 기대 / Case A)
+    //   RED → BLUE    (= Graph ↔ Rendered, embed depth만큼 기대 / Case B/D)
+    //   CYAN → YELLOW (= Petiole tip ↔ Leaf base, 0 기대 / Case C)
+    //
+    // 4 deltas (mm) per petiole exposed via __skinplantStats.dockingDiag.
+    // Iter 18C — Petiole docking debug overlay. Owns its own dispose list
+    // (rebuilds on every plant update; toggle re-enables after rebuild via
+    // last-call replay).
+    type DockingMesh = import('@babylonjs/core/Meshes/mesh').Mesh;
+    let dockingMarkers: DockingMesh[] = [];
+    const disposeDocking = () => {
+      for (const m of dockingMarkers) m.dispose();
+      dockingMarkers = [];
+    };
+    const mkSphere = (
+      name: string, pos: { x: number; y: number; z: number }, color: Color3, diameter: number,
+    ): DockingMesh => {
+      const s = MeshBuilder.CreateSphere(name, { diameter, segments: 6 }, scene);
+      s.parent = lushGroup;
+      s.position = new Vector3(pos.x, pos.y, pos.z);
+      const mat = new StandardMaterial(`${name}_mat`, scene);
+      mat.diffuseColor = color;
+      mat.emissiveColor = color;
+      mat.disableLighting = true;
+      s.material = mat;
+      s.isPickable = false;
+      s.renderingGroupId = 3;
+      dockingMarkers.push(s);
+      return s;
+    };
+    const mkLine = (
+      name: string,
+      a: { x: number; y: number; z: number },
+      b: { x: number; y: number; z: number },
+      color: Color3,
+    ): DockingMesh => {
+      const line = MeshBuilder.CreateLines(name, {
+        points: [new Vector3(a.x, a.y, a.z), new Vector3(b.x, b.y, b.z)],
+      }, scene);
+      line.parent = lushGroup;
+      line.color = color;
+      line.isPickable = false;
+      line.renderingGroupId = 3;
+      dockingMarkers.push(line);
+      return line;
+    };
+
+    // 6-color palette (per plan)
+    const C_BLACK  = new Color3(0.05, 0.05, 0.05);
+    const C_ORANGE = new Color3(1.00, 0.55, 0.00);
+    const C_RED    = new Color3(1.00, 0.10, 0.10);
+    const C_BLUE   = new Color3(0.10, 0.45, 1.00);
+    const C_CYAN   = new Color3(0.10, 0.95, 0.95);
+    const C_YELLOW = new Color3(1.00, 0.95, 0.10);
+    const C_WARN   = new Color3(1.00, 0.85, 0.20);
+
+    interface DockingPerPetiole {
+      edgeId: string;
+      nodeIdx: number;
+      stemNode: { x: number; y: number; z: number };
+      plantBaseRoot: { x: number; y: number; z: number };
+      graphRoot: { x: number; y: number; z: number };
+      renderedRoot: { x: number; y: number; z: number } | null;
+      tip: { x: number; y: number; z: number };
+      leafBase: { x: number; y: number; z: number } | null;
+      plantBaseGraphDelta_mm: number;
+      graphRenderedDelta_mm: number | null;
+      tipDelta_mm: number | null;
+      centerToSurfaceDelta_mm: number;
+      severity: 'green' | 'yellow' | 'red';
+    }
+    const d3 = (
+      a: { x: number; y: number; z: number },
+      b: { x: number; y: number; z: number },
+    ): number => Math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2 + (a.z-b.z)**2);
+    const dMm = (a: { x: number; y: number; z: number }, b: { x: number; y: number; z: number }): number =>
+      d3(a, b) * 1000;
+    const sev = (worst_mm: number): 'green' | 'yellow' | 'red' =>
+      worst_mm <= 1 ? 'green' : worst_mm <= 3 ? 'yellow' : 'red';
+
+    const buildDockingDiag = (): DockingPerPetiole[] => {
+      const allAxes = [plantBase.mainAxis, ...plantBase.sideShoots];
+      // Build axis-nodeIdx → leafBase lookup from PlantBase.
+      const plantBaseByKey = new Map<string, { petioleCurve: { x: number; y: number; z: number }[] }>();
+      allAxes.forEach((ax, axIdx) => {
+        for (const leaf of ax.leaves) {
+          plantBaseByKey.set(`a${axIdx}_n${leaf.nodeIdx}`, leaf as { petioleCurve: { x: number; y: number; z: number }[] });
+        }
+      });
+      // Build leaf-mesh-by-key lookup.
+      const leafMeshByKey = new Map<string, DockingMesh>();
+      for (const m of currentParts.leaves) {
+        const match = m.name.match(/_a(\d+)_n(\d+)$/);
+        if (!match) continue;
+        leafMeshByKey.set(`a${match[1]}_n${match[2]}`, m as DockingMesh);
+      }
+      const rendered = skin.stats.renderedRootByEdgeId ?? {};
+      const out: DockingPerPetiole[] = [];
+      for (const [edgeId, edge] of graph.edges) {
+        if (edge.type !== 'petiole') continue;
+        const match = edgeId.match(/^e:petiole:axis(\d+):n(\d+)$/);
+        if (!match) continue;
+        const axIdx = match[1];
+        const nIdx = parseInt(match[2], 10);
+        const key = `a${axIdx}_n${nIdx}`;
+        const startNode = graph.nodes.get(edge.startNodeId);
+        const endNode = graph.nodes.get(edge.endNodeId);
+        const pb = plantBaseByKey.get(key);
+        if (!startNode || !endNode || !edge.bonePath[0]) continue;
+        const stemNode = startNode.pos;
+        const plantBaseRoot = pb?.petioleCurve[0] ?? edge.bonePath[0].p0;
+        const graphRoot = edge.bonePath[0].p0;
+        const renderedRoot = rendered[edgeId] ?? null;
+        const tip = endNode.pos;
+        const leafMesh = leafMeshByKey.get(key);
+        const leafBase = leafMesh ? { x: leafMesh.position.x, y: leafMesh.position.y, z: leafMesh.position.z } : null;
+        const plantBaseGraphDelta_mm = dMm(plantBaseRoot, graphRoot);
+        const graphRenderedDelta_mm = renderedRoot ? dMm(graphRoot, renderedRoot) : null;
+        const tipDelta_mm = leafBase ? dMm(tip, leafBase) : null;
+        const centerToSurfaceDelta_mm = dMm(stemNode, graphRoot);
+        const worst = Math.max(
+          plantBaseGraphDelta_mm,
+          graphRenderedDelta_mm ?? 0,
+          tipDelta_mm ?? 0,
+        );
+        out.push({
+          edgeId, nodeIdx: nIdx,
+          stemNode, plantBaseRoot, graphRoot, renderedRoot, tip, leafBase,
+          plantBaseGraphDelta_mm, graphRenderedDelta_mm, tipDelta_mm, centerToSurfaceDelta_mm,
+          severity: sev(worst),
+        });
+      }
+      return out;
+    };
+
+    (window as unknown as { __skinplantPetioleDock?: (opts: {
+      enable: boolean;
+      worstN?: number;
+      metric?: 'plantBaseGraphDelta' | 'graphRenderedDelta' | 'tipDelta';
+    }) => void }).__skinplantPetioleDock = (opts) => {
+      disposeDocking();
+      const diag = buildDockingDiag();
+      // Always publish JSON, even when not visualizing.
+      const centerToSurfaceList = diag.map(d => d.centerToSurfaceDelta_mm).sort((a,b)=>a-b);
+      const median = centerToSurfaceList.length === 0 ? 0
+        : centerToSurfaceList[Math.floor(centerToSurfaceList.length / 2)];
+      const summary = {
+        totalCount: diag.length,
+        worstPlantBaseGraphDelta_mm: Math.max(0, ...diag.map(d => d.plantBaseGraphDelta_mm)),
+        worstGraphRenderedDelta_mm: Math.max(0, ...diag.map(d => d.graphRenderedDelta_mm ?? 0)),
+        worstTipDelta_mm: Math.max(0, ...diag.map(d => d.tipDelta_mm ?? 0)),
+        expectedCenterToSurfaceMedian_mm: median,
+      };
+      (window as unknown as { __skinplantStats?: Record<string, unknown> }).__skinplantStats!.dockingDiag = {
+        perPetiole: diag, summary,
+      };
+      if (!opts.enable) {
+        console.log('[skinplant.petioleDock] OFF — JSON published only');
+        return;
+      }
+      // Decide which subset to render.
+      const metric = opts.metric ?? 'tipDelta';
+      const metricGet = (d: DockingPerPetiole): number => {
+        switch (metric) {
+          case 'plantBaseGraphDelta': return d.plantBaseGraphDelta_mm;
+          case 'graphRenderedDelta':  return d.graphRenderedDelta_mm ?? 0;
+          case 'tipDelta':            return d.tipDelta_mm ?? 0;
+        }
+      };
+      const sorted = [...diag].sort((a, b) => metricGet(b) - metricGet(a));
+      const worstN = opts.worstN ?? 5;
+      const subset = worstN > 0 ? sorted.slice(0, worstN) : sorted;
+      for (const d of subset) {
+        mkSphere(`dock_stem_${d.edgeId}`, d.stemNode, C_BLACK, 0.006);
+        mkSphere(`dock_pb_${d.edgeId}`, d.plantBaseRoot, C_ORANGE, 0.006);
+        mkSphere(`dock_gr_${d.edgeId}`, d.graphRoot, C_RED, 0.006);
+        if (d.renderedRoot) mkSphere(`dock_rd_${d.edgeId}`, d.renderedRoot, C_BLUE, 0.006);
+        mkSphere(`dock_tip_${d.edgeId}`, d.tip, C_CYAN, 0.006);
+        if (d.leafBase) mkSphere(`dock_lb_${d.edgeId}`, d.leafBase, C_YELLOW, 0.006);
+        // Lines
+        mkLine(`dock_l_center_${d.edgeId}`, d.stemNode, d.graphRoot, C_RED);
+        mkLine(`dock_l_pb_${d.edgeId}`, d.plantBaseRoot, d.graphRoot,
+          d.plantBaseGraphDelta_mm > 1 ? C_WARN : C_ORANGE);
+        if (d.renderedRoot) mkLine(`dock_l_rd_${d.edgeId}`, d.graphRoot, d.renderedRoot,
+          (d.graphRenderedDelta_mm ?? 0) > 1 ? C_WARN : C_BLUE);
+        if (d.leafBase) mkLine(`dock_l_tip_${d.edgeId}`, d.tip, d.leafBase,
+          (d.tipDelta_mm ?? 0) > 1 ? C_WARN : C_YELLOW);
+        // Console label
+        console.log(
+          `[dock ${d.edgeId.replace('e:petiole:', '')}] `
+          + `pb→gr=${d.plantBaseGraphDelta_mm.toFixed(2)}mm  `
+          + `gr→rd=${(d.graphRenderedDelta_mm ?? -1).toFixed(2)}mm  `
+          + `tip→leaf=${(d.tipDelta_mm ?? -1).toFixed(2)}mm  `
+          + `(center→surface=${d.centerToSurfaceDelta_mm.toFixed(2)}mm)  `
+          + `severity=${d.severity}`,
+        );
+      }
+      console.log(
+        `[skinplant.petioleDock] ON — ${subset.length}/${diag.length} petioles. `
+        + `worstPB→GR=${summary.worstPlantBaseGraphDelta_mm.toFixed(2)}mm  `
+        + `worstGR→RD=${summary.worstGraphRenderedDelta_mm.toFixed(2)}mm  `
+        + `worstTip→Leaf=${summary.worstTipDelta_mm.toFixed(2)}mm  `
+        + `medianCenter→Surface=${summary.expectedCenterToSurfaceMedian_mm.toFixed(2)}mm`,
+      );
+    };
     if (skin.stats.vertexCount > 0 && skin.mesh) {
       // Rename the mesh to include the seed for ownership audit prefixes.
       // (parent already set to lushGroup by defaultSkinEngine.render.)

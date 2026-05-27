@@ -69,9 +69,15 @@ export interface PlantStemFamilyMesh {
     /** Per-type effective render radius (after rootRadiusScale + swelling). */
     renderRadiusByType: Partial<Record<SkeletonEdgeType, RadiusStat>>;
     /** Child edges whose start point is farther than 1mm from parent surface
-     *  along the radial direction — surfaces "floating" relative to parent. */
+     *  along the radial direction — surfaces "floating" relative to parent.
+     *  See Iter 18C plan: this metric may be a false positive that confuses
+     *  stem center-to-surface gap with true floating. */
     floatingCandidateCount: number;
     floatingCandidateIds: string[];
+    /** Iter 18C — per-edge `childStart` after embedDepth+rootRadiusScale.
+     *  Used by docking debug overlay (`__skinplantPetioleDock`) to expose
+     *  the actual mesh root vs the graph bonePath[0].p0. */
+    renderedRootByEdgeId: Record<string, { x: number; y: number; z: number }>;
   };
 }
 
@@ -464,6 +470,8 @@ export function buildStemFamilyTubeNetwork(
   const renderRadiiByType: Partial<Record<SkeletonEdgeType, number[]>> = {};
   const floatingCandidateIds: string[] = [];
   const FLOATING_GAP_THRESHOLD_M = 0.001; // 1mm
+  // Iter 18C — per-edge actual mesh root (embed + scale 적용 후 childStart).
+  const renderedRootByEdgeId: Record<string, V3> = {};
   for (const e of graph.edges.values()) {
     edgesByType[e.type] = (edgesByType[e.type] ?? 0) + 1;
   }
@@ -515,6 +523,8 @@ export function buildStemFamilyTubeNetwork(
 
       const parentSurfacePoint = vadd(parentCenter, vscale(radialDir, parentRadius));
       const childStart = vsub(parentSurfacePoint, vscale(radialDir, embedDepth));
+      // Iter 18C — expose the actual mesh root for the docking debug overlay.
+      renderedRootByEdgeId[edge.id] = { x: childStart.x, y: childStart.y, z: childStart.z };
 
       const origFirst = swollenBones[0];
       // Iter 18A SSOT #177 — rootBone radii also subject to render floor.
@@ -632,6 +642,7 @@ export function buildStemFamilyTubeNetwork(
       renderRadiusByType,
       floatingCandidateCount: floatingCandidateIds.length,
       floatingCandidateIds,
+      renderedRootByEdgeId,
     },
   };
 }
