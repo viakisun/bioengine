@@ -293,6 +293,9 @@ export function createSkinMeshPlant(
       },
     };
     (window as unknown as { __skinplantStats?: typeof extendedStats }).__skinplantStats = extendedStats;
+    // Iter 18B PR 14 — expose live graph for position-assert harness.
+    // Maps are not JSON-serializable, but page.evaluate can iterate them.
+    (window as unknown as { __skinplantGraph?: typeof graph }).__skinplantGraph = graph;
     // Iter 18A Phase 1.2 — view toggle (dev-only). Hides organ categories so
     // the user can isolate stem family / truss / leaf during fidelity audit.
     // Usage in devtools: window.__skinplantView('stem' | 'truss' | 'leaf' | 'full').
