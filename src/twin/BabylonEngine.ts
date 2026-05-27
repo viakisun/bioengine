@@ -409,8 +409,12 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
     // SSOT Phase 4 — implicit skin mesh toggle. Swap showcase ↔ skin mesh.
     // SkinMeshPlant is hidden by default; on toggle ON we both show it AND
     // immediately update it (it skips updates while hidden to save SDF cost).
+    // Iter 20 PR 5 — conditional shadow build: when __dockingOverlayEnabled
+    // is true and we're flipping to skeleton mode, still pump one skin update
+    // so the overlay has fresh renderedRoot / parentContext data.
     if (s.useImplicitMesh !== prev.useImplicitMesh && greenhouse) {
       const day = useTwinStore.getState().currentDay;
+      const dockingOn = !!(window as unknown as { __dockingOverlayEnabled?: boolean }).__dockingOverlayEnabled;
       if (s.useImplicitMesh) {
         greenhouse.showcasePlant.setVisible(false);
         greenhouse.skinMeshPlant.setVisible(true);
@@ -418,6 +422,10 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
       } else {
         greenhouse.skinMeshPlant.setVisible(false);
         greenhouse.showcasePlant.setVisible(true);
+        if (dockingOn) {
+          // shadow build — keep skin data fresh for skeleton-mode overlay.
+          greenhouse.skinMeshPlant.update(day);
+        }
       }
     }
     if (s.lighting !== prev.lighting && sceneSetup) {
@@ -635,7 +643,10 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
       greenhouse.showcasePlant.update(state.currentDay);
       // SSOT Phase 4 — SkinMeshPlant only updates when visible (SDF build
       // is non-trivial). Toggle-ON handler above pumps an initial update.
-      if (useTwinStore.getState().useImplicitMesh) {
+      // Iter 20 PR 5 — also update when docking overlay is enabled so
+      // skeleton-mode markers have fresh data (conditional shadow build).
+      const dockingOn = !!(window as unknown as { __dockingOverlayEnabled?: boolean }).__dockingOverlayEnabled;
+      if (useTwinStore.getState().useImplicitMesh || dockingOn) {
         greenhouse.skinMeshPlant.update(state.currentDay);
       }
       // Greenhouse-only content (heatmap/robot/pathTrail + supporting plants) 는

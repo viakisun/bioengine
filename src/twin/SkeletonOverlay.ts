@@ -34,6 +34,9 @@ import type {
   FloralSiteBase,
 } from '../plant/PlantBase';
 import type { SkeletonConfig } from '../store/twinStore';
+// Iter 20 — docking overlay (shared with SkinMeshPlant via window.__dockingJunctionPairs).
+import { createPetioleJunctionOverlay } from './dockingOverlay/PetioleJunctionOverlay';
+import type { PetioleJunctionPair } from './dockingOverlay/dockingPairs';
 
 export interface SkeletonOverlayHandle {
   update: (plantBase: PlantBase) => void;
@@ -109,6 +112,10 @@ export function createSkeletonOverlay(
   let visible = false;
   let cfg: SkeletonConfig = { ...DEFAULT_CONFIG };
   let lastPlantBase: PlantBase | null = null;
+  // Iter 20 — petiole-stem junction overlay (Skeleton mode instance, separate
+  // from the Skin mode instance owned by SkinMeshPlant; they share the
+  // published __dockingJunctionPairs data).
+  let dockingOverlay: ReturnType<typeof createPetioleJunctionOverlay> | null = null;
 
   /** Show hidden (pruned/harvested/aborted) organs as faint debug markers.
    *  Default off; can be wired to a store toggle later. */
@@ -120,6 +127,24 @@ export function createSkeletonOverlay(
     if (parent) root.parent = parent;
     mats = makeMaterials(scene);
     root.setEnabled(false);
+    // Iter 20 — lazy-init docking overlay parented under skeleton root.
+    if (!dockingOverlay) {
+      dockingOverlay = createPetioleJunctionOverlay(scene, root);
+    }
+  }
+
+  /** Sync docking overlay to currently published __dockingJunctionPairs.
+   *  Visibility = SkeletonOverlay.visible AND window.__dockingOverlayEnabled. */
+  function syncDockingOverlay(): void {
+    if (!dockingOverlay) return;
+    const w = window as unknown as {
+      __dockingJunctionPairs?: PetioleJunctionPair[];
+      __dockingOverlayEnabled?: boolean;
+    };
+    const enabled = !!w.__dockingOverlayEnabled;
+    const pairs = w.__dockingJunctionPairs ?? [];
+    dockingOverlay.setData(pairs);
+    dockingOverlay.setVisible(visible && enabled);
   }
 
   function clearMeshes() {
@@ -510,11 +535,13 @@ export function createSkeletonOverlay(
   function rebuild() {
     if (!visible) {
       if (meshes.length > 0) clearMeshes();
+      syncDockingOverlay();
       return;
     }
     const pb = lastPlantBase;
     if (!pb) {
       clearMeshes();
+      syncDockingOverlay();
       return;
     }
     clearMeshes();
@@ -527,6 +554,7 @@ export function createSkeletonOverlay(
       console.error('[SkeletonOverlay] draw failed:', err);
       clearMeshes();
     }
+    syncDockingOverlay();
   }
 
   return {
@@ -539,6 +567,8 @@ export function createSkeletonOverlay(
       if (v) ensureInit();
       if (root) root.setEnabled(v);
       if (v && lastPlantBase) rebuild();
+      // Iter 20 — also sync docking overlay visibility when toggled off.
+      if (!v) syncDockingOverlay();
     },
     setConfig(next: SkeletonConfig) {
       cfg = next;
@@ -546,6 +576,10 @@ export function createSkeletonOverlay(
     },
     dispose() {
       clearMeshes();
+      if (dockingOverlay) {
+        dockingOverlay.dispose();
+        dockingOverlay = null;
+      }
       if (root) {
         root.dispose();
         root = null;
