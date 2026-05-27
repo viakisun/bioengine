@@ -59,3 +59,6 @@ export {
   isTrussOrganVisible,
   LEAF_VISIBILITY_THRESHOLD,
 } from './buildTomatoSkeletonGraph';
+// PR 10 — validation harness.
+export { validateSkeleton } from './validateSkeleton';
+export type { ValidationFinding, ValidationReport, ValidationSeverity } from './validateSkeleton';
