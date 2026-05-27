@@ -54,6 +54,10 @@ export interface LeafBuildParams {
   ageFrac: number;
   /** Per-plant shape (typically from genome.leaf* fields) */
   shape?: LeafShapeParams;
+  /** Iter 18B PR 5 — Skin variant: omit the rachis spine cylinder.
+   *  buildLeafBladeOnly only. Leaflets remain at their mesh-local positions
+   *  along the (now-invisible) rachis line. */
+  omitRachis?: boolean;
 }
 
 export function buildLeafChunk(paramsArg: LeafBuildParams, rng: SeededRandom): GeoChunk {
@@ -260,22 +264,28 @@ export function buildLeafBladeOnly(paramsArg: LeafBuildParams, rng: SeededRandom
   // mesh-local (petioleLen, 0, 0) maps to the SDF petiole tip, so the
   // rachis cylinder below picks up exactly where the SDF surface ends.
 
-  // Rachis — same as buildLeafChunk (kept so leaflets are visually
-  // attached to a midrib, not floating).
-  const rachisBaseRadius = 0.0010 * sizeFactor;
-  const rachisTipRadius = 0.0005 * sizeFactor;
-  const rachis = createCylinderChunk(rachisTipRadius, rachisBaseRadius, rachisLen, 4, 8, true);
-  rotateChunkZ(rachis, -Math.PI / 2);
-  translateChunk(rachis, petioleLen + rachisLen / 2, 0, 0);
+  // Iter 18B PR 5 — Rachis omission option. Skin variant uses omitRachis=true
+  // so the leaflets-only mesh has no internal spine cylinder (leaflets remain
+  // at their mesh-local positions along the invisible rachis line;
+  // SkeletonGraph has no rachis anchor — see SSOT #182).
+  // NOTE: rachisDroopFactor is also used by leaflet yOff calculation below,
+  //       so it must stay hoisted regardless of omitRachis.
   const rachisDroopFactor = 0.12 + af * 0.45;
-  for (let v = 0; v < rachis.positions.length; v += 3) {
-    const x = rachis.positions[v];
-    const t = (x - petioleLen) / rachisLen;
-    if (t >= 0 && t <= 1) {
-      rachis.positions[v + 1] -= t * t * rachisLen * rachisDroopFactor;
+  if (!paramsArg.omitRachis) {
+    const rachisBaseRadius = 0.0010 * sizeFactor;
+    const rachisTipRadius = 0.0005 * sizeFactor;
+    const rachis = createCylinderChunk(rachisTipRadius, rachisBaseRadius, rachisLen, 4, 8, true);
+    rotateChunkZ(rachis, -Math.PI / 2);
+    translateChunk(rachis, petioleLen + rachisLen / 2, 0, 0);
+    for (let v = 0; v < rachis.positions.length; v += 3) {
+      const x = rachis.positions[v];
+      const t = (x - petioleLen) / rachisLen;
+      if (t >= 0 && t <= 1) {
+        rachis.positions[v + 1] -= t * t * rachisLen * rachisDroopFactor;
+      }
     }
+    chunks.push(rachis);
   }
-  chunks.push(rachis);
 
   // Leaflets along rachis — same positions as buildLeafChunk.
   for (let i = 0; i <= pairs; i++) {

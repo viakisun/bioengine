@@ -212,6 +212,10 @@ export function createLeafBladeOnlyMesh(
       curl,
       ageFrac,
       shape,
+      // Iter 18B PR 5 — rachis spine cylinder는 leaf 안에서 별도 stick으로
+      // 보임 ("빨대" 후보 #2). leaflets은 mesh-local 위치 그대로 유지하므로
+      // 시각 영향 = rachis line 사라짐만.
+      omitRachis: true,
     },
     rng,
   );
