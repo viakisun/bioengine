@@ -396,22 +396,44 @@ function computeParentInfo(
   parentSwollenBonePath: SkeletonBone[],
   childStartPos: V3,
 ): ParentInfo {
-  // Find the bone whose endpoint best matches childStartPos.
-  // Prefer endpoint (p0 or p1) — exact match expected.
+  // Iter 19 fix — project childStartPos onto each bone segment and pick the
+  // segment with the closest projection. Old logic snapped to nearest bone
+  // ENDPOINT; for mid-segment attachments on coarse bone paths (mature D99
+  // stem) the snap introduced 1–4mm vertical offset between graph petiole
+  // root and rendered root.
   let bestBoneIdx = 0;
-  let bestEndpoint: 0 | 1 = 1;
+  let bestT = 0;
   let bestDistSq = Infinity;
   for (let i = 0; i < parentBonePath.length; i++) {
     const b = parentBonePath[i];
-    const d0 = (b.p0.x - childStartPos.x) ** 2 + (b.p0.y - childStartPos.y) ** 2 + (b.p0.z - childStartPos.z) ** 2;
-    const d1 = (b.p1.x - childStartPos.x) ** 2 + (b.p1.y - childStartPos.y) ** 2 + (b.p1.z - childStartPos.z) ** 2;
-    if (d0 < bestDistSq) { bestDistSq = d0; bestBoneIdx = i; bestEndpoint = 0; }
-    if (d1 < bestDistSq) { bestDistSq = d1; bestBoneIdx = i; bestEndpoint = 1; }
+    const dx = b.p1.x - b.p0.x;
+    const dy = b.p1.y - b.p0.y;
+    const dz = b.p1.z - b.p0.z;
+    const segLenSq = dx * dx + dy * dy + dz * dz;
+    if (segLenSq < EPSILON * EPSILON) continue;
+    const cx = childStartPos.x - b.p0.x;
+    const cy = childStartPos.y - b.p0.y;
+    const cz = childStartPos.z - b.p0.z;
+    const tRaw = (cx * dx + cy * dy + cz * dz) / segLenSq;
+    const t = Math.max(0, Math.min(1, tRaw));
+    const px = b.p0.x + dx * t;
+    const py = b.p0.y + dy * t;
+    const pz = b.p0.z + dz * t;
+    const distSq = (px - childStartPos.x) ** 2 + (py - childStartPos.y) ** 2 + (pz - childStartPos.z) ** 2;
+    if (distSq < bestDistSq) {
+      bestDistSq = distSq;
+      bestBoneIdx = i;
+      bestT = t;
+    }
   }
   const bone = parentBonePath[bestBoneIdx];
   const swollenBone = parentSwollenBonePath[bestBoneIdx];
-  const centerlinePoint = bestEndpoint === 0 ? bone.p0 : bone.p1;
-  const radius = bestEndpoint === 0 ? swollenBone.r0 : swollenBone.r1;
+  const centerlinePoint: V3 = {
+    x: bone.p0.x + (bone.p1.x - bone.p0.x) * bestT,
+    y: bone.p0.y + (bone.p1.y - bone.p0.y) * bestT,
+    z: bone.p0.z + (bone.p1.z - bone.p0.z) * bestT,
+  };
+  const radius = swollenBone.r0 + (swollenBone.r1 - swollenBone.r0) * bestT;
   const tangent = vnorm(vsub(bone.p1, bone.p0));
   return { centerlinePoint, radius, tangent };
 }
@@ -501,19 +523,40 @@ export function buildStemFamilyTubeNetwork(
       // Iter 18A SSOT #178: max(fraction × parentR, absolute floor). Thin
       // parents get sufficient embed via the absolute floor so child mesh
       // visibly emerges from inside parent surface.
-      const embedFrac = embedDepthFrac[edge.type] ?? 0.6;
-      const embedFloor = DEFAULT_EMBED_DEPTH_FLOOR_M[edge.type] ?? 0;
-      const embedDepth = Math.max(parentRadius * embedFrac, embedFloor);
+      // Iter 19 Case B fix: petiole clamped to [0.5mm, 2.0mm] with parentR*0.25.
+      // Old policy (0.6 × parentR, floor 1.5mm) put child mesh 4.6mm inside
+      // D99 stem skin, hiding emerge point — visual disconnect. Clamp limits
+      // worst-case embed while preserving weld effect on small stems.
+      let embedDepth: number;
+      if (edge.type === 'petiole') {
+        embedDepth = Math.min(Math.max(parentRadius * 0.25, 0.0005), 0.0020);
+      } else {
+        const embedFrac = embedDepthFrac[edge.type] ?? 0.6;
+        const embedFloor = DEFAULT_EMBED_DEPTH_FLOOR_M[edge.type] ?? 0;
+        embedDepth = Math.max(parentRadius * embedFrac, embedFloor);
+      }
 
-      const childDir = averageTangent(edge.bonePath, Math.min(3, edge.bonePath.length));
+      // radialDir derivation differs by edge type:
+      // - petiole: use (graphRoot - parentCenter), so radialDir aligns with
+      //   the PlantBase petiole azimuth regardless of how the petiole curves
+      //   downstream. Iter 19 fix — averageTangent-based radialDir flipped
+      //   ~157° for drooping D99 petioles, sending childStart to the
+      //   opposite side of the stem (audited in
+      //   docs/calibration-checkpoint-reports/v0.13-iter19-phaseA-gate-fail.md).
+      // - other types (peduncle/rachis/pedicel): keep averageTangent (legacy).
+      //   Measure-only audit in Iter 19 Phase B.
+      const childGraphStart = edge.bonePath[0].p0;
+      const sourceDir = edge.type === 'petiole'
+        ? vsub(childGraphStart, parentCenter)
+        : averageTangent(edge.bonePath, Math.min(3, edge.bonePath.length));
 
-      // radialDir: childDir projected onto plane ⊥ parentTangent.
+      // radialDir: sourceDir projected onto plane ⊥ parentTangent.
       // Removes parent-axis component so child emerges purely radially.
-      const projAlong = vdot(childDir, parentTangent);
-      let radialRaw = vsub(childDir, vscale(parentTangent, projAlong));
+      const projAlong = vdot(sourceDir, parentTangent);
+      let radialRaw = vsub(sourceDir, vscale(parentTangent, projAlong));
       let radialDir: V3;
       if (vlen(radialRaw) < EPSILON) {
-        // childDir nearly parallel to parentTangent — fallback to a perpendicular.
+        // sourceDir nearly parallel to parentTangent — fallback to a perpendicular.
         // Use parent frame's normal direction.
         const parentFrame = makeFrame(parentTangent);
         radialDir = parentFrame.normal;
@@ -541,7 +584,6 @@ export function buildStemFamilyTubeNetwork(
 
       // Iter 18A: floating candidate detection — radial gap between graph
       // child start (pre-embed) and parent surface.
-      const childGraphStart = edge.bonePath[0].p0;
       const radialGap = vlen(vsub(childGraphStart, parentSurfacePoint));
       if (radialGap > FLOATING_GAP_THRESHOLD_M) {
         floatingCandidateIds.push(edge.id);
