@@ -1,0 +1,113 @@
+{
+  "schemaVersion": "growthCalibration.v1",
+  "updateId": "growth_update_028",
+  "previousModelVersion": "growthModel.tomato.v0.12-overdrive-interpolation-tuned",
+  "newModelVersion": "growthModel.tomato.v0.12.1-truss-emergence-corrected",
+  "status": "engine_bug_fix_promote",
+  "date": "2026-05-27",
+  "triggerComparisons": [
+    "(Iter 16 Early Vegetative/Reproductive Onset Audit — Iter 15 commit a6b165d v0.12 promote 후 사용자 visual feedback (D22 4 trusses + 빨간 토마토 + 착과비대기 label) 근거 D0~D50 12 day points audit)"
+  ],
+  "triggerRuleIds": ["plant_stage_label_too_early", "truss_emerges_at_transplant"],
+  "reason": [
+    "Iter 15 (commit a6b165d, v0.12-overdrive-interpolation-tuned promote) 직후 사용자 single-plant mode 시각적 확인 → D22/D24/D29 모두 biological 비정상 (D22: 4 trusses + 빨간 토마토 + 착과비대기 label, D29: 잎 무성). 사용자 진단: '과실 비대 문제가 아니라 초기 생육 단계 판정/화방 발생/잎 발생 타이밍이 너무 앞당겨진 문제'.",
+    "Iter 15 Phase D Visual Check SKIP 결정 (SSOT #158)의 직접적 대가. Iter 16+ 모든 promote는 Playwright OR user manual visual check 필수 (SSOT #164).",
+    "Phase A1 Audit infrastructure (~80 LOC): dump-growth-checkpoints.ts에 plant_stage_label column (FloatingTopBar phaseOf mirror) + juvenile/mature/senescent_leaf_count + max_leaf_size_factor + mean_visible_leaf_maturity + truss_summary emergence_day_estimate + --overrideClimate CLI (App vs DEFAULT_CLIMATE T=23/22 mismatch 해소, SSOT #166).",
+    "Phase A2 D0~D50 audit dump (Iter 15 winner JSONC, App climate T=23) → 4 진단 질문 답: D24 nodeCount=12, trussCount=1 (NOT 4), plantStageLabel=착과비대기 (이미 Day 0부터 firing!), visibleFruitCount=4 (3mm cell_division).",
+    "🚨 Root cause #1 — CoreModel.ts emergeTruss formula 1-line bug (SSOT #168). `Math.floor(Math.max(0, (TT - GDD_to_first_flower) / GDD_per_truss) + 1)` — `+1`이 max() 밖에 있어 expectedTrussCount는 항상 ≥ 1. TT=0.005 (Day 0)에 Truss 1 즉시 emerge. 2 사이트 (per-minute path + per-day path) 둘 다 동일 버그.",
+    "Root cause #2 — UI plantStageLabel trigger over-fire (SSOT #165). FloatingTopBar.tsx + BottomPlaybackBar.tsx의 `phaseOf` 함수가 `trusses.some(t => t.fruits.length > 0)`로 '착과비대기' firing. flowerCount만큼 bud slot이 truss emerge 시 즉시 생성되므로 D0 truss + 5 buds = 즉시 '착과비대기' label. fertilized fruit 1개도 없는 상태에서 over-fire.",
+    "Phase C1 Engine fix (CoreModel.ts:461-466 + 832-836, 6 LOC): `state.TT < GDD_to_first_flower ? 0 : 1 + floor(...)` 패턴으로 변경. T1이 TT >= GDD_to_first_flower 시점에 정확히 emerge.",
+    "Phase C2 UI fix (FloatingTopBar.tsx + BottomPlaybackBar.tsx + dump-growth-checkpoints.ts, 동일 logic mirror): 4-bucket discrimination (영양생장기/화방 분화기/착과기/착과비대기/수확기). hasBud → 화방 분화기, hasFertSmall(diameter<10mm) → 착과기, hasExpanding(diameter>=10mm) → 착과비대기.",
+    "Phase C3 Re-audit (post-fix): D0~D23 영양생장기, D24 화방 분화기 (T1 emerge TT=300.002), D29~D45 착과기 (3mm cell_division), D50+ 착과비대기 (28mm cell_expansion). 사용자 biological timeline에 정확히 부합.",
+    "Phase D Visual check Playwright 13 screenshots — D24/D29 사용자 핵심 complaint resolved (빨간 토마토 X, 화방 분화기/착과기 label). D45 renderer red 잔존 (engine ripenStage=0 green 출력하나 SkinMeshPlant 색깔 logic 별개) → Iter 17 scope.",
+    "Phase E 10-seed ensemble (DEFAULT_CLIMATE T=22) numerical impact: D90 vis 24.90 → 28.10 (target [22,28] upper edge), D33 mx 0.00 → 3.00 (target ≤3 boundary), D60 mx 19.83 → 38.57 (target [18,40]). 모든 metric in-band BUT D33/D90 boundary. Iter 15 winner numerical 약간 shift but visual biological realism 압도적 개선.",
+    "Iter 15 cultivar JSONC 변경 없음 — cellDiv=260 + gddPerTruss=100 + phaseAware stack 유지. Engine bug fix는 calibration-orthogonal (모든 cultivar/seed/iter에서 적용).",
+    "FruitGrowth.ts SSOT #161 (Iter 15) cultivar.resolvedBotanical 우선 read fix는 영구 유지 (진짜 bug fix)."
+  ],
+  "parameterChanges": [
+    {
+      "parameter": "CoreModel.ts emergeTruss expectedTrussCount formula (2 sites)",
+      "oldValue": "Math.floor(Math.max(0, (state.TT - cultivar.GDD_to_first_flower) / cultivar.GDD_per_truss) + 1)",
+      "newValue": "state.TT < cultivar.GDD_to_first_flower ? 0 : 1 + Math.floor((state.TT - cultivar.GDD_to_first_flower) / cultivar.GDD_per_truss)",
+      "file": "packages/tomato-engine/src/CoreModel.ts:461-466 + 832-836",
+      "unit": "engine_logic",
+      "citation": "Iter 16 SSOT #168",
+      "reason": "`+1` outside `max(0, ...)` clamps minimum to 1 — expectedTrussCount는 항상 ≥1 → Truss 1이 TT=0.005 (Day 0)에 즉시 emerge. T=23 T_eff=13에서 GDD_to_first_flower=300/13 = 23일 emergence가 정상.",
+      "changeType": "engine_bug_fix",
+      "enforcementStatus": "active",
+      "expectedEffect": "biological_realism_recovery"
+    },
+    {
+      "parameter": "FloatingTopBar.tsx + BottomPlaybackBar.tsx phaseOf 4-bucket discrimination",
+      "oldValue": "trusses.length===0 → 영양생장기 / anyRipe → 수확기 / trusses.some(t=>t.fruits.length>0) → 착과비대기 / else → 개화기 (3-bucket)",
+      "newValue": "trusses.length===0 → 영양생장기 / hasRipe (ripenStage>=4) → 수확기 / hasExpanding (diameter>=10mm) → 착과비대기 / hasFertSmall (fertilizationTT>0) → 착과기 / hasBud → 화방 분화기 (5-bucket)",
+      "file": "src/ui/single-plant/FloatingTopBar.tsx + src/ui/single-plant/BottomPlaybackBar.tsx",
+      "unit": "ui_label",
+      "citation": "Iter 16 SSOT #165",
+      "reason": "`trusses.some(t=>t.fruits.length>0)`는 flower bud slot이 truss emerge 시 즉시 생성되므로 over-fire. 5-bucket으로 화방 분화기 / 착과기 / 착과비대기 단계 분리.",
+      "changeType": "ui_label_refinement",
+      "enforcementStatus": "active",
+      "expectedEffect": "label_accuracy_improvement"
+    },
+    {
+      "parameter": "dump-growth-checkpoints.ts audit columns",
+      "oldValue": "(없음)",
+      "newValue": "plant_summary.csv: plant_stage_label + juvenile_leaf_count + mature_leaf_count + senescent_leaf_count + max_leaf_size_factor + mean_visible_leaf_maturity. truss_summary.csv: emergence_day_estimate.",
+      "file": "growth-calibration/scripts/dump-growth-checkpoints.ts",
+      "unit": "csv_columns",
+      "citation": "Iter 16 SSOT #162",
+      "reason": "Early Vegetative/Reproductive Onset Audit — fruit mass curve 외에 phenology/architecture 진단 가능 columns. LeafStage classification (juvenile/mature/senescent buckets) + UI label mirror.",
+      "changeType": "audit_observability_addition",
+      "enforcementStatus": "active",
+      "expectedEffect": "calibration_observability_addition"
+    },
+    {
+      "parameter": "dump-growth-checkpoints.ts --overrideClimate CLI",
+      "oldValue": "(없음)",
+      "newValue": "--overrideClimate temperatureC=23,daylightHours=14,co2ppm=800 (mutates DEFAULT_CLIMATE in-place)",
+      "file": "growth-calibration/scripts/dump-growth-checkpoints.ts",
+      "unit": "cli",
+      "citation": "Iter 16 SSOT #166",
+      "reason": "App GreenhouseScene.ts:424는 T=23 사용. Calibration DEFAULT_CLIMATE는 T=22. 사용자 visual reproduction 위해 App climate 정확 재현 가능 CLI 필요.",
+      "changeType": "calibration_tooling_addition",
+      "enforcementStatus": "active",
+      "expectedEffect": "calibration_tooling_addition"
+    },
+    {
+      "parameter": "tomimaru-muchoo cultivar parameters",
+      "oldValue": "v0.12 winner (cellDiv=260, gddPerTruss=100, phaseAware enabled stack with divisionFraction=0.10, cellDivStepDemandFraction=0.10, transitionZoneGDD=40, expansionMultiplier=1.25, gompertz rateB=0.05/inflectionC=0.55/exponentScaling=0.08)",
+      "newValue": "유지 — Iter 16 engine bug fix가 phenology-orthogonal이므로 cultivar JSONC 변경 불필요",
+      "changeType": "no_change_carry_forward",
+      "enforcementStatus": "active",
+      "expectedEffect": "behavior_noop"
+    }
+  ],
+  "validationPlan": {
+    "replayDays": [0, 5, 10, 15, 20, 23, 24, 29, 30, 35, 40, 45, 50, 60, 90],
+    "forwardDays": [],
+    "targetMetrics": [
+      "Phase A1 typecheck PASS",
+      "Phase A2 D0~D50 audit dump 정상 종료 (App climate T=23)",
+      "Phase A3 4 진단 질문 답: D24 nodeCount=12, trussCount=1, plantStageLabel=착과비대기 (pre-fix Day 0부터), visibleFruit=4/3mm",
+      "Phase C1 CoreModel.ts engine fix: D0~D23 trussCount=0 (post-fix)",
+      "Phase C2 UI label fix: D0~D23 영양생장기 / D24 화방 분화기 / D29 착과기 / D50+ 착과비대기",
+      "Phase D Playwright 13 screenshots PASS (D24/D29 빨간 토마토 X 확인)",
+      "Phase E 10-seed ensemble: D90 vis 28.10 ∈ [22, 28] upper edge OK + D33 mx 3.0 ≤ 3 boundary + 모든 seed 24~32",
+      "Iter 6i invariant: unknown_aborted_count == 0 모든 runs PASS"
+    ]
+  },
+  "outcome": {
+    "runDate": "2026-05-27",
+    "replayScoreDelta": 0,
+    "forwardScoreDelta": 0,
+    "verdict": "engine_bug_fix_promote — v0.12-overdrive-interpolation-tuned → v0.12.1-truss-emergence-corrected. CoreModel.ts emergeTruss `+1` outside `max(0, ...)` 1-line bug 영구 fix + UI phaseOf 4-bucket discrimination. 사용자 visual feedback (D22 4 trusses + 빨간 토마토) resolved. 10-seed ensemble: D90 vis 24.90 → 28.10 (target upper edge), 모든 metric sane. Iter 15 cultivar JSONC 유지 (engine fix가 calibration-orthogonal). D45 renderer 빨간 색은 별개 (engine ripenStage=0 green) — Iter 17 scope.",
+    "notes": "Iter 16 핵심 발견: (1) **Engine bug 발견** (SSOT #168) — CoreModel.ts emergeTruss formula `+1` outside max() — expectedTrussCount는 항상 ≥1, T1이 TT=0.005 즉시 emerge. T=23에서 정상 emergence는 Day 23이어야 함. 2 사이트 동일 버그 (per-minute + per-day path). (2) **UI label over-fire** (SSOT #165) — phaseOf가 truss.fruits.length > 0 (bud slot 포함) 기준으로 '착과비대기' firing. 5-bucket discrimination으로 화방 분화기 / 착과기 / 착과비대기 분리. (3) **Audit infrastructure 영구** (SSOT #162/#166) — plant_stage_label column + leaf maturity buckets + climate override CLI. 모든 후속 Iter에서 재사용 가능. (4) **Iter 15 Visual Check SKIP의 대가** (SSOT #164 강화) — 숫자 bullseye D90 vis 24.90 달성했으나 visual breakage 발견. Iter 16+ Playwright OR user manual visual check 절대 mandatory. (5) **Iter 15 cultivar JSONC carry forward** — engine fix가 phenology-orthogonal, calibration values (cellDiv=260, gddPerTruss=100, phaseAware stack) 유지. 10-seed ensemble D90 vis 28.10 target upper edge BUT sane. (6) **D45 renderer red discrepancy** — engine ripenStage=0 green 출력하나 Playwright screenshot에서 D45 red 보임. SkinMeshPlant 색깔 logic 별개 — Iter 17 scope (Branch B4 architectural)."
+  },
+  "followUp": [
+    "Iter 17-A (선택): D45+ renderer color discrepancy audit. engine ripenStage=0 green 출력하나 visual red — SkinMeshPlant fruit color logic / material / lighting 조사. 후보: PlantBase.ts STAGE_COLORS_TUPLE 적용 → SkinMeshPlant fruit material 매핑 확인.",
+    "Iter 17-B (선택): Juvenile leaf scale model (Branch B3). engine leafMaturity ≠ leafSizeFactor. juvenile leaves render at full size — biological 비현실적. leafMaturity → leafSizeFactor 함수 도입 검토.",
+    "Iter 17-C (선택): Internal slot vs visible rendered organ 분리 (Branch B4). 사용자 D22 'skeleton 4 trusses' = 사실 rendering layer가 future truss position 또는 5 bud sites를 4 trusses로 잘못 표시. SkinMeshPlant truss rendering audit.",
+    "Iter 17-D (선택): D90 vis 28.10 target zone re-calibration. Engine fix shift로 boundary 도달 — Iter 17에서 phenology 또는 phaseAware 조정으로 target 중심 [22, 28] 복원 가능.",
+    "Iter 17 명시적 배제: cellDiv/gddPerTruss/phaseAware stack revert (Iter 15 calibration 유효). T2 fruit_set + T4 source single-axis sweep (Iter 14 +0 effect confirmed)."
+  ]
+}

@@ -23,11 +23,24 @@ const FILTERS: { id: TopFilter; label: string }[] = [
 function phaseOf(ps: PlantPhysiologyState | null): string {
   if (!ps) return '—';
   if (ps.trusses.length === 0) return '영양생장기';
-  const anyRipe = ps.trusses.some((t) => t.fruits.some((f) => f.ripenStage >= 4 && !f.harvested));
-  if (anyRipe) return '수확기';
-  const anyFruit = ps.trusses.some((t) => t.fruits.length > 0);
-  if (anyFruit) return '착과비대기';
-  return '개화기';
+  // Iter 16 (SSOT #165) — distinguish bud / fruit_set / cell_expansion / ripening.
+  // Old logic fired "착과비대기" the moment any truss had any fruit slot
+  // (incl. pre-anthesis buds), so a Day 0 truss with 5 buds showed "착과비대기".
+  let hasRipe = false, hasExpanding = false, hasFertSmall = false, hasBud = false;
+  for (const t of ps.trusses) {
+    for (const f of t.fruits) {
+      if (f.harvested || f.aborted) continue;
+      if (f.ripenStage >= 4) hasRipe = true;
+      else if (f.diameter >= 10) hasExpanding = true;
+      else if (f.fertilizationTT > 0) hasFertSmall = true;
+      else hasBud = true;
+    }
+  }
+  if (hasRipe) return '수확기';
+  if (hasExpanding) return '착과비대기';
+  if (hasFertSmall) return '착과기';
+  if (hasBud) return '화방 분화기';
+  return '영양생장기';
 }
 
 export function FloatingTopBar() {

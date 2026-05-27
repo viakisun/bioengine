@@ -458,9 +458,12 @@ export function stepMinutely(
 
   // 2. Truss emergence — TT-threshold based, fires the first minute TT
   // crosses the threshold (event semantics preserved).
-  const expectedTrussCount = Math.floor(
-    Math.max(0, (state.TT - cultivar.GDD_to_first_flower) / cultivar.GDD_per_truss) + 1,
-  );
+  // Iter 16 (SSOT #168): T1 must wait until TT >= GDD_to_first_flower.
+  // Old formula `floor(max(0, …) + 1)` always returned ≥1, causing T1 to
+  // emerge at TT=0.005 (transplant) and firing "착과비대기" from Day 0.
+  const expectedTrussCount = state.TT < cultivar.GDD_to_first_flower
+    ? 0
+    : 1 + Math.floor((state.TT - cultivar.GDD_to_first_flower) / cultivar.GDD_per_truss);
   while (state.trusses.length < expectedTrussCount && state.trusses.length < 30) {
     emergeTruss(state, cultivar);
   }
@@ -829,9 +832,11 @@ function _legacyStepDaily(
   state.TT += T_eff;
 
   // 2. Truss emergence — every GDD_per_truss after the first
-  const expectedTrussCount = Math.floor(
-    Math.max(0, (state.TT - cultivar.GDD_to_first_flower) / cultivar.GDD_per_truss) + 1,
-  );
+  // Iter 16 (SSOT #168): T1 must wait until TT >= GDD_to_first_flower
+  // (mirrors per-minute path above; see that comment for the bug history).
+  const expectedTrussCount = state.TT < cultivar.GDD_to_first_flower
+    ? 0
+    : 1 + Math.floor((state.TT - cultivar.GDD_to_first_flower) / cultivar.GDD_per_truss);
   while (state.trusses.length < expectedTrussCount && state.trusses.length < 30) {
     emergeTruss(state, cultivar);
   }

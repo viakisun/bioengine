@@ -103,6 +103,11 @@ interface CliArgs {
    *  Multiplies cultivar.SLA and cultivar.sinkStrengthLeaf for ALL cultivars
    *  (mirrors gompertz override pattern). */
   overrideCanopy?: { slaScale?: number; leafSinkScale?: number };
+  /** Iter 16 (SSOT #166) — climate override to reproduce App environment.
+   *  App (GreenhouseScene.ts:424): T=23, daylight=14, CO2=800.
+   *  Calibration DEFAULT_CLIMATE T_avg=22 — mismatched. Iter 16 audit
+   *  must use App climate to reproduce visual breakage. */
+  overrideClimate?: { temperatureC?: number; daylightHours?: number; co2ppm?: number };
 }
 
 function parseOverride(s?: string): CliArgs['overrideGompertz'] {
@@ -249,6 +254,20 @@ function parseOverrideCanopy(s?: string): CliArgs['overrideCanopy'] {
   return out;
 }
 
+function parseOverrideClimate(s?: string): CliArgs['overrideClimate'] {
+  if (!s) return undefined;
+  const out: { temperatureC?: number; daylightHours?: number; co2ppm?: number } = {};
+  for (const pair of s.split(',')) {
+    const [k, v] = pair.split('=').map(t => t.trim());
+    const n = Number(v);
+    if (!Number.isFinite(n)) continue;
+    if (k === 'temperatureC') out.temperatureC = n;
+    else if (k === 'daylightHours') out.daylightHours = n;
+    else if (k === 'co2ppm') out.co2ppm = n;
+  }
+  return out;
+}
+
 function parseArgs(argv: string[]): CliArgs {
   const opts: Record<string, string> = {};
   for (let i = 0; i < argv.length; i++) {
@@ -278,6 +297,7 @@ function parseArgs(argv: string[]): CliArgs {
     overrideMassFlow: parseOverrideMassFlow(opts.overrideMassFlow),
     overrideSource: parseOverrideSource(opts.overrideSource),
     overrideCanopy: parseOverrideCanopy(opts.overrideCanopy),
+    overrideClimate: parseOverrideClimate(opts.overrideClimate),
   };
 }
 
@@ -449,6 +469,17 @@ function applyOverrideSource(args: CliArgs): void {
   console.log(`[override] source: lueScale=${ov.lueScale ?? '-'} → LUE=${ACTIVE_MODEL.photosynthesis.LUE_gDM_per_mol_PAR.toFixed(4)}`);
 }
 
+/** Iter 16 (SSOT #166) — climate override. Mutates DEFAULT_CLIMATE in-place
+ *  so both engine.setEnvironment and simulatePlantToHour pick up the new values. */
+function applyOverrideClimate(args: CliArgs): void {
+  const ov = args.overrideClimate;
+  if (!ov) return;
+  if (ov.temperatureC !== undefined) DEFAULT_CLIMATE.T_avg = ov.temperatureC;
+  if (ov.daylightHours !== undefined) DEFAULT_CLIMATE.daylight_hours = ov.daylightHours;
+  if (ov.co2ppm !== undefined) DEFAULT_CLIMATE.CO2_ppm = ov.co2ppm;
+  console.log(`[override] climate: T_avg=${DEFAULT_CLIMATE.T_avg}, daylight_hours=${DEFAULT_CLIMATE.daylight_hours}, CO2_ppm=${DEFAULT_CLIMATE.CO2_ppm}`);
+}
+
 /** Iter 8 (SSOT #108) — canopy / sink-balance override.
  *  cultivar.SLA * slaScale + cultivar.sinkStrengthLeaf * leafSinkScale.
  *  Mirrors gompertz override pattern: mutates ALL cultivars (calibration-only). */
@@ -545,6 +576,19 @@ interface PlantOverall {
   fruitCountTotal: number;             // = visibleFruitCount
   maxFruitDiameterMm: number;          // = maxVisibleFruitDiameterMm
   totalFruitFreshMassG: number;
+  // Iter 16 (SSOT #165) — UI plantStageLabel mirror of FloatingTopBar.tsx phaseOf().
+  //   trusses.length === 0 → 영양생장기
+  //   any ripenStage >= 4 (not harvested) → 수확기
+  //   any truss has any fruit slot → 착과비대기
+  //   else → 개화기
+  plantStageLabel: string;
+  // Iter 16 (SSOT #162) — leaf maturity buckets via NodeState.leafMaturity
+  //   (mirrors LeafStage classification: cotyledon/early_true under 0.4 = juvenile).
+  juvenileLeafCount: number;           // visible leaves with leafMaturity < 0.4
+  matureLeafCount: number;             // visible leaves with leafMaturity >= 0.4 && yellowing <= 0.3
+  senescentLeafCount: number;          // visible leaves with yellowing > 0.3
+  maxLeafSizeFactor: number;           // largest visible leaf.sizeFactor (proxy for max leaf length)
+  meanVisibleLeafMaturity: number;     // mean leafMaturity over visible leaves
 }
 
 const FRUITING_STATUSES = new Set([
@@ -589,14 +633,32 @@ function plantOverall(snap: DaySnapshot): PlantOverall {
   const allAxes = [plantBase.mainAxis, ...plantBase.sideShoots];
   let visibleLeaf = 0;
   let expandedLeaf = 0;
+  let maxLeafSizeFactor = 0;
   for (const axis of allAxes) {
     for (const leaf of axis.leaves) {
       if (!leaf.visibility.visible) continue;
       visibleLeaf++;
+      if (leaf.sizeFactor > maxLeafSizeFactor) maxLeafSizeFactor = leaf.sizeFactor;
       // expanded heuristic: sizeFactor >= 0.5 and not senescing
       if (leaf.sizeFactor >= 0.5 && leaf.yellowing <= 0.5) expandedLeaf++;
     }
   }
+  // Iter 16 (SSOT #162) — leaf maturity buckets from NodeState (source of truth
+  // for leafMaturity; PlantBase derives visibility from same field).
+  let juvenileLeafCount = 0;
+  let matureLeafCount = 0;
+  let senescentLeafCount = 0;
+  let maturitySum = 0;
+  let maturityN = 0;
+  for (const node of state.nodes) {
+    if (node.leafMaturity < 0.05) continue; // pruned → not visible
+    maturitySum += node.leafMaturity;
+    maturityN++;
+    if (node.yellowing > 0.3) senescentLeafCount++;
+    else if (node.leafMaturity < 0.4) juvenileLeafCount++;
+    else matureLeafCount++;
+  }
+  const meanVisibleLeafMaturity = maturityN > 0 ? maturitySum / maturityN : 0;
 
   // Trusses — from physiology (CoreModel)
   let flowering = 0;
@@ -700,6 +762,30 @@ function plantOverall(snap: DaySnapshot): PlantOverall {
   const cumUnused = physiology.dailyUnusedAssimilateG ?? 0;
   const surplusFraction = cumSource > 0 ? cumUnused / cumSource : 0;
 
+  // Iter 16 (SSOT #165) — plantStageLabel: mirror of FloatingTopBar.tsx phaseOf().
+  // Must match UI label exactly so we can diagnose why D24 shows "착과비대기".
+  // Buckets: 영양생장기 / 화방 분화기 / 착과기 / 착과비대기 / 수확기.
+  let plantStageLabel: string;
+  if (physiology.trusses.length === 0) {
+    plantStageLabel = '영양생장기';
+  } else {
+    let hasRipe = false, hasExpanding = false, hasFertSmall = false, hasBud = false;
+    for (const t of physiology.trusses) {
+      for (const f of t.fruits) {
+        if (f.harvested || f.aborted) continue;
+        if (f.ripenStage >= 4) hasRipe = true;
+        else if (f.diameter >= 10) hasExpanding = true;
+        else if (f.fertilizationTT > 0) hasFertSmall = true;
+        else hasBud = true;
+      }
+    }
+    if (hasRipe) plantStageLabel = '수확기';
+    else if (hasExpanding) plantStageLabel = '착과비대기';
+    else if (hasFertSmall) plantStageLabel = '착과기';
+    else if (hasBud) plantStageLabel = '화방 분화기';
+    else plantStageLabel = '영양생장기';
+  }
+
   return {
     day,
     heightCm: state.heightCm,
@@ -744,6 +830,13 @@ function plantOverall(snap: DaySnapshot): PlantOverall {
     fruitCountTotal: visibleCount,
     maxFruitDiameterMm: maxVisibleDiam,
     totalFruitFreshMassG: totalFresh,
+    // Iter 16 (SSOT #162/#165) — UI label + leaf maturity audit
+    plantStageLabel,
+    juvenileLeafCount,
+    matureLeafCount,
+    senescentLeafCount,
+    maxLeafSizeFactor,
+    meanVisibleLeafMaturity,
   };
 }
 
@@ -818,6 +911,10 @@ function buildPlantSummaryCsv(rows: PlantOverall[], bundle: ReferenceBundle): st
     'surplus_fraction',
     // Iter 6e-2 — fruit-priority redistribution audit (SSOT #82/#86)
     'cumulative_fruit_redistributed_to_fruit_g',
+    // Iter 16 (SSOT #162/#165) — UI label mirror + leaf maturity audit (early onset)
+    'plant_stage_label',
+    'juvenile_leaf_count', 'mature_leaf_count', 'senescent_leaf_count',
+    'max_leaf_size_factor', 'mean_visible_leaf_maturity',
     'height_band', 'height_in_band',
     'node_band', 'node_in_band',
     'truss_band', 'truss_in_band',
@@ -844,6 +941,10 @@ function buildPlantSummaryCsv(rows: PlantOverall[], bundle: ReferenceBundle): st
       r.cumulativeUnusedAssimilateG, r.cumulativeVegetativeAllocatedG,
       r.surplusFraction,
       r.cumulativeFruitRedistributedToFruitG,
+      // Iter 16 audit (SSOT #162/#165)
+      r.plantStageLabel,
+      r.juvenileLeafCount, r.matureLeafCount, r.senescentLeafCount,
+      r.maxLeafSizeFactor, r.meanVisibleLeafMaturity,
       bandStr(pb?.height ?? null), pb?.height ? inBandFlag(r.heightCm, pb.height) : 'no_target',
       bandStr(pb?.nodeCount ?? null), pb?.nodeCount ? inBandFlag(r.nodeCount, pb.nodeCount) : 'no_target',
       bandStr(pb?.visibleTruss ?? null), pb?.visibleTruss ? inBandFlag(r.visibleTrussCount, pb.visibleTruss) : 'no_target',
@@ -865,6 +966,8 @@ function buildTrussSummaryCsv(snapshots: DaySnapshot[]): string {
     // Iter 6d additions (per truss)
     'fertilized_count', 'aborted_count', 'harvested_count',
     'non_aborted_cohort', 'expanding_count', 'starved_ongoing_count',
+    // Iter 16 (SSOT #162) — emergence calendar day estimate (emergenceTT / dailyTT)
+    'emergence_day_estimate',
   ];
   const lines = [header.join(',')];
   for (const snap of snapshots) {
@@ -905,6 +1008,9 @@ function buildTrussSummaryCsv(snapshots: DaySnapshot[]): string {
         }
         if (f.starvedDays > 0) starvedOngoing++;
       }
+      // Iter 16 — calendar day estimate from emergenceTT. dailyTT ≈ TT/day.
+      const dailyTT = snap.day > 0 ? snap.physiology.TT / snap.day : 0;
+      const emergenceDayEst = dailyTT > 0 ? t.emergenceTT / dailyTT : 0;
       lines.push(csvRow([
         snap.day, i + 1, mapTrussStatus(t, snap.physiology.TT, snap.cultivar), t.emergenceTT,
         t.flowerCount,
@@ -913,6 +1019,7 @@ function buildTrussSummaryCsv(snapshots: DaySnapshot[]): string {
         visible.length, maxDiam,
         fertilized, aborted, harvested,
         nonAbortedCohort, expanding, starvedOngoing,
+        emergenceDayEst,
       ]));
     }
   }
@@ -1297,6 +1404,7 @@ function main() {
   applyOverrideMassFlow(args);   // Iter 6e
   applyOverrideSource(args);     // Iter 8 (SSOT #108)
   applyOverrideCanopy(args);     // Iter 8 (SSOT #108)
+  applyOverrideClimate(args);    // Iter 16 (SSOT #166)
 
   const bundle = loadReferenceBundle(args.referenceBundle);
 

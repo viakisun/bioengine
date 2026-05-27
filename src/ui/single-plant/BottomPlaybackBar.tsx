@@ -12,11 +12,22 @@ const TOTAL_MIN = 120 * 24 * 60;
 function dayPhase(state: ReturnType<typeof useSinglePlantState>): string {
   if (!state) return '—';
   if (state.trusses.length === 0) return '영양생장기';
-  const anyRipe = state.trusses.some((t) => t.fruits.some((f) => f.ripenStage >= 4 && !f.harvested));
-  if (anyRipe) return '수확기';
-  const anyFruit = state.trusses.some((t) => t.fruits.length > 0);
-  if (anyFruit) return '착과비대기';
-  return '개화기';
+  // Iter 16 (SSOT #165) — mirror of FloatingTopBar.phaseOf with the same staging.
+  let hasRipe = false, hasExpanding = false, hasFertSmall = false, hasBud = false;
+  for (const t of state.trusses) {
+    for (const f of t.fruits) {
+      if (f.harvested || f.aborted) continue;
+      if (f.ripenStage >= 4) hasRipe = true;
+      else if (f.diameter >= 10) hasExpanding = true;
+      else if (f.fertilizationTT > 0) hasFertSmall = true;
+      else hasBud = true;
+    }
+  }
+  if (hasRipe) return '수확기';
+  if (hasExpanding) return '착과비대기';
+  if (hasFertSmall) return '착과기';
+  if (hasBud) return '화방 분화기';
+  return '영양생장기';
 }
 
 const SPEEDS: { id: 1 | 4 | 24; label: string }[] = [
