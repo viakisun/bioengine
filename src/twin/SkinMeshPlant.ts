@@ -250,6 +250,22 @@ export function createSkinMeshPlant(
     }
     // Expose for browser-side inspection (dev-only debug — does not affect rendering).
     (window as unknown as { __skinplantStats?: typeof skin.stats }).__skinplantStats = skin.stats;
+    // Iter 18A Phase 1.2 — view toggle (dev-only). Hides organ categories so
+    // the user can isolate stem family / truss / leaf during fidelity audit.
+    // Usage in devtools: window.__skinplantView('stem' | 'truss' | 'leaf' | 'full').
+    (window as unknown as { __skinplantView?: (mode: 'stem' | 'truss' | 'leaf' | 'full') => void })
+      .__skinplantView = (mode) => {
+        const stemOn = mode === 'stem' || mode === 'full';
+        const truOn = mode === 'truss' || mode === 'full';
+        const leafOn = mode === 'leaf' || mode === 'full';
+        if (currentParts.stem) currentParts.stem.setEnabled(stemOn);
+        for (const m of currentParts.cotyledons) m.setEnabled(leafOn);
+        for (const m of currentParts.leaves) m.setEnabled(leafOn);
+        for (const m of currentParts.fruits) m.setEnabled(truOn);
+        // Truss organs live under transform nodes; toggle the whole node.
+        for (const n of currentTransformNodes) n.setEnabled(truOn);
+        console.log(`[skinplant.view] mode=${mode} stem=${stemOn} leaf=${leafOn} truss=${truOn}`);
+      };
     if (skin.stats.vertexCount > 0) {
       // Rename the mesh to include the seed for ownership audit prefixes.
       skin.mesh.name = `skinplant_skin_${seed}`;
