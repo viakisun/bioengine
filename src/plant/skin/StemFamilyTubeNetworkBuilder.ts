@@ -78,6 +78,16 @@ export interface PlantStemFamilyMesh {
      *  Used by docking debug overlay (`__skinplantPetioleDock`) to expose
      *  the actual mesh root vs the graph bonePath[0].p0. */
     renderedRootByEdgeId: Record<string, { x: number; y: number; z: number }>;
+    /** Iter 20 — per-edge parent stem context at the child's attach point.
+     *  Pure measurement export (no geometry change) used by the petiole-stem
+     *  junction debug overlay to compute occlusion depth + firstVisiblePoint.
+     *  center/tangent are along the parent stem centerline; radius is the
+     *  swollen render radius (post-swelling, post-floor) at that location. */
+    parentContextByEdgeId: Record<string, {
+      center: { x: number; y: number; z: number };
+      tangent: { x: number; y: number; z: number };
+      radius: number;
+    }>;
   };
 }
 
@@ -494,6 +504,9 @@ export function buildStemFamilyTubeNetwork(
   const FLOATING_GAP_THRESHOLD_M = 0.001; // 1mm
   // Iter 18C — per-edge actual mesh root (embed + scale 적용 후 childStart).
   const renderedRootByEdgeId: Record<string, V3> = {};
+  const parentContextByEdgeId: Record<string, {
+    center: V3; tangent: V3; radius: number;
+  }> = {};
   for (const e of graph.edges.values()) {
     edgesByType[e.type] = (edgesByType[e.type] ?? 0) + 1;
   }
@@ -568,6 +581,12 @@ export function buildStemFamilyTubeNetwork(
       const childStart = vsub(parentSurfacePoint, vscale(radialDir, embedDepth));
       // Iter 18C — expose the actual mesh root for the docking debug overlay.
       renderedRootByEdgeId[edge.id] = { x: childStart.x, y: childStart.y, z: childStart.z };
+      // Iter 20 — expose parent stem context for occlusion + firstVisible calc.
+      parentContextByEdgeId[edge.id] = {
+        center: { x: parentCenter.x, y: parentCenter.y, z: parentCenter.z },
+        tangent: { x: parentTangent.x, y: parentTangent.y, z: parentTangent.z },
+        radius: parentRadius,
+      };
 
       const origFirst = swollenBones[0];
       // Iter 18A SSOT #177 — rootBone radii also subject to render floor.
@@ -685,6 +704,7 @@ export function buildStemFamilyTubeNetwork(
       floatingCandidateCount: floatingCandidateIds.length,
       floatingCandidateIds,
       renderedRootByEdgeId,
+      parentContextByEdgeId,
     },
   };
 }
