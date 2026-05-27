@@ -52,7 +52,10 @@ import { buildPlantSkinMesh } from '../plant/skin/buildPlantSkinMesh';
 // Leaf Module v0.1 (buildLeafBladeMesh) locked all leaflet planes to
 // horizontal via pickInitialBinormal = cross(tangent, world_up), producing
 // the "half the canopy disappears at parallel-camera angles" symptom.
-import { createLeafMeshFromNode, getLeafMaterial, getYellowLeafMaterial } from '../plant/LeafGenerator';
+// Iter 18B PR 4 — switch to createLeafBladeOnlyMesh. SkinMeshPlant은 SDF
+// skeleton mesh가 petiole tube를 그리므로 leaf mesh 안의 중복 petiole
+// cylinder는 불필요. ShowcasePlant는 createLeafMeshFromNode 계속 사용 (legacy).
+import { createLeafBladeOnlyMesh, getLeafMaterial, getYellowLeafMaterial } from '../plant/LeafGenerator';
 import type { ShowcasePlantHandle } from './ShowcasePlant';
 
 // SkinMeshPlant implements the same surface API as ShowcasePlant so it
@@ -307,7 +310,7 @@ export function createSkinMeshPlant(
           ? leafBase.petioleCurve[leafBase.petioleCurve.length - 1]
           : leafBase.attachPosition;
         const leafRng = new SeededRandom(seed * 1009 + axisIdx * 9173 + leafBase.nodeIdx * 31 + 11);
-        const leafMesh = createLeafMeshFromNode(
+        const leafMesh = createLeafBladeOnlyMesh(
           `skinplant_leaf_${seed}_a${axisIdx}_n${leafBase.nodeIdx}`,
           scene, node, genome, state.day, leafRng,
         );

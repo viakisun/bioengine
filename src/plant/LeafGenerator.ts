@@ -19,6 +19,7 @@ import {
 } from '@farmsim/tomato-engine';
 import {
   buildLeafChunk,
+  buildLeafBladeOnly,
   type GeoChunk,
   type LeafShapeParams,
 } from '@farmsim/tomato-geometry';
@@ -162,6 +163,60 @@ export function createLeafMeshFromNode(
     node.yellowing
   );
 
+  const mesh = new Mesh(name, scene);
+  applyChunkToMesh(chunk, mesh, vertexColors);
+  return mesh;
+}
+
+/**
+ * Iter 18B PR 4 (Critical) — Skin-only variant of `createLeafMeshFromNode`.
+ *
+ * Identical signature but routes through `buildLeafBladeOnly` instead of
+ * `buildLeafChunk`. The blade-only path OMITS the internal petiole cylinder
+ * because the SkeletonGraph's `petiole` edge already supplies that geometry
+ * via the unified stem skin mesh. ShowcasePlant continues to use
+ * `createLeafMeshFromNode` (with embedded petiole) for backward-compat;
+ * SkinMeshPlant calls THIS function.
+ *
+ * Removes the "duplicate petiole stick" symptom (Iter 18A user finding —
+ * leafChunk's internal petiole rendered as a thin pale-green floating
+ * cylinder next to the skeleton's petiole tube).
+ */
+export function createLeafBladeOnlyMesh(
+  name: string,
+  scene: Scene,
+  node: NodeState,
+  genome: PlantGenome,
+  plantAge: number,
+  rng: SeededRandom,
+): Mesh {
+  if (node.leafMaturity < 0.01) return new Mesh(name, scene);
+  const stageInfo = getLeafStage(node, plantAge);
+  const shape: LeafShapeParams = {
+    serrationDepth: genome.leafSerrationDepth,
+    serrationFreq: genome.leafSerrationFreq,
+    lobeDepth: genome.leafLobeDepth,
+    waviness: genome.leafWaviness,
+    petioleLength: genome.leafPetioleLength,
+  };
+  const ageFromDroop = Math.min(1, node.droopExtra / 120);
+  const ageFromAge = Math.min(1, node.age / 80);
+  const ageFrac = Math.max(ageFromDroop, ageFromAge) + node.waterStress * 0.3;
+  const curl = 0.12 + node.yellowing * 0.15;
+  const chunk = buildLeafBladeOnly(
+    {
+      stageInfo,
+      leafletCount: node.leafletCount,
+      sizeFactor: node.leafSizeFactor * genome.leafSizeMultiplier,
+      maturity: node.leafMaturity,
+      curl,
+      ageFrac,
+      shape,
+    },
+    rng,
+  );
+  const vertexCount = chunk.positions.length / 3;
+  const vertexColors = bakeLeafVertexColors(vertexCount, ageFrac, node.waterStress, node.yellowing);
   const mesh = new Mesh(name, scene);
   applyChunkToMesh(chunk, mesh, vertexColors);
   return mesh;
