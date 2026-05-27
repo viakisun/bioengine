@@ -10,7 +10,6 @@ import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { AdvancedDynamicTexture } from '@babylonjs/gui/2D/advancedDynamicTexture';
 import { TextBlock } from '@babylonjs/gui/2D/controls/textBlock';
-import { Rectangle } from '@babylonjs/gui/2D/controls/rectangle';
 import type { Control } from '@babylonjs/gui/2D/controls/control';
 
 // ── palette ─────────────────────────────────────────────────────────────
@@ -114,29 +113,28 @@ export function mkBillboardLabel(
   opts: { offsetY?: number; bgAlpha?: number } = {},
 ): LabelHandle {
   const ui = getSharedUi(scene);
-  const wrap = new Rectangle();
-  wrap.adaptWidthToChildren = true;
-  wrap.adaptHeightToChildren = true;
-  wrap.thickness = 0;
-  wrap.background = `rgba(0,0,0,${opts.bgAlpha ?? 0.55})`;
-  wrap.cornerRadius = 4;
-  wrap.paddingLeft = 4;
-  wrap.paddingRight = 4;
-  wrap.paddingTop = 2;
-  wrap.paddingBottom = 2;
+  // Use TextBlock directly at root level — wrapping in Rectangle triggers
+  // the "Cannot link a control to a mesh if not at root" warning in
+  // Babylon 9.8 and also caused a _lastControlOver TypeError during pointer
+  // picking (the wrap+tb pair confused the picking traversal).
   const tb = new TextBlock();
   tb.text = text;
   tb.color = `rgb(${Math.round(color.r * 255)},${Math.round(color.g * 255)},${Math.round(color.b * 255)})`;
-  tb.fontSize = 11;
+  tb.fontSize = 12;
   tb.fontFamily = 'monospace';
+  tb.outlineWidth = 3;
+  tb.outlineColor = `rgba(0,0,0,${opts.bgAlpha ?? 0.85})`;
   tb.resizeToFit = true;
-  wrap.addControl(tb);
-  ui.addControl(wrap);
-  wrap.linkWithMesh(anchorMesh);
-  wrap.linkOffsetY = opts.offsetY ?? -16;
+  // Disable hit-test on the label — we never want pointer interaction with
+  // debug labels. Skipping picking traversal also avoids the GUI pointer
+  // observer crash observed in Babylon 9.8.
+  tb.isHitTestVisible = false;
+  ui.addControl(tb);
+  tb.linkWithMesh(anchorMesh);
+  tb.linkOffsetY = opts.offsetY ?? -16;
   return {
-    control: wrap,
-    dispose: () => { wrap.dispose(); tb.dispose(); },
+    control: tb,
+    dispose: () => { tb.dispose(); },
   };
 }
 
