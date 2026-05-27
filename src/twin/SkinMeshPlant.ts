@@ -52,6 +52,11 @@ import {
   validateSkeleton,
 } from '../plant/skeleton/SkeletonEngine';
 import { buildPlantSkinMesh } from '../plant/skin/buildPlantSkinMesh';
+// Iter 18B PR 13 — Skin Engine façade. Stem family mesh now flows through
+// defaultSkinEngine.render(). Leaf/truss/cotyledon loops remain here for
+// closure-captured currentMeshes lifecycle (façade boundary partial — see
+// SSOT #181 doc).
+import { defaultSkinEngine } from '../plant/skin/defaultSkinEngine';
 // Iter 17 SSOT #173: legacy per-leaf createLeafMeshFromNode pipeline. Same
 // approach SupportingPlant/ShowcasePlant already use successfully — each
 // leaf becomes its own Mesh rotated by phyllotaxis azimuth + droop, so the
@@ -223,13 +228,24 @@ export function createSkinMeshPlant(
     //   No junction stitching; child tubes start inside parent (no start cap).
     //   Topology is disjoint within the single buffer (SSOT plan 결정).
     const graph = buildPlantSkeleton(plantBase, { curveDivisions: 2 });
-    const skin = buildPlantSkinMesh(scene, graph, {
-      radialSegments: 8,
-      rootRadiusScale: 1.15,
-      // Iter 18A SSOT #178: junction swelling 1.10 → 1.25.
-      // junction 부근 parent radius 25% 부풀려 child가 시각적으로 "용접"됨.
-      parentSwellingScale: 1.25,
+    // Iter 18B PR 13 — stem family mesh via SkinEngine façade. Identical
+    // behavior + parenting — defaultSkinEngine.render returns the mesh
+    // already parented to lushGroup.
+    const engineResult = defaultSkinEngine.render(graph, {
+      seed, engine, cultivarKey, state, plantBase,
+      scene, parent: lushGroup,
+      stemOpts: { radialSegments: 8, rootRadiusScale: 1.15, parentSwellingScale: 1.25 },
     });
+    // Compatibility shim — preserve the existing `skin.faceGroups` shape so
+    // the metadata block below doesn't need rewriting. defaultSkinEngine
+    // already parented the mesh to opts.parent (lushGroup).
+    const skin = {
+      mesh: engineResult.stemMesh,
+      stats: engineResult.stats,
+      faceGroups: engineResult.stemFaceGroups,
+      edgeIdByIdx: engineResult.stemEdgeIdByIdx,
+      vertexEdgeTag: engineResult.stemVertexEdgeTag,
+    };
 
     console.log(
       `[skinplant] graph: nodes=${graph.nodes.size} edges=${graph.edges.size} | ` +
@@ -293,10 +309,10 @@ export function createSkinMeshPlant(
         for (const n of currentTransformNodes) n.setEnabled(truOn);
         console.log(`[skinplant.view] mode=${mode} stem=${stemOn} leaf=${leafOn} truss=${truOn}`);
       };
-    if (skin.stats.vertexCount > 0) {
+    if (skin.stats.vertexCount > 0 && skin.mesh) {
       // Rename the mesh to include the seed for ownership audit prefixes.
+      // (parent already set to lushGroup by defaultSkinEngine.render.)
       skin.mesh.name = `skinplant_skin_${seed}`;
-      skin.mesh.parent = lushGroup;
       skin.mesh.material = skinMat;
       skin.mesh.useVertexColors = true;
       // Phase 5 cut hook — face groups primary, vertex tags debug.

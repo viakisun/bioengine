@@ -19,7 +19,7 @@ import type { Scene } from '@babylonjs/core/scene';
 import type { Mesh } from '@babylonjs/core/Meshes/mesh';
 import type { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import type { PlantSkeletonGraph } from '../skeleton/SkeletonEngine';
-import type { PlantStemFamilyMesh } from './StemFamilyTubeNetworkBuilder';
+import type { PlantStemFamilyMesh, PlantFaceGroup } from './StemFamilyTubeNetworkBuilder';
 import type { PlantBase } from '../PlantBase';
 import type { GrowthEngine, PlantState } from '@farmsim/tomato-engine';
 
@@ -50,6 +50,10 @@ export interface SkinEngineRenderResult {
   /** Single unified mesh covering stem family (mainStem + sideShoot + petiole +
    *  peduncle + rachis + pedicel) — built via PlantSkinMesh / SDF tube network. */
   stemMesh: Mesh | null;
+  /** Phase 5 cut/pick metadata from the stem mesh — empty when stemMesh is null. */
+  stemFaceGroups: PlantFaceGroup[];
+  stemEdgeIdByIdx: string[];
+  stemVertexEdgeTag: Uint16Array;
   /** Per-leaf blade meshes, parented to opts.parent. positioned at
    *  SkeletonGraph leaf_blade OrganAnchor. */
   leafMeshes: Mesh[];
