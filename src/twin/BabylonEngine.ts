@@ -18,6 +18,8 @@ import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Matrix } from '@babylonjs/core/Maths/math.vector';
 import { setShaderWindEnabled, isShaderWindEnabled } from '../plant/LeafGenerator';
 import { getLabelOverlayHandle } from '../components/LabelOverlay';
+// Iter 20 — hotkey for petiole-stem junction overlay ('d'/'D'/'ㅇ').
+import { installDockingOverlayHotkey } from './dockingOverlay/hotkeyToggle';
 import { setBootStage, logBoot, setEnvInfo, setEnvCounters, notify } from '../store/notify';
 import { setSinglePlantEngineRef, setSinglePlantShowcaseRef, setSinglePlantSkinMeshRef } from '../ui/single-plant/useSinglePlantState';
 
@@ -178,6 +180,8 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
   const hudBackend = document.getElementById('hud-backend');
   if (hudBackend) hudBackend.textContent = backend === 'webgpu' ? 'WebGPU' : 'WebGL2';
   useTwinStore.getState().publishBackend(backend);
+  // Iter 20 PR 6 — install 'd'/'D'/'ㅇ' hotkey toggle for docking overlay.
+  installDockingOverlayHotkey();
 
   // Shader-side wind only supported on WebGL2 (PBRCustomMaterial GLSL
   // injection fails to compile on Babylon 9 WebGPU backend). WebGPU

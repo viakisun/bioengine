@@ -38,7 +38,7 @@ const DEFAULT_OPTS: Required<OverlayOptions> = {
   focus: 'stem-junction',
   labelMode: 'all',
   worstN: 5,
-  sphereDiameter: 0.006,
+  sphereDiameter: 0.012,
 };
 
 function lineSeverity(delta_mm: number): 'OK' | 'WARN' | 'FAIL' {
