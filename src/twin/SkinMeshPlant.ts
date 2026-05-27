@@ -45,7 +45,12 @@ import { createSkeletonOverlay, type SkeletonOverlayHandle } from './SkeletonOve
 import { useTwinStore } from '../store/twinStore';
 // Iter 18B PR 9 (SSOT #180) — single Skeleton Engine entry. Direct import
 // of buildTomatoSkeletonGraph is no longer allowed from consumers.
-import { buildPlantSkeleton, isLeafOrganVisible, isTrussOrganVisible } from '../plant/skeleton/SkeletonEngine';
+import {
+  buildPlantSkeleton,
+  isLeafOrganVisible,
+  isTrussOrganVisible,
+  validateSkeleton,
+} from '../plant/skeleton/SkeletonEngine';
 import { buildPlantSkinMesh } from '../plant/skin/buildPlantSkinMesh';
 // Iter 17 SSOT #173: legacy per-leaf createLeafMeshFromNode pipeline. Same
 // approach SupportingPlant/ShowcasePlant already use successfully — each
@@ -255,8 +260,23 @@ export function createSkinMeshPlant(
         + (skin.stats.floatingCandidateIds.length > 8 ? ' …' : ''),
       );
     }
-    // Expose for browser-side inspection (dev-only debug — does not affect rendering).
-    (window as unknown as { __skinplantStats?: typeof skin.stats }).__skinplantStats = skin.stats;
+    // Iter 18B PR 11 — extend __skinplantStats with skeleton validation + organ
+    // anchor summary so the fidelity-assert harness can read everything from
+    // one place. Backward-compatible: existing fields are untouched.
+    const validation = validateSkeleton(graph);
+    const extendedStats = {
+      ...skin.stats,
+      validation: {
+        ok: validation.ok,
+        errorCount: validation.findings.filter((f) => f.severity === 'error').length,
+        warningCount: validation.findings.filter((f) => f.severity === 'warning').length,
+        organAnchorCount: validation.summary.organAnchorCount,
+        edgeCount: validation.summary.edgeCount,
+        nodeCount: validation.summary.nodeCount,
+        findings: validation.findings.slice(0, 20),  // cap for log size
+      },
+    };
+    (window as unknown as { __skinplantStats?: typeof extendedStats }).__skinplantStats = extendedStats;
     // Iter 18A Phase 1.2 — view toggle (dev-only). Hides organ categories so
     // the user can isolate stem family / truss / leaf during fidelity audit.
     // Usage in devtools: window.__skinplantView('stem' | 'truss' | 'leaf' | 'full').
