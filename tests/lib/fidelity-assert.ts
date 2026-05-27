@@ -116,6 +116,74 @@ export interface AllowedFix {
   // 'visual-fudge-factor', 'day-based-scale'.
 }
 
+// ── Iter 18B PR 18 — Expanded rule table (read-only diagnostics) ──────────
+//
+// Diagnostic rules only — they report likely causes to the operator. None
+// of them mutate code automatically (per SSOT #184 conservative policy).
+// The autonomous PR chain logs the suggestion + audit; a human applies it
+// in a follow-up Iter if desired.
+
+export interface HealSuggestion {
+  metric: string;
+  observed: number | string;
+  likely_cause: string;
+  suggested_action: AllowedFix;
+}
+
+export function diagnoseFloating(stats: SkinplantStats): HealSuggestion | null {
+  if (stats.floatingCandidateCount === 0) return null;
+  return {
+    metric: 'floatingCandidateCount',
+    observed: stats.floatingCandidateCount,
+    likely_cause:
+      'PlantBase organ position vs Skeleton edge endpoint divergence (≥1mm). '
+      + 'Most often: petiole/peduncle bonePath[0].p0 is computed from a slightly '
+      + 'different formula than the parent stem surface point. Check '
+      + 'addLeavesForAxis / addTrussesForAxis in buildTomatoSkeletonGraph.ts.',
+    suggested_action: {
+      description: 'Audit parent surface vs child startpoint formula (read-only).',
+      category: 'revert-last-change',
+    },
+  };
+}
+
+export function diagnoseVertexExplosion(stats: SkinplantStats, prevVertexCount: number): HealSuggestion | null {
+  if (stats.vertexCount < prevVertexCount * 2) return null;
+  return {
+    metric: 'vertexCount',
+    observed: stats.vertexCount,
+    likely_cause:
+      `vertexCount jumped from ${prevVertexCount} to ${stats.vertexCount} `
+      + '(>=2x). Likely a duplicate emission path (e.g. leafChunk legacy + '
+      + 'buildLeafChunkSkin both running).',
+    suggested_action: {
+      description: 'Audit leaf rendering loop for double-render (read-only).',
+      category: 'revert-last-change',
+    },
+  };
+}
+
+export function diagnoseRenderRadiusBelowFloor(stats: SkinplantStats): HealSuggestion | null {
+  const FLOOR = 0.0008;
+  for (const t of Object.keys(stats.renderRadiusByType)) {
+    const r = stats.renderRadiusByType[t];
+    if (r && r.min < FLOOR - 1e-9) {
+      return {
+        metric: `renderRadiusByType.${t}.min`,
+        observed: r.min,
+        likely_cause:
+          `Render radius floor (${FLOOR}m / 0.8mm) not applied to type "${t}". `
+          + 'Check preprocessBonePathsWithSwelling in StemFamilyTubeNetworkBuilder.ts.',
+        suggested_action: {
+          description: 'Test-side threshold check — code path is correct in Iter 18A SSOT #177.',
+          category: 'test-threshold',
+        },
+      };
+    }
+  }
+  return null;
+}
+
 /**
  * Runs invariants → if fail, applies up to 2 fix attempts → re-checks.
  * Returns final report + the number of shots used.
