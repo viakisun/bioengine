@@ -7,27 +7,38 @@ import type { PlantSkeletonGraph } from '../../plant/skeleton/PlantSkeletonGraph
 
 type V3 = { x: number; y: number; z: number };
 
+/**
+ * SSOT #185 — 모든 V3 필드는 **plant-local 좌표계** (lushGroup-relative).
+ * graph node.pos / leafMesh.position와 동일 좌표계라 직접 mm 단위 비교 가능.
+ * mm delta 필드는 3D Euclidean distance × 1000.
+ *
+ * 참조: docs/architecture/COORDINATE_SYSTEMS.md
+ */
 export interface PetioleJunctionPair {
   pairId: string;                       // 'petiole:axis0:n14'
   edgeId: string;                       // 'e:petiole:axis0:n14'
   shortLabel: string;                   // 'leaf#14'
-  // 4 core coords (focus='stem-junction')
-  stemCenterNode: V3;
-  expectedStemSurfaceDock: V3;
-  actualRenderedRoot: V3 | null;
-  firstVisiblePoint: V3 | null;
+  // 4 core coords (focus='stem-junction') — 모두 plant-local
+  stemCenterNode: V3;                   // graph.nodes[startNodeId].pos
+  expectedStemSurfaceDock: V3;          // edge.bonePath[0].p0 (PlantBase petiole root)
+  actualRenderedRoot: V3 | null;        // stats.renderedRootByEdgeId
+  firstVisiblePoint: V3 | null;         // bonePath 첫 sample 중 stem swollen surface 밖
   // deltas (mm)
   expectedToActual_mm: number;          // Q1
   actualOcclusionDepth_mm: number;      // Q2 — positive = buried under stem skin
   emergeGap_mm: number;                 // Q3 — firstVisiblePoint distance from expected
-  // optional (focus='all')
-  petioleTip?: V3;
-  leafBladeRoot?: V3 | null;
+  // optional (focus='all') — 모두 plant-local
+  petioleTip?: V3;                      // graph.nodes[endNodeId].pos
+  leafBladeRoot?: V3 | null;            // leafMesh.position (Babylon mesh.position = parent-local = plant-local)
   leafBladeRootSource?: 'blade-anchor' | 'mesh-origin';
   tipToLeaf_mm?: number;
-  // leaf mesh의 실제 visual 시작점 (boundingBox.minimumWorld) — 페어 검증용.
+  /** leaf mesh의 실제 첫 leaflet stem-side vertex (mesh-local x_min)의
+   *  plant-local 변환. SSOT #186 leaf anchor contract — mesh-local origin
+   *  이 정확히 mesh.position과 일치하면 leafBladeRoot와 ≤1mm 일치. */
   actualLeafMeshStart?: V3 | null;
-  leafMeshStartDelta_mm?: number;   // leafBladeRoot ↔ actualLeafMeshStart 거리
+  /** leafBladeRoot ↔ actualLeafMeshStart 거리 (mm). 1mm 초과 시 mesh anchor
+   *  contract 위반 (normalizeLeafMeshVertices 호출 누락 등). */
+  leafMeshStartDelta_mm?: number;
 }
 
 export interface BuildPairsInput {
