@@ -101,11 +101,19 @@ crop은 union을 확장.
 
 | 필드 | 타입 | 의미 |
 |---|---|---|
-| `id` / `kind` / `anchorNodeId` | (기존) | 앵커 식별 |
-| `morphology` | `AnchorMorphologyHint?` | static 형태 (sizeFactor, maturity, leafletCount, droopFactor, targetDiameterM, ripeness) — cultivar에서 1회 복사 |
-| `state` | `OrganState?` | per-tick simulation 상태 (growthStage, visibility, vigor) — 원칙 3 |
-| `chain` | `OrganChain?` | rootNodeId → attachmentNodeId 노드/엣지 chain |
-| `visualHint` | `AnchorVisualHint?` | 자기 표현 (markerColor, label, showAttachmentLine) — 원칙 2 |
+| `id` / `kind` | (기존) | 앵커 식별 |
+| `anchorNodeId` | `string` | **Iter 27 — Joint anchor**. organ이 부모 줄기/knuckle에 부착되는 SkeletonNode. **Alarm reference**: 정상 plant에서 반드시 `chain.rootNodeId`와 _동일 노드_를 가리켜야 한다 → attachment line 두 vertex 같은 위치 → 라인 길이 0 → 시각 alarm 없음 = 정상 |
+| `meshAnchorNodeId` | `string?` | **Iter 27 — Mesh attach**. organ mesh가 실제 놓이는 위치 (mesh.position). leaf: petiole tip, fruit/flower/calyx: pedicel tip. 없으면 anchorNodeId로 fallback (legacy) |
+| `morphology` | `AnchorMorphologyHint?` | static 형태 — cultivar 1회 복사 |
+| `state` | `OrganState?` | per-tick simulation 상태 — 원칙 3 |
+| `chain` | `OrganChain?` | rootNodeId → attachmentNodeId 노드/엣지 chain. `chain.rootNodeId` == `anchorNodeId` 동일성 보장 = ATTACH-LINE-01 invariant |
+| `visualHint` | `AnchorVisualHint?` | 자기 표현 — 원칙 2 |
+
+**Attachment line alarm 디자인 (Iter 27)**
+
+SemanticOverlay attachment line은 `anchor.anchorNodeId` ↔ `anchor.chain.rootNodeId` 두 노드를 잇는 dashed line. 두 필드가 같은 노드를 가리키면 line의 두 vertex가 동일 world position → 라인 길이 0 → 시각상 안 보임 = 정상. 회귀 시 두 필드 mismatch → 라인 > 0 → 즉시 시각 alarm + `tests/architecture/attach-line-zero.spec.ts` FAIL.
+
+이 디자인은 Iter 18~24 "잎-줄기 disconnect" 패턴 재발 자동 감지가 목적. organ-stem joint 매핑이 어긋날 때 사용자가 즉시 시각으로 catch.
 
 ### 2.4 EdgeRenderPolicy
 

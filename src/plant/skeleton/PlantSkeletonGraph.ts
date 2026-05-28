@@ -231,8 +231,30 @@ export interface OrganAnchor {
   /** Stable id (string form for legacy attachedOrganIds passthrough). */
   id: string;
   kind: OrganAnchorKind;
-  /** SkeletonNode id where this organ attaches. */
+  /**
+   * Iter 27 의미 재정의 — **Joint anchor**. organ이 부모 줄기/knuckle에
+   * 부착되는 지점의 SkeletonNode id (alarm reference).
+   *
+   * 정상 plant에서 `chain.rootNodeId` 와 _동일_ 노드를 가리켜야 한다 →
+   * SemanticOverlay attachment line vertex 두 점이 같은 위치 → 라인 0 길이
+   * → 시각상 안 보임 = 정상.
+   *
+   * 회귀 시 anchorNodeId ≠ chain.rootNodeId 매핑되면 라인 > 0 → 시각 alarm.
+   *
+   * (Iter 26까지 이 필드는 mesh.position 용도였음 — petiole/pedicel tip.
+   * Iter 27부터 그 의미는 `meshAnchorNodeId`로 이관.)
+   */
   anchorNodeId: string;
+  /**
+   * Iter 27 PR — **Mesh attach anchor**. organ mesh가 실제 놓이는 위치
+   * (= `mesh.position` 좌표를 가져올 SkeletonNode).
+   *
+   * leaf: petiole tip 노드. fruit/flower/calyx: pedicel tip 노드.
+   *
+   * Optional during migration. 없으면 SkinMeshPlant이 anchorNodeId로
+   * fallback (legacy 호환). populator는 항상 채움.
+   */
+  meshAnchorNodeId?: string;
   /** Iter 26 PR 1-2 — static morphology (populator copies from cultivar). */
   morphology?: AnchorMorphologyHint;
   /** Iter 26 PR 1-2 (원칙 3) — per-tick simulation state. */

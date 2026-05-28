@@ -676,12 +676,15 @@ export function createSkinMeshPlant(
         if (!node) continue;
         // SSOT #186 — Leaf anchor contract (docs/architecture/MESH_ANCHORS.md):
         // LeafGenerator normalizeLeafMeshVertices가 mesh-local origin을 첫
-        // leaflet stem-side vertex로 정렬. mesh.position = anchor node.pos
-        // (= petiole tip per INV-04) 설정 시 leaflets가 정확히 SDF petiole
-        // tip부터 emerge. 좌표계: tipPlantPos는 plant-local.
-        const anchorNode = graph.nodes.get(anchor.anchorNodeId);
-        if (!anchorNode) continue;
-        const tipPlantPos = anchorNode.pos;
+        // leaflet stem-side vertex로 정렬. mesh.position = petiole tip 설정 시
+        // leaflets가 정확히 SDF petiole tip부터 emerge. 좌표계: plant-local.
+        // Iter 27 — mesh.position은 anchor.meshAnchorNodeId (petiole tip) 사용.
+        // anchor.anchorNodeId는 joint (stem attach node) — attachment line
+        // alarm reference, mesh 위치와 무관.
+        const meshNodeId = anchor.meshAnchorNodeId ?? anchor.anchorNodeId;
+        const meshAnchorNode = graph.nodes.get(meshNodeId);
+        if (!meshAnchorNode) continue;
+        const tipPlantPos = meshAnchorNode.pos;
         const leafRng = new SeededRandom(seed * 1009 + axisIdx * 9173 + nodeIdx * 31 + 11);
         const leafMesh = createLeafBladeOnlyMesh(
           `skinplant_leaf_${seed}_a${axisIdx}_n${nodeIdx}`,

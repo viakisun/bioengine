@@ -250,7 +250,10 @@ function addLeavesForAxis(
     attachNode.edgeIds.push(petioleEdgeId);
 
     // Iter 18B PR 8 (SSOT #180) — structured OrganAnchor for leaf blade.
-    // anchorNodeId = petiole tip (the same node the legacy id encodes).
+    // Iter 27 — anchor 의미 재정의:
+    //   anchorNodeId = attachNodeId (stem attach node = joint).
+    //   meshAnchorNodeId = tipNodeId (petiole tip = mesh.position).
+    // 정상 plant에서 anchorNodeId == chain.rootNodeId → attachment line 0.
     const leafBladeAnchorId = `leaf_blade:axis${axisIdx}:n${leaf.nodeIdx}`;
     edges.set(petioleEdgeId, {
       id: petioleEdgeId,
@@ -262,7 +265,12 @@ function addLeavesForAxis(
       cuttable: true,
       semanticLabel: `leaf ${leaf.nodeIdx} petiole`,
       attachedOrganIds: [leafBladeAnchorId],
-      organAnchors: [{ id: leafBladeAnchorId, kind: 'leaf_blade', anchorNodeId: tipNodeId }],
+      organAnchors: [{
+        id: leafBladeAnchorId,
+        kind: 'leaf_blade',
+        anchorNodeId: attachNodeId,       // joint
+        meshAnchorNodeId: tipNodeId,      // mesh
+      }],
     });
   }
 }
@@ -384,12 +392,16 @@ function addTrussesForAxis(
           `calyx:axis${axisIdx}:t${trussIdx}:s${site.index}`,
         ];
 
-        // Iter 18B PR 8 (SSOT #180) — structured OrganAnchors for flower /
-        // fruit / calyx at pedicel tip.
+        // Iter 18B PR 8 (SSOT #180) / Iter 27 — structured OrganAnchors for
+        // flower / fruit / calyx.
+        // anchorNodeId = knuckleNodeId (joint = rachis knuckle).
+        // meshAnchorNodeId = pedicelTipNodeId (mesh.position).
+        // 정상 plant에서 anchorNodeId == chain.rootNodeId (= pedicel
+        // edge.startNodeId = knuckleNodeId) → attachment line 0.
         const organAnchors: import('./PlantSkeletonGraph').OrganAnchor[] = [
-          { id: `flower:axis${axisIdx}:t${trussIdx}:s${site.index}`, kind: 'flower', anchorNodeId: pedicelTipNodeId },
-          { id: `fruit:axis${axisIdx}:t${trussIdx}:s${site.index}`,  kind: 'fruit',  anchorNodeId: pedicelTipNodeId },
-          { id: `calyx:axis${axisIdx}:t${trussIdx}:s${site.index}`,  kind: 'calyx',  anchorNodeId: pedicelTipNodeId },
+          { id: `flower:axis${axisIdx}:t${trussIdx}:s${site.index}`, kind: 'flower', anchorNodeId: knuckleNodeId, meshAnchorNodeId: pedicelTipNodeId },
+          { id: `fruit:axis${axisIdx}:t${trussIdx}:s${site.index}`,  kind: 'fruit',  anchorNodeId: knuckleNodeId, meshAnchorNodeId: pedicelTipNodeId },
+          { id: `calyx:axis${axisIdx}:t${trussIdx}:s${site.index}`,  kind: 'calyx',  anchorNodeId: knuckleNodeId, meshAnchorNodeId: pedicelTipNodeId },
         ];
         edges.set(pedicelEdgeId, {
           id: pedicelEdgeId,
