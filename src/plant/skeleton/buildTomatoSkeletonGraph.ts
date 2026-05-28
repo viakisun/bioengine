@@ -54,6 +54,7 @@ import type {
 } from './PlantSkeletonGraph';
 import { populateNodeTypes } from './populator/populateNodeTypes';
 import { populateAnchorMorphology } from './populator/populateAnchorMorphology';
+import { populateEdgePolicies } from './populator/populateEdgePolicies';
 
 type V3 = { x: number; y: number; z: number };
 
@@ -109,6 +110,10 @@ export function buildTomatoSkeletonGraph(
 
   // SSOT #187 PR 2-2 — organAnchor.morphology + state + chain + visualHint.
   populateAnchorMorphology(graph, plantBase, opts.state, opts.genome);
+
+  // SSOT #187 PR 2-3 — edge.renderPolicy (radius + material + visualHint).
+  // junction.parentContext is refined by StemFamilyTubeNetworkBuilder later.
+  populateEdgePolicies(graph);
 
   return graph;
 }
