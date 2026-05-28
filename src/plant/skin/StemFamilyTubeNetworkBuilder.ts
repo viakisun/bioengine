@@ -81,8 +81,12 @@ export interface PlantStemFamilyMesh {
     /** Iter 20 — per-edge parent stem context at the child's attach point.
      *  Pure measurement export (no geometry change) used by the petiole-stem
      *  junction debug overlay to compute occlusion depth + firstVisiblePoint.
-     *  center/tangent are along the parent stem centerline; radius is the
-     *  swollen render radius (post-swelling, post-floor) at that location. */
+     *
+     *  SSOT #185 — Coordinate frame: **plant-local** (= graph node.pos 좌표계).
+     *  - center: parent stem centerline 위 위치 (child attach point에서 interp)
+     *  - tangent: parent centerline 방향 unit vector
+     *  - radius: swollen render radius (post-swelling, post-floor) in meters
+     *  참조: docs/architecture/COORDINATE_SYSTEMS.md */
     parentContextByEdgeId: Record<string, {
       center: { x: number; y: number; z: number };
       tangent: { x: number; y: number; z: number };
