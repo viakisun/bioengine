@@ -101,21 +101,20 @@ function getSharedUi(scene: Scene): AdvancedDynamicTexture {
     true,
     scene,
   );
-  // Iter 23 — completely detach pointer picking from this UI texture.
-  // Iter 20 e2fcede에서 TextBlock에 isHitTestVisible=false 적용했으나
-  // root Container picking 경로가 그대로 살아 _doPicking → Container.
-  // _processObservables에서 `_lastControlOver` undefined TypeError 발생
-  // (Babylon 9.8 known issue when labels added/removed mid-frame across
-  // HMR / mode switch). debug label은 hover/click 필요 없으므로 GUI의
-  // pointer observable 자체를 제거해 picking 경로 통째 차단.
-  const uiPrivate = sharedUiTexture as unknown as {
-    _pointerObservable?: unknown;
-  };
-  const obs = uiPrivate._pointerObservable;
-  if (obs && scene.onPrePointerObservable) {
-    (scene.onPrePointerObservable as { remove: (o: unknown) => void }).remove(obs);
-    uiPrivate._pointerObservable = null;
-  }
+  // GUI picking crash fix — Babylon 9.8 _doPicking 경로에서 발생하던
+  // `_lastControlOver` TypeError 근본 차단.
+  //
+  // 이전 시도 (모두 실패):
+  //   - e2fcede: TextBlock isHitTestVisible=false → root Container는 기본 true라
+  //     traversal이 자식까지 진입, no-op.
+  //   - 485ca56: `_pointerObservable` remove → 해당 속성 미존재 (실제는
+  //     `_prePointerObserver`). no-op.
+  //
+  // 올바른 fix: public API `disablePicking` (advancedDynamicTexture.d.ts:146).
+  // `_doPicking` 입구 line 837 (`if (!scene || this.disablePicking) return`)
+  // 에서 즉시 return → 모든 picking traversal 차단. debug label은 hover/click
+  // 필요 없음.
+  sharedUiTexture.disablePicking = true;
   sharedUiScene = scene;
   return sharedUiTexture;
 }
