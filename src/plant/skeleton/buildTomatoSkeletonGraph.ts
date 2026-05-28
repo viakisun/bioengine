@@ -42,6 +42,8 @@
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { ACTIVE_MODEL } from '@farmsim/tomato-engine/ModelRegistry';
 import type { PlantBase, AxisBase, TrussBase, LeafBase } from '../PlantBase';
+import type { PlantState } from '@farmsim/tomato-engine/GrowthModel';
+import type { PlantGenome } from '@farmsim/tomato-engine/PlantGenome';
 import { catmullRomPath } from '../StemGenerator';
 import type {
   PlantSkeletonGraph,
@@ -51,6 +53,7 @@ import type {
   SkeletonEdgeType,
 } from './PlantSkeletonGraph';
 import { populateNodeTypes } from './populator/populateNodeTypes';
+import { populateAnchorMorphology } from './populator/populateAnchorMorphology';
 
 type V3 = { x: number; y: number; z: number };
 
@@ -59,6 +62,15 @@ export interface BuildSkeletonOpts {
   /** Curve subdivisions per inter-control-point segment. Higher = denser
    *  bone path, smoother SDF surface. Default 4. */
   curveDivisions?: number;
+  /** Iter 26 PR 2-2 (SSOT #187 원칙 3) — per-tick simulation state. Used by
+   *  populateAnchorMorphology + populateOrganState to copy leaf yellowing /
+   *  waterStress / diseaseLoad / ageFrac onto organAnchors. Optional —
+   *  callers that lack state skip OrganState population. */
+  state?: PlantState;
+  /** Iter 26 PR 2-2 (SSOT #187 원칙 4) — cultivar genome snapshot. Stored on
+   *  graph.cultivarGenomeSnapshot so Skin reads leaf shape parameters from
+   *  graph instead of importing PlantGenome directly. */
+  genome?: PlantGenome;
 }
 
 export function buildTomatoSkeletonGraph(
@@ -90,9 +102,13 @@ export function buildTomatoSkeletonGraph(
   }
 
   const graph: PlantSkeletonGraph = { nodes, edges, rootEdgeId };
+  if (opts.genome) graph.cultivarGenomeSnapshot = opts.genome;
 
   // SSOT #187 PR 2-1 — node.type + frame + visualHint.
   populateNodeTypes(graph);
+
+  // SSOT #187 PR 2-2 — organAnchor.morphology + state + chain + visualHint.
+  populateAnchorMorphology(graph, plantBase, opts.state, opts.genome);
 
   return graph;
 }

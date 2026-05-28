@@ -275,7 +275,15 @@ export function createSkinMeshPlant(
     //   PlantSkeletonGraph → embedded-branch tube network → 1 Babylon Mesh.
     //   No junction stitching; child tubes start inside parent (no start cap).
     //   Topology is disjoint within the single buffer (SSOT plan 결정).
-    const graph = buildPlantSkeleton(plantBase, { curveDivisions: 2 });
+    // Iter 26 PR 2-2 — pass state + genome so populateAnchorMorphology can
+    // fill organAnchor.morphology/state and graph.cultivarGenomeSnapshot.
+    // Skin reads these (PR 3-1/3-2) instead of PlantBase/PlantState directly.
+    const skeletonGenome = engine.getGenome(seed) ?? undefined;
+    const graph = buildPlantSkeleton(plantBase, {
+      curveDivisions: 2,
+      state,
+      genome: skeletonGenome,
+    });
     // Iter 18B PR 13 — stem family mesh via SkinEngine façade. Identical
     // behavior + parenting — defaultSkinEngine.render returns the mesh
     // already parented to lushGroup.

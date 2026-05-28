@@ -17,6 +17,8 @@
 
 import type { V3 } from '../sdf/CapsuleSDF';
 import type { PlantLocalV3 } from '../coordinates/types';
+import type { PlantGenome } from '@farmsim/tomato-engine/PlantGenome';
+import type { CultivarSample } from '@farmsim/tomato-engine/Cultivar';
 
 /**
  * Botanical edge type. SSOT 4.4 enum. Extends naturally as new crops
@@ -158,6 +160,15 @@ export interface AnchorMorphologyHint {
   targetDiameterM?: number;
   /** Fruit-specific: 0..1 ripening (0 green, 1 fully red). */
   ripeness?: number;
+  /** Iter 26 PR 2-2 (PR 2-AUDIT) — Fruit-specific: per-fruit CultivarSample
+   *  snapshot (loculeCount, ribbingStrength, asymmetrySeed/Amp, mottleSeed,
+   *  heightWidthRatio, blossomEndAdvanceFrac). Sampled once at set time; Skin
+   *  reads this so it does not query FloralSiteBase.fruit.cultivarGenome. */
+  fruitGenome?: CultivarSample;
+  /** Iter 26 PR 2-2 — Leaf-specific: pre-composed gravity sag fraction
+   *  (max(droopExtra/120, age/80) + waterStress*0.3). Populator computes once
+   *  from PlantState so Skin reads value directly (원칙 4). */
+  ageFracForGravity?: number;
 }
 
 /**
@@ -173,6 +184,13 @@ export interface OrganState {
   visibility: boolean;
   /** 0..1 vigor / health. */
   vigor?: number;
+  /** Iter 26 PR 2-2 — Leaf-specific: 0..1 senescence (controls material
+   *  selection in LeafGenerator). */
+  yellowing?: number;
+  /** Iter 26 PR 2-2 — Leaf-specific: 0..1 water stress (per-vertex tint). */
+  waterStress?: number;
+  /** Iter 26 PR 2-2 — Leaf-specific: 0..1 disease load (per-vertex tint). */
+  diseaseLoad?: number;
 }
 
 /**
@@ -303,6 +321,12 @@ export interface PlantSkeletonGraph {
   edges: Map<string, SkeletonEdge>;
   /** Root of the cut hierarchy. */
   rootEdgeId: string;
+  /** Iter 26 PR 2-2 (SSOT #187 원칙 4) — Cultivar genome snapshot for leaf
+   *  shape parameters (leafSerrationDepth/Freq, leafLobeDepth, leafWaviness,
+   *  leafPetioleLength, leafSizeMultiplier 등). Skin reads this so it never
+   *  imports PlantGenome directly. Populated only when populator is given
+   *  a genome via BuildSkeletonOpts.genome. */
+  cultivarGenomeSnapshot?: PlantGenome;
 }
 
 // ── Graph helpers ──────────────────────────────────────────────────────
