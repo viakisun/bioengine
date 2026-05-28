@@ -48,6 +48,11 @@ import { useTwinStore } from '../store/twinStore';
 // Iter 20 — petiole-stem junction debug overlay.
 import { createPetioleJunctionOverlay, type OverlayOptions } from './dockingOverlay/PetioleJunctionOverlay';
 import { buildPetioleJunctionPairs } from './dockingOverlay/dockingPairs';
+// SSOT #185/#186 — coordinate transforms + leaf anchor utility.
+import {
+  toMeshLocal, toWorld, meshLocalToPlantLocal, worldToPlantLocal,
+  type MeshLocalV3,
+} from '../plant/coordinates';
 // Iter 18B PR 9 (SSOT #180) — single Skeleton Engine entry. Direct import
 // of buildTomatoSkeletonGraph is no longer allowed from consumers.
 import {
@@ -698,11 +703,10 @@ export function createSkinMeshPlant(
     applySegmentationHighlights();
     applyLeafWireframe();  // 매 rebuild 후 wireframe 토글 상태 재적용
 
-    // Iter 20 — populate petiole-stem junction overlay every rebuild.
-    // bboxMinLocal은 boundingBox의 가상 corner (실제 vertex 아님). 잎이
-    // droop으로 늘어지면 min corner가 plant 바닥까지 내려감 → 사용자가 본
-    // "바닥으로 훅 떨어진 빨강 line". 진짜 anchor (leaf의 첫 leaflet stem-side
-    // 점)는 mesh-local x가 가장 작은 actual vertex.
+    // SSOT #185/#186 — populate petiole-stem junction overlay every rebuild.
+    // actualLeafMeshStart = leaf의 첫 leaflet stem-side vertex (mesh-local x_min)
+    // → world → plant-local 변환. 좌표 변환은 coordinates/transforms utility 사용.
+    // 참조: docs/architecture/{COORDINATE_SYSTEMS, MESH_ANCHORS}.md
     const lushWorldMatInv = lushGroup.getWorldMatrix().clone().invert();
     const leafMeshByKey = new Map<string, {
       position: { x: number; y: number; z: number };
@@ -712,11 +716,8 @@ export function createSkinMeshPlant(
     for (const m of currentParts.leaves) {
       const mm = m.name.match(/_a(\d+)_n(\d+)$/);
       if (!mm) continue;
-      // actualLeafMeshStart 후보: mesh의 모든 vertex 중 mesh-local x가 가장
-      // 작은 vertex의 world position. 첫 leaflet의 stem-side 점 = leaf anchor.
-      let anchorWorldX = m.absolutePosition.x;
-      let anchorWorldY = m.absolutePosition.y;
-      let anchorWorldZ = m.absolutePosition.z;
+      // 첫 leaflet stem-side vertex = mesh-local x_min인 actual vertex.
+      let anchorMeshLocal: MeshLocalV3 = toMeshLocal({ x: 0, y: 0, z: 0 });
       const verts = m.getVerticesData('position');
       if (verts && verts.length >= 3) {
         let minLx = Infinity;
@@ -728,26 +729,16 @@ export function createSkinMeshPlant(
             minLz = verts[i + 2];
           }
         }
-        // mesh-local → world via mesh worldMatrix.
-        const worldPt = Vector3.TransformCoordinates(
-          new Vector3(minLx, minLy, minLz),
-          m.getWorldMatrix(),
-        );
-        anchorWorldX = worldPt.x;
-        anchorWorldY = worldPt.y;
-        anchorWorldZ = worldPt.z;
+        anchorMeshLocal = toMeshLocal({ x: minLx, y: minLy, z: minLz });
       }
-      // anchor world → plant-local via lushGroup invert.
-      const anchorLocal = Vector3.TransformCoordinates(
-        new Vector3(anchorWorldX, anchorWorldY, anchorWorldZ),
-        lushWorldMatInv,
-      );
-      // (legacy field 호환을 위해 bboxMinLocal/MaxLocal에 anchor 사용)
-      const maxLocal = anchorLocal;
+      // mesh-local → plant-local (rotation + parent transform 적용).
+      const anchorPlantPos = verts && verts.length >= 3
+        ? meshLocalToPlantLocal(anchorMeshLocal, m.getWorldMatrix(), lushWorldMatInv)
+        : worldToPlantLocal(toWorld(m.absolutePosition), lushWorldMatInv);
       leafMeshByKey.set(`a${mm[1]}_n${mm[2]}`, {
         position: { x: m.position.x, y: m.position.y, z: m.position.z },
-        bboxMinLocal: { x: anchorLocal.x, y: anchorLocal.y, z: anchorLocal.z },
-        bboxMaxLocal: { x: maxLocal.x, y: maxLocal.y, z: maxLocal.z },
+        bboxMinLocal: { x: anchorPlantPos.x, y: anchorPlantPos.y, z: anchorPlantPos.z },
+        bboxMaxLocal: { x: anchorPlantPos.x, y: anchorPlantPos.y, z: anchorPlantPos.z },
       });
     }
     const junctionPairs = buildPetioleJunctionPairs({
