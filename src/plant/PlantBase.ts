@@ -484,8 +484,17 @@ function buildLeafBase(
   //   → bone path 첫 절반이 stem axis와 거의 평행으로 떨어져 stem skin 안에
   //     잠긴 채 emerge. Iter 20 측정: emerge gap D45 worst 13.5mm, D99 71mm.
   //
-  // 신규: 첫 segment는 거의 순수 horizontal radial. mid c2가 droop의 대부분
-  // 받음. tip (curve[3]) 위치 불변 → leaf mesh / 외부 의존 모듈 무영향.
+  // Iter 22 — 5 control point: attachPos → c0(radial seed) → c1 → c2 → tip.
+  // Iter 21이 c1/c2를 radial-first로 바꿔 D99 emerge gap 71→6.4mm 해결했으나
+  // D45 (stem 얇음)는 8.6mm 잔존. c0_radial을 attachPos 바로 옆 순수
+  // horizontal radial 5%에 추가해 첫 dense sample들이 1-4mm radial 범위에
+  // 안착 → stem swollen surface를 즉시 빠져나감.
+  // tip (curve[4]) 위치 불변 → leaf mesh / 외부 의존 모듈 무영향.
+  const c0 = {
+    x: attachPos.x + cos * tipR * 0.05,  // 5% radial seed, no droop yet
+    y: attachPos.y,
+    z: attachPos.z + sin * tipR * 0.05,
+  };
   const c1 = {
     x: attachPos.x + cos * tipR * 0.30,
     y: attachPos.y + tipY * 0.10,   // 10%만 droop (was 45.5%) — radial-first emergence
@@ -496,7 +505,7 @@ function buildLeafBase(
     y: attachPos.y + tipY * 0.55,   // 55% droop (mid) — was 82%
     z: attachPos.z + sin * tipR * 0.65,
   };
-  const petioleCurve = [{ ...attachPos }, c1, c2, tip];
+  const petioleCurve = [{ ...attachPos }, c0, c1, c2, tip];
 
   // Reference Pack-aligned orientation estimates (Iter 5 prep).
   // clamp upper bound 90° = Reference target max, prevents 9+ leaflet
