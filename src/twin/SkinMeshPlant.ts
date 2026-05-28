@@ -176,6 +176,35 @@ export function createSkinMeshPlant(
     worstN: 5,
   };
 
+  // Leaf wireframe debug mode — leaf mesh를 material 없이 wireframe으로
+  // swap해 mesh 자체 모양/크기 시각 확인.
+  let leafWireframeEnabled = false;
+  let leafWireframeMat: StandardMaterial | null = null;
+  function getLeafWireframeMat(): StandardMaterial {
+    if (leafWireframeMat) return leafWireframeMat;
+    const m = new StandardMaterial('skinplant_leaf_wireframe', scene);
+    m.diffuseColor = new Color3(0.0, 0.95, 0.5);   // 형광 녹색
+    m.emissiveColor = new Color3(0.0, 0.95, 0.5);
+    m.disableLighting = true;
+    m.wireframe = true;
+    m.backFaceCulling = false;
+    leafWireframeMat = m;
+    return m;
+  }
+  function applyLeafWireframe(): void {
+    for (const leaf of currentParts.leaves) {
+      if (leafWireframeEnabled) {
+        leaf.material = getLeafWireframeMat();
+      } else {
+        // restore: yellowing > 0.4 → yellowLeafMat, else leafMat (build flow와 동일)
+        const mm = leaf.name.match(/_a(\d+)_n(\d+)$/);
+        const ni = mm ? parseInt(mm[2], 10) : -1;
+        const node = ni >= 0 && lastState ? lastState.nodes[ni] : null;
+        leaf.material = node && node.yellowing > 0.4 ? yellowLeafMat : leafMat;
+      }
+    }
+  }
+
   function diag(): boolean {
     return useTwinStore.getState().debugDiagnostics;
   }
@@ -501,6 +530,14 @@ export function createSkinMeshPlant(
       console.log(`[dockingOverlay] enable=${opts.enable} edgeTypes=${merged.edgeTypes?.join(',')} focus=${merged.focus} labelMode=${merged.labelMode}`);
     };
 
+    // Leaf wireframe debug API — material 없이 mesh 자체 (vertex/edge)만 표시.
+    (window as unknown as { __leafWireframe?: (enable: boolean) => void })
+      .__leafWireframe = (enable) => {
+      leafWireframeEnabled = enable;
+      applyLeafWireframe();
+      console.log(`[leafWireframe] ${enable ? 'ON' : 'OFF'} — ${currentParts.leaves.length} leaves`);
+    };
+
     (window as unknown as { __skinplantPetioleDock?: (opts: {
       enable: boolean;
       worstN?: number;
@@ -659,6 +696,7 @@ export function createSkinMeshPlant(
     }
 
     applySegmentationHighlights();
+    applyLeafWireframe();  // 매 rebuild 후 wireframe 토글 상태 재적용
 
     // Iter 20 — populate petiole-stem junction overlay every rebuild.
     // Always builds the pair data (cheap); visibility is gated by dockingEnabled.
