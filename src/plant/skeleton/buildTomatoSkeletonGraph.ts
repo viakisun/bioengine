@@ -50,6 +50,7 @@ import type {
   SkeletonBone,
   SkeletonEdgeType,
 } from './PlantSkeletonGraph';
+import { populateNodeTypes } from './populator/populateNodeTypes';
 
 type V3 = { x: number; y: number; z: number };
 
@@ -88,7 +89,12 @@ export function buildTomatoSkeletonGraph(
     addTrussesForAxis(axis, axisIdx, stemEdgeId, divisions, anatomy, nodes, edges);
   }
 
-  return { nodes, edges, rootEdgeId };
+  const graph: PlantSkeletonGraph = { nodes, edges, rootEdgeId };
+
+  // SSOT #187 PR 2-1 — node.type + frame + visualHint.
+  populateNodeTypes(graph);
+
+  return graph;
 }
 
 // ── Main / side stem axis ─────────────────────────────────────────────
