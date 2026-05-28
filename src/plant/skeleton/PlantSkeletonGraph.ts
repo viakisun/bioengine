@@ -137,12 +137,92 @@ export interface SkeletonBone {
  */
 export type OrganAnchorKind = 'leaf_blade' | 'fruit' | 'flower' | 'calyx';
 
+/**
+ * Iter 26 PR 1-2 (SSOT #187) — Static morphology hint copied from the
+ * cultivar / PlantBase at populate time. Captures what the organ "should
+ * look like" independent of moment-to-moment simulation state.
+ *
+ * Skin consumes this to size meshes. Populated in PR 2-2.
+ */
+export interface AnchorMorphologyHint {
+  kind: 'leaf' | 'fruit' | 'flower' | 'calyx';
+  /** 0..1 size multiplier vs cultivar reference (e.g. leafSizeFactor). */
+  sizeFactor?: number;
+  /** 0..1 maturity along the organ's life (0 emerging, 1 fully mature). */
+  maturity?: number;
+  /** Leaf-specific: number of leaflets. */
+  leafletCount?: number;
+  /** Leaf-specific: 0..1 droop along petiole tip. */
+  droopFactor?: number;
+  /** Fruit-specific: target diameter in metres at maturity. */
+  targetDiameterM?: number;
+  /** Fruit-specific: 0..1 ripening (0 green, 1 fully red). */
+  ripeness?: number;
+}
+
+/**
+ * Iter 26 PR 1-2 (원칙 3) — Per-tick simulation state for this organ.
+ *
+ * Simulation truth flows here via SkeletonPopulator (PR 2-2). After populate,
+ * Skin / Overlay / Acceptance read state from this graph field — not from
+ * PlantState directly.
+ */
+export interface OrganState {
+  growthStage?: 'emerging' | 'expanding' | 'mature' | 'senescing';
+  /** Whether this organ should currently be rendered. */
+  visibility: boolean;
+  /** 0..1 vigor / health. */
+  vigor?: number;
+}
+
+/**
+ * Iter 26 PR 1-2 (SSOT #187) — Skeleton nodes/edges traversed from this
+ * organ's root to its mesh attachment point. Lets Skin/Overlay reconstruct
+ * the full geometric path without re-querying the graph.
+ *
+ * Example (leaf): rootNodeId = petiole-root, attachmentNodeId = leaf-blade-root,
+ * nodeChain = [petiole-root, petiole-tip, leaf-blade-root],
+ * edgeChain = [petiole edge id].
+ */
+export interface OrganChain {
+  /** Where the organ attaches to its parent stem (e.g. petiole-root node). */
+  rootNodeId: string;
+  /** Where the organ mesh anchors (e.g. leaf-blade-root node). */
+  attachmentNodeId: string;
+  /** The supporting edge (petiole / pedicel) id, if any. */
+  supportEdgeId?: string;
+  /** Inclusive node-id chain from root to attachment. */
+  nodeChain: string[];
+  /** Inclusive edge-id chain from root to attachment. */
+  edgeChain: string[];
+}
+
+/**
+ * Iter 26 PR 1-2 (원칙 2) — Self-describing visualization hint for organ
+ * anchors. SkeletonOverlay renders the circle/label by reading this only.
+ */
+export interface AnchorVisualHint {
+  markerColor: string;
+  /** Display label (e.g. 'leaf#7 mature'). */
+  label: string;
+  /** Draw a dashed line from anchorNode to rootNode (organ chain hint). */
+  showAttachmentLine?: boolean;
+}
+
 export interface OrganAnchor {
   /** Stable id (string form for legacy attachedOrganIds passthrough). */
   id: string;
   kind: OrganAnchorKind;
   /** SkeletonNode id where this organ attaches. */
   anchorNodeId: string;
+  /** Iter 26 PR 1-2 — static morphology (populator copies from cultivar). */
+  morphology?: AnchorMorphologyHint;
+  /** Iter 26 PR 1-2 (원칙 3) — per-tick simulation state. */
+  state?: OrganState;
+  /** Iter 26 PR 1-2 — geometric path on the graph for this organ. */
+  chain?: OrganChain;
+  /** Iter 26 PR 1-2 (원칙 2) — overlay self-description. */
+  visualHint?: AnchorVisualHint;
 }
 
 /** Edge — a contiguous stem-like organ. */
