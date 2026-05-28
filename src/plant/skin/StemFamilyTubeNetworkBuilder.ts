@@ -501,7 +501,14 @@ export function buildStemFamilyTubeNetwork(
   const bioRadiiByType: Partial<Record<SkeletonEdgeType, number[]>> = {};
   const renderRadiiByType: Partial<Record<SkeletonEdgeType, number[]>> = {};
   const floatingCandidateIds: string[] = [];
-  const FLOATING_GAP_THRESHOLD_M = 0.001; // 1mm
+  // Iter 23 — metric semantic shift + threshold 1mm → 3mm.
+  // Iter 18A 정의 (childGraphStart vs parentSurfacePoint): PlantBase bio
+  // surface ↔ runtime swollen surface. parentSwellingScale 1.25 × bio_radius
+  // offset 때문에 false positive 다수 (Iter 19 Phase D 확정: D45 raw=41 vs
+  // 실제 disconnect=0). 신규 정의 (childGraphStart vs childStart): 시각적
+  // disconnect와 직접 대응 = Q1 expectedToActual_mm.
+  // 임계값 3mm = Iter 18C severity 정의 (yellow ≤ 3mm, red > 3mm)와 일관.
+  const FLOATING_GAP_THRESHOLD_M = 0.003;
   // Iter 18C — per-edge actual mesh root (embed + scale 적용 후 childStart).
   const renderedRootByEdgeId: Record<string, V3> = {};
   const parentContextByEdgeId: Record<string, {
@@ -542,9 +549,8 @@ export function buildStemFamilyTubeNetwork(
       // worst-case embed while preserving weld effect on small stems.
       let embedDepth: number;
       if (edge.type === 'petiole') {
-        // Iter 21 — clamp [0.5,2.0]→[0.2,1.0]mm, frac 0.25→0.15.
-        // rendered root가 stem swollen surface 안쪽 max 1mm까지만 묻혀
-        // occlusion 감소. weld 효과는 parentSwellingScale=1.25로 유지.
+        // Iter 21 — clamp [0.2, 1.0]mm. peduncle은 truss 구조라 동일 정책
+        // 미적용 (Iter 23에서 시도 후 floating 1→2 역효과 → revert).
         embedDepth = Math.min(Math.max(parentRadius * 0.15, 0.0002), 0.0010);
       } else {
         const embedFrac = embedDepthFrac[edge.type] ?? 0.6;
@@ -556,13 +562,14 @@ export function buildStemFamilyTubeNetwork(
       // - petiole: use (graphRoot - parentCenter), so radialDir aligns with
       //   the PlantBase petiole azimuth regardless of how the petiole curves
       //   downstream. Iter 19 fix — averageTangent-based radialDir flipped
-      //   ~157° for drooping D99 petioles, sending childStart to the
-      //   opposite side of the stem (audited in
-      //   docs/calibration-checkpoint-reports/v0.13-iter19-phaseA-gate-fail.md).
-      // - other types (peduncle/rachis/pedicel): keep averageTangent (legacy).
-      //   Measure-only audit in Iter 19 Phase B.
+      //   ~157° for drooping D99 petioles.
+      // - peduncle: Iter 23에서 같은 fix 확장 (Iter 19 Phase B 측정: D45 peduncle
+      //   worst 9.78mm / D99 12.59mm 동일 Case B 패턴). Iter 23 floating
+      //   metric 재정의로 peduncle disconnect가 acceptance AC1을 실제로
+      //   flag하므로 함께 처리.
+      // - rachis/pedicel: averageTangent 유지 (Iter 19 Phase B clean ≤ 1.25mm).
       const childGraphStart = edge.bonePath[0].p0;
-      const sourceDir = edge.type === 'petiole'
+      const sourceDir = (edge.type === 'petiole' || edge.type === 'peduncle')
         ? vsub(childGraphStart, parentCenter)
         : averageTangent(edge.bonePath, Math.min(3, edge.bonePath.length));
 
@@ -604,10 +611,11 @@ export function buildStemFamilyTubeNetwork(
       capStart = false;
       branchCount++;
 
-      // Iter 18A: floating candidate detection — radial gap between graph
-      // child start (pre-embed) and parent surface.
-      const radialGap = vlen(vsub(childGraphStart, parentSurfacePoint));
-      if (radialGap > FLOATING_GAP_THRESHOLD_M) {
+      // Iter 23 — 'floating' = rendered mesh root가 PlantBase 정한
+      // graph attach point에서 떨어진 정도 (= Q1 expectedToActual). 시각적
+      // disconnect 직접 indicator.
+      const renderedRootGap = vlen(vsub(childGraphStart, childStart));
+      if (renderedRootGap > FLOATING_GAP_THRESHOLD_M) {
         floatingCandidateIds.push(edge.id);
       }
     } else {
