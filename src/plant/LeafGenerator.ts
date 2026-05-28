@@ -28,6 +28,8 @@ import {
   getLeafNormalTexture,
   getDiseasedLeafColorTexture,
 } from './LeafTexture';
+// SSOT #186 — Iter 24 acfad71 vertex shift logic을 anchors/ utility로 분리.
+import { normalizeLeafMeshVertices } from './anchors';
 
 function applyChunkToMesh(chunk: GeoChunk, mesh: Mesh, vertexColors?: number[]) {
   const vd = new VertexData();
@@ -220,24 +222,12 @@ export function createLeafBladeOnlyMesh(
     },
     rng,
   );
-  // vertex shift — 첫 leaflet의 가장 stem-side vertex(min x)가 mesh-local
-  // (0, 0, 0)에 오도록 정확히 정렬. 의도: mesh-local origin = leaf anchor =
-  // SDF petiole tip 위치. SkinMeshPlant에서 leafMesh.position = tip 설정 시
-  // 첫 vertex가 정확히 tip 좌표.
-  //
-  // 이전 시도 (petioleLen만 빼기): leafChunk.ts 첫 leaflet posAlongRachis
-  // = petioleLen + rachisLen·0.15 이므로 첫 vertex가 mesh-local x = rachisLen
-  // ·0.15 (~ 0.06-0.12m)에 잔존 → 잎이 그만큼 떨어져 보임.
-  // 신규: 실제 chunk.positions의 min x를 측정해서 정확히 shift.
-  let minX = Infinity;
-  for (let i = 0; i < chunk.positions.length; i += 3) {
-    if (chunk.positions[i] < minX) minX = chunk.positions[i];
-  }
-  if (Number.isFinite(minX) && minX !== 0) {
-    for (let i = 0; i < chunk.positions.length; i += 3) {
-      chunk.positions[i] -= minX;
-    }
-  }
+  // SSOT #186 — Mesh anchor contract. Iter 24 acfad71 vertex shift logic을
+  // utility로 분리 (byte-identical). 첫 leaflet의 가장 stem-side vertex(min x)
+  // 가 mesh-local (0, 0, 0)에 오도록 정렬 → SkinMeshPlant에서 leafMesh.position
+  // = petiole tip 설정 시 자동 정합.
+  // 참조: docs/architecture/MESH_ANCHORS.md
+  normalizeLeafMeshVertices(chunk.positions);
   const vertexCount = chunk.positions.length / 3;
   const vertexColors = bakeLeafVertexColors(vertexCount, ageFrac, node.waterStress, node.yellowing);
   const mesh = new Mesh(name, scene);
