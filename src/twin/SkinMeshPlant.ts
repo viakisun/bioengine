@@ -637,49 +637,57 @@ export function createSkinMeshPlant(
       currentParts.stem = skin.mesh;
     }
 
-    // === Leaf blades — legacy per-leaf createLeafMeshFromNode pattern ===
-    //   Iter 17 SSOT #173: replaces single-mesh Leaf Module v0.1
-    //   (buildLeafBladeMesh) which locked all leaflet planes to horizontal
-    //   via pickInitialBinormal = cross(tangent, up). Per-leaf meshes get
-    //   rotated by their own phyllotaxis azimuth + droop, so the canopy is
-    //   3D-volumetric and visible from any camera angle.
+    // === Leaf blades — Iter 26 PR 3-1 (SSOT #187 원칙 4 partial) ===
+    //   Iter 17 SSOT #173 baseline: per-leaf mesh + phyllotaxis rotation.
+    //   Iter 26 PR 3-1: enter via graph.organAnchors. Mesh position comes
+    //   from graph (anchor node.pos == petioleCurve tip per INV-04).
+    //   Yellowing material from anchor.state. Shape params (genome, leafBase
+    //   azimuth/droop, NodeState morphology) still read from PlantBase /
+    //   PlantState — full graph-only is PR 5-1.
     const genome = engine.getGenome(seed)!;
     const leafAxes: AxisBase[] = [plantBase.mainAxis, ...plantBase.sideShoots];
     let leafMeshCount = 0;
-    for (let axisIdx = 0; axisIdx < leafAxes.length; axisIdx++) {
-      const axisBase = leafAxes[axisIdx];
-      for (const leafBase of axisBase.leaves) {
-        // Iter 18A SSOT #176: same predicate as buildTomatoSkeletonGraph
-        // addLeavesForAxis. petiole 있는데 blade 없는 case 또는 그 반대
-        // 발생 방지 (organ visibility lifecycle 통합).
-        if (!isLeafOrganVisible(leafBase)) continue;
-        const node = state.nodes[leafBase.nodeIdx];
+    for (const edge of graph.edges.values()) {
+      if (!edge.organAnchors) continue;
+      for (const anchor of edge.organAnchors) {
+        if (anchor.kind !== 'leaf_blade') continue;
+        const m = anchor.id.match(/^leaf_blade:axis(\d+):n(\d+)$/);
+        if (!m) continue;
+        const axisIdx = Number(m[1]);
+        const nodeIdx = Number(m[2]);
+        const axisBase = leafAxes[axisIdx];
+        if (!axisBase) continue;
+        const leafBase = axisBase.leaves.find((l) => l.nodeIdx === nodeIdx);
+        if (!leafBase || !isLeafOrganVisible(leafBase)) continue;
+        const node = state.nodes[nodeIdx];
         if (!node) continue;
         // SSOT #186 — Leaf anchor contract (docs/architecture/MESH_ANCHORS.md):
         // LeafGenerator normalizeLeafMeshVertices가 mesh-local origin을 첫
-        // leaflet stem-side vertex로 정렬. mesh.position = petiole tip 설정 시
-        // leaflets가 정확히 SDF petiole tip부터 emerge.
-        // 좌표계: tipPlantPos는 plant-local (mesh.parent = lushGroup).
-        // 참조: docs/architecture/{COORDINATE_SYSTEMS, MESH_ANCHORS}.md
-        const tipPlantPos = leafBase.petioleCurve && leafBase.petioleCurve.length > 0
-          ? leafBase.petioleCurve[leafBase.petioleCurve.length - 1]
-          : leafBase.attachPosition;
-        const leafRng = new SeededRandom(seed * 1009 + axisIdx * 9173 + leafBase.nodeIdx * 31 + 11);
+        // leaflet stem-side vertex로 정렬. mesh.position = anchor node.pos
+        // (= petiole tip per INV-04) 설정 시 leaflets가 정확히 SDF petiole
+        // tip부터 emerge. 좌표계: tipPlantPos는 plant-local.
+        const anchorNode = graph.nodes.get(anchor.anchorNodeId);
+        if (!anchorNode) continue;
+        const tipPlantPos = anchorNode.pos;
+        const leafRng = new SeededRandom(seed * 1009 + axisIdx * 9173 + nodeIdx * 31 + 11);
         const leafMesh = createLeafBladeOnlyMesh(
-          `skinplant_leaf_${seed}_a${axisIdx}_n${leafBase.nodeIdx}`,
+          `skinplant_leaf_${seed}_a${axisIdx}_n${nodeIdx}`,
           scene, node, genome, state.day, leafRng,
         );
         leafMesh.parent = lushGroup;
         leafMesh.position = new Vector3(tipPlantPos.x, tipPlantPos.y, tipPlantPos.z);
         leafMesh.rotationQuaternion = Quaternion.RotationAxis(Vector3.Up(), leafBase.azimuthRad)
           .multiply(Quaternion.RotationAxis(new Vector3(0, 0, 1), -leafBase.droopRad));
-        leafMesh.material = node.yellowing > 0.4 ? yellowLeafMat : leafMat;
+        // Iter 26 PR 3-1 — material yellowing from anchor.state (was node.yellowing).
+        // Same numerical source (populator copied PlantState.yellowing into anchor.state).
+        const yellowing = anchor.state?.yellowing ?? node.yellowing;
+        leafMesh.material = yellowing > 0.4 ? yellowLeafMat : leafMat;
         currentMeshes.push(leafMesh);
         currentParts.leaves.push(leafMesh);
         leafMeshCount++;
       }
     }
-    console.log(`[skinplant.leaf] per-leaf meshes=${leafMeshCount} (legacy createLeafMeshFromNode)`);
+    console.log(`[skinplant.leaf] per-leaf meshes=${leafMeshCount} (PR 3-1 graph-anchor entry)`);
     void cultivarKey;
 
     // === Truss organs (fruit body / calyx / flower only) ===
