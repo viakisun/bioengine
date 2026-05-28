@@ -1,6 +1,10 @@
 // Iter 20 PR 3 — Reusable petiole-stem junction overlay (Skin + Skeleton modes).
 // Receives PetioleJunctionPair[] and renders the spheres / lines / labels per
 // the user-specified color spec. Caller owns lifecycle via the returned handle.
+//
+// SSOT #185 — 모든 PetioleJunctionPair 좌표는 **plant-local** (parentNode가
+// lushGroup 자식이므로 직접 mesh.position에 set 가능). 좌표 변환 inline 없음.
+// 참조: docs/architecture/COORDINATE_SYSTEMS.md
 
 import type { Scene } from '@babylonjs/core/scene';
 import type { TransformNode } from '@babylonjs/core/Meshes/transformNode';
