@@ -690,30 +690,40 @@ export function createSkinMeshPlant(
     console.log(`[skinplant.leaf] per-leaf meshes=${leafMeshCount} (PR 3-1 graph-anchor entry)`);
     void cultivarKey;
 
-    // === Truss organs (fruit body / calyx / flower only) ===
+    // === Truss organs — Iter 26 PR 3-2 (SSOT #187 원칙 4 partial) ===
+    //   Entry via graph.edges (type === 'peduncle'); each peduncle's id
+    //   parses to axisIdx/trussIdx. trussBase (fruit/flower/calyx organ
+    //   state) still read from PlantBase — PR 5-1 strict cut.
     const baseAxes: AxisBase[] = [plantBase.mainAxis, ...plantBase.sideShoots];
-    for (let axisIdx = 0; axisIdx < baseAxes.length; axisIdx++) {
+    const seenTrussKeys = new Set<string>();
+    for (const edge of graph.edges.values()) {
+      if (edge.type !== 'peduncle') continue;
+      const m = edge.id.match(/^e:peduncle:axis(\d+):t(\d+)$/);
+      if (!m) continue;
+      const axisIdx = Number(m[1]);
+      const trussIdx = Number(m[2]);
+      const key = `${axisIdx}:${trussIdx}`;
+      if (seenTrussKeys.has(key)) continue;
+      seenTrussKeys.add(key);
       const axisBase = baseAxes[axisIdx];
-      for (const trussBase of axisBase.trusses) {
-        // Iter 18A SSOT #176: same predicate as buildTomatoSkeletonGraph
-        // addTrussesForAxis. peduncle/rachis edge가 stem mesh에 있는데 fruit
-        // organ이 없거나, fruit는 있는데 stem edge가 없는 mismatch 방지.
-        if (!isTrussOrganVisible(trussBase)) continue;
-        const trussRng = new SeededRandom(
-          seed * 7919 + axisIdx * 88883 + trussBase.nodeIdx * 31,
-        );
-        const trussNode = createTrussFruitOrgansOnly(
-          `skinplant_truss_${seed}_a${axisIdx}_n${trussBase.nodeIdx}`,
-          scene, trussBase, trussRng,
-        );
-        trussNode.parent = lushGroup;
-        trussNode.getChildMeshes().forEach((m) => {
-          if (m.name.includes('_body')) {
-            currentParts.fruits.push(m as Mesh);
-          }
-        });
-        currentTransformNodes.push(trussNode);
-      }
+      if (!axisBase) continue;
+      const trussBase = axisBase.trusses[trussIdx];
+      // Iter 18A SSOT #176 predicate parity preserved.
+      if (!trussBase || !isTrussOrganVisible(trussBase)) continue;
+      const trussRng = new SeededRandom(
+        seed * 7919 + axisIdx * 88883 + trussBase.nodeIdx * 31,
+      );
+      const trussNode = createTrussFruitOrgansOnly(
+        `skinplant_truss_${seed}_a${axisIdx}_n${trussBase.nodeIdx}`,
+        scene, trussBase, trussRng,
+      );
+      trussNode.parent = lushGroup;
+      trussNode.getChildMeshes().forEach((cm) => {
+        if (cm.name.includes('_body')) {
+          currentParts.fruits.push(cm as Mesh);
+        }
+      });
+      currentTransformNodes.push(trussNode);
     }
 
     applySegmentationHighlights();
