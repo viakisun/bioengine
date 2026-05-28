@@ -450,11 +450,18 @@ function buildStemCurve(
   return out;
 }
 
+/**
+ * SSOT #185 — attachWorldPos / 출력 좌표 모두 **world** (PlantBase는 scene-world
+ * 좌표 사용 — 본 파일 첫 줄 주석 참조). graph 변환은 buildPlantSkeleton 시점.
+ * 참조: docs/architecture/COORDINATE_SYSTEMS.md
+ */
 function buildLeafBase(
   node: NodeState,
-  attachPos: { x: number; y: number; z: number },
+  attachWorldPos: { x: number; y: number; z: number },
   genome: PlantGenome,
 ): LeafBase {
+  // 기존 코드는 'attachPos' 변수명. 좌표계 명시 위해 외부 alias.
+  const attachPos = attachWorldPos;
   const azimuthRad = (node.phyllotaxisAngle * Math.PI) / 180;
   const droopRad = (node.droopExtra * Math.PI) / 180;
   const sizeFactor = node.leafSizeFactor * genome.leafSizeMultiplier;

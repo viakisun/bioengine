@@ -647,13 +647,13 @@ export function createSkinMeshPlant(
         if (!isLeafOrganVisible(leafBase)) continue;
         const node = state.nodes[leafBase.nodeIdx];
         if (!node) continue;
-        // LeafGenerator.ts에서 leaf mesh의 vertex x 좌표를 petioleLen만큼
-        // shift함 (mesh-local origin = leaflet 시작점). 따라서 mesh.position을
-        // PlantBase petiole tip에 설정하면 leaflets가 SDF petiole tip부터 정확
-        // 시작. (이전 b77df4d 'attachPos' 설정은 vertex shift 없을 때 의도였으나
-        // petioleLen multiplier mismatch로 disconnect 발생, vertex shift 도입
-        // 후 다시 tip 으로 복귀.)
-        const tip = leafBase.petioleCurve && leafBase.petioleCurve.length > 0
+        // SSOT #186 — Leaf anchor contract (docs/architecture/MESH_ANCHORS.md):
+        // LeafGenerator normalizeLeafMeshVertices가 mesh-local origin을 첫
+        // leaflet stem-side vertex로 정렬. mesh.position = petiole tip 설정 시
+        // leaflets가 정확히 SDF petiole tip부터 emerge.
+        // 좌표계: tipPlantPos는 plant-local (mesh.parent = lushGroup).
+        // 참조: docs/architecture/{COORDINATE_SYSTEMS, MESH_ANCHORS}.md
+        const tipPlantPos = leafBase.petioleCurve && leafBase.petioleCurve.length > 0
           ? leafBase.petioleCurve[leafBase.petioleCurve.length - 1]
           : leafBase.attachPosition;
         const leafRng = new SeededRandom(seed * 1009 + axisIdx * 9173 + leafBase.nodeIdx * 31 + 11);
@@ -662,7 +662,7 @@ export function createSkinMeshPlant(
           scene, node, genome, state.day, leafRng,
         );
         leafMesh.parent = lushGroup;
-        leafMesh.position = new Vector3(tip.x, tip.y, tip.z);
+        leafMesh.position = new Vector3(tipPlantPos.x, tipPlantPos.y, tipPlantPos.z);
         leafMesh.rotationQuaternion = Quaternion.RotationAxis(Vector3.Up(), leafBase.azimuthRad)
           .multiply(Quaternion.RotationAxis(new Vector3(0, 0, 1), -leafBase.droopRad));
         leafMesh.material = node.yellowing > 0.4 ? yellowLeafMat : leafMat;
