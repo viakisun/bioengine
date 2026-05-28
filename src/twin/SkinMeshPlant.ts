@@ -241,10 +241,7 @@ export function createSkinMeshPlant(
     //   PlantSkeletonGraph → embedded-branch tube network → 1 Babylon Mesh.
     //   No junction stitching; child tubes start inside parent (no start cap).
     //   Topology is disjoint within the single buffer (SSOT plan 결정).
-    // Iter 22 — curveDivisions 2 → 3. stem bone path 1.5× densification으로
-    // computeParentInfo segment interpolation 정확도 향상 → D99 Q1 outlier
-    // (n16 2.23mm, n15 1.93mm) 정리. vertex count ~5-10% 증가 (수용).
-    const graph = buildPlantSkeleton(plantBase, { curveDivisions: 3 });
+    const graph = buildPlantSkeleton(plantBase, { curveDivisions: 2 });
     // Iter 18B PR 13 — stem family mesh via SkinEngine façade. Identical
     // behavior + parenting — defaultSkinEngine.render returns the mesh
     // already parented to lushGroup.
