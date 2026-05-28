@@ -295,11 +295,13 @@ export function createSkinMeshPlant(
       genome: skeletonGenome,
     });
     lastGraph = graph;
-    // Iter 18B PR 13 — stem family mesh via SkinEngine façade. Identical
-    // behavior + parenting — defaultSkinEngine.render returns the mesh
-    // already parented to lushGroup.
+    // Iter 18B PR 13 — stem family mesh via SkinEngine façade.
+    // Iter 26 PR 5-1 (SSOT #187 원칙 4) — SkinEngine은 graph + scene + parent만
+    // 받음. PlantBase/PlantState/cultivar는 모두 populator에서만 사용되어
+    // graph에 흡수됨 (state → organAnchor.state, genome → cultivarGenomeSnapshot).
+    void engine; void cultivarKey; void state; void plantBase; // (parameters still accepted by buildFromState for legacy callers)
     const engineResult = defaultSkinEngine.render(graph, {
-      seed, engine, cultivarKey, state, plantBase,
+      seed,
       scene, parent: lushGroup,
       // Iter 21 — rootRadiusScale 1.15 → 1.30. petiole 첫 ring을 더 굵게 하여
       // stem-petiole junction에 자연 collar 효과 강화 (visual emerge 완화).

@@ -1,16 +1,20 @@
-// Iter 18B PR 12 (SSOT #181) — SkinEngine façade interface.
+// Iter 18B PR 12 (SSOT #181) / Iter 26 PR 5-1 (SSOT #187 원칙 4) —
+// SkinEngine façade interface.
 //
 // Skin Engine = (PlantSkeletonGraph + render options) → Babylon mesh trio
 // (stem family unified mesh + per-leaf blade meshes + per-truss organ meshes).
 // SSOT #181 — every visible geometry in skin mode flows through this single
 // render() call. SkinMeshPlant becomes a thin Babylon-scene adapter.
 //
-// Implementation: PR 13 wires the existing inline render code in
-// SkinMeshPlant.ts into `defaultSkinEngine.render()`.
+// PR 5-1 (원칙 4): render() reads ONLY SkeletonGraph + scene/parent. No
+// PlantBase / PlantState / cultivar arguments — biology lives only inside
+// the populator (`buildTomatoSkeletonGraph`). The `seed` is kept for
+// per-mesh randomization keys (deterministic visual diff) but is purely a
+// number, not a simulation handle.
 //
 // Constraints:
-//   - render() reads ONLY SkeletonGraph + PlantBase + SkeletonEngine helpers.
-//     No direct biological/cultivar/engine state lookups.
+//   - render() reads ONLY SkeletonGraph (+ graph.cultivarGenomeSnapshot
+//     when leaf-shape engineering needs it; populated by populator).
 //   - Leaflets are mesh-local (SSOT #182) — render() returns blade meshes
 //     positioned at leaf_blade OrganAnchor; leaflet/rib/vein geometry lives
 //     inside the blade mesh and is NOT independently anchored.
@@ -20,20 +24,10 @@ import type { Mesh } from '@babylonjs/core/Meshes/mesh';
 import type { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import type { PlantSkeletonGraph } from '../skeleton/SkeletonEngine';
 import type { PlantStemFamilyMesh, PlantFaceGroup } from './StemFamilyTubeNetworkBuilder';
-import type { PlantBase } from '../PlantBase';
-import type { GrowthEngine, PlantState } from '@farmsim/tomato-engine';
 
 export interface SkinEngineRenderOpts {
-  /** Plant seed (used for genome + per-plant material caches). */
+  /** Plant seed — per-mesh randomization key for deterministic visual diff. */
   seed: number;
-  /** GrowthEngine for genome lookup (per-leaf style randomization). */
-  engine: GrowthEngine;
-  /** Cultivar key for material/leaf-shape lookup. */
-  cultivarKey: string;
-  /** Engine-side per-plant state (legacy callers may pass for fruit overlay). */
-  state: PlantState;
-  /** PlantBase computed geometry (visible organ positions, visibility flags). */
-  plantBase: PlantBase;
   /** Babylon scene for mesh attachment. */
   scene: Scene;
   /** Parent transform node — meshes will be parented here. */
