@@ -662,14 +662,28 @@ export function createSkinMeshPlant(
 
     // Iter 20 — populate petiole-stem junction overlay every rebuild.
     // Always builds the pair data (cheap); visibility is gated by dockingEnabled.
-    // mesh 객체 같이 보관: actualLeafMeshStart (boundingBox.minimumWorld) 측정용.
+    // 좌표계 통일: 모든 좌표를 plant-local로 변환해 graph 좌표(plant-local)와
+    // 직접 비교 가능하도록.
+    // - mesh.position: 이미 plant-local (lushGroup 자식). plain {x,y,z}로 unwrap.
+    // - bboxMinLocal: boundingBox.minimumWorld → lushGroup.invertMatrix 적용해
+    //   plant-local로 변환.
+    const lushWorldMatInv = lushGroup.getWorldMatrix().clone().invert();
     const leafMeshByKey = new Map<string, {
       position: { x: number; y: number; z: number };
-      mesh: typeof currentParts.leaves[number];
+      bboxMinLocal: { x: number; y: number; z: number };
+      bboxMaxLocal: { x: number; y: number; z: number };
     }>();
     for (const m of currentParts.leaves) {
       const mm = m.name.match(/_a(\d+)_n(\d+)$/);
-      if (mm) leafMeshByKey.set(`a${mm[1]}_n${mm[2]}`, { position: m.position, mesh: m });
+      if (!mm) continue;
+      const bi = m.getBoundingInfo();
+      const minLocal = Vector3.TransformCoordinates(bi.boundingBox.minimumWorld, lushWorldMatInv);
+      const maxLocal = Vector3.TransformCoordinates(bi.boundingBox.maximumWorld, lushWorldMatInv);
+      leafMeshByKey.set(`a${mm[1]}_n${mm[2]}`, {
+        position: { x: m.position.x, y: m.position.y, z: m.position.z },
+        bboxMinLocal: { x: minLocal.x, y: minLocal.y, z: minLocal.z },
+        bboxMaxLocal: { x: maxLocal.x, y: maxLocal.y, z: maxLocal.z },
+      });
     }
     const junctionPairs = buildPetioleJunctionPairs({
       graph,

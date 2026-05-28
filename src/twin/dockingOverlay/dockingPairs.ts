@@ -35,11 +35,12 @@ export interface BuildPairsInput {
   renderedRootByEdgeId: Record<string, V3>;
   parentContextByEdgeId: Record<string, { center: V3; tangent: V3; radius: number }>;
   /** Optional: leaf mesh lookup keyed by 'a{axIdx}_n{nodeIdx}'.
-   *  Only consumed when focus='all'. mesh 객체는 boundingBox.minimumWorld
-   *  추출용 (actualLeafMeshStart 측정). */
+   *  Only consumed when focus='all'. 좌표는 모두 plant-local (graph와 동일
+   *  좌표계). bboxMinLocal/bboxMaxLocal은 lushGroup.invertMatrix 적용된 값. */
   leafMeshByKey?: Map<string, {
     position: V3;
-    mesh?: { getBoundingInfo(): { boundingBox: { minimumWorld: { x: number; y: number; z: number } } } };
+    bboxMinLocal?: V3;
+    bboxMaxLocal?: V3;
   }>;
   /** Sample density along the petiole bonePath for firstVisible search. */
   bonePathSamples?: number;
@@ -191,12 +192,12 @@ export function buildPetioleJunctionPairs(input: BuildPairsInput): PetioleJuncti
       pair.leafBladeRoot = leafMesh.position;
       pair.leafBladeRootSource = 'mesh-origin'; // Iter 21 후보: blade anchor expose
       pair.tipToLeaf_mm = dist(endNode.pos, leafMesh.position) * 1000;
-      // Leaf mesh의 실제 visual 첫 vertex (boundingBox.minimumWorld) — 페어
-      // 검증: leafBladeRoot (graph 의도)와 거리 = 진짜 disconnect 크기.
-      if (leafMesh.mesh) {
-        const bb = leafMesh.mesh.getBoundingInfo().boundingBox.minimumWorld;
-        pair.actualLeafMeshStart = { x: bb.x, y: bb.y, z: bb.z };
-        pair.leafMeshStartDelta_mm = dist(leafMesh.position, pair.actualLeafMeshStart) * 1000;
+      // actualLeafMeshStart = leaf mesh boundingBox minimumWorld → plant-local로
+      // 변환된 값 (SkinMeshPlant에서 lushGroup invertMatrix 적용). 페어 검증:
+      // leafBladeRoot (graph 의도)와 거리 = 진짜 disconnect 크기.
+      if (leafMesh.bboxMinLocal) {
+        pair.actualLeafMeshStart = leafMesh.bboxMinLocal;
+        pair.leafMeshStartDelta_mm = dist(leafMesh.position, leafMesh.bboxMinLocal) * 1000;
       }
     }
 
