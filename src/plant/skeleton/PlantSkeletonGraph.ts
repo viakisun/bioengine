@@ -16,6 +16,7 @@
 // live in adjacent files.
 
 import type { V3 } from '../sdf/CapsuleSDF';
+import type { PlantLocalV3 } from '../coordinates/types';
 
 /**
  * Botanical edge type. SSOT 4.4 enum. Extends naturally as new crops
@@ -29,14 +30,85 @@ export type SkeletonEdgeType =
   | 'rachis'
   | 'pedicel';
 
+/**
+ * Iter 26 PR 1-1 (SSOT #187) — Botanical role of a skeleton node.
+ *
+ * Distinguishes "where on the plant" a node sits, independent of which edges
+ * happen to meet at it. Used by:
+ *   - SkinEngine to pick mesh anchor (leaf-blade-root attaches LeafBladeOnly mesh).
+ *   - SkeletonOverlay marker styling (via node.visualHint).
+ *   - AcceptanceProbe to spot-check expected topology.
+ *
+ * Crop-agnostic. Tomato populator emits the values below; other crops may
+ * extend the union when added.
+ */
+export type SkeletonNodeType =
+  | 'main-stem-node'
+  | 'side-shoot-node'
+  | 'petiole-root'
+  | 'petiole-tip'
+  | 'leaf-blade-root'
+  | 'truss-root'
+  | 'peduncle-node'
+  | 'rachis-node'
+  | 'pedicel-root'
+  | 'pedicel-tip'
+  | 'fruit-root'
+  | 'flower-root'
+  | 'calyx-root';
+
+/**
+ * Iter 26 PR 1-1 — Local orthonormal frame at a node (plant-local coords).
+ *
+ * - `tangent`: along the parent edge's growth direction at this node.
+ * - `normal`: surface outward (away from parent stem axis); used by Skin to
+ *   align child organ mesh (petiole growth direction, leaf blade face, etc.).
+ *
+ * Both unit-length in plant-local frame (SSOT #185). Populated in PR 2-1.
+ */
+export interface LocalFrame {
+  tangent: PlantLocalV3;
+  normal: PlantLocalV3;
+}
+
+/**
+ * Iter 26 PR 1-1 (원칙 2) — Self-describing visualization hint.
+ *
+ * SkeletonOverlay serializes this hint directly; it does NOT decide color or
+ * shape. To change a marker's appearance, change the value the populator
+ * writes here — not the overlay code.
+ *
+ * Populated by buildTomatoSkeletonGraph based on node.type (PR 2-1).
+ */
+export interface NodeVisualHint {
+  /** Hex color (e.g. '#8B4513' main-stem brown). */
+  markerColor: string;
+  markerShape: 'sphere' | 'disk' | 'ring' | 'arrow';
+  /** Absolute marker radius in metres. */
+  markerSizeM: number;
+  /** Optional label string (e.g. 'L7 petiole-tip'). */
+  label?: string;
+  /** Whether overlay should draw the frame's tangent/normal arrows. */
+  showFrame?: boolean;
+}
+
 /** Graph node — shared by adjacent edges (junction or endpoint). */
 export interface SkeletonNode {
   id: string;                              // unique within graph
-  pos: V3;                                 // world-space
+  /** plant-local (lushGroup-relative). SSOT #185 — see docs/architecture/
+   *  COORDINATE_SYSTEMS.md. Verified by INV-01 (architecture invariant). */
+  pos: V3;
   /** Stem radius at this node (interpolated from PlantBase). */
   radius: number;
   /** Incident edge ids (≥3 at a junction, 1 at a tip, 2 mid-edge). */
   edgeIds: string[];
+  /** Iter 26 PR 1-1 — botanical role. Optional during migration; required
+   *  after PR 2-1 (populator fills every node). */
+  type?: SkeletonNodeType;
+  /** Iter 26 PR 1-1 — local orthonormal frame for organ alignment. */
+  frame?: LocalFrame;
+  /** Iter 26 PR 1-1 (원칙 2) — self-describing overlay hint. */
+  visualHint?: NodeVisualHint;
 }
 
 /** Tapered capsule segment along an edge centerline. */
