@@ -605,22 +605,22 @@ export function createSkinMeshPlant(
         if (!isLeafOrganVisible(leafBase)) continue;
         const node = state.nodes[leafBase.nodeIdx];
         if (!node) continue;
-        // buildLeafBladeOnly (leafChunk.ts:289-293) contract: mesh-local
-        // (0,0,0) == stem-side attachPosition, (petioleLen, 0, 0) == petiole
-        // tip. mesh.position을 attachPosition으로 설정해야 leaflets가 SDF
-        // petiole tip부터 자연 emerge.
-        // 이전 'tip' 설정은 Iter 18B PR 4 (buildLeafChunk → buildLeafBladeOnly
-        // 전환) 시 누락된 회귀 — leaflets가 world에서 tip+petioleLen 위치 =
-        // 한 잎자루 길이만큼 떠 있음. SupportingPlant는 buildLeafChunk 원본
-        // (petiole cylinder 포함)이라 mesh-local 좌표계가 다름.
-        const attachPos = leafBase.attachPosition;
+        // LeafGenerator.ts에서 leaf mesh의 vertex x 좌표를 petioleLen만큼
+        // shift함 (mesh-local origin = leaflet 시작점). 따라서 mesh.position을
+        // PlantBase petiole tip에 설정하면 leaflets가 SDF petiole tip부터 정확
+        // 시작. (이전 b77df4d 'attachPos' 설정은 vertex shift 없을 때 의도였으나
+        // petioleLen multiplier mismatch로 disconnect 발생, vertex shift 도입
+        // 후 다시 tip 으로 복귀.)
+        const tip = leafBase.petioleCurve && leafBase.petioleCurve.length > 0
+          ? leafBase.petioleCurve[leafBase.petioleCurve.length - 1]
+          : leafBase.attachPosition;
         const leafRng = new SeededRandom(seed * 1009 + axisIdx * 9173 + leafBase.nodeIdx * 31 + 11);
         const leafMesh = createLeafBladeOnlyMesh(
           `skinplant_leaf_${seed}_a${axisIdx}_n${leafBase.nodeIdx}`,
           scene, node, genome, state.day, leafRng,
         );
         leafMesh.parent = lushGroup;
-        leafMesh.position = new Vector3(attachPos.x, attachPos.y, attachPos.z);
+        leafMesh.position = new Vector3(tip.x, tip.y, tip.z);
         leafMesh.rotationQuaternion = Quaternion.RotationAxis(Vector3.Up(), leafBase.azimuthRad)
           .multiply(Quaternion.RotationAxis(new Vector3(0, 0, 1), -leafBase.droopRad));
         leafMesh.material = node.yellowing > 0.4 ? yellowLeafMat : leafMat;

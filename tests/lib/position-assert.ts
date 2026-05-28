@@ -47,19 +47,11 @@ export function buildPositionAssertScript(toleranceM: number): string {
     for (const [edgeId, edge] of graph.edges) {
       if (!edge.organAnchors) continue;
       for (const oa of edge.organAnchors) {
-        // Update: leaf_blade의 mesh.position은 leaf attach point (PlantBase
-        // attachPosition = stem 표면) 기준 (leafChunk.ts:289-293 contract).
-        // edge.startNode는 stem axis (centerline), edge.bonePath[0].p0가 stem
-        // 표면 = attachPosition. leaf_blade는 bonePath[0].p0와 비교.
-        let expectedPos;
-        if (oa.kind === 'leaf_blade') {
-          expectedPos = edge.bonePath[0] && edge.bonePath[0].p0;
-        } else {
-          const anchorNode = graph.nodes.get(oa.anchorNodeId);
-          expectedPos = anchorNode && anchorNode.pos;
-        }
-        if (!expectedPos) continue;
-        const anchorNode = { pos: expectedPos };
+        // LeafGenerator vertex shift 도입 후 leafMesh.position 다시 petiole
+        // tip (anchorNodeId) 기준. mesh-local origin = leaflet 시작 = world
+        // petiole tip 위치.
+        const anchorNode = graph.nodes.get(oa.anchorNodeId);
+        if (!anchorNode) continue;
         // map OrganAnchor.id to expected mesh name pattern:
         //   leaf_blade:axisX:nN → skinplant_leaf_*_aX_nN
         //   fruit/flower/calyx:axisX:tT:sS → skinplant_truss_*_aX_n? (truss node)

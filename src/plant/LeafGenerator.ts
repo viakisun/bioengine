@@ -206,18 +206,30 @@ export function createLeafBladeOnlyMesh(
   // Iter 18B PR 7 — `buildLeafChunkSkin` 명시적 Skin preset 사용.
   // PR 4-6의 omitRachis + omitPetiolules + buildLeafBladeOnly(petiole omit)
   // 조합을 단일 entry로 wrap. ShowcasePlant는 buildLeafChunk (legacy) 그대로.
+  const sizeFactor = node.leafSizeFactor * genome.leafSizeMultiplier;
+  const maturity = node.leafMaturity;
   const chunk = buildLeafChunkSkin(
     {
       stageInfo,
       leafletCount: node.leafletCount,
-      sizeFactor: node.leafSizeFactor * genome.leafSizeMultiplier,
-      maturity: node.leafMaturity,
+      sizeFactor,
+      maturity,
       curl,
       ageFrac,
       shape,
     },
     rng,
   );
+  // leafChunk.ts:286: petioleLen = params.petioleLength * sizeFactor * maturity.
+  // leaflets는 mesh-local x = petioleLen + rachisLen·t에 분포. mesh.position을
+  // PlantBase tip (petiole 끝)에 정확히 매핑하려면 mesh-local origin이 leaflet
+  // 시작점이어야 한다. 즉 모든 vertex의 x 좌표에서 petioleLen 만큼 빼면
+  // mesh-local (0,0,0) = leaflet 시작 = SDF petiole tip 위치.
+  // 호출자(SkinMeshPlant)는 leafMesh.position = tip 으로 설정.
+  const petioleLen = shape.petioleLength * sizeFactor * maturity;
+  for (let i = 0; i < chunk.positions.length; i += 3) {
+    chunk.positions[i] -= petioleLen;
+  }
   const vertexCount = chunk.positions.length / 3;
   const vertexColors = bakeLeafVertexColors(vertexCount, ageFrac, node.waterStress, node.yellowing);
   const mesh = new Mesh(name, scene);

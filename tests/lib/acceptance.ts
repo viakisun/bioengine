@@ -92,7 +92,7 @@ async function ac3LeafBladeAtPetiole(page: Page): Promise<AcceptanceResult> {
   return {
     code: 'AC3_LEAF_BLADE_AT_PETIOLE',
     pass: report.failed === 0,
-    message: `${report.passed}/${report.total} leaf_blade meshes within 1mm of attach point (petiole start)`,
+    message: `${report.passed}/${report.total} leaf_blade meshes within 1mm of petiole_tip`,
     detail: report.findings.filter((f) => !f.pass).slice(0, 5),
   };
 }
