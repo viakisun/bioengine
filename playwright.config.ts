@@ -5,7 +5,10 @@
 import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
-  testDir: './tests/plant-calibration',
+  testDir: './tests',
+  // SSOT #185/#186 — architecture/ 디렉토리는 invariant test (coordinate /
+  // mesh anchor contracts). plant-calibration/는 기존 day-based scrub spec.
+  testMatch: ['plant-calibration/*.spec.ts', 'architecture/*.spec.ts'],
   fullyParallel: false,           // single dev server, sequential scrub
   workers: 1,
   retries: 0,
