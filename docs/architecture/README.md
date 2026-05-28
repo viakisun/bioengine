@@ -72,8 +72,9 @@ origin이기도 함).
 
 ## 자세히
 
-- **[COORDINATE_SYSTEMS.md](./COORDINATE_SYSTEMS.md)** — 4 좌표계 상세 정의, 변환 함수, Babylon API 매핑.
-- **[MESH_ANCHORS.md](./MESH_ANCHORS.md)** — 각 mesh의 anchor contract, 회전 origin, vertex 분포 의무.
+- **[COORDINATE_SYSTEMS.md](./COORDINATE_SYSTEMS.md)** (SSOT #185) — 4 좌표계 상세 정의, 변환 함수, Babylon API 매핑.
+- **[MESH_ANCHORS.md](./MESH_ANCHORS.md)** (SSOT #186) — 각 mesh의 anchor contract, 회전 origin, vertex 분포 의무.
+- **[SEMANTIC_GRAPH.md](./SEMANTIC_GRAPH.md)** (SSOT #187) — SkeletonGraph 의미 + 4 원칙 + 데이터 흐름 + Skin/Overlay 계약.
 
 ## 재발 방지
 
