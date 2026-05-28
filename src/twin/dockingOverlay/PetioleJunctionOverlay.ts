@@ -9,7 +9,8 @@ import type { Mesh } from '@babylonjs/core/Meshes/mesh';
 import {
   mkSolidSphere, mkWireSphere, mkLine, mkBillboardLabel,
   C_STEM_NODE, C_EXPECTED_PURPLE, C_STEM_ACTUAL, C_FIRST_VISIBLE,
-  C_FIRST_VISIBLE_FAIL, C_LEAF_ACTUAL, C_LINE_OK, C_LINE_WARN, C_LINE_FAIL,
+  C_FIRST_VISIBLE_FAIL, C_LEAF_ACTUAL, C_LEAF_VISUAL_START,
+  C_LINE_OK, C_LINE_WARN, C_LINE_FAIL,
   type LabelHandle,
 } from './markerPrimitives';
 import type { PetioleJunctionPair } from './dockingPairs';
@@ -170,13 +171,21 @@ export function createPetioleJunctionOverlay(
       refLine.parent = parentNode;
       meshes.push(refLine);
 
-      // focus='all' — add petiole tip + leaf actual.
+      // focus='all' — add petiole tip + leaf actual + leaf visual start (페어 검증).
       if (opts.focus === 'all' && p.petioleTip) {
+        // 사용자 명시: pairing — petioleTip (graph 의도) ↔ actualLeafMeshStart
+        // (mesh 실제 시작) 두 마커가 같은 번호 라벨로 짝 매칭.
+        // leafIdx 추출 (pairId: 'petiole:axis0:n14' → '14').
+        const leafIdx = p.pairId.match(/n(\d+)$/)?.[1] ?? '?';
+
         const tipMesh = mkSolidSphere(
           scene, `dock_tip_${tag}`, p.petioleTip, C_EXPECTED_PURPLE, opts.sphereDiameter,
         );
         tipMesh.parent = parentNode;
         meshes.push(tipMesh);
+        // 보라 #leafIdx label — graph 의도점에 항상 표시 (페어 매칭용)
+        labels.push(mkBillboardLabel(scene, tipMesh, `🟣#${leafIdx}`, C_EXPECTED_PURPLE));
+
         if (p.leafBladeRoot) {
           const leafMesh = mkWireSphere(
             scene, `dock_leaf_${tag}`, p.leafBladeRoot, C_LEAF_ACTUAL,
@@ -192,6 +201,30 @@ export function createPetioleJunctionOverlay(
             );
             lineTip.parent = parentNode;
             meshes.push(lineTip);
+          }
+        }
+
+        // 라임 solid sphere — leaf mesh 실제 시작점 (boundingBox.minimumWorld).
+        // 페어 검증: petioleTip (보라)와 같은 점에 모이면 정합 OK.
+        if (p.actualLeafMeshStart) {
+          const leafStartMesh = mkSolidSphere(
+            scene, `dock_leafstart_${tag}`,
+            p.actualLeafMeshStart, C_LEAF_VISUAL_START,
+            opts.sphereDiameter * 0.9,
+          );
+          leafStartMesh.parent = parentNode;
+          meshes.push(leafStartMesh);
+          // 라임 #leafIdx label — 보라와 같은 번호 (페어 매칭)
+          labels.push(mkBillboardLabel(scene, leafStartMesh, `🟢#${leafIdx}`, C_LEAF_VISUAL_START));
+          // petioleTip ↔ actualLeafMeshStart line — 페어가 얼마나 떨어져 있는지
+          if (p.leafMeshStartDelta_mm != null) {
+            const sevStart = lineSeverity(p.leafMeshStartDelta_mm);
+            const lineLeafStart = mkLine(
+              scene, `dock_l_leafstart_${tag}`,
+              p.petioleTip, p.actualLeafMeshStart, colorForLine(sevStart),
+            );
+            lineLeafStart.parent = parentNode;
+            meshes.push(lineLeafStart);
           }
         }
       }

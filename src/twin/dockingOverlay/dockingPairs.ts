@@ -25,15 +25,22 @@ export interface PetioleJunctionPair {
   leafBladeRoot?: V3 | null;
   leafBladeRootSource?: 'blade-anchor' | 'mesh-origin';
   tipToLeaf_mm?: number;
+  // leaf mesh의 실제 visual 시작점 (boundingBox.minimumWorld) — 페어 검증용.
+  actualLeafMeshStart?: V3 | null;
+  leafMeshStartDelta_mm?: number;   // leafBladeRoot ↔ actualLeafMeshStart 거리
 }
 
 export interface BuildPairsInput {
   graph: PlantSkeletonGraph;
   renderedRootByEdgeId: Record<string, V3>;
   parentContextByEdgeId: Record<string, { center: V3; tangent: V3; radius: number }>;
-  /** Optional: leaf mesh position lookup keyed by 'a{axIdx}_n{nodeIdx}'.
-   *  Only consumed when focus='all'. */
-  leafMeshByKey?: Map<string, { position: V3 }>;
+  /** Optional: leaf mesh lookup keyed by 'a{axIdx}_n{nodeIdx}'.
+   *  Only consumed when focus='all'. mesh 객체는 boundingBox.minimumWorld
+   *  추출용 (actualLeafMeshStart 측정). */
+  leafMeshByKey?: Map<string, {
+    position: V3;
+    mesh?: { getBoundingInfo(): { boundingBox: { minimumWorld: { x: number; y: number; z: number } } } };
+  }>;
   /** Sample density along the petiole bonePath for firstVisible search. */
   bonePathSamples?: number;
   /** Tolerance multiplier on swollenStemRadius — a sample is "outside" when
@@ -184,6 +191,13 @@ export function buildPetioleJunctionPairs(input: BuildPairsInput): PetioleJuncti
       pair.leafBladeRoot = leafMesh.position;
       pair.leafBladeRootSource = 'mesh-origin'; // Iter 21 후보: blade anchor expose
       pair.tipToLeaf_mm = dist(endNode.pos, leafMesh.position) * 1000;
+      // Leaf mesh의 실제 visual 첫 vertex (boundingBox.minimumWorld) — 페어
+      // 검증: leafBladeRoot (graph 의도)와 거리 = 진짜 disconnect 크기.
+      if (leafMesh.mesh) {
+        const bb = leafMesh.mesh.getBoundingInfo().boundingBox.minimumWorld;
+        pair.actualLeafMeshStart = { x: bb.x, y: bb.y, z: bb.z };
+        pair.leafMeshStartDelta_mm = dist(leafMesh.position, pair.actualLeafMeshStart) * 1000;
+      }
     }
 
     out.push(pair);

@@ -662,10 +662,14 @@ export function createSkinMeshPlant(
 
     // Iter 20 — populate petiole-stem junction overlay every rebuild.
     // Always builds the pair data (cheap); visibility is gated by dockingEnabled.
-    const leafMeshByKey = new Map<string, { position: { x: number; y: number; z: number } }>();
+    // mesh 객체 같이 보관: actualLeafMeshStart (boundingBox.minimumWorld) 측정용.
+    const leafMeshByKey = new Map<string, {
+      position: { x: number; y: number; z: number };
+      mesh: typeof currentParts.leaves[number];
+    }>();
     for (const m of currentParts.leaves) {
       const mm = m.name.match(/_a(\d+)_n(\d+)$/);
-      if (mm) leafMeshByKey.set(`a${mm[1]}_n${mm[2]}`, { position: m.position });
+      if (mm) leafMeshByKey.set(`a${mm[1]}_n${mm[2]}`, { position: m.position, mesh: m });
     }
     const junctionPairs = buildPetioleJunctionPairs({
       graph,

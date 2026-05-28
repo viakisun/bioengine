@@ -19,6 +19,7 @@ export const C_STEM_ACTUAL         = new Color3(1.00, 0.85, 0.10);  // 노랑 wi
 export const C_FIRST_VISIBLE       = new Color3(1.00, 0.45, 0.10);  // 주황
 export const C_FIRST_VISIBLE_FAIL  = new Color3(1.00, 0.10, 0.10);  // 빨강 (emerge gap > 2mm)
 export const C_LEAF_ACTUAL         = new Color3(0.10, 0.95, 0.95);  // 청록 wire (focus='all')
+export const C_LEAF_VISUAL_START   = new Color3(0.55, 1.00, 0.20);  // 라임 — leaf mesh boundingBox 최소점 (실제 시작)
 export const C_LINE_OK             = new Color3(0.70, 0.70, 0.70);
 export const C_LINE_WARN           = new Color3(1.00, 0.45, 0.10);
 export const C_LINE_FAIL           = new Color3(1.00, 0.10, 0.10);
