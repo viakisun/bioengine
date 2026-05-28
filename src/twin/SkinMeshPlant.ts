@@ -171,7 +171,7 @@ export function createSkinMeshPlant(
   let dockingEnabled = false;
   let dockingOpts: OverlayOptions = {
     edgeTypes: ['petiole'],
-    focus: 'stem-junction',
+    focus: 'all',  // stem-side(4) + leaf-side(2) 둘 다 표시
     labelMode: 'all',
     worstN: 5,
   };

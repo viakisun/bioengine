@@ -35,7 +35,9 @@ export interface OverlayHandle {
 
 const DEFAULT_OPTS: Required<OverlayOptions> = {
   edgeTypes: ['petiole'],
-  focus: 'stem-junction',
+  // 'all' — stem-side(4) + leaf-side(2: petioleTip + leafBladeRoot) 모두 표시.
+  // 사용자 명시: "줄기 끝 접합 부위 마커 / 잎 접합 부위 마커" 둘 다 필요.
+  focus: 'all',
   labelMode: 'all',
   worstN: 5,
   sphereDiameter: 0.012,

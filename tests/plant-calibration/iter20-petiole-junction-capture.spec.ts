@@ -76,7 +76,7 @@ async function enableOverlay(page: Page) {
     w.__dockingOverlay?.({
       enable: true,
       edgeTypes: ['petiole'],
-      focus: 'stem-junction',
+      focus: 'all',  // stem-side(4) + leaf-side(2: petioleTip + leafBladeRoot)
       labelMode: 'all',
     });
   });
