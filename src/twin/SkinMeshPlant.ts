@@ -699,12 +699,10 @@ export function createSkinMeshPlant(
     applyLeafWireframe();  // 매 rebuild 후 wireframe 토글 상태 재적용
 
     // Iter 20 — populate petiole-stem junction overlay every rebuild.
-    // Always builds the pair data (cheap); visibility is gated by dockingEnabled.
-    // 좌표계 통일: 모든 좌표를 plant-local로 변환해 graph 좌표(plant-local)와
-    // 직접 비교 가능하도록.
-    // - mesh.position: 이미 plant-local (lushGroup 자식). plain {x,y,z}로 unwrap.
-    // - bboxMinLocal: boundingBox.minimumWorld → lushGroup.invertMatrix 적용해
-    //   plant-local로 변환.
+    // bboxMinLocal은 boundingBox의 가상 corner (실제 vertex 아님). 잎이
+    // droop으로 늘어지면 min corner가 plant 바닥까지 내려감 → 사용자가 본
+    // "바닥으로 훅 떨어진 빨강 line". 진짜 anchor (leaf의 첫 leaflet stem-side
+    // 점)는 mesh-local x가 가장 작은 actual vertex.
     const lushWorldMatInv = lushGroup.getWorldMatrix().clone().invert();
     const leafMeshByKey = new Map<string, {
       position: { x: number; y: number; z: number };
@@ -714,12 +712,41 @@ export function createSkinMeshPlant(
     for (const m of currentParts.leaves) {
       const mm = m.name.match(/_a(\d+)_n(\d+)$/);
       if (!mm) continue;
-      const bi = m.getBoundingInfo();
-      const minLocal = Vector3.TransformCoordinates(bi.boundingBox.minimumWorld, lushWorldMatInv);
-      const maxLocal = Vector3.TransformCoordinates(bi.boundingBox.maximumWorld, lushWorldMatInv);
+      // actualLeafMeshStart 후보: mesh의 모든 vertex 중 mesh-local x가 가장
+      // 작은 vertex의 world position. 첫 leaflet의 stem-side 점 = leaf anchor.
+      let anchorWorldX = m.absolutePosition.x;
+      let anchorWorldY = m.absolutePosition.y;
+      let anchorWorldZ = m.absolutePosition.z;
+      const verts = m.getVerticesData('position');
+      if (verts && verts.length >= 3) {
+        let minLx = Infinity;
+        let minLy = 0, minLz = 0;
+        for (let i = 0; i < verts.length; i += 3) {
+          if (verts[i] < minLx) {
+            minLx = verts[i];
+            minLy = verts[i + 1];
+            minLz = verts[i + 2];
+          }
+        }
+        // mesh-local → world via mesh worldMatrix.
+        const worldPt = Vector3.TransformCoordinates(
+          new Vector3(minLx, minLy, minLz),
+          m.getWorldMatrix(),
+        );
+        anchorWorldX = worldPt.x;
+        anchorWorldY = worldPt.y;
+        anchorWorldZ = worldPt.z;
+      }
+      // anchor world → plant-local via lushGroup invert.
+      const anchorLocal = Vector3.TransformCoordinates(
+        new Vector3(anchorWorldX, anchorWorldY, anchorWorldZ),
+        lushWorldMatInv,
+      );
+      // (legacy field 호환을 위해 bboxMinLocal/MaxLocal에 anchor 사용)
+      const maxLocal = anchorLocal;
       leafMeshByKey.set(`a${mm[1]}_n${mm[2]}`, {
         position: { x: m.position.x, y: m.position.y, z: m.position.z },
-        bboxMinLocal: { x: minLocal.x, y: minLocal.y, z: minLocal.z },
+        bboxMinLocal: { x: anchorLocal.x, y: anchorLocal.y, z: anchorLocal.z },
         bboxMaxLocal: { x: maxLocal.x, y: maxLocal.y, z: maxLocal.z },
       });
     }

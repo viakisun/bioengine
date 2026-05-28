@@ -220,15 +220,23 @@ export function createLeafBladeOnlyMesh(
     },
     rng,
   );
-  // leafChunk.ts:286: petioleLen = params.petioleLength * sizeFactor * maturity.
-  // leaflets는 mesh-local x = petioleLen + rachisLen·t에 분포. mesh.position을
-  // PlantBase tip (petiole 끝)에 정확히 매핑하려면 mesh-local origin이 leaflet
-  // 시작점이어야 한다. 즉 모든 vertex의 x 좌표에서 petioleLen 만큼 빼면
-  // mesh-local (0,0,0) = leaflet 시작 = SDF petiole tip 위치.
-  // 호출자(SkinMeshPlant)는 leafMesh.position = tip 으로 설정.
-  const petioleLen = shape.petioleLength * sizeFactor * maturity;
+  // vertex shift — 첫 leaflet의 가장 stem-side vertex(min x)가 mesh-local
+  // (0, 0, 0)에 오도록 정확히 정렬. 의도: mesh-local origin = leaf anchor =
+  // SDF petiole tip 위치. SkinMeshPlant에서 leafMesh.position = tip 설정 시
+  // 첫 vertex가 정확히 tip 좌표.
+  //
+  // 이전 시도 (petioleLen만 빼기): leafChunk.ts 첫 leaflet posAlongRachis
+  // = petioleLen + rachisLen·0.15 이므로 첫 vertex가 mesh-local x = rachisLen
+  // ·0.15 (~ 0.06-0.12m)에 잔존 → 잎이 그만큼 떨어져 보임.
+  // 신규: 실제 chunk.positions의 min x를 측정해서 정확히 shift.
+  let minX = Infinity;
   for (let i = 0; i < chunk.positions.length; i += 3) {
-    chunk.positions[i] -= petioleLen;
+    if (chunk.positions[i] < minX) minX = chunk.positions[i];
+  }
+  if (Number.isFinite(minX) && minX !== 0) {
+    for (let i = 0; i < chunk.positions.length; i += 3) {
+      chunk.positions[i] -= minX;
+    }
   }
   const vertexCount = chunk.positions.length / 3;
   const vertexColors = bakeLeafVertexColors(vertexCount, ageFrac, node.waterStress, node.yellowing);
