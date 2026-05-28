@@ -1,11 +1,26 @@
 // buildTomatoSkeletonGraph — TomatoPlugin partial (SSOT Phase 3).
 //
-// Converts PlantBase (already world-space, computed by computePlantGeometry)
-// into a formal PlantSkeletonGraph: nodes + edges with cut hierarchy.
+// Iter 26 PR 2-0 (SSOT #187) — UNIQUE simulation → graph mapping point.
+// All PlantBase / PlantState / cultivar JSONC reads happen inside this
+// function (or its helper modules in ./populator/*). Skin / Overlay /
+// AcceptanceProbe never read simulation truth directly — they read the
+// returned graph. See docs/architecture/SEMANTIC_GRAPH.md sections 1, 3.
+//
+// Converts PlantBase (computed by computePlantGeometry — world-space output
+// equals plant-local when the plant is at scene origin) into a formal
+// SemanticSkeletonGraph: nodes + edges + organ anchors + visual hints,
+// with cut hierarchy.
 //
 // The graph is the input to PlantSkinMeshBuilder (Phase 4) which produces
 // a single watertight continuous mesh, and to Phase 5 cut/detach which
 // uses parentEdgeId chains to identify what falls when an edge is cut.
+//
+// Helper modules (populator/*) — added across PR 2-1/2-2/2-3 to keep this
+// file under ~500 LOC:
+//   - populator/populateNodeTypes.ts        (PR 2-1) — node.type/frame/visualHint
+//   - populator/populateAnchorMorphology.ts (PR 2-2) — organAnchor 4 fields
+//   - populator/populateEdgePolicies.ts     (PR 2-3) — edge.renderPolicy
+//   - populator/visualHintDefaults.ts       (PR 2-1) — type → hint lookup
 //
 // Topology choices:
 //   - mainStem / sideShoot: one edge per axis (single bonePath).
