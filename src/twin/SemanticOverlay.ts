@@ -14,6 +14,7 @@
 import { Scene } from '@babylonjs/core/scene';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
+import { CreateGreasedLine } from '@babylonjs/core/Meshes/Builders/greasedLineBuilder';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
@@ -103,14 +104,22 @@ export function createSemanticOverlay(
 
   const matCache = new Map<string, StandardMaterial>();
   let markers: MarkerCacheEntry[] = [];
+  // Iter 26 PR 4-2 — edge lines + anchor rings.
+  let edgeLines: Mesh[] = [];
+  let anchorMeshes: Mesh[] = [];
 
   function disposeMarkers(): void {
     for (const m of markers) m.mesh.dispose(false, true);
     markers = [];
+    for (const l of edgeLines) l.dispose(false, true);
+    edgeLines = [];
+    for (const a of anchorMeshes) a.dispose(false, true);
+    anchorMeshes = [];
   }
 
   function update(graph: PlantSkeletonGraph): void {
     disposeMarkers();
+    // ── Node markers (PR 4-1) ──
     let i = 0;
     for (const node of graph.nodes.values()) {
       if (!node.visualHint) continue;
@@ -123,6 +132,76 @@ export function createSemanticOverlay(
       );
       mesh.position = new Vector3(node.pos.x, node.pos.y, node.pos.z);
       markers.push({ mesh, colorKey: node.visualHint.markerColor });
+    }
+    // ── Edge lines (PR 4-2) — edge.renderPolicy.visualHint.color ──
+    let ei = 0;
+    for (const edge of graph.edges.values()) {
+      const color = edge.renderPolicy?.visualHint?.color;
+      if (!color || edge.bonePath.length === 0) continue;
+      const pts: Vector3[] = [];
+      pts.push(new Vector3(edge.bonePath[0].p0.x, edge.bonePath[0].p0.y, edge.bonePath[0].p0.z));
+      for (const b of edge.bonePath) {
+        pts.push(new Vector3(b.p1.x, b.p1.y, b.p1.z));
+      }
+      const width = (edge.renderPolicy?.visualHint?.lineWidth ?? 0.0008);
+      try {
+        const line = CreateGreasedLine(
+          `semantic_edge_${ei++}`,
+          { points: pts },
+          { color: Color3.FromHexString(color), width, useDash: false },
+          scene,
+        );
+        line.parent = root;
+        line.isPickable = false;
+        edgeLines.push(line);
+      } catch {
+        // CreateGreasedLine may throw on degenerate point sets; skip.
+      }
+    }
+    // ── Anchor rings (PR 4-2) — organAnchor.visualHint ──
+    let ai = 0;
+    for (const edge of graph.edges.values()) {
+      if (!edge.organAnchors) continue;
+      for (const anchor of edge.organAnchors) {
+        const vh = anchor.visualHint;
+        if (!vh) continue;
+        const anchorNode = graph.nodes.get(anchor.anchorNodeId);
+        if (!anchorNode) continue;
+        const ring = MeshBuilder.CreateTorus(
+          `semantic_anchor_${ai++}`,
+          { diameter: 0.008, thickness: 0.0008, tessellation: 16 },
+          scene,
+        );
+        ring.parent = root;
+        ring.material = ensureMaterial(scene, matCache, vh.markerColor);
+        ring.position = new Vector3(anchorNode.pos.x, anchorNode.pos.y, anchorNode.pos.z);
+        ring.isPickable = false;
+        anchorMeshes.push(ring);
+        // Attachment line — anchor → root node (chain.rootNodeId).
+        if (vh.showAttachmentLine && anchor.chain) {
+          const rootNode = graph.nodes.get(anchor.chain.rootNodeId);
+          if (rootNode) {
+            try {
+              const line = CreateGreasedLine(
+                `semantic_attach_${ai}`,
+                {
+                  points: [
+                    new Vector3(anchorNode.pos.x, anchorNode.pos.y, anchorNode.pos.z),
+                    new Vector3(rootNode.pos.x, rootNode.pos.y, rootNode.pos.z),
+                  ],
+                },
+                { color: Color3.FromHexString(vh.markerColor), width: 0.0004, useDash: true, dashRatio: 0.5 },
+                scene,
+              );
+              line.parent = root;
+              line.isPickable = false;
+              edgeLines.push(line);
+            } catch {
+              // ignore
+            }
+          }
+        }
+      }
     }
   }
 
