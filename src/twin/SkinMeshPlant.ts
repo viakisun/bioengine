@@ -44,6 +44,7 @@ import type {
   PlantState,
 } from '@farmsim/tomato-engine';
 import { createSkeletonOverlay, type SkeletonOverlayHandle } from './SkeletonOverlay';
+import { createSemanticOverlay, type SemanticOverlayHandle } from './SemanticOverlay';
 import { useTwinStore } from '../store/twinStore';
 // Iter 20 — petiole-stem junction debug overlay.
 import { createPetioleJunctionOverlay, type OverlayOptions } from './dockingOverlay/PetioleJunctionOverlay';
@@ -159,6 +160,8 @@ export function createSkinMeshPlant(
   let currentTransformNodes: TransformNode[] = [];
   let currentParts: PartGroup = { leaves: [], fruits: [], stem: null, cotyledons: [] };
   let lastState: PlantState | null = null;
+  // Iter 26 PR 4-1 — cached graph for semantic overlay refresh on toggle.
+  let lastGraph: import('../plant/skeleton/SkeletonEngine').PlantSkeletonGraph | null = null;
   let lastBuildDay = -999;
   const REBUILD_THRESHOLD_DAYS = 0.5;
 
@@ -171,6 +174,9 @@ export function createSkinMeshPlant(
   let segmentationOn = false;
   let skeletonOn = false;
   const skeleton: SkeletonOverlayHandle = createSkeletonOverlay(scene, root);
+  // Iter 26 PR 4-1 (SSOT #187 원칙 2) — graph node visualHint marker overlay.
+  // Toggle visibility together with the skeleton overlay (same 'd' key).
+  const semantic: SemanticOverlayHandle = createSemanticOverlay(scene, root);
   // Iter 20 — petiole-stem junction overlay (Skin mode instance).
   const dockingOverlay = createPetioleJunctionOverlay(scene, lushGroup);
   let dockingEnabled = false;
@@ -284,6 +290,7 @@ export function createSkinMeshPlant(
       state,
       genome: skeletonGenome,
     });
+    lastGraph = graph;
     // Iter 18B PR 13 — stem family mesh via SkinEngine façade. Identical
     // behavior + parenting — defaultSkinEngine.render returns the mesh
     // already parented to lushGroup.
@@ -800,6 +807,10 @@ export function createSkinMeshPlant(
       });
       buildFromState(state, plantBase, cultivarName);
       skeleton.update(plantBase);
+      if (lastGraph) {
+        semantic.update(lastGraph);
+        semantic.setVisible(skeletonOn);
+      }
     },
     setVisible(v) {
       root.setEnabled(v);
@@ -840,8 +851,10 @@ export function createSkinMeshPlant(
           physiologyState: physiology,
         });
         skeleton.update(plantBase);
+        if (lastGraph) semantic.update(lastGraph);
       }
       skeleton.setVisible(v);
+      semantic.setVisible(v);
     },
     setSkeletonMode(on) {
       this.setSkeletonEnabled(on);
