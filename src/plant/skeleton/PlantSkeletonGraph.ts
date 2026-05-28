@@ -225,6 +225,51 @@ export interface OrganAnchor {
   visualHint?: AnchorVisualHint;
 }
 
+/**
+ * Iter 26 PR 1-3 (SSOT #187) — Render policy for a skeleton edge.
+ *
+ * Captures geometric + visual decisions that Skin used to make on its own
+ * (render radius floor, embed depth, parent stem context at the junction,
+ * material role). After PR 2-3 the populator fills this and Skin reads it,
+ * so a single render path can be tweaked from one place.
+ *
+ * Mirrors the shape of `parentContextByEdgeId` in
+ * StemFamilyTubeNetworkBuilder.stats — PR 2-3 unifies the two.
+ */
+export interface EdgeRenderPolicy {
+  /** Radius envelope at this edge (m). */
+  radius: {
+    /** Cultivar/biology truth radius (before any render floor). */
+    biological: number;
+    /** Actual radius used at render time (after floors / clamps). */
+    render: number;
+    /** Optional minimum (e.g. 0.8mm) — biological·render compared against this. */
+    min?: number;
+  };
+  /** Junction geometry where this edge meets its parent stem. */
+  junction: {
+    /** How far the child stem is embedded into the parent surface (m). */
+    embedDepthM: number;
+    /** Outward radial direction at the junction (plant-local unit vector). */
+    radialDir: PlantLocalV3;
+    /** Parent stem context at the junction point (PR 2-3 stats source). */
+    parentContext?: {
+      center: PlantLocalV3;
+      tangent: PlantLocalV3;
+      radius: number;
+    };
+  };
+  /** Material role — drives shader / texture / color selection. */
+  material?: {
+    role: 'main-stem' | 'side-shoot' | 'petiole' | 'peduncle' | 'rachis' | 'pedicel';
+  };
+  /** Iter 26 PR 1-3 (원칙 2) — overlay self-description for this edge. */
+  visualHint?: {
+    color: string;
+    lineWidth?: number;
+  };
+}
+
 /** Edge — a contiguous stem-like organ. */
 export interface SkeletonEdge {
   id: string;                              // unique within graph
@@ -248,6 +293,9 @@ export interface SkeletonEdge {
    *  migration; populated by buildTomatoSkeletonGraph for petiole / pedicel
    *  edges. */
   organAnchors?: OrganAnchor[];
+  /** Iter 26 PR 1-3 (SSOT #187) — render-side policy for this edge.
+   *  Populated by buildTomatoSkeletonGraph in PR 2-3. */
+  renderPolicy?: EdgeRenderPolicy;
 }
 
 export interface PlantSkeletonGraph {
