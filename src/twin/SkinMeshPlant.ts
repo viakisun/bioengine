@@ -175,8 +175,12 @@ export function createSkinMeshPlant(
   let skeletonOn = false;
   const skeleton: SkeletonOverlayHandle = createSkeletonOverlay(scene, root);
   // Iter 26 PR 4-1 (SSOT #187 원칙 2) — graph node visualHint marker overlay.
-  // Toggle visibility together with the skeleton overlay (same 'd' key).
+  // 기본 hidden. 사용자가 콘솔에서 `window.__semanticOverlay.setVisible(true)`로
+  // 토글 (Iter 25 visual baseline과 충돌하지 않게 'd' 키와 분리).
   const semantic: SemanticOverlayHandle = createSemanticOverlay(scene, root);
+  if (import.meta.env?.DEV) {
+    (window as unknown as { __semanticOverlay?: SemanticOverlayHandle }).__semanticOverlay = semantic;
+  }
   // Iter 20 — petiole-stem junction overlay (Skin mode instance).
   const dockingOverlay = createPetioleJunctionOverlay(scene, lushGroup);
   let dockingEnabled = false;
@@ -807,10 +811,10 @@ export function createSkinMeshPlant(
       });
       buildFromState(state, plantBase, cultivarName);
       skeleton.update(plantBase);
-      if (lastGraph) {
-        semantic.update(lastGraph);
-        semantic.setVisible(skeletonOn);
-      }
+      // Iter 26 PR 4-fix — SemanticOverlay는 기본 hidden (Iter 25 visual baseline 보호).
+      // 마커는 매 build 후 갱신되지만 보이려면 사용자가 명시 토글 ('g' 키 또는
+      // window.__semanticOverlay.setVisible(true)).
+      if (lastGraph) semantic.update(lastGraph);
     },
     setVisible(v) {
       root.setEnabled(v);
@@ -854,7 +858,7 @@ export function createSkinMeshPlant(
         if (lastGraph) semantic.update(lastGraph);
       }
       skeleton.setVisible(v);
-      semantic.setVisible(v);
+      // Iter 26 PR 4-fix — SemanticOverlay는 'd' 키와 분리. 기본 hidden 유지.
     },
     setSkeletonMode(on) {
       this.setSkeletonEnabled(on);
