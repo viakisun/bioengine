@@ -13,6 +13,7 @@ import {
   type SimulationContext,
 } from './SimulationContext';
 import { ACTIVE_ENGINE_MODE, setEngineMode } from './EngineMode';
+import { leafletCountFromMaturity } from './LeafStage';
 
 // Phase 3: hybrid is now the default. Legacy sigmoid path remains as
 // fallback for paths that don't supply a physiology state.
@@ -529,9 +530,12 @@ function populateSideShootChain(
       weightDroop + ageDroop + stress.waterStress * 30 + yellowing * 25,
     );
 
-    // Leaflet count — biased by maturity (5/7/9 thresholds like main axis).
-    const biasedMaturity = leafMaturity + genome.leafletCountBias * 0.15;
-    const leafletCount = biasedMaturity < 0.3 ? 5 : biasedMaturity < 0.6 ? 7 : 9;
+    // Iter 29 Phase 0 — leafletCount path 통합.
+    // 이전 bug: 5/7/9만 분기, EARLY_TRUE (1-3 leaflet) 단계 건너뜀.
+    // fix: leafletCountFromMaturity 단일 source of truth 사용 → 1 → 3 → 5 → 7 → 9.
+    const leafletCount = Math.round(
+      leafletCountFromMaturity(leafMaturity, genome.leafletCountBias),
+    );
 
     // Stem radius — pipe-model approx: parent radius × 0.6 base × taper.
     // Taper formula keeps tip ~0.6 × parent × 0.1 = 6% rather than 0.
@@ -815,12 +819,12 @@ export function computePlantState(
       weightDroop + ageDroop + waterStressDroop + senescenceDroop
     );
 
-    // Leaflet count with genome bias
-    let leafletCount: number;
-    const biasedMaturity = leafMaturity + genome.leafletCountBias * 0.15;
-    if (biasedMaturity < 0.3) leafletCount = 5;
-    else if (biasedMaturity < 0.6) leafletCount = 7;
-    else leafletCount = 9;
+    // Iter 29 Phase 0 — leafletCount path 통합 (LeafStage와 동일).
+    // 이전 bug: 5/7/9만 분기, EARLY_TRUE (1-3 leaflet) 단계 건너뜀.
+    // fix: leafletCountFromMaturity 단일 source of truth → 1 → 3 → 5 → 7 → 9.
+    const leafletCount = Math.round(
+      leafletCountFromMaturity(leafMaturity, genome.leafletCountBias),
+    );
 
     // Truss logic — v3.0 Phase 3.
     //
