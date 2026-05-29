@@ -160,6 +160,33 @@ y_min, z_min)의 가상 corner — **mesh에 그 위치 vertex가 없을 수 있
 "leaf의 가장 stem-side vertex"같은 의미 점은 `getVerticesData` 직접 query
 필요.
 
+**중요 함정 (Iter 28 발견) — Stale worldMatrix**:
+`mesh.position` 또는 `mesh.rotationQuaternion` 설정 직후 같은 build cycle에서
+`mesh.getWorldMatrix()`를 호출하면 **stale matrix** (= identity)를 반환한다.
+Babylon은 worldMatrix를 _next frame_까지 자동 update하지 않는다.
+
+```ts
+// ❌ 잘못 — mesh.position 설정 직후 getWorldMatrix() = identity
+mesh.position = new Vector3(x, y, z);
+mesh.rotationQuaternion = Quaternion.RotationAxis(...);
+const mat = mesh.getWorldMatrix();   // ← stale!
+const world = Vector3.TransformCoordinates(local, mat);  // ← (0,0,0)
+
+// ✅ 올바름 — computeWorldMatrix(true)로 즉시 update
+mesh.position = new Vector3(x, y, z);
+mesh.rotationQuaternion = Quaternion.RotationAxis(...);
+mesh.computeWorldMatrix(true);       // ★ 강제 update
+const mat = mesh.getWorldMatrix();   // ← 최신
+```
+
+Iter 28 사례: `SkinMeshPlant.ts` leaf loop에서 mesh 생성 직후 vertex world
+변환 시 stale matrix → mesh-local (0,0,0) × identity = world (0,0,0) →
+plant-local 변환이 `-lushGroup.world` 부호 반전 결과 (= `-1.062 m`) → docking
+overlay의 `dock_l_leafstart_*` 라인이 plant top → world origin (바닥)으로
+**3.28m 늘어남**. fix: `m.computeWorldMatrix(true)` 한 줄.
+
+검증: `tests/architecture/leaf-vertex-world.spec.ts` LEAF-VWORLD-01/02.
+
 ---
 
 ## 변수 naming convention

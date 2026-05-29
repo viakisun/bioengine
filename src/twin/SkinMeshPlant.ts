@@ -758,6 +758,13 @@ export function createSkinMeshPlant(
     for (const m of currentParts.leaves) {
       const mm = m.name.match(/_a(\d+)_n(\d+)$/);
       if (!mm) continue;
+      // Iter 28 — leaf mesh가 이 build에서 막 생성됨. position +
+      // rotationQuaternion 설정 직후라 worldMatrix가 _stale_ (Babylon은 next
+      // frame까지 자동 update 안 함). computeWorldMatrix(true)로 즉시
+      // 강제 update — 안 하면 mesh-local→world 변환이 identity matrix를
+      // 적용해 (0,0,0)을 반환, 그 결과 plant-local 변환이 -lushGroup 위치
+      // (= -1.062 m)로 어긋남. SSOT #185 위반 alarm (dock_l_leafstart).
+      m.computeWorldMatrix(true);
       // 첫 leaflet stem-side vertex = mesh-local x_min인 actual vertex.
       let anchorMeshLocal: MeshLocalV3 = toMeshLocal({ x: 0, y: 0, z: 0 });
       const verts = m.getVerticesData('position');
