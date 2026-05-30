@@ -2,6 +2,8 @@ import { Engine } from '@babylonjs/core/Engines/engine';
 import { WebGPUEngine } from '@babylonjs/core/Engines/webgpuEngine';
 import { Scene } from '@babylonjs/core/scene';
 import { Color3, Color4 } from '@babylonjs/core/Maths/math.color';
+import { Vector3 } from '@babylonjs/core/Maths/math.vector';
+import { CreateLines } from '@babylonjs/core/Meshes/Builders/linesBuilder';
 import { ImageProcessingConfiguration } from '@babylonjs/core/Materials/imageProcessingConfiguration';
 import type { Material } from '@babylonjs/core/Materials/material';
 import { setupScene, type SceneSetupHandle } from './SceneSetup';
@@ -247,7 +249,6 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
         __skinplantGraph?: {
           nodes: Map<string, { id: string; type?: string; pos: { x: number; y: number; z: number }; frame?: { tangent: { x: number; y: number; z: number }; normal: { x: number; y: number; z: number } } }>;
         };
-        BABYLON?: unknown;
       };
       const g = w.__skinplantGraph;
       if (!g) {
@@ -255,15 +256,7 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
         return;
       }
 
-      // Dynamic import Babylon for LinesBuilder + Color3
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const BABYLON = (window as any).BABYLON ?? (globalThis as any).BABYLON;
-      if (!BABYLON) {
-        console.warn('[Vectors] BABYLON namespace not available');
-        return;
-      }
-
-      const SCALE = 0.05;  // meter — visible
+      const SCALE = 0.08;  // meter — visible at quality 8
       let stemCount = 0, leafCount = 0;
 
       // Stem frames (tangent green, normal blue)
@@ -272,18 +265,18 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
         const p = node.pos;
         const t = node.frame.tangent;
         const n = node.frame.normal;
-        const tangentLine = BABYLON.MeshBuilder.CreateLines(
+        const tangentLine = CreateLines(
           `vec_stem_t_${node.id}`,
-          { points: [new BABYLON.Vector3(p.x, p.y, p.z), new BABYLON.Vector3(p.x + t.x * SCALE, p.y + t.y * SCALE, p.z + t.z * SCALE)] },
+          { points: [new Vector3(p.x, p.y, p.z), new Vector3(p.x + t.x * SCALE, p.y + t.y * SCALE, p.z + t.z * SCALE)] },
           scene,
         );
-        tangentLine.color = new BABYLON.Color3(0, 1, 0);  // green = tangent
-        const normalLine = BABYLON.MeshBuilder.CreateLines(
+        tangentLine.color = new Color3(0, 1, 0);  // green = tangent
+        const normalLine = CreateLines(
           `vec_stem_n_${node.id}`,
-          { points: [new BABYLON.Vector3(p.x, p.y, p.z), new BABYLON.Vector3(p.x + n.x * SCALE, p.y + n.y * SCALE, p.z + n.z * SCALE)] },
+          { points: [new Vector3(p.x, p.y, p.z), new Vector3(p.x + n.x * SCALE, p.y + n.y * SCALE, p.z + n.z * SCALE)] },
           scene,
         );
-        normalLine.color = new BABYLON.Color3(0, 0.5, 1);  // blue = normal
+        normalLine.color = new Color3(0, 0.5, 1);  // blue = normal
         stemCount++;
       }
 
@@ -306,30 +299,30 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
         const xW = rotateVec(q, { x: 1, y: 0, z: 0 });
         const yW = rotateVec(q, { x: 0, y: 1, z: 0 });
         const zW = rotateVec(q, { x: 0, y: 0, z: 1 });
-        const lineX = BABYLON.MeshBuilder.CreateLines(
+        const lineX = CreateLines(
           `vec_leaf_x_${m.name}`,
-          { points: [new BABYLON.Vector3(p.x, p.y, p.z), new BABYLON.Vector3(p.x + xW.x * SCALE, p.y + xW.y * SCALE, p.z + xW.z * SCALE)] },
+          { points: [new Vector3(p.x, p.y, p.z), new Vector3(p.x + xW.x * SCALE, p.y + xW.y * SCALE, p.z + xW.z * SCALE)] },
           scene,
         );
-        lineX.color = new BABYLON.Color3(1, 0, 0);  // red = mesh +x (petiole)
-        const lineY = BABYLON.MeshBuilder.CreateLines(
+        lineX.color = new Color3(1, 0, 0);  // red = mesh +x (petiole)
+        const lineY = CreateLines(
           `vec_leaf_y_${m.name}`,
-          { points: [new BABYLON.Vector3(p.x, p.y, p.z), new BABYLON.Vector3(p.x + yW.x * SCALE, p.y + yW.y * SCALE, p.z + yW.z * SCALE)] },
+          { points: [new Vector3(p.x, p.y, p.z), new Vector3(p.x + yW.x * SCALE, p.y + yW.y * SCALE, p.z + yW.z * SCALE)] },
           scene,
         );
-        lineY.color = new BABYLON.Color3(0, 0.5, 1);  // blue = mesh +y (blade up)
-        const lineZ = BABYLON.MeshBuilder.CreateLines(
+        lineY.color = new Color3(0, 0.5, 1);  // blue = mesh +y (blade up)
+        const lineZ = CreateLines(
           `vec_leaf_z_${m.name}`,
-          { points: [new BABYLON.Vector3(p.x, p.y, p.z), new BABYLON.Vector3(p.x + zW.x * SCALE, p.y + zW.y * SCALE, p.z + zW.z * SCALE)] },
+          { points: [new Vector3(p.x, p.y, p.z), new Vector3(p.x + zW.x * SCALE, p.y + zW.y * SCALE, p.z + zW.z * SCALE)] },
           scene,
         );
-        lineZ.color = new BABYLON.Color3(1, 1, 0);  // yellow = mesh +z (width)
+        lineZ.color = new Color3(1, 1, 0);  // yellow = mesh +z (width)
         leafCount++;
       }
 
       console.log(`[Vectors] showed ${stemCount} stem frames + ${leafCount} leaf axes`);
-      console.log('[Vectors] colors: green=tangent, blue=normal/+y, red=+x petiole, yellow=+z width');
-      console.log('[Vectors] toggle off: __farmsim.showLeafVectors()');
+      console.log('[Vectors] colors: green=tangent, blue=normal/+y up, red=+x petiole, yellow=+z width');
+      console.log('[Vectors] toggle off: __farmsim.showLeafVectors() again');
     },
   };
   (globalThis as { __twinStore?: unknown }).__twinStore = useTwinStore;
