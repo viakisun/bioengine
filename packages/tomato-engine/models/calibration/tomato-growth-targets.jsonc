@@ -136,6 +136,65 @@
     }
   },
 
+  // ── Iter 31 Phase 4 — Stem geometry (R6 fix) ────────────────────
+  // Plan §5 STEM-APICAL-DELTA-Y-01 + STEM-APICAL-TANGENT-UP-01.
+  // After Phase 1 fix: D=30/40/50 apical 5 internodes (last 2 제외) mean Δy ≥ 2cm.
+  "stemGeometryV2": {
+    "apexDeltaYCm": {
+      "day": [
+        { "d": 30, "min": 2.0, "max": 6.5 },
+        { "d": 45, "min": 2.0, "max": 7.0 },
+        { "d": 90, "min": 2.0, "max": 9.5 }
+      ],
+      "source": "Iter 31 Phase 1 R6 fix — synthesizeGrowthDir(current pos) 후 apex 회복"
+    },
+    "apicalTangentY": {
+      "day": [
+        { "d": 30, "min": 0.50, "max": 1.0 },
+        { "d": 45, "min": 0.50, "max": 1.0 }
+      ],
+      "source": "main-axis apical 5 nodes tangent.y > 0 (vertical apex)"
+    }
+  },
+
+  // ── Iter 31 Phase 4 — Leaf length projection (R5 fix) ────────────
+  // Plan §5 LEAF-ABSOLUTE-AREA-SCALE-01 + LEAF-SIDE-SMALL-BBOX-01.
+  // Hard guard vs visual target _분리_ (사용자 review 6번).
+  "leafLength": {
+    "petioleLengthCm": {
+      "ageTT": [
+        { "tt": 50,   "min": 0.5, "max": 5  },
+        { "tt": 400,  "min": 4,   "max": 12 },
+        { "tt": 800,  "min": 6,   "max": 15 }
+      ],
+      "source": "computeLeafGeometryProjection PlantBase 산식"
+    },
+    "rachisLengthCm": {
+      "ageTT": [
+        { "tt": 50,   "min": 1,  "max": 10 },
+        { "tt": 400,  "min": 8,  "max": 25 },
+        { "tt": 800,  "min": 12, "max": 35 }
+      ],
+      "source": "cultivar referenceRachisLengthM × leafAxisLengthScale"
+    },
+    "maxBboxHardGuard": {
+      "day": [
+        { "d": 30, "min": 0,  "max": 50 },
+        { "d": 45, "min": 0,  "max": 65 },
+        { "d": 90, "min": 0,  "max": 80 }
+      ],
+      "source": "Iter 31 Phase 2 honest baseline (D=45 baseline 62 → +5% guard). visual target은 별도."
+    },
+    "maxBboxVisualTarget": {
+      "day": [
+        { "d": 30, "min": 0,  "max": 25 },
+        { "d": 45, "min": 0,  "max": 30 },
+        { "d": 90, "min": 0,  "max": 45 }
+      ],
+      "source": "Iter 32 cultivar 재보정 + Self-loop 1 추가 튜닝 후 목표"
+    }
+  },
+
   // ── Iter 30 Phase 6 — Leaf posture band ──────────────────────────
   // Plan §11 + Phase 5 9-필드 (CALIBRATION-POSTURE-V2-01).
   // 상부광 + young mature leaf: finalBladePlaneTiltDeg ≈ 0° (ground-parallel).
