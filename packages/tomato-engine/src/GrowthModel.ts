@@ -26,6 +26,22 @@ import {
   type InternodeState,
   makeInternodeState,
 } from './growth/InternodeGrowthModel';
+// Iter 29 Phase 2A — LeafOrganState / TrussOrganState / SideShootState +
+// helpers. PlantBase computes _everything_ here; Skeleton/Skin consume.
+import {
+  type LeafOrganState,
+  type LeafPostureState,
+  type LeafMorphologyState,
+  type TrussOrganState,
+  type SideShootState,
+  computeLeafExpansionProgress,
+  makeLeafOrganStateFromFlat,
+} from './growth/LeafGrowthModel';
+import {
+  computeSenescenceStartTT,
+  computeSenescenceProgress,
+  makeSenescenceState,
+} from './growth/SenescenceModel';
 
 // Phase 3: hybrid is now the default. Legacy sigmoid path remains as
 // fallback for paths that don't supply a physiology state.
@@ -173,6 +189,26 @@ export interface NodeState {
   // Phase 2A: refined per organ state independence (node may be mature
   //           while leaf is senescent, etc.).
   status: PhytomerStatus;
+
+  // ── Iter 29 Phase 2A — Organ state shells ────────────────────────
+  // Plan §5 + §2A: PhytomerNode.leaf is canonical structured state.
+  // Phase 2A: populated alongside legacy flat fields (leafMaturity,
+  //   leafSizeFactor, leafAreaCm2, leafletCount, yellowing, droopExtra)
+  //   which remain as backward-compat aliases. Phase 5+ deprecates flat.
+  //
+  // Plan LEAF-SENESCENCE-PLANTBASE-01: senescence colorDullness /
+  //   visibleAreaFactor / curl / droopDeg are _computed here_ — Skin must
+  //   apply, NOT re-derive.
+  leaf: LeafOrganState;
+
+  // Plan PHYTOMER-ORGAN-SHELL-01 — Phase 2A: state shell only. Full
+  // flowering/fruiting/ripening biology stays in `truss` (TrussState).
+  // `trussOrgan` carries TT-based lifecycle indicator for canonical path.
+  trussOrgan?: TrussOrganState;
+
+  // Plan PHYTOMER-ORGAN-SHELL-01 — Phase 2A: state shell only. Recursive
+  // sub-axis remains in existing `sideShoot` (StemAxis).
+  sideShootOrgan?: SideShootState;
 }
 
 /**
@@ -658,6 +694,55 @@ function populateSideShootChain(
       : leafMaturity < 0.95 ? 'expanding'
       : yellowing > 0.3 ? 'senescent' : 'mature';
 
+    // Iter 29 Phase 2A — LeafOrganState on side-shoot node.
+    const sideLifespanTT = cultivar.growthProfile.leafLifespanTT;
+    const sideExpDurTT = cultivar.growthProfile.leafExpansionDurationTT;
+    const sideSenOffsetTT = sideLifespanTT * 0.7;
+    const sideCanonSen = computeSenescenceProgress(
+      sideAgeTT, sideSenOffsetTT, sideLifespanTT - sideSenOffsetTT,
+    );
+    const sideBlendedSen = Math.max(sideCanonSen, yellowing);
+    const sideSenescenceState = makeSenescenceState(sideBlendedSen);
+    const SIDE_GOLDEN_DEG = 137.508;
+    const sidePosture: LeafPostureState = {
+      azimuthDeg: (k * SIDE_GOLDEN_DEG) % 360,
+      petioleElevationDeg: 35 - 23 * leafMaturity - sideSenescenceState.droopDeg * 0.5,
+      droopDeg: droopExtra,
+      twistDeg: 0,
+      curl: 0.12 + yellowing * 0.15,
+    };
+    const sideMorphology: LeafMorphologyState = {
+      serrationDepth: genome.leafSerrationDepth ?? 0.12,
+      lobeDepth: genome.leafLobeDepth ?? 0.05,
+      petioleLengthM: 0.22,
+      variationSeed: ((genome.seed >>> 0) ^ (k * 2654435761 >>> 0)) >>> 0,
+    };
+    const sideCanonExp = computeLeafExpansionProgress(sideAgeTT, sideExpDurTT, 0.015);
+    const sideExpSafe = Math.max(0.01, leafExpansion);
+    const sideTargetAreaCm2 = leafAreaCm2 / (sideExpSafe * sideExpSafe);
+    const sideCurrentAreaCm2 = Math.min(leafAreaCm2, sideTargetAreaCm2);
+    const sideLeafOrgan: LeafOrganState = makeLeafOrganStateFromFlat({
+      nodeIndex: k,
+      initiationTT: sideInitiationTT,
+      visibleTT: sideVisibleTT,
+      ageTT: sideAgeTT,
+      targetAreaCm2: sideTargetAreaCm2,
+      currentAreaCm2: sideCurrentAreaCm2,
+      expansionProgress: Math.max(sideCanonExp, leafMaturity),
+      leafletCount,
+      posture: sidePosture,
+      morphology: sideMorphology,
+      senescence: sideSenescenceState,
+    });
+    let sideTrussOrgan: TrussOrganState | undefined;
+    if (nodeTruss !== null) {
+      sideTrussOrgan = {
+        initiationTT: sideInitiationTT,
+        ageTT: sideAgeTT,
+        state: nodeTruss.fruits.length === 0 ? 'flowering' : 'fruiting',
+      };
+    }
+
     shoot.nodes.push({
       index: k,
       heightCm: parentNode.heightCm + (pos.y - parentNode.position.y) * 100,
@@ -691,6 +776,9 @@ function populateSideShootChain(
       ageTT: sideAgeTT,
       internode: internodeState,
       status: sideStatus,
+      // Iter 29 Phase 2A — canonical organ state shells
+      leaf: sideLeafOrgan,
+      trussOrgan: sideTrussOrgan,
     });
     dir = nextDir;
   }
@@ -1108,6 +1196,82 @@ export function computePlantState(
       : leafMaturity < 0.95 ? 'expanding'
       : yellowing > 0.3 ? 'senescent' : 'mature';
 
+    // Iter 29 Phase 2A — LeafOrganState (canonical).
+    //
+    // Plan LEAF-SENESCENCE-PLANTBASE-01 — _PlantBase_가 senescence
+    //   colorDullness / visibleAreaFactor / curl / droopDeg를 모두 계산.
+    //   Phase 2A: canonical path = TT-based senescence. Legacy day-based
+    //   `yellowing` 필드는 alias로 _retained_ (Phase 5에서 deprecate).
+    const lifespanTT = cultivar.growthProfile.leafLifespanTT;
+    const expDurTT = cultivar.growthProfile.leafExpansionDurationTT;
+    const senStartOffsetTT = lifespanTT * 0.7;  // senescenceStartTT - initiationTT
+    const canonicalSenescenceProgress = computeSenescenceProgress(
+      ageTT, senStartOffsetTT, lifespanTT - senStartOffsetTT,
+    );
+    // Bridge — at Phase 2A, blend canonical TT-based senescence with the
+    // existing day-based yellowing so visual regression stays bounded.
+    // Phase 5에서 day-based 제거 후 canonical만 사용.
+    const blendedProgress = Math.max(canonicalSenescenceProgress, yellowing);
+    const senescenceState = makeSenescenceState(blendedProgress);
+
+    // Posture — Plan §11 / LEAF-POSTURE-01. PlantBase computes; Skin
+    // applies via anchor.rotation (Phase 3 wires this).
+    const GOLDEN_ANGLE_DEG = 137.508;
+    const posture: LeafPostureState = {
+      azimuthDeg: (i * GOLDEN_ANGLE_DEG + genome.phyllotaxisJitter * i * 0.3) % 360,
+      petioleElevationDeg: 35 - 23 * leafMaturity - senescenceState.droopDeg * 0.5,
+      droopDeg: droopExtra,
+      twistDeg: 0,
+      curl: 0.12 + yellowing * 0.15,
+    };
+
+    // Morphology — Phase 2A minimum (full cultivar leaf shape in Phase 5).
+    const morphology: LeafMorphologyState = {
+      serrationDepth: genome.leafSerrationDepth ?? 0.12,
+      lobeDepth: genome.leafLobeDepth ?? 0.05,
+      petioleLengthM: 0.30,
+      variationSeed: ((genome.seed >>> 0) ^ (i * 2654435761 >>> 0)) >>> 0,
+    };
+
+    // Target/current area + expansion progress.
+    const canonicalExpansionProgress =
+      computeLeafExpansionProgress(ageTT, expDurTT, 0.015);
+    // Legacy compute already produced leafAreaCm2 (currentArea-equivalent).
+    // Phase 2A LeafOrganState: targetArea = leafAreaCm2 / max(eps, leafExpansion²)
+    //  so currentArea / targetArea ≈ leafExpansion² (existing biology preserved).
+    const expSafe = Math.max(0.01, leafExpansion);
+    const targetAreaCm2 = leafAreaCm2 / (expSafe * expSafe);
+    const currentAreaCm2 = Math.min(leafAreaCm2, targetAreaCm2);
+
+    const leafOrgan: LeafOrganState = makeLeafOrganStateFromFlat({
+      nodeIndex: i,
+      initiationTT,
+      visibleTT,
+      ageTT,
+      targetAreaCm2,
+      currentAreaCm2,
+      expansionProgress: Math.max(canonicalExpansionProgress, leafMaturity),
+      leafletCount,
+      posture,
+      morphology,
+      senescence: senescenceState,
+    });
+
+    // Iter 29 Phase 2A — Truss/SideShoot state shell (PHYTOMER-ORGAN-SHELL-01)
+    let trussOrgan: TrussOrganState | undefined;
+    if (truss !== null) {
+      const trussState: TrussOrganState['state'] = truss.fruits.length === 0
+        ? 'flowering'
+        : truss.fruits.some((f) => f.ripenStage >= 5)
+          ? 'ripening'
+          : 'fruiting';
+      trussOrgan = {
+        initiationTT,
+        ageTT,
+        state: trussState,
+      };
+    }
+
     nodes.push({
       index: i, heightCm: nodeHeightCm, phyllotaxisAngle,
       leafMaturity, leafSizeFactor, leafletCount,
@@ -1129,6 +1293,9 @@ export function computePlantState(
       ageTT,
       internode: internodeState,
       status,
+      // Iter 29 Phase 2A — canonical organ state shells.
+      leaf: leafOrgan,
+      trussOrgan,
     });
   }
 
