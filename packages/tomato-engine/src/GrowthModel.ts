@@ -48,6 +48,12 @@ import {
 import {
   computeSourceSinkProxyV1FromPlant,
 } from './growth/SourceSinkProxyV1';
+// Iter 30 Phase 1-Pre — NodeGrowthContext minimum schema (5 fields).
+import {
+  type NodeGrowthContext,
+  makeMainAxisGrowthContext,
+  makeSideShootGrowthContext,
+} from './growth/NodeGrowthContext';
 
 // Phase 3: hybrid is now the default. Legacy sigmoid path remains as
 // fallback for paths that don't supply a physiology state.
@@ -215,6 +221,13 @@ export interface NodeState {
   // Plan PHYTOMER-ORGAN-SHELL-01 — Phase 2A: state shell only. Recursive
   // sub-axis remains in existing `sideShoot` (StemAxis).
   sideShootOrgan?: SideShootState;
+
+  // ── Iter 30 Phase 1-Pre — NodeGrowthContext (5 fields) ────────────
+  // Plan §2 — PhytomerNode가 자기 axis context를 알게 함.
+  //   axisId / localStemRadiusMm / axisCapacityFactor / isSideShoot / parentVigorFactor
+  // Phase 1+ 확장 후보: nodeVigorFactor, sourceSinkFactor 등 (점진).
+  // Backward compat: 미설정 시 DEFAULT_NODE_GROWTH_CONTEXT (optional ?:).
+  growthContext?: NodeGrowthContext;
 }
 
 /**
@@ -557,6 +570,9 @@ function populateSideShootChain(
   // Iter 29 Phase 2B — Source-Sink Proxy v1 multiplier (plant-wide; clamped
   // to [0.65, 1.15]). NOT a TOMSIM carbon partition; lightweight proxy.
   sideSourceSinkProxyV1: number = 1.0,
+  // Iter 30 Phase 1-Pre — side-shoot ordinal index for NodeGrowthContext.axisId.
+  // 'side:0' = first side-shoot in traversal order, etc.
+  sideShootIndex: number = 0,
 ): void {
   const angleRad = ((parentNode.sideShootAngleDeg ?? 35) * Math.PI) / 180;
   const az = shoot.branchAzimuth;
@@ -623,11 +639,27 @@ function populateSideShootChain(
       * genome.leafSizeMultiplier * SHOOT_LEAF_SCALE;
     const leafSizeFactor = potentialSize * leafExpansion;
 
-    // Iter 29 Phase 1-Pre — BASE_LEAF_AREA_CM2 hardcoded 제거.
-    // cultivar.growthProfile.maxLeafAreaCm2 (cherry 550 / round 700 /
-    // beefsteak 850 / roma 650 / tomimaru 800) cultivar-driven.
-    const leafAreaCm2 = cultivar.growthProfile.maxLeafAreaCm2 * leafSizeFactor * leafSizeFactor;
-    const leafMassG = 25 * leafSizeFactor * leafSizeFactor * leafMaturity;
+    // Iter 30 Phase 0.A — Linear Product 4-Stage (R1 fix, side-shoot path).
+    //
+    // 동일 quadratic 결함 (`leafSizeFactor² × max`)을 side-shoot에도 적용 중이었음.
+    // 4-stage linear product로 통일 (POTENTIAL-TARGET-CURRENT-01).
+    //
+    //   potential = max × position × SHOOT_LEAF_SCALE  (vigor는 side에 미적용,
+    //                                                    Phase 3 axisSourceFactor가 대신)
+    //   allocation = stress × proxy
+    //   target = potential × allocation
+    //   current = target × leafExpansion
+    const sidePotentialAreaCm2 =
+      cultivar.growthProfile.maxLeafAreaCm2 * (0.85 + 0.20 * positionFactor) * SHOOT_LEAF_SCALE;
+    const sideAllocationFactor =
+      sideSourceSinkProxyV1 *
+      Math.max(0.3, Math.min(1.0, 1 - stress.waterStress * 0.5 - stress.diseaseLoad * 0.3));
+    const sideTargetAreaCm2_linear = sidePotentialAreaCm2 * sideAllocationFactor;
+    const sideCurrentAreaCm2_linear = sideTargetAreaCm2_linear * leafExpansion;
+
+    // Legacy alias for downstream consumers (leafAreaCm2 = currentAreaCm2)
+    const leafAreaCm2 = sideCurrentAreaCm2_linear;
+    const leafMassG = 25 * (sideCurrentAreaCm2_linear / Math.max(1, cultivar.growthProfile.maxLeafAreaCm2)) * leafMaturity;
 
     // Yellowing — side shoots typically don't reach senescence age before
     // pruning, but mirror the rule for completeness.
@@ -762,6 +794,16 @@ function populateSideShootChain(
       };
     }
 
+    // Iter 30 Phase 1-Pre — side-shoot growthContext (axisId='side:N').
+    // Phase 1 Axis Capacity Model에서 axisCapacityFactor 갱신,
+    // Phase 4 Side-shoot Allocation에서 parentVigorFactor 정밀화.
+    const sideGrowthContext = makeSideShootGrowthContext({
+      sideShootIndex,
+      localStemRadiusMm: stemRadiusMm,
+      axisCapacityFactor: 1.0,
+      parentVigorFactor: 1.0,
+    });
+
     shoot.nodes.push({
       index: k,
       heightCm: parentNode.heightCm + (pos.y - parentNode.position.y) * 100,
@@ -798,6 +840,8 @@ function populateSideShootChain(
       // Iter 29 Phase 2A — canonical organ state shells
       leaf: sideLeafOrgan,
       trussOrgan: sideTrussOrgan,
+      // Iter 30 Phase 1-Pre — NodeGrowthContext (side-shoot)
+      growthContext: sideGrowthContext,
     });
     dir = nextDir;
   }
@@ -1037,12 +1081,32 @@ export function computePlantState(
     ));
     const leafSizeFactor = potentialSize * leafExpansion * plantJuvenileScale * stemVigorFactor;
 
-    // --- Leaf area & mass ---
-    // Iter 29 Phase 1-Pre — BASE_LEAF_AREA_CM2 hardcoded 제거.
-    // cultivar.growthProfile.maxLeafAreaCm2 (cherry 550 / round 700 /
-    // beefsteak 850 / roma 650 / tomimaru 800) cultivar-driven.
-    const leafAreaCm2 = cultivar.growthProfile.maxLeafAreaCm2 * leafSizeFactor * leafSizeFactor;
-    const leafMassG = 25 * leafSizeFactor * leafSizeFactor * leafMaturity;
+    // --- Leaf area & mass (Iter 30 Phase 0.A — Linear Product 4-Stage) ---
+    //
+    // R1 fix: quadratic compounding (`leafSizeFactor²`) was Plan §6 violation.
+    // D=45 idx=10 trace: 700 × 1.344² = 1264 cm² > cultivar bound 700 (1.82×).
+    //
+    // Phase 0.A canonical 4-stage (LEAF-POTENTIAL-TARGET-PREP-01):
+    //   (1) potentialAreaCm2 = max × position × vigor       — cultivar 잠재량
+    //   (2) allocationFactor = proxy × stress                — 할당측 modulator
+    //   (3) targetAreaCm2    = potential × allocation        — 목표 면적
+    //   (4) currentAreaCm2   = target × leafExpansion        — 현재 면적
+    //   (5) leafMassG는 currentAreaCm2 × juvenile (선형, 별도 보존)
+    //
+    // 위 4-stage는 Phase 2에서 LeafOrganState.potentialAreaCm2 +
+    // LeafAllocationState 필드로 승격 가능한 _준비된 형태_.
+    const potentialAreaCm2 =
+      cultivar.growthProfile.maxLeafAreaCm2 * potentialSize * stemVigorFactor;
+    const allocationFactor =
+      sourceSinkProxyV1 *
+      Math.max(0.3, Math.min(1.0, 1 - waterStress * 0.5 - diseaseLoad * 0.3));
+    const targetAreaCm2_linear = potentialAreaCm2 * allocationFactor;
+    const currentAreaCm2_linear = targetAreaCm2_linear * leafExpansion * plantJuvenileScale;
+
+    // Legacy alias — currentAreaCm2 = 기존 leafAreaCm2 이름. Skin은 currentAreaCm2를 읽음.
+    const leafAreaCm2 = currentAreaCm2_linear;
+    // leafMassG: g per (currentArea / 100 cm² × 25)에 가까운 선형 — quadratic 제거.
+    const leafMassG = 25 * (currentAreaCm2_linear / Math.max(1, cultivar.growthProfile.maxLeafAreaCm2)) * leafMaturity;
 
     const yellowing = age > 60 ? Math.min(1, (age - 60) / 30) : 0;
 
@@ -1282,14 +1346,20 @@ export function computePlantState(
     // Target/current area + expansion progress.
     const canonicalExpansionProgress =
       computeLeafExpansionProgress(ageTT, expDurTT, 0.015);
-    // Legacy compute already produced leafAreaCm2 (currentArea-equivalent).
-    // Phase 2A LeafOrganState: targetArea = leafAreaCm2 / max(eps, leafExpansion²)
-    //  so currentArea / targetArea ≈ leafExpansion² (existing biology preserved).
-    const expSafe = Math.max(0.01, leafExpansion);
-    // Iter 29 Phase 2B — source-sink proxy applied multiplicatively (NOT
-    // TOMSIM carbon partition; clamp [0.65, 1.15] modulates target area).
-    const targetAreaCm2 = (leafAreaCm2 / (expSafe * expSafe)) * sourceSinkProxyV1;
-    const currentAreaCm2 = Math.min(leafAreaCm2, targetAreaCm2);
+    // Iter 30 Phase 0.A — Linear Product 4-Stage (R1 quadratic fix).
+    //
+    // 이전 (quadratic 잔차):
+    //   targetAreaCm2 = (leafAreaCm2 / leafExpansion²) × sourceSinkProxyV1
+    //   = max × (position × juvenile × vigor)² × proxy   ← Plan §6 violation
+    //
+    // 신규 (Plan §6 linear product, 위 4-stage 값 재사용):
+    //   targetAreaCm2 = potentialAreaCm2 × allocationFactor
+    //                 = max × position × vigor × proxy × stress
+    //   currentAreaCm2 = targetAreaCm2 × leafExpansion × plantJuvenileScale
+    //
+    // POTENTIAL-TARGET-CURRENT-01: potential ≥ target ≥ current 항등식.
+    const targetAreaCm2 = targetAreaCm2_linear;
+    const currentAreaCm2 = Math.min(targetAreaCm2, currentAreaCm2_linear);
 
     const leafOrgan: LeafOrganState = makeLeafOrganStateFromFlat({
       nodeIndex: i,
@@ -1320,6 +1390,15 @@ export function computePlantState(
       };
     }
 
+    // Iter 30 Phase 1-Pre — growthContext (main axis = 'main').
+    // Phase 1 Axis Capacity Model에서 axisCapacityFactor 계산 후 갱신 예정.
+    // Phase 1-Pre 기본 1.0; localStemRadiusMm는 Pass 3 default 10mm (physics
+    // pass에서 정확값 계산).
+    const mainGrowthContext = makeMainAxisGrowthContext({
+      localStemRadiusMm: 10,
+      axisCapacityFactor: 1.0,
+    });
+
     nodes.push({
       index: i, heightCm: nodeHeightCm, phyllotaxisAngle,
       leafMaturity, leafSizeFactor, leafletCount,
@@ -1344,6 +1423,8 @@ export function computePlantState(
       // Iter 29 Phase 2A — canonical organ state shells.
       leaf: leafOrgan,
       trussOrgan,
+      // Iter 30 Phase 1-Pre — NodeGrowthContext (main axis)
+      growthContext: mainGrowthContext,
     });
   }
 
@@ -1529,6 +1610,10 @@ export function computePlantState(
   // Populate side-shoot axes' nodes — starter chain per activated bud.
   // 곁가지 node 의 leaf biology 는 main axis 와 동일 sigmoid 모델로
   // (Plan 3c-1). 단 size 는 곁가지 특성 반영해서 main 대비 작게.
+  //
+  // Iter 30 Phase 1-Pre: sideShootIndex = traversal-order ordinal (0-based)
+  // 이 axisId='side:0' 'side:1' 등으로 매핑됨.
+  let sideShootOrdinal = 0;
   for (let i = 0; i < mainAxis.nodes.length; i++) {
     const node = mainAxis.nodes[i];
     if (!node.sideShoot || node.budState !== 'growing') continue;
@@ -1547,7 +1632,10 @@ export function computePlantState(
       dailyGDD,
       // Iter 29 Phase 2B — Source-Sink Proxy v1 multiplier (plant-wide).
       sourceSinkProxyV1,
+      // Iter 30 Phase 1-Pre — side-shoot ordinal index for axisId.
+      sideShootOrdinal,
     );
+    sideShootOrdinal++;
   }
 
   // ── Phase 3 hybrid: LAI-scaled leaf area + physiology heightCm ──

@@ -36,7 +36,7 @@ import type {
 import type { PlantBase, AxisBase, LeafBase, FloralSiteBase } from '../../PlantBase';
 import type { PlantState, NodeState } from '@farmsim/tomato-engine/GrowthModel';
 import type { PlantGenome } from '@farmsim/tomato-engine/PlantGenome';
-import { composeLeafRotation, IDENTITY_QUAT } from '../AnchorTransform';
+import { composeLeafRotation, composeLeafRotationLocal, IDENTITY_QUAT } from '../AnchorTransform';
 
 // ── Anchor id parsing ─────────────────────────────────────────────────
 
@@ -88,12 +88,31 @@ function findLeafBase(axis: AxisBase, nodeIdx: number): LeafBase | undefined {
   return axis.leaves.find((l) => l.nodeIdx === nodeIdx);
 }
 
-/** Side-shoot leaf state lookup is not yet supported — main axis only.
- *  Returns undefined for side shoots; populator skips phytomer binding for
- *  those anchors (Skin reads existing flat NodeState fallback). */
+/**
+ * Iter 30 Phase 0.B (R2 fix) — Find NodeState by axisIdx + nodeIdx.
+ *
+ * 이전 (Iter 29까지): `axisIdx !== 0`이면 undefined → 측지 phytomer 미바인딩
+ * → leaf mesh bbox=0. SIDE-SHOOT-PHYTOMER-BIND-01 결함.
+ *
+ * Phase 0.B fix:
+ *   - axisIdx === 0: main axis nodes (state.nodes 동일)
+ *   - axisIdx > 0: state.allAxes 중 order>0인 axes에서 순회 lookup
+ *
+ * ★ axisIdx traversal order 의존성 (사용자 review 2번, SIDE-SHOOT-AXIS-ID-01):
+ *   sideAxes[axisIdx - 1] 단순 index 사용은 traversal 순서 변경 시 잘못된 axis로 mapping.
+ *   Phase 0.B는 axisIdx 기반 1차 fix로 시작. axisId/chain consistency 검증은
+ *   SIDE-SHOOT-AXIS-ID-01 invariant에서 확인 (anchor.chain.rootNodeId가
+ *   해당 side axis의 parentNodeIdx와 일치하는지 자동 check).
+ */
 function findNodeState(state: PlantState, axisIdx: number, nodeIdx: number): NodeState | undefined {
-  if (axisIdx !== 0) return undefined; // side shoots not in state.nodes
-  return state.nodes.find((n) => n.index === nodeIdx);
+  if (axisIdx === 0) return state.nodes.find((n) => n.index === nodeIdx);
+  // Side-shoot: walk allAxes (filter order > 0)
+  const sideAxes = state.allAxes.filter((a) => a.order > 0);
+  // axisIdx convention: 1 = first side shoot in traversal order, etc.
+  // Phase 0.B 1st cut: index-based. axisId-aware lookup은 Phase 1-Pre NodeGrowthContext.
+  const targetAxis = sideAxes[axisIdx - 1];
+  if (!targetAxis) return undefined;
+  return targetAxis.nodes.find((n) => n.index === nodeIdx);
 }
 
 function findFloralSite(
@@ -163,21 +182,43 @@ function fillLeafAnchor(
     anchor.position = { x: meshNode.pos.x, y: meshNode.pos.y, z: meshNode.pos.z };
   }
 
-  // Phase 3 SKELETON-ANCHOR-POSTURE-01 — rotation _copied_ from PlantBase
-  // posture (Phase 2A populated leaf.posture). NO recomputation in Skeleton.
+  // Iter 30 Phase 0.D (R4 fix) — Stem-local frame leaf rotation.
+  //
+  // 이전 (Iter 29 결함): composeLeafRotation은 world Y/X/Z 기반. stem이 휘어도
+  // leaf가 world에 lock → 모든 잎이 동일 평면에 누적 (사용자 사진 #2 evidence).
+  //
+  // 신규: meshAnchorNode.frame (Iter 26 PR 2-1 populated)이 있으면
+  // composeLeafRotationLocal로 stem-local axis 기준 회전.
+  // frame 미존재 fallback은 legacy composeLeafRotation (안전한 점진 마이그레이션).
+  //
+  // SKELETON-ANCHOR-POSTURE-01 (Iter 29): rotation _copied_ from PlantBase posture.
+  // SKELETON-ANCHOR-TRANSFORM-01 (Iter 29): Quat4 출력.
   if (nodeState) {
     const posture = nodeState.leaf.posture;
-    anchor.rotation = composeLeafRotation(
-      posture.azimuthDeg,
-      posture.droopDeg,
-      posture.twistDeg,
-    );
+    if (meshNode?.frame) {
+      anchor.rotation = composeLeafRotationLocal(
+        meshNode.frame,
+        posture.azimuthDeg,
+        posture.droopDeg,
+        posture.twistDeg,
+      );
+    } else {
+      anchor.rotation = composeLeafRotation(
+        posture.azimuthDeg,
+        posture.droopDeg,
+        posture.twistDeg,
+      );
+    }
   } else if (leaf) {
-    // Fallback for non-state populator paths (side-shoot leaf, etc.) —
-    // use PlantBase leaf azimuth/droop directly.
+    // Fallback for non-state populator paths (rare after Phase 0.B fix) —
+    // PlantBase leaf azimuth/droop direct.
     const azDeg = (leaf.azimuthRad ?? 0) * (180 / Math.PI);
     const droopDeg = (leaf.droopRad ?? 0) * (180 / Math.PI);
-    anchor.rotation = composeLeafRotation(azDeg, droopDeg, 0);
+    if (meshNode?.frame) {
+      anchor.rotation = composeLeafRotationLocal(meshNode.frame, azDeg, droopDeg, 0);
+    } else {
+      anchor.rotation = composeLeafRotation(azDeg, droopDeg, 0);
+    }
   } else {
     anchor.rotation = IDENTITY_QUAT;
   }

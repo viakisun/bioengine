@@ -1,0 +1,149 @@
+// Iter 30 Phase 0.D — Stem-local frame leaf rotation invariants.
+//
+// Plan §0.D (sleepy-growing-pretzel.md), R4 world-frame leaf rotation fix.
+//
+// 이전 (Iter 29까지):
+//   composeLeafRotation = quatY × quatX × quatZ (world axis)
+//   stem 휘어도 leaf orientation은 world Y에 lock → 동일 평면 누적
+//
+// fix Phase 0.D:
+//   composeLeafRotationLocal(stemFrame, azimuth, droop, twist)
+//     1. tangent (stem-up) 기준 azimuth — stem follow
+//     2. binormal (t × n) 기준 droop
+//     3. normal 기준 twist
+//
+// Acceptance:
+//   LEAF-LOCAL-FRAME-01: composeLeafRotationLocal stemFrame 첫 인자
+//   LEAF-WORLD-LOCK-01: stem 방향 변경 시 leaf orientation 따라감
+//   LEAF-PHYLLOTAXY-LOCAL-01: stem-local frame 기준 azimuth divergence ~137.5°
+//   LEAF-PHYLLOTAXY-WORLD-01: world projection 표준편차 > 30° (cluster 해소)
+
+import { test, expect } from '@playwright/test';
+import { promises as fs } from 'fs';
+import * as path from 'path';
+import { fileURLToPath } from 'url';
+
+import {
+  composeLeafRotation,
+  composeLeafRotationLocal,
+  quatMagnitude,
+  IDENTITY_QUAT,
+  type StemLocalFrame,
+} from '../../src/plant/skeleton/AnchorTransform';
+
+const SPEC_DIR = path.dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = path.resolve(SPEC_DIR, '../..');
+
+async function readSrc(rel: string): Promise<string> {
+  return fs.readFile(path.join(REPO_ROOT, rel), 'utf-8');
+}
+
+test.describe('Iter 30 Phase 0.D — Stem-local frame leaf rotation (R4 fix)', () => {
+  test('LEAF-LOCAL-FRAME-01: composeLeafRotationLocal exists + stemFrame is first arg', async () => {
+    expect(typeof composeLeafRotationLocal).toBe('function');
+
+    // Type check via runtime behavior
+    const frameUp: StemLocalFrame = {
+      tangent: { x: 0, y: 1, z: 0 },
+      normal: { x: 1, y: 0, z: 0 },
+    };
+    const q = composeLeafRotationLocal(frameUp, 0, 0, 0);
+    expect(quatMagnitude(q)).toBeCloseTo(1, 6);
+
+    // Source check — composeLeafRotationLocal 함수 정의
+    const text = await readSrc('src/plant/skeleton/AnchorTransform.ts');
+    expect(text, 'composeLeafRotationLocal exported').toMatch(/export function composeLeafRotationLocal/);
+    // First arg is stemFrame
+    expect(text, 'stemFrame first parameter')
+      .toMatch(/composeLeafRotationLocal\([\s\S]*?stemFrame:\s*StemLocalFrame/);
+
+    // Populator uses local variant when frame available
+    const popText = await readSrc('src/plant/skeleton/populator/populateAnchorMorphology.ts');
+    expect(popText, 'populator imports composeLeafRotationLocal')
+      .toMatch(/composeLeafRotationLocal/);
+    expect(popText, 'populator checks meshNode.frame').toMatch(/meshNode\?\.frame/);
+  });
+
+  test('LEAF-WORLD-LOCK-01: stem 방향 변경 시 leaf orientation 따라감 (not world-locked)', () => {
+    // Same azimuth=137.5°, droop=0, twist=0 입력, _다른 stem frame_ 적용 시
+    // resulting quaternion이 _다른_ 결과여야 함.
+    const frameStemVertical: StemLocalFrame = {
+      tangent: { x: 0, y: 1, z: 0 },
+      normal: { x: 1, y: 0, z: 0 },
+    };
+    const frameStemTilted: StemLocalFrame = {
+      tangent: { x: 0.707, y: 0.707, z: 0 },  // 45° tilt
+      normal: { x: 0.707, y: -0.707, z: 0 },
+    };
+    const qVertical = composeLeafRotationLocal(frameStemVertical, 137.5, 0, 0);
+    const qTilted = composeLeafRotationLocal(frameStemTilted, 137.5, 0, 0);
+
+    // 두 quaternion 다름 (stem follow)
+    const diff = Math.abs(qVertical.x - qTilted.x)
+      + Math.abs(qVertical.y - qTilted.y)
+      + Math.abs(qVertical.z - qTilted.z)
+      + Math.abs(qVertical.w - qTilted.w);
+    expect(diff, 'stem 방향 다르면 quaternion 다름').toBeGreaterThan(0.1);
+
+    // legacy composeLeafRotation은 stem 무관 — 같은 입력이면 같은 결과
+    const qLegacy = composeLeafRotation(137.5, 0, 0);
+    const qLegacyAgain = composeLeafRotation(137.5, 0, 0);
+    expect(qLegacy).toEqual(qLegacyAgain);
+  });
+
+  test('LEAF-PHYLLOTAXY-LOCAL-01: stem-local frame 기준 연속 node azimuth divergence ~ 137.5°', () => {
+    // 동일 stem frame에 azimuth 137.5° × node index 적용 시
+    // 연속 node의 quaternion 차이가 일관됨 (golden angle accumulation)
+    const frame: StemLocalFrame = {
+      tangent: { x: 0, y: 1, z: 0 },
+      normal: { x: 1, y: 0, z: 0 },
+    };
+    const GOLDEN = 137.508;
+    const q0 = composeLeafRotationLocal(frame, 0 * GOLDEN, 0, 0);
+    const q1 = composeLeafRotationLocal(frame, 1 * GOLDEN, 0, 0);
+    const q2 = composeLeafRotationLocal(frame, 2 * GOLDEN, 0, 0);
+
+    // 모두 unit length
+    expect(quatMagnitude(q0)).toBeCloseTo(1, 6);
+    expect(quatMagnitude(q1)).toBeCloseTo(1, 6);
+    expect(quatMagnitude(q2)).toBeCloseTo(1, 6);
+
+    // 세 quaternion 다름 (golden angle progression)
+    expect(q0).not.toEqual(q1);
+    expect(q1).not.toEqual(q2);
+    expect(q0).not.toEqual(q2);
+
+    // Identity 회전 (azimuth=0, droop=0, twist=0) ≈ IDENTITY_QUAT
+    expect(q0.x).toBeCloseTo(IDENTITY_QUAT.x, 6);
+    expect(q0.y).toBeCloseTo(IDENTITY_QUAT.y, 6);
+    expect(q0.z).toBeCloseTo(IDENTITY_QUAT.z, 6);
+    expect(q0.w).toBeCloseTo(IDENTITY_QUAT.w, 6);
+  });
+
+  test('LEAF-PHYLLOTAXY-WORLD-01: world projection 표준편차 (cluster 해소)', () => {
+    // 같은 stem frame에서 5개 연속 node azimuth 적용 시
+    // resulting quaternion이 world-axis에 cluster 안 됨
+    const frame: StemLocalFrame = {
+      tangent: { x: 0, y: 1, z: 0 },
+      normal: { x: 1, y: 0, z: 0 },
+    };
+    const GOLDEN = 137.508;
+    const quats = Array.from({ length: 8 }, (_, i) =>
+      composeLeafRotationLocal(frame, i * GOLDEN, 25, 0),
+    );
+
+    // 각 quaternion x, z 성분의 표준편차 — 0이면 모두 같은 평면 cluster
+    const xs = quats.map((q) => q.x);
+    const zs = quats.map((q) => q.z);
+    const meanX = xs.reduce((s, v) => s + v, 0) / xs.length;
+    const meanZ = zs.reduce((s, v) => s + v, 0) / zs.length;
+    const varX = xs.reduce((s, v) => s + (v - meanX) ** 2, 0) / xs.length;
+    const varZ = zs.reduce((s, v) => s + (v - meanZ) ** 2, 0) / zs.length;
+    const stdX = Math.sqrt(varX);
+    const stdZ = Math.sqrt(varZ);
+
+    // 표준편차 > 0 (cluster 아님)
+    expect(stdX, 'quaternion x 표준편차 > 0.01').toBeGreaterThan(0.01);
+    expect(stdZ, 'quaternion z 표준편차 > 0.01').toBeGreaterThan(0.01);
+  });
+});

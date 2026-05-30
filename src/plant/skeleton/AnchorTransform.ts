@@ -79,3 +79,85 @@ export function composeLeafRotation(
 export function quatMagnitude(q: Quat4): number {
   return Math.sqrt(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w);
 }
+
+// ============================================================
+// Iter 30 Phase 0.D — Stem-local frame leaf rotation (R4 fix)
+// ============================================================
+
+/**
+ * Structural local frame — tangent (stem 위 방향), normal (외측 surface),
+ * binormal (tangent × normal). 모두 plant-local 단위 벡터.
+ */
+export interface StemLocalFrame {
+  tangent: { x: number; y: number; z: number };
+  normal: { x: number; y: number; z: number };
+}
+
+/**
+ * Iter 30 Phase 0.D (R4 fix) — Stem-local frame 기반 leaf rotation.
+ *
+ * 이전 (composeLeafRotation, R4 결함):
+ *   quatY(azimuth) × quatX(-droop) × quatZ(twist)
+ *   → world axis 기반. stem이 휘어도 leaf orientation은 world Y에 lock.
+ *   → 모든 잎이 동일 평면에 누적 (사용자 사진 #2 직접 evidence).
+ *
+ * 신규 (composeLeafRotationLocal):
+ *   1. stemFrame.tangent → 회전축으로 azimuth (phyllotaxy spiral)
+ *      stem이 휘면 tangent 자동 회전 → leaf orientation 따라감.
+ *   2. binormal (tangent × normal) → droop axis
+ *   3. petiole axis (rotated normal) → twist axis
+ *
+ * @param stemFrame  SkeletonNode.frame (Iter 26 PR 1-1 populated)
+ * @param azimuthDeg phyllotaxy angle (degrees, golden 137.5° × node index typical)
+ * @param droopDeg   blade plane droop (degrees)
+ * @param twistDeg   petiole roll (degrees)
+ * @returns Quat4 quaternion for anchor.rotation
+ */
+export function composeLeafRotationLocal(
+  stemFrame: StemLocalFrame,
+  azimuthDeg: number,
+  droopDeg: number,
+  twistDeg: number = 0,
+): Quat4 {
+  // 1. Azimuth around tangent (stem-up direction).
+  //    stem이 휘면 tangent도 휘어 → leaf phyllotaxy가 stem follow.
+  const qAzimuth = quatAroundAxis(stemFrame.tangent, azimuthDeg);
+
+  // 2. Droop around binormal (tangent × normal). Negative = 아래로 처짐.
+  const binormal = cross3(stemFrame.tangent, stemFrame.normal);
+  const qDroop = quatAroundAxis(binormal, -droopDeg);
+
+  // 3. Twist around normal (petiole axis approximation).
+  const qTwist = quatAroundAxis(stemFrame.normal, twistDeg);
+
+  // azimuth × droop × twist (twist innermost)
+  return quatMul(qAzimuth, quatMul(qDroop, qTwist));
+}
+
+/**
+ * Quaternion around an arbitrary axis (must be unit vector for normalized result).
+ */
+function quatAroundAxis(axis: { x: number; y: number; z: number }, deg: number): Quat4 {
+  const rad = deg * DEG_TO_RAD;
+  const h = rad / 2;
+  const s = Math.sin(h);
+  const c = Math.cos(h);
+  return {
+    x: axis.x * s,
+    y: axis.y * s,
+    z: axis.z * s,
+    w: c,
+  };
+}
+
+/** Cross product. */
+function cross3(
+  a: { x: number; y: number; z: number },
+  b: { x: number; y: number; z: number },
+): { x: number; y: number; z: number } {
+  return {
+    x: a.y * b.z - a.z * b.y,
+    y: a.z * b.x - a.x * b.z,
+    z: a.x * b.y - a.y * b.x,
+  };
+}
