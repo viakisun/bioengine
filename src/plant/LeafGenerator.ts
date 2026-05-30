@@ -337,7 +337,12 @@ export function buildLeafMeshFromPhytomer(
       shape,
       // ★ Iter 31 Phase 2 canonical fields (PlantBase 계산값 그대로 전달).
       leafAxisLengthScale: projection?.leafAxisLengthScale,
-      leafletBladeScale: projection?.leafletBladeScale,
+      // ★ Iter 31 R23 fix — leaflet도 length gate 적용 (어린 leaf size 정합).
+      //   이전: leafletBladeScale = linearAreaScale (length maturity 제외)
+      //   결함: 어린 leaf의 leaflet이 _상대적으로 큼_ → leaf rangeZ > rangeX (a0_n13: 2 leaflets,
+      //   rangeX=5.6cm, rangeZ=6.0cm, dominant=z 결함).
+      //   Fix: leafletBladeScale도 leafAxisLengthScale 사용 → leaflet도 어린 leaf에서 작아짐.
+      leafletBladeScale: projection?.leafAxisLengthScale,
       referenceRachisLengthM: projection?.referenceRachisLengthM,
       referencePetioleLengthM: projection?.referencePetioleLengthM,
     },

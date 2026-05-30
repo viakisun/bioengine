@@ -191,10 +191,14 @@ export function buildLeafChunk(paramsArg: LeafBuildParams, rng: SeededRandom): G
         rotateChunkY(leaflet, side * rng.range(0.20, 0.30));
         rotateChunkZ(leaflet, -Math.abs(rng.gaussian(0, leafletDroopRange)));
         rotateChunkX(leaflet, rng.gaussian(0, leafletTwistRange));
-        translateChunk(leaflet, posAlongRachis, yOff, side * 0.025 * baseSizeMod);
+        // ★ Iter 31 R23 fix — lateral offset이 leafletSize에 _비례_ (이전: 2.5cm hardcoded).
+        //   결함: 어린 leaf의 leaflet도 _2.5cm 떨어진_ 위치로 → leaf rangeZ ≫ rangeX (dominant=z).
+        //   Fix: leafletSize × 0.2 (잎 크기의 20% 옆 offset, 자연 토마토 비례).
+        translateChunk(leaflet, posAlongRachis, yOff, side * leafletSize * 0.2);
         chunks.push(leaflet);
 
-        const petioluleLen = 0.008 * baseSizeMod;
+        // R23 fix — petiolule도 비례 (이전: 0.008 × baseSizeMod hardcoded base)
+        const petioluleLen = 0.008 * baseSizeMod * (paramsArg.leafAxisLengthScale ?? 1);
         const petiolule = createCylinderChunk(
           0.0004 * sizeFactor,
           0.0006 * sizeFactor,
@@ -219,7 +223,7 @@ export function buildLeafChunk(paramsArg: LeafBuildParams, rng: SeededRandom): G
             const small = createOvateLeaflet(interSize, curl * rng.range(0.3, 1.0), af, rng, effShape, false);
             rotateChunkY(small, side * rng.range(0.4, 0.8));
             rotateChunkZ(small, -Math.abs(rng.gaussian(0, leafletDroopRange * 0.7)));
-            translateChunk(small, interPos, interYOff, side * 0.015);
+            translateChunk(small, interPos, interYOff, side * interSize * 0.2);  // R23 fix: leafletSize 비례
             chunks.push(small);
           }
         }
@@ -423,7 +427,7 @@ export function buildLeafBladeOnly(paramsArg: LeafBuildParams, rng: SeededRandom
             const small = createOvateLeaflet(interSize, curl * rng.range(0.3, 1.0), af, rng, effShape, false);
             rotateChunkY(small, side * rng.range(0.4, 0.8));
             rotateChunkZ(small, -Math.abs(rng.gaussian(0, leafletDroopRange * 0.7)));
-            translateChunk(small, interPos, interYOff, side * 0.015);
+            translateChunk(small, interPos, interYOff, side * interSize * 0.2);  // R23 fix: leafletSize 비례
             chunks.push(small);
           }
         }
