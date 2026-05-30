@@ -5,6 +5,28 @@
 
 ---
 
+## ★ Iter 31 R26 Update (commit 4029b6b)
+
+R26 이후 **leaf anchor rotation은 posture 필드와 무관**. populator (`fillLeafAnchor`)는
+`edge.bonePath[last]` tangent (PlantBase petioleCurve의 마지막 segment)를
+`makeLeafQuaternion`에 전달 — 산수 추가 0. 자세한 R26 contract은
+[`STEM_LOCAL_FRAME.md`](./STEM_LOCAL_FRAME.md) 참조.
+
+posture 필드의 _R26 이후 역할_:
+- **`azimuthDeg`**, **`petioleElevationDeg`**, **`droopDeg`**, **`twistDeg`** —
+  ★ @deprecated (LeafGrowthModel.ts JSDoc). leaf rotation에 미사용.
+  `docs/iter32-candidates.md` `POSTURE-FIELD-CLEANUP-01`에서 제거 검토.
+- **`curl`** — ★ 보존. `leafChunk.ts`의 mesh deformation (transverseCup +
+  z-twist)이 사용. R26 이후에도 _mesh 변형_은 anchor rotation과 별개 layer.
+- **`gravity/senescence/waterStressDroopDeg`** 등 9-필드는 _droop이 petioleCurve에
+  반영되는 _PlantBase 내부 산식 입력_으로_ 살아있음. populator에서 _직접_ 안 읽음.
+
+PlantBase가 9-필드로 droop을 계산 → petioleCurve control points에 반영 → catmullRomPath
+bone 생성 → populator가 마지막 bone tangent 추출. _composition은 PlantBase 내부_, populator는
+_curve 출력만_.
+
+---
+
 ## 동기 (R5)
 
 **Before (Iter 29까지)**:

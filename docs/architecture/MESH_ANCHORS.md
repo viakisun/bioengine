@@ -58,6 +58,30 @@ Iter 24 acfad71 로직을 함수로 분리 (byte-identical).
 **검증**: `tests/architecture/mesh-anchor-contracts.spec.ts`에서 모든 leaf
 mesh의 첫 vertex가 mesh-local `(0, 0, 0)` 근처 (≤1mm).
 
+#### ★ Iter 31 R26 contract — `OrganAnchor.rotation` 산출 (commit 4029b6b)
+
+`leaf_blade` `OrganAnchor`의 rotation은 _PlantBase petioleCurve의 마지막 segment
+tangent_ 그대로 사용:
+
+```ts
+// populateAnchorMorphology.ts:fillLeafAnchor
+const lastBone = edge.bonePath[edge.bonePath.length - 1];
+const petioleTipTangent = {
+  x: lastBone.p1.x - lastBone.p0.x,
+  y: lastBone.p1.y - lastBone.p0.y,
+  z: lastBone.p1.z - lastBone.p0.z,
+};
+anchor.rotation = makeLeafQuaternion(petioleTipTangent, { x: 0, y: 1, z: 0 });
+```
+
+- `petioleTipTangent` = leaf가 _자라는 방향_ (마지막 segment의 곡선 기울기)
+- `bladeUp` 기본값 `(0, 1, 0)` = world up — blade plane horizontal (햇빛 자세)
+- `makeLeafQuaternion` (AnchorTransform.ts) = lookRotation (Gram-Schmidt + Shepperd's)
+- `posture.azimuth/droop/twist` 등 _별도 산식 0_ — PlantBase curve가 _이미_ 표현
+
+자세한 contract은 [`STEM_LOCAL_FRAME.md`](./STEM_LOCAL_FRAME.md) (R26 final).
+Iter 30 Phase 0.D `composeLeafRotationLocal` contract은 _historic_ (archived).
+
 ### 3. Fruit mesh (`createTrussFruitOrgansOnly`)
 
 | 항목 | 값 |
