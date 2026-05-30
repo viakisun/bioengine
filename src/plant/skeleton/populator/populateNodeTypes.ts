@@ -63,47 +63,187 @@ function cross(
 }
 
 /**
- * Compute a local frame at the node from one of its incident edges.
- *
- * - tangent: direction along the first incident edge's bonePath near this node.
- * - normal: world-up × tangent, normalized; falls back to world-up if degenerate.
+ * Compute node tangent from first incident edge's bonePath.
+ * Shared by legacy (computeFrame) and Iter 31 (computeFrameWithTransport).
+ */
+function computeNodeTangent(
+  graph: PlantSkeletonGraph,
+  node: SkeletonNode,
+): PlantLocalV3 {
+  const edgeId = node.edgeIds[0];
+  const edge = edgeId !== undefined ? graph.edges.get(edgeId) : undefined;
+  if (!edge || edge.bonePath.length === 0) return WORLD_UP;
+  const isEndNode = edge.endNodeId === node.id;
+  const bone = isEndNode ? edge.bonePath[edge.bonePath.length - 1] : edge.bonePath[0];
+  return normalize({
+    x: bone.p1.x - bone.p0.x,
+    y: bone.p1.y - bone.p0.y,
+    z: bone.p1.z - bone.p0.z,
+  });
+}
+
+/**
+ * Legacy fallback frame — WORLD_UP × tangent.
+ * Iter 31 Phase 3 (R4 fix) — _axis root nodes 전용_ + non-stem typed nodes 전용.
+ * Curved-stem 구간에서는 computeFrameWithTransport를 사용해야 normal.y XZ-plane
+ * lock을 피함.
+ */
+function fallbackNormal(tangent: PlantLocalV3): PlantLocalV3 {
+  const c = cross(WORLD_UP, tangent);
+  const cLen = len(c);
+  return cLen > 1e-6
+    ? normalize(c)
+    : ({ x: 1, y: 0, z: 0 } as PlantLocalV3);
+}
+
+/**
+ * Legacy compute (Iter 26~30). Retained for typed leaves (petiole_tip 등) which
+ * don't need axis-propagated continuity.
  */
 function computeFrame(
   graph: PlantSkeletonGraph,
   node: SkeletonNode,
 ): LocalFrame {
-  // Pick the first incident edge. For interior nodes any one works since the
-  // populator is best-effort; downstream consumers refine if needed.
-  const edgeId = node.edgeIds[0];
-  const edge = edgeId !== undefined ? graph.edges.get(edgeId) : undefined;
-  if (!edge || edge.bonePath.length === 0) {
-    return { tangent: WORLD_UP, normal: { x: 1, y: 0, z: 0 } as PlantLocalV3 };
+  const tangent = computeNodeTangent(graph, node);
+  return { tangent, normal: fallbackNormal(tangent) };
+}
+
+/**
+ * Iter 31 Phase 3 (R4 fix) — Parallel-transport frame.
+ *
+ * Root cause: legacy `normal = WORLD_UP × tangent`는 모든 frame을 XZ horizontal
+ * plane에 lock (Phase 0.0 baseline: D=30~D=90 _모든_ node normal.y = 0).
+ *
+ * Fix: 이전 node의 normal을 _현재 tangent 평면_에 project (Gram-Schmidt).
+ * - prevFrame 있음 → projected normal = prev.normal - (prev.normal · tangent) × tangent
+ * - prevFrame 없음 (axis 첫 node, fallback OK) → WORLD_UP × tangent
+ *
+ * 결과: 곡선 stem 위 연속 node가 _다른_ normal 가짐 → leaf droop이 다양한
+ * binormal axis 주위 → fern frond stack 해소.
+ */
+function computeFrameWithTransport(
+  graph: PlantSkeletonGraph,
+  node: SkeletonNode,
+  prevFrame: LocalFrame | undefined,
+): LocalFrame {
+  const tangent = computeNodeTangent(graph, node);
+
+  let normal: PlantLocalV3;
+  if (prevFrame) {
+    // Gram-Schmidt projection: n' = n - (n·t)t
+    const dot = prevFrame.normal.x * tangent.x
+      + prevFrame.normal.y * tangent.y
+      + prevFrame.normal.z * tangent.z;
+    const projected = {
+      x: prevFrame.normal.x - dot * tangent.x,
+      y: prevFrame.normal.y - dot * tangent.y,
+      z: prevFrame.normal.z - dot * tangent.z,
+    };
+    normal = len(projected) > 1e-6
+      ? normalize(projected)
+      : fallbackNormal(tangent);
+  } else {
+    normal = fallbackNormal(tangent);
   }
-  const isEndNode = edge.endNodeId === node.id;
-  const bone = isEndNode ? edge.bonePath[edge.bonePath.length - 1] : edge.bonePath[0];
-  const dir = isEndNode
-    ? { x: bone.p1.x - bone.p0.x, y: bone.p1.y - bone.p0.y, z: bone.p1.z - bone.p0.z }
-    : { x: bone.p1.x - bone.p0.x, y: bone.p1.y - bone.p0.y, z: bone.p1.z - bone.p0.z };
-  const tangent = normalize(dir);
-  // normal = world-up × tangent, normalized. If parallel, fall back to world-x.
-  const c = cross(WORLD_UP, tangent);
-  const cLen = len(c);
-  const normal: PlantLocalV3 = cLen > 1e-6
-    ? normalize(c)
-    : ({ x: 1, y: 0, z: 0 } as PlantLocalV3);
   return { tangent, normal };
+}
+
+/**
+ * Extract axis index from node id (e.g. `n:axis2:n5` → 2, `n:petiole_tip:axis0:n3` → 0).
+ * Returns null if no axis pattern matched.
+ */
+function parseAxisIndex(id: string): number | null {
+  const m = id.match(/axis(\d+)/);
+  return m ? Number(m[1]) : null;
+}
+
+/**
+ * Extract node ordinal from id (e.g. `n:axis0:n12` → 12). Returns null if no n{N}.
+ */
+function parseNodeOrdinal(id: string): number | null {
+  const m = id.match(/:n(\d+)$/);
+  return m ? Number(m[1]) : null;
+}
+
+/** Euclidean distance². */
+function dist2(a: { x: number; y: number; z: number }, b: { x: number; y: number; z: number }): number {
+  const dx = a.x - b.x;
+  const dy = a.y - b.y;
+  const dz = a.z - b.z;
+  return dx * dx + dy * dy + dz * dz;
 }
 
 /**
  * Populate node.type / frame / visualHint on every node of the graph.
  *
+ * Iter 31 Phase 3 (R4 fix) — axis별 parallel-transport frame propagation.
+ *
+ * Steps:
+ *   1. typed leaves (petiole_tip, peduncle_end, pedicel_tip, knuckle): legacy fallback frame.
+ *   2. main-axis stem nodes (n:axis0:*): ordinal 순 parallel-transport.
+ *   3. side-shoot stem nodes (n:axis{N}:*): 첫 node frame seed = 위치 가장 가까운 main-axis frame,
+ *      이후 ordinal 순 parallel-transport.
+ *
  * In-place — modifies the graph passed in. Idempotent.
  */
 export function populateNodeTypes(graph: PlantSkeletonGraph): void {
+  // Step 1: classify + assign type + initial frame (typed leaves only)
+  const mainAxisNodes: SkeletonNode[] = [];
+  const sideAxisNodes = new Map<number, SkeletonNode[]>();
+
   for (const node of graph.nodes.values()) {
     const type = nodeTypeFromId(node.id);
     node.type = type;
-    node.frame = computeFrame(graph, node);
     node.visualHint = defaultVisualHint(type);
+    if (type === 'main-stem-node') {
+      mainAxisNodes.push(node);
+    } else if (type === 'side-shoot-node') {
+      const axisIdx = parseAxisIndex(node.id);
+      if (axisIdx != null && axisIdx > 0) {
+        const list = sideAxisNodes.get(axisIdx) ?? [];
+        list.push(node);
+        sideAxisNodes.set(axisIdx, list);
+      } else {
+        // axis index 파싱 실패 → legacy fallback
+        node.frame = computeFrame(graph, node);
+      }
+    } else {
+      // typed leaves (petiole_tip, peduncle_end, ...) — legacy fallback OK
+      node.frame = computeFrame(graph, node);
+    }
+  }
+
+  // Step 2: main-axis parallel-transport (ordinal sort)
+  mainAxisNodes.sort((a, b) => (parseNodeOrdinal(a.id) ?? 0) - (parseNodeOrdinal(b.id) ?? 0));
+  let prevMainFrame: LocalFrame | undefined;
+  for (const node of mainAxisNodes) {
+    node.frame = computeFrameWithTransport(graph, node, prevMainFrame);
+    prevMainFrame = node.frame;
+  }
+
+  // Step 3: side-shoot axes — seed first frame from nearest main-axis node.
+  // ★ SIDE-FRAME-PARENT-SEED-01 (Iter 31 Plan v3 review 5).
+  //   단순 fallback (WORLD_UP × tangent)은 side-shoot에서 XZ plane lock 유발.
+  //   side-shoot 첫 node의 _공간상 가장 가까운_ main-axis frame을 prevFrame seed로.
+  for (const [, sideNodes] of sideAxisNodes) {
+    sideNodes.sort((a, b) => (parseNodeOrdinal(a.id) ?? 0) - (parseNodeOrdinal(b.id) ?? 0));
+    let prevFrame: LocalFrame | undefined;
+    if (sideNodes.length > 0 && mainAxisNodes.length > 0) {
+      const firstSide = sideNodes[0];
+      let bestMain: SkeletonNode | undefined;
+      let bestDist = Infinity;
+      for (const m of mainAxisNodes) {
+        const d = dist2(firstSide.pos, m.pos);
+        if (d < bestDist) {
+          bestDist = d;
+          bestMain = m;
+        }
+      }
+      prevFrame = bestMain?.frame;  // parent main frame seed
+    }
+    for (const node of sideNodes) {
+      node.frame = computeFrameWithTransport(graph, node, prevFrame);
+      prevFrame = node.frame;
+    }
   }
 }
