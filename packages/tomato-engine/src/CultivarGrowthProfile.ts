@@ -150,6 +150,93 @@ export function resolveCultivarGrowthProfile(
   };
 }
 
+// ---------------------------------------------------------------------------
+// Iter 29 Phase 5 — Provenance metadata per growth-profile field.
+//
+// Plan PROVENANCE-01: 모든 growth parameter는 source/range/default/confidence를 가진다.
+//
+// Each field of CultivarGrowthProfile has a parallel CultivarGrowthProfileFieldMeta
+// entry. JSONC files may extend with cultivar-specific sourceRefs / range overrides
+// for empirical calibration tracking.
+// ---------------------------------------------------------------------------
+
+export type CultivarGrowthProfileSource =
+  | 'literature'
+  | 'vendor'
+  | 'estimated'
+  | 'measured'
+  | 'calibrated';
+
+export type CultivarGrowthProfileConfidence = 'low' | 'medium' | 'high';
+
+export interface CultivarGrowthProfileFieldMeta {
+  /** Where this default was sourced. */
+  source: CultivarGrowthProfileSource;
+  /** Acceptable measured range for this parameter. */
+  range?: [number, number];
+  /** Default value (matches DEFAULT_CULTIVAR_GROWTH_PROFILE). */
+  default: number;
+  /** Confidence on the default value. */
+  confidence: CultivarGrowthProfileConfidence;
+  /** Citation list (paper / breeder spec). */
+  sourceRefs?: string[];
+}
+
+export type CultivarGrowthProfileProvenance = {
+  readonly [K in keyof CultivarGrowthProfile]: CultivarGrowthProfileFieldMeta;
+};
+
+/**
+ * Default provenance for all 11 fields. Cultivar JSONC files may override
+ * any subset via `growthProfileProvenance`.
+ */
+export const DEFAULT_GROWTH_PROFILE_PROVENANCE: CultivarGrowthProfileProvenance = {
+  phyllochronTT: {
+    source: 'literature', default: 38, range: [32, 45], confidence: 'high',
+    sourceRefs: ['Heuvelink 1996 TOMSIM (38 GDD/leaf for tomato)'],
+  },
+  plastochronTT: {
+    source: 'estimated', default: 30, range: [25, 38], confidence: 'low',
+    sourceRefs: ['placeholder — v1 미사용; Phase 2+ primordium-visible delay 모델링 시 활용'],
+  },
+  baseInternodeLengthCm: {
+    source: 'literature', default: 7, range: [4, 10], confidence: 'medium',
+    sourceRefs: ['greenhouse indeterminate cultivar 6-8 cm typical'],
+  },
+  maxLeafAreaCm2: {
+    source: 'literature', default: 800, range: [450, 950], confidence: 'medium',
+    sourceRefs: ['cherry 450-650 / medium 600-800 / beefsteak 750-950 cm²'],
+  },
+  maxLeafletCount: {
+    source: 'literature', default: 9, range: [7, 11], confidence: 'high',
+    sourceRefs: ['compound mature leaflets: cherry 7 / standard 9 / beefsteak 11'],
+  },
+  leafExpansionDurationTT: {
+    source: 'literature', default: 400, range: [350, 500], confidence: 'medium',
+    sourceRefs: ['Marcelis 1996 typical ~400 GDD'],
+  },
+  leafLifespanTT: {
+    source: 'estimated', default: 1200, range: [1000, 1400], confidence: 'medium',
+    sourceRefs: ['~60 days at 20°C → ~1200 GDD'],
+  },
+  firstTrussNodeIndex: {
+    source: 'literature', default: 9, range: [7, 11], confidence: 'high',
+    sourceRefs: ['indeterminate tomato typically 8-10'],
+  },
+  trussIntervalNodes: {
+    source: 'literature', default: 3, range: [2, 4], confidence: 'high',
+    sourceRefs: ['3-leaf phyllotaxis (most commercial cultivars)'],
+  },
+  baseStemRadiusMm: {
+    source: 'literature', default: 8, range: [5, 12], confidence: 'medium',
+    sourceRefs: ['greenhouse indeterminate ~8 mm mature mid-shoot'],
+  },
+  sourceSinkSensitivity: {
+    source: 'literature', default: 0.35, range: [0.25, 0.45], confidence: 'medium',
+    sourceRefs: ['Marcelis 1996 sink strength leaf ~0.35 (vs fruit=1.0)'],
+  },
+};
+
 /**
  * Type-specific growth profile defaults (Iter 29 Phase 1-Pre).
  *

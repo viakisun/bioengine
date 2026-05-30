@@ -709,18 +709,13 @@ export function createSkinMeshPlant(
             );
         leafMesh.parent = lushGroup;
         leafMesh.position = new Vector3(tipPlantPos.x, tipPlantPos.y, tipPlantPos.z);
-        // Iter 29 Phase 4 — canonical rotation via anchor.rotation (SKIN-DATA-DRIVEN-03).
-        //   Plan §13.2: anchor.rotation already encodes PlantBase posture via the
-        //   populator. Legacy leafBase fallback retained only when anchor.rotation
-        //   missing (populator path failure) — Phase 5 LEGACY-ALIAS-REMOVE-02 prunes.
-        if (anchor.rotation) {
-          leafMesh.rotationQuaternion = new Quaternion(
-            anchor.rotation.x, anchor.rotation.y, anchor.rotation.z, anchor.rotation.w,
-          );
-        } else {
-          leafMesh.rotationQuaternion = Quaternion.RotationAxis(Vector3.Up(), leafBase.azimuthRad)
-            .multiply(Quaternion.RotationAxis(new Vector3(0, 0, 1), -leafBase.droopRad));
-        }
+        // Iter 29 Phase 5 — canonical rotation via anchor.rotation.
+        //   LEGACY-ALIAS-REMOVE-02: legacy LeafBase.azimuthRad/droopRad
+        //   fallback removed. Populator always populates anchor.rotation
+        //   (identity quaternion for non-bound paths). Skin reads
+        //   anchor.rotation strictly.
+        const rot = anchor.rotation ?? { x: 0, y: 0, z: 0, w: 1 };
+        leafMesh.rotationQuaternion = new Quaternion(rot.x, rot.y, rot.z, rot.w);
         // Iter 29 Phase 4 — material from phytomer.leaf.senescence.colorDullness.
         //   PlantBase computes colorDullness; Skin applies (SKIN-SENESCENCE-APPLY-01).
         //   Fallback for non-phytomer-bound nodes uses flat node.yellowing.

@@ -118,5 +118,22 @@
     "trussIntervalNodes": 3,
     "baseStemRadiusMm": 8,
     "sourceSinkSensitivity": 0.35
+  },
+
+  // Iter 29 Phase 5 — growthProfile provenance metadata (PROVENANCE-01).
+  // Schema: CultivarGrowthProfileProvenance in src/CultivarGrowthProfile.ts.
+  // Round-generic carries literature-based defaults; cultivar-specific
+  // measurements may override individual entries.
+  "growthProfileProvenance": {
+    "phyllochronTT": {
+      "source": "literature", "default": 38, "range": [32, 45],
+      "confidence": "high",
+      "sourceRefs": ["Heuvelink 1996 TOMSIM"]
+    },
+    "maxLeafAreaCm2": {
+      "source": "literature", "default": 700, "range": [600, 800],
+      "confidence": "medium",
+      "sourceRefs": ["medium tomato 600-800 cm² peak mature leaf"]
+    }
   }
 }

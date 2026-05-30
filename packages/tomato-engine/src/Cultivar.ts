@@ -37,7 +37,12 @@ export interface GaussianDist {
 export {
   type CultivarGrowthProfile,
   type CultivarGrowthProfileJson,
+  type CultivarGrowthProfileFieldMeta,
+  type CultivarGrowthProfileProvenance,
+  type CultivarGrowthProfileSource,
+  type CultivarGrowthProfileConfidence,
   DEFAULT_CULTIVAR_GROWTH_PROFILE,
+  DEFAULT_GROWTH_PROFILE_PROVENANCE,
   resolveCultivarGrowthProfile,
   defaultGrowthProfileForType,
 } from './CultivarGrowthProfile';

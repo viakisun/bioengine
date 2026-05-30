@@ -151,6 +151,50 @@ export function computeNodePositionFactor(nodeFrac: number): number {
 }
 
 /**
+ * Plan §10 + VARIANCE-01 / VARIANCE-CLAMP-01 — per-node deterministic
+ * morphology variance.
+ *
+ * Uses the node's `variationSeed` (Phase 2A populated by GrowthModel) to
+ * generate two independent perturbations and applies them multiplicatively
+ * within a clamp ±15% to serrationDepth and lobeDepth.
+ *
+ * deterministic — same variationSeed → same perturbation.
+ *
+ * @param base  baseline LeafMorphologyState (cultivar default values)
+ * @param variancePct  perturbation magnitude (default 0.15 = ±15%)
+ */
+export function applyMorphologyVariance(
+  base: LeafMorphologyState,
+  variancePct: number = 0.15,
+): LeafMorphologyState {
+  // mulberry32 — simple 32-bit splittable PRNG, deterministic from seed.
+  const r1 = mulberry32(base.variationSeed >>> 0)();
+  const r2 = mulberry32((base.variationSeed + 0x9e3779b9) >>> 0)();
+  const perturbed = (v: number, r: number) => v * (1 + (r - 0.5) * 2 * variancePct);
+  return {
+    ...base,
+    serrationDepth: clamp(perturbed(base.serrationDepth, r1), 0.0, 0.5),
+    lobeDepth: clamp(perturbed(base.lobeDepth, r2), 0.0, 0.5),
+  };
+}
+
+function clamp(v: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, v));
+}
+
+/** Mulberry32 PRNG factory — deterministic from a 32-bit seed. */
+function mulberry32(seed: number): () => number {
+  let s = seed >>> 0;
+  return () => {
+    s = (s + 0x6D2B79F5) >>> 0;
+    let t = s;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 0x100000000;
+  };
+}
+
+/**
  * Plan §6.3 — plant vigor factor (lightweight stem-radius proxy).
  *
  * ★ 정직 표기: lightweight vigor proxy. NOT a full TOMSIM/TOMGRO carbon

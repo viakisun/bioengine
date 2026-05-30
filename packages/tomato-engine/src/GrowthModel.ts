@@ -36,6 +36,7 @@ import {
   type SideShootState,
   computeLeafExpansionProgress,
   makeLeafOrganStateFromFlat,
+  applyMorphologyVariance,
 } from './growth/LeafGrowthModel';
 import {
   computeSenescenceStartTT,
@@ -719,12 +720,14 @@ function populateSideShootChain(
       twistDeg: 0,
       curl: 0.12 + yellowing * 0.15,
     };
-    const sideMorphology: LeafMorphologyState = {
+    // Iter 29 Phase 5 — side-shoot morphology with per-node variance.
+    const sideBaseMorphology: LeafMorphologyState = {
       serrationDepth: genome.leafSerrationDepth ?? 0.12,
       lobeDepth: genome.leafLobeDepth ?? 0.05,
       petioleLengthM: 0.22,
       variationSeed: ((genome.seed >>> 0) ^ (k * 2654435761 >>> 0)) >>> 0,
     };
+    const sideMorphology: LeafMorphologyState = applyMorphologyVariance(sideBaseMorphology, 0.15);
     const sideCanonExp = computeLeafExpansionProgress(sideAgeTT, sideExpDurTT, 0.015);
     const sideExpSafe = Math.max(0.01, leafExpansion);
     // Iter 29 Phase 2B — side shoots inherit the plant-level proxy from the
@@ -1263,13 +1266,18 @@ export function computePlantState(
       curl: 0.12 + yellowing * 0.15,
     };
 
-    // Morphology — Phase 2A minimum (full cultivar leaf shape in Phase 5).
-    const morphology: LeafMorphologyState = {
+    // Iter 29 Phase 5 — morphology with per-node deterministic variance
+    //   (VARIANCE-01 / VARIANCE-CLAMP-01). Baseline values flow from genome
+    //   (which itself accepts cultivar leaf-shape distribution in Phase 5
+    //   via generateGenome({ cultivar })). Per-node ±15% perturbation
+    //   keeps every leaf inside the same plant slightly different.
+    const baseMorphology: LeafMorphologyState = {
       serrationDepth: genome.leafSerrationDepth ?? 0.12,
       lobeDepth: genome.leafLobeDepth ?? 0.05,
       petioleLengthM: 0.30,
       variationSeed: ((genome.seed >>> 0) ^ (i * 2654435761 >>> 0)) >>> 0,
     };
+    const morphology: LeafMorphologyState = applyMorphologyVariance(baseMorphology, 0.15);
 
     // Target/current area + expansion progress.
     const canonicalExpansionProgress =

@@ -1,6 +1,7 @@
 import { SeededRandom } from './SeededRandom';
 import type { BotanicalSpec } from './BotanicalSpec';
 import { ACTIVE_BOTANICAL } from './ModelRegistry';
+import type { Cultivar } from './Cultivar';
 
 export interface PlantGenome {
   seed: number;
@@ -69,13 +70,77 @@ function clamp(v: number, min: number, max: number): number {
 }
 
 /**
- * Default-botanical wrapper. Kept for backward compatibility with all
- * existing call sites (no botanical context). Uses ACTIVE_BOTANICAL.tomato.
+ * Iter 29 Phase 5 — GENOME-CULTIVAR-API-01 / -02.
  *
- * For cultivar-aware generation, prefer generateGenomeWithBotanical().
+ * generateGenome accepts an optional options bag:
+ *   - `cultivar`  → drives leaf-shape distribution overrides (visualProfile)
+ *   - `botanical` → drives stem-growth / fruit gompertz distributions
+ *
+ * Single-arg call form retained for backward compat (CULTIVAR-LEGACY-01):
+ *   generateGenome(seed)  ≡ generateGenome(seed, {})
+ *                         ≡ generateGenomeWithBotanical(seed, ACTIVE_BOTANICAL.tomato)
+ *
+ * @param seed     deterministic per-plant seed
+ * @param options  optional cultivar + botanical context
  */
-export function generateGenome(seed: number): PlantGenome {
-  return generateGenomeWithBotanical(seed, ACTIVE_BOTANICAL.tomato);
+export interface GenerateGenomeOptions {
+  cultivar?: Cultivar;
+  botanical?: BotanicalSpec;
+}
+
+export function generateGenome(
+  seed: number,
+  options?: GenerateGenomeOptions,
+): PlantGenome {
+  const opts = options ?? {};
+  const botanical = opts.botanical ?? ACTIVE_BOTANICAL.tomato;
+  const cultivar = opts.cultivar;
+  const base = generateGenomeWithBotanical(seed, botanical);
+  // Cultivar overrides leaf-shape distributions when present.
+  if (!cultivar) return base;
+  return applyCultivarLeafShape(base, cultivar);
+}
+
+/**
+ * Apply cultivar leaf-shape overrides to a base genome.
+ * Cherry → narrower serration, finer freq. Beefsteak → broader.
+ * Per-plant variation (Gaussian) preserved on top of cultivar-typical baseline.
+ *
+ * Phase 5 baseline implementation — pulls multiplicative bias from cultivar
+ * type. Phase 6 calibration pack adds explicit per-field distributions.
+ */
+function applyCultivarLeafShape(base: PlantGenome, cultivar: Cultivar): PlantGenome {
+  // Cultivar-type multipliers (centered on 1.0; ± from cultivar character).
+  let serrationBias = 1.0;
+  let lobeBias = 1.0;
+  let petioleBias = 1.0;
+  switch (cultivar.type) {
+    case 'cherry':
+      serrationBias = 1.5;   // fine-toothed
+      lobeBias = 0.6;        // narrow leaflets, less lobed
+      petioleBias = 0.85;
+      break;
+    case 'beefsteak':
+      serrationBias = 0.85;  // softer serration
+      lobeBias = 1.5;        // strongly lobed
+      petioleBias = 1.20;
+      break;
+    case 'roma':
+      serrationBias = 1.10;
+      lobeBias = 0.85;
+      petioleBias = 0.90;
+      break;
+    case 'round':
+    default:
+      // baseline (no bias)
+      break;
+  }
+  return {
+    ...base,
+    leafSerrationDepth: clamp(base.leafSerrationDepth * serrationBias, 0.10, 0.30),
+    leafLobeDepth: clamp(base.leafLobeDepth * lobeBias, 0.0, 0.20),
+    leafPetioleLength: clamp(base.leafPetioleLength * petioleBias, 0.05, 0.18),
+  };
 }
 
 /**
