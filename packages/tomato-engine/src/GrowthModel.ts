@@ -789,7 +789,25 @@ export function computePlantState(
     // Ramp 0.3 → 1.0 across the first 15 days so the canopy starts small
     // and grows in. Side-shoot path unaffected (covered separately).
     const plantJuvenileScale = day < 15 ? 0.3 + 0.7 * (day / 15) : 1.0;
-    const leafSizeFactor = potentialSize * leafExpansion * plantJuvenileScale;
+    // Iter 29 Phase 3 — Stem-leaf vigor coupling (lightweight proxy).
+    //
+    // Plant height is used as a practical vigor proxy for leaf scaling. This
+    // is NOT a full carbon partition model — it's a lightweight approximation
+    // inspired by source-sink growth concepts (Marcelis 1996 sink strength;
+    // Heuvelink 1996 TOMSIM carbon partition). The sqrt scaling and
+    // [0.5, 1.5] clamp are calibration parameters, not biological constants.
+    //
+    // 본 구현은 TOMSIM 수준의 탄소 분배 모델이 아니라, 식물 높이를 생육
+    // 세력의 대리 변수로 사용해 잎 크기를 보정하는 경량 근사 모델이다.
+    //
+    // Effect: 작은 plant (height < 50cm) → vigor < 1.0 → 잎 작게.
+    //         큰 plant (height > 50cm) → vigor > 1.0 → 잎 크게.
+    //         clamp [0.5, 1.5]로 극단치 방지.
+    const VIGOR_REFERENCE_HEIGHT_CM = 50;
+    const stemVigorFactor = Math.max(0.5, Math.min(1.5,
+      Math.pow(Math.max(1, heightCm) / VIGOR_REFERENCE_HEIGHT_CM, 0.5),
+    ));
+    const leafSizeFactor = potentialSize * leafExpansion * plantJuvenileScale * stemVigorFactor;
 
     // --- Leaf area & mass ---
     // 720 → 880 cm² — closer to the upper end of beefsteak compound
