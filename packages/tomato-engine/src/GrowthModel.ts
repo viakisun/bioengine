@@ -14,6 +14,18 @@ import {
 } from './SimulationContext';
 import { ACTIVE_ENGINE_MODE, setEngineMode } from './EngineMode';
 import { leafletCountFromMaturity } from './LeafStage';
+// Iter 29 Phase 1 — extracted growth modules (function boundary; SSOT for
+// thermal time + phytomer TT helpers + InternodeState).
+import {
+  computeNodeInitiationTT,
+  computeNodeVisibleTT,
+  computeNodeAgeTT,
+  type PhytomerStatus,
+} from './growth/PhytomerModel';
+import {
+  type InternodeState,
+  makeInternodeState,
+} from './growth/InternodeGrowthModel';
 
 // Phase 3: hybrid is now the default. Legacy sigmoid path remains as
 // fallback for paths that don't supply a physiology state.
@@ -132,7 +144,50 @@ export interface NodeState {
   sideShoot: StemAxis | null;
   /** Side shoot departure angle (degrees from stem tangent). */
   sideShootAngleDeg: number | null;
+
+  // ── Iter 29 Phase 1 — Thermal Time (TT) canonical fields ─────────
+  // Plan §3 (sleepy-growing-pretzel.md):
+  //   node.initiationTT = transplantOffsetTT + node.index × phyllochronTT
+  //   node.ageTT        = currentTT - node.initiationTT
+  //
+  // Phase 1: populated alongside legacy `age` (days) — both coexist.
+  // Phase 2A: `age` becomes _legacy alias_ derived from ageTT/dailyGDD.
+  // Phase 5+: `age` removed; canonical is `ageTT` only.
+  /** TT (GDD) at which this phytomer was initiated. */
+  initiationTT: number;
+  /** TT (GDD) at which this phytomer's leaf became visible. Phase 1:
+   *  equal to initiationTT (no primordium-visible delay yet). */
+  visibleTT: number;
+  /** TT (GDD) since phytomer initiation = currentTT - initiationTT. */
+  ageTT: number;
+
+  // ── Iter 29 Phase 1 — InternodeState (canonical) ─────────────────
+  // Plan §4 + Phase 1 INTERNODE-STATE-01: target/current/expansion 분리.
+  // Phase 1: populated from existing internodeData computation; existing
+  // flat `internodeLenCm` retained as legacy alias (= internode.currentLengthCm).
+  internode: InternodeState;
+
+  // ── Iter 29 Phase 1 — Phytomer status (lifecycle) ────────────────
+  // Plan §1: phytomer 전체의 lifecycle. LeafOrganState.stage와 _독립_.
+  // Phase 1: derived simply from ageTT relative to leafLifespanTT.
+  // Phase 2A: refined per organ state independence (node may be mature
+  //           while leaf is senescent, etc.).
+  status: PhytomerStatus;
 }
+
+/**
+ * Iter 29 Phase 1 — Canonical phytomer node name.
+ *
+ * Plan §1 (sleepy-growing-pretzel.md): "기존 NodeState를 PhytomerNode로
+ * rename + 구조화". 본 alias는 새 code path의 canonical name; 기존
+ * NodeState 이름은 backward compat alias로 유지 (Phase 5에서 _alias_
+ * deprecate; Phase 6에서 _removal_).
+ *
+ * Note: Type 자체는 identical — 데이터/필드 변경 없음. Phase 2A에서
+ * `leaf: LeafOrganState` nested struct 추가 시 본 alias가 canonical을
+ * 가리킨다 (호출처 점진 마이그레이션).
+ */
+export type PhytomerNode = NodeState;
 
 export interface PlantState {
   seed: number;
@@ -150,6 +205,15 @@ export interface PlantState {
   // Plant-level stress (mirrored per-node for convenience)
   waterStress: number;
   diseaseLoad: number;
+
+  // ── Iter 29 Phase 1 — currentTT canonical growth time ────────────
+  // Plan §2 (sleepy-growing-pretzel.md): "PlantState.currentTT는 진단
+  // cache가 아니다. PlantBase 생장 모델의 canonical time state다."
+  //
+  // All node.initiationTT / node.ageTT / leaf.ageTT / senescenceProgress
+  // 는 currentTT에서 파생. `day`는 _legacy diagnostic field_ — Phase 5에서
+  // alias-only로 강등, Phase 6에서 제거 검토.
+  currentTT: number;
 
   // ── Skeleton (Plan 3a) ───────────────────────────────────────────
   /** Main stem axis. main.nodes === plant.nodes (alias). */
@@ -442,6 +506,12 @@ function populateSideShootChain(
   cultivar: Cultivar,
   rng: SeededRandom,
   stress: { waterStress: number; diseaseLoad: number },
+  // Iter 29 Phase 1 — TT propagation. Allows side-shoot nodes to populate
+  // canonical TT fields (initiationTT/visibleTT/ageTT) derived from parent
+  // TT + per-node phyllochron offset. Phase 2A makes side-shoot biology
+  // fully TT-driven (currently it remains day-based by approximation).
+  currentTT: number = 0,
+  dailyGDD: number = 0,
 ): void {
   const angleRad = ((parentNode.sideShootAngleDeg ?? 35) * Math.PI) / 180;
   const az = shoot.branchAzimuth;
@@ -571,6 +641,23 @@ function populateSideShootChain(
       nodeTruss = { flowers: sideFlowers, fruits: [] };
     }
 
+    // Iter 29 Phase 1 — TT-based fields (Phase 1 approximation for side shoots).
+    // Phase 2A makes side-shoot biology fully TT-driven; currently
+    // initiationTT is derived from parent's initiationTT + k × phyllochronTT,
+    // giving a plausible monotonic TT progression up the side-shoot chain.
+    const phyllo = cultivar.growthProfile.phyllochronTT;
+    const sideInitiationTT = parentNode.initiationTT + (k + 1) * phyllo;
+    const sideVisibleTT = sideInitiationTT;
+    const sideAgeTT = Math.max(0, currentTT - sideInitiationTT);
+    void dailyGDD;  // reserved for Phase 2A precise approximation
+    const internodeLenCm = internodeM * 100;
+    const internodeState = makeInternodeState(internodeLenCm, internodeLenCm);
+    const sideStatus: PhytomerStatus =
+      sideAgeTT <= 0 ? 'primordium'
+      : leafMaturity < 0.4 ? 'visible'
+      : leafMaturity < 0.95 ? 'expanding'
+      : yellowing > 0.3 ? 'senescent' : 'mature';
+
     shoot.nodes.push({
       index: k,
       heightCm: parentNode.heightCm + (pos.y - parentNode.position.y) * 100,
@@ -585,7 +672,7 @@ function populateSideShootChain(
       emergence: 1,
       leafAreaCm2,
       leafMassG,
-      internodeLenCm: internodeM * 100,
+      internodeLenCm,
       massAboveKg: 0,
       stemRadiusMm,
       bendingMomentNm: 0,
@@ -598,6 +685,12 @@ function populateSideShootChain(
       budState: 'dormant',
       sideShoot: null,
       sideShootAngleDeg: null,
+      // Iter 29 Phase 1 — canonical TT + internode state + status
+      initiationTT: sideInitiationTT,
+      visibleTT: sideVisibleTT,
+      ageTT: sideAgeTT,
+      internode: internodeState,
+      status: sideStatus,
     });
     dir = nextDir;
   }
@@ -992,6 +1085,29 @@ export function computePlantState(
       }
     }
 
+    // Iter 29 Phase 1 — TT-based fields (canonical).
+    // Plan §3: node.initiationTT = transplantOffsetTT + node.index × phyllochronTT
+    //          node.ageTT        = currentTT - node.initiationTT
+    const orgCfg = {
+      initialNodeCountAtTransplant: org.initialNodeCountAtTransplant,
+      TT_at_transplant: org.TT_at_transplant,
+    };
+    const initiationTT = computeNodeInitiationTT(i, cultivar, orgCfg);
+    const visibleTT = computeNodeVisibleTT(i, cultivar, orgCfg);
+    const ageTT = computeNodeAgeTT(initiationTT, TT);
+
+    // Iter 29 Phase 1 — InternodeState shell. Phase 1 INTERNODE-STATE-01.
+    const finalLenCm = internodeData[i].finalLen;
+    const currentLenCm = internodeData[i].currentLen;
+    const internodeState = makeInternodeState(finalLenCm, currentLenCm);
+
+    // Iter 29 Phase 1 — Phytomer status (lifecycle). Phase 2A refines.
+    const status: PhytomerStatus =
+      ageTT <= 0 ? 'primordium'
+      : leafMaturity < 0.4 ? 'visible'
+      : leafMaturity < 0.95 ? 'expanding'
+      : yellowing > 0.3 ? 'senescent' : 'mature';
+
     nodes.push({
       index: i, heightCm: nodeHeightCm, phyllotaxisAngle,
       leafMaturity, leafSizeFactor, leafletCount,
@@ -1007,6 +1123,12 @@ export function computePlantState(
       budState: 'dormant',
       sideShoot: null,
       sideShootAngleDeg: null,
+      // Iter 29 Phase 1 — canonical TT + internode state + status
+      initiationTT,
+      visibleTT,
+      ageTT,
+      internode: internodeState,
+      status,
     });
   }
 
@@ -1205,6 +1327,9 @@ export function computePlantState(
       cultivar,
       skeletonRng,
       { waterStress, diseaseLoad },
+      // Iter 29 Phase 1 — TT propagation to side-shoot chain.
+      TT,
+      dailyGDD,
     );
   }
 
@@ -1260,6 +1385,11 @@ export function computePlantState(
     totalFruits, maxRipenStage, currentStage,
     hasCotyledons, cotyledonSize: Math.max(0, Math.min(1, cotyledonSize)),
     waterStress, diseaseLoad,
+    // Iter 29 Phase 1 — currentTT canonical growth time (GROWTH-CLOCK-01).
+    // TT is computed at the top of computePlantState from simContext.TT or
+    // approximateTT(day, 23, cultivar). All per-node initiationTT/ageTT are
+    // derived from this value.
+    currentTT: TT,
     mainAxis,
     allAxes,
     geometryMode: wireCompressed ? 'wire_compressed' : 'free',
