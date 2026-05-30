@@ -42,6 +42,11 @@ import {
   computeSenescenceProgress,
   makeSenescenceState,
 } from './growth/SenescenceModel';
+// Iter 29 Phase 2B — Source-Sink Proxy v1 (lightweight; NOT a full TOMSIM/
+// TOMGRO carbon partition). Applied multiplicatively to leaf.targetAreaCm2.
+import {
+  computeSourceSinkProxyV1FromPlant,
+} from './growth/SourceSinkProxyV1';
 
 // Phase 3: hybrid is now the default. Legacy sigmoid path remains as
 // fallback for paths that don't supply a physiology state.
@@ -548,6 +553,9 @@ function populateSideShootChain(
   // fully TT-driven (currently it remains day-based by approximation).
   currentTT: number = 0,
   dailyGDD: number = 0,
+  // Iter 29 Phase 2B — Source-Sink Proxy v1 multiplier (plant-wide; clamped
+  // to [0.65, 1.15]). NOT a TOMSIM carbon partition; lightweight proxy.
+  sideSourceSinkProxyV1: number = 1.0,
 ): void {
   const angleRad = ((parentNode.sideShootAngleDeg ?? 35) * Math.PI) / 180;
   const az = shoot.branchAzimuth;
@@ -719,7 +727,15 @@ function populateSideShootChain(
     };
     const sideCanonExp = computeLeafExpansionProgress(sideAgeTT, sideExpDurTT, 0.015);
     const sideExpSafe = Math.max(0.01, leafExpansion);
-    const sideTargetAreaCm2 = leafAreaCm2 / (sideExpSafe * sideExpSafe);
+    // Iter 29 Phase 2B — side shoots inherit the plant-level proxy from the
+    // parent's PlantState computation. populateSideShootChain runs _after_
+    // computePlantState has already wrapped the proxy into main-axis leaf
+    // states, but the proxy itself lives in a closure-captured scalar.
+    // Phase 2A's side-shoot population currently runs from main-axis caller
+    // context where sourceSinkProxyV1 was computed — but populateSideShoot
+    // does not receive that scalar. For Phase 2B we add an explicit param.
+    const sideTargetAreaCm2 =
+      (leafAreaCm2 / (sideExpSafe * sideExpSafe)) * sideSourceSinkProxyV1;
     const sideCurrentAreaCm2 = Math.min(leafAreaCm2, sideTargetAreaCm2);
     const sideLeafOrgan: LeafOrganState = makeLeafOrganStateFromFlat({
       nodeIndex: k,
@@ -937,6 +953,28 @@ export function computePlantState(
 
   // Total plant height
   const heightCm = accHeight;
+
+  // Iter 29 Phase 2B — Source-Sink Proxy v1 (plant-wide, computed once).
+  //
+  // ★ 정직 표기: This is NOT a full TOMSIM/TOMGRO carbon partition model.
+  //   It is a lightweight proxy modulating leaf.targetAreaCm2 multiplicatively.
+  //   Clamp [0.65, 1.15] narrows extreme regime; Phase 5 calibration may widen.
+  //
+  // Approximated truss count (full Pass 3 count not yet available — uses
+  // architecture rule + node count). Average leaf target area uses cultivar
+  // potential × position factor 0.7 (mid-shoot mean).
+  const approxTrussCount = intNodeCount > arch.firstTrussNodeIdx
+    ? Math.floor((intNodeCount - arch.firstTrussNodeIdx) / arch.trussIntervalNodes) + 1
+    : 0;
+  const stressFactor = Math.max(0, Math.min(1, waterStress * 0.7 + diseaseLoad * 0.3));
+  const sourceSinkProxyV1 = computeSourceSinkProxyV1FromPlant({
+    nodeCount: intNodeCount,
+    averageLeafTargetAreaCm2: cultivar.growthProfile.maxLeafAreaCm2 * 0.7,
+    trussCount: approxTrussCount,
+    trussSinkStrength: 1.0,
+    heightCm,
+    stressFactor,
+  });
 
   // --- Pass 3: Build node states with all properties ---
   const nodes: NodeState[] = [];
@@ -1240,7 +1278,9 @@ export function computePlantState(
     // Phase 2A LeafOrganState: targetArea = leafAreaCm2 / max(eps, leafExpansion²)
     //  so currentArea / targetArea ≈ leafExpansion² (existing biology preserved).
     const expSafe = Math.max(0.01, leafExpansion);
-    const targetAreaCm2 = leafAreaCm2 / (expSafe * expSafe);
+    // Iter 29 Phase 2B — source-sink proxy applied multiplicatively (NOT
+    // TOMSIM carbon partition; clamp [0.65, 1.15] modulates target area).
+    const targetAreaCm2 = (leafAreaCm2 / (expSafe * expSafe)) * sourceSinkProxyV1;
     const currentAreaCm2 = Math.min(leafAreaCm2, targetAreaCm2);
 
     const leafOrgan: LeafOrganState = makeLeafOrganStateFromFlat({
@@ -1497,6 +1537,8 @@ export function computePlantState(
       // Iter 29 Phase 1 — TT propagation to side-shoot chain.
       TT,
       dailyGDD,
+      // Iter 29 Phase 2B — Source-Sink Proxy v1 multiplier (plant-wide).
+      sourceSinkProxyV1,
     );
   }
 
