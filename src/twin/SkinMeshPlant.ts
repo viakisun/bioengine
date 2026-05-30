@@ -43,6 +43,8 @@ import type {
   GrowthEngine,
   PlantState,
 } from '@farmsim/tomato-engine';
+import { ACTIVE_BOTANICAL } from '@farmsim/tomato-engine/ModelRegistry';
+import { DEFAULT_COTYLEDON_SPEC } from '@farmsim/tomato-engine/BotanicalSpec';
 import { createSkeletonOverlay, type SkeletonOverlayHandle } from './SkeletonOverlay';
 import { createSemanticOverlay, type SemanticOverlayHandle } from './SemanticOverlay';
 import { useTwinStore } from '../store/twinStore';
@@ -109,8 +111,8 @@ function getCotyledonMaterial(scene: Scene): PBRMaterial {
   return mat;
 }
 
-function applyCotyledonChunk(scene: Scene, name: string, size: number): Mesh {
-  const chunk = buildCotyledonChunk({ size });
+function applyCotyledonChunk(scene: Scene, name: string, size: number, widthLengthRatio?: number): Mesh {
+  const chunk = buildCotyledonChunk({ size, widthLengthRatio });
   const vd = new VertexData();
   vd.positions = chunk.positions;
   vd.normals = chunk.normals;
@@ -260,7 +262,10 @@ export function createSkinMeshPlant(
 
     // === Cotyledons (떡잎) — identical to ShowcasePlant ===
     if (state.hasCotyledons && state.cotyledonSize > 0.01) {
-      const cotSize = 0.03 * state.cotyledonSize;
+      // Iter 29 Phase 2 — hardcoded 0.03 → BotanicalSpec.cotyledon.maxHalfLengthM.
+      // 이전: max 6cm (Heuvelink 0.5-2cm 표준의 3-12배). default 0.008 (1.6cm full).
+      const cotyledonSpec = ACTIVE_BOTANICAL.tomato?.cotyledon ?? DEFAULT_COTYLEDON_SPEC;
+      const cotSize = cotyledonSpec.maxHalfLengthM * state.cotyledonSize;
       const cotY = state.nodes.length > 0
         ? (state.nodes[0].heightCm / 100) * 0.3
         : 0.03;
@@ -269,6 +274,7 @@ export function createSkinMeshPlant(
           scene,
           `skinplant_cot_${seed}_${side}`,
           cotSize,
+          cotyledonSpec.widthLengthRatio,
         );
         cot.parent = lushGroup;
         cot.position = new Vector3(side * cotSize * 0.5, cotY, 0);

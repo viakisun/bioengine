@@ -28,7 +28,8 @@ import type {
   BudState,
 } from '@farmsim/tomato-engine';
 import { layoutTruss, pedicelControlPoints, type TrussLayout } from './TrussGenerator';
-import { ACTIVE_MODEL } from '@farmsim/tomato-engine/ModelRegistry';
+import { ACTIVE_MODEL, ACTIVE_BOTANICAL } from '@farmsim/tomato-engine/ModelRegistry';
+import { DEFAULT_COTYLEDON_SPEC } from '@farmsim/tomato-engine/BotanicalSpec';
 
 // ── Boundary types ───────────────────────────────────────────────────
 
@@ -840,7 +841,12 @@ function buildCotyledons(plant: PlantState): CotyledonBase[] {
   }
   const firstNode = plant.nodes[0];
   if (!firstNode) return [];
-  const cotSize = 0.03 * plant.cotyledonSize;
+  // Iter 29 Phase 2 — hardcoded 0.03 → BotanicalSpec.cotyledon.maxHalfLengthM.
+  // 이전: max 6cm (= 0.03 × 1.0 × 2). 사용자 사진 D=8 측정 8.60cm (rotation
+  // 포함). 표준 (Heuvelink 0.5-2cm)의 3-12배 과대.
+  // fix: maxHalfLengthM = 0.008 (default), full = 1.6cm. legacy fallback.
+  const cotyledonSpec = ACTIVE_BOTANICAL.tomato?.cotyledon ?? DEFAULT_COTYLEDON_SPEC;
+  const cotSize = cotyledonSpec.maxHalfLengthM * plant.cotyledonSize;
   const cotY = (firstNode.heightCm / 100) * 0.3;
   const alpha = Math.max(0.5, Math.min(1, plant.cotyledonSize * 1.4));
   return ([-1, 1] as const).map((side) => ({

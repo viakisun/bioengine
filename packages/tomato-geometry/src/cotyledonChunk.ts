@@ -14,17 +14,25 @@ export interface CotyledonChunkParams {
   size: number;
   /** Segments per side of the oval outline. Default 8 (smooth). */
   segments?: number;
+  /**
+   * Iter 29 Phase 2 — Width-to-length ratio. halfWidth = halfLen × ratio.
+   * 토마토 떡잎은 좁고 긴 oval (Jones JB 2007). default 0.35 (2.85:1).
+   * Legacy default 0.5 (2:1) — caller가 명시 안 하면 이전 동작 유지.
+   */
+  widthLengthRatio?: number;
 }
 
 /**
  * Build a flat oval (rounded rectangle / leaf shape) chunk in the XZ plane.
  *
- * The blade extends along +X from origin. Width is `size`, length is `size * 2`.
- * The renderer rotates/positions for the two opposing cotyledons.
+ * The blade extends along +X from origin. Width is `size × widthLengthRatio × 2`,
+ * length is `size × 2`. The renderer rotates/positions for the two opposing cotyledons.
  */
 export function buildCotyledonChunk(params: CotyledonChunkParams): GeoChunk {
   const halfLen = params.size; // length is size*2 (along X)
-  const halfWidth = params.size * 0.5; // width is size (along Z)
+  // Iter 29 Phase 2 — width ratio param. legacy default 0.5 (2:1).
+  const widthLengthRatio = params.widthLengthRatio ?? 0.5;
+  const halfWidth = params.size * widthLengthRatio;
   const segs = params.segments ?? 8;
 
   const chunk = newChunk();

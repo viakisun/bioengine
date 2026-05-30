@@ -235,6 +235,29 @@ export interface FruitDevelopmentSpec {
   massFlow: MassFlowSpec;
 }
 
+// ── Cotyledon (Iter 29 Phase 2) ──────────────────────────────────────
+
+/**
+ * Iter 29 Phase 2 — 떡잎 mesh 크기/형태 사양.
+ *
+ * 이전: hardcoded 0.03m × cotyledonSize (max 6cm) — Heuvelink 2018 표준
+ * (0.5-2.0cm)의 3-12배 과대.
+ *
+ * 본 spec은 _시각 인식_ 기준 정상화 — cm literature 정확 일치가 아닌
+ * "어린 plant 본체와 자연스러운 비율" 목표.
+ *
+ * 참조: Heuvelink E. 2018 Tomato 2nd ed. CABI Ch.4
+ *      Jones JB 2007 Tomato Plant Culture
+ */
+export interface CotyledonSpec {
+  /** Peak (cotyledonSize=1.0) 시 떡잎 half-length in metres. mesh의 size
+   *  파라미터. full length = 2 × maxHalfLengthM. default 0.008 (1.6cm full). */
+  maxHalfLengthM: number;
+  /** Width-to-length ratio (mesh halfWidth / halfLen). 토마토 떡잎은 좁고
+   *  긴 oval — 2.85:1 표준. default 0.35 (= 2.85:1). */
+  widthLengthRatio: number;
+}
+
 // ── BotanicalSpec (full) ─────────────────────────────────────────────
 
 export interface BotanicalSpec {
@@ -243,11 +266,24 @@ export interface BotanicalSpec {
   provenance: Provenance;
   stemGrowth: StemGrowthSpec;
   fruitDevelopment: FruitDevelopmentSpec;
+  /** Iter 29 Phase 2 — 떡잎 mesh 크기/형태. optional (legacy 호환). */
+  cotyledon?: CotyledonSpec;
   // 사용자 검토 #4 (lite field-level provenance)
   parameterNotes?: Record<string, string>;
   // 사용자 검토 #2 (per-field enforcement status)
   enforcementStatus?: Record<string, EnforcementStatus>;
 }
+
+/**
+ * Iter 29 Phase 2 — CotyledonSpec default fallback.
+ *
+ * `botanical.cotyledon ?? DEFAULT_COTYLEDON_SPEC` 패턴으로 사용. legacy
+ * BotanicalSpec (cotyledon 필드 없음) 자동 fallback.
+ */
+export const DEFAULT_COTYLEDON_SPEC: CotyledonSpec = {
+  maxHalfLengthM: 0.008,     // 1.6cm full (Heuvelink 2018 Ch.4 표준 1-2cm)
+  widthLengthRatio: 0.35,    // 2.85:1 elongated oval (Jones JB 2007)
+};
 
 // ── DeepPartial type (override 용) ────────────────────────────────────
 
