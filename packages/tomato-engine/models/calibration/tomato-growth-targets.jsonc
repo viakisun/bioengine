@@ -1,0 +1,93 @@
+// Iter 29 Phase 6 — tomato-growth-targets.jsonc (NEW)
+//
+// Calibration band targets for tomato growth model. Each entry defines the
+// acceptable measured range for a parameter at a specific TT (or day)
+// checkpoint. Runtime assertWithinCalibrationBand emits a CalibrationWarning
+// when an observed value falls outside the band.
+//
+// Plan §6 (sleepy-growing-pretzel.md) — CALIBRATION-01~04 + CALIBRATION-WARNING-01.
+//
+// Schema: CalibrationPackSpec in src/growth/CalibrationPack.ts.
+
+{
+  "schemaVersion": "calibrationPack.v0.1",
+  "metadata": {
+    "name": "tomato-growth-targets-v0.1",
+    "crop": "tomato",
+    "source": "Heuvelink 1996 TOMSIM + reference pack v0.1",
+    "lastReviewed": "2026-05-30",
+    "confidence": "medium"
+  },
+
+  // Per-phytomer leaf band targets (cultivar default = round-generic baseline).
+  // ageTT-based — leaf age in GDD.
+  "leaf": {
+    "targetAreaCm2": {
+      "ageTT": [
+        { "tt": 0,    "min": 0,    "max": 5    },
+        { "tt": 100,  "min": 5,    "max": 100  },
+        { "tt": 200,  "min": 50,   "max": 350  },
+        { "tt": 400,  "min": 300,  "max": 700  },
+        { "tt": 800,  "min": 500,  "max": 850  },
+        { "tt": 1200, "min": 400,  "max": 800  }
+      ],
+      "source": "Heuvelink 1996 — peak mature ~600-800 cm² medium tomato",
+      "sourceRefs": ["Heuvelink 1996 TOMSIM"]
+    },
+    "leafletCount": {
+      "ageTT": [
+        { "tt": 0,    "min": 1, "max": 1 },
+        { "tt": 100,  "min": 1, "max": 3 },
+        { "tt": 200,  "min": 3, "max": 5 },
+        { "tt": 400,  "min": 5, "max": 7 },
+        { "tt": 600,  "min": 7, "max": 9 },
+        { "tt": 1000, "min": 9, "max": 9 }
+      ],
+      "source": "Phyllome development progression"
+    },
+    "senescenceProgress": {
+      "ageTT": [
+        { "tt": 0,    "min": 0,   "max": 0.05 },
+        { "tt": 600,  "min": 0,   "max": 0.10 },
+        { "tt": 840,  "min": 0,   "max": 0.30 },
+        { "tt": 1000, "min": 0.1, "max": 0.70 },
+        { "tt": 1200, "min": 0.5, "max": 1.0  }
+      ],
+      "source": "senescenceStartTT = lifespanTT × 0.7 = 840 (default lifespan 1200)"
+    }
+  },
+
+  // Plant-level band targets at canonical day checkpoints (D=15, 45, 90, 120).
+  "plant": {
+    "heightCm": {
+      "day": [
+        { "d": 15,  "min": 15,  "max": 30  },
+        { "d": 45,  "min": 65,  "max": 110 },
+        { "d": 90,  "min": 160, "max": 230 },
+        { "d": 120, "min": 220, "max": 300 }
+      ],
+      "source": "greenhouse indeterminate cultivar canonical timeline"
+    },
+    "nodeCount": {
+      "day": [
+        { "d": 15,  "min": 5,  "max": 8  },
+        { "d": 45,  "min": 8,  "max": 14 },
+        { "d": 90,  "min": 18, "max": 26 },
+        { "d": 120, "min": 24, "max": 32 }
+      ],
+      "source": "phyllochron 38 GDD/leaf at 23°C → ~1 leaf/3d"
+    }
+  },
+
+  // Per-organ stem band targets.
+  "stem": {
+    "baseRadiusMm": {
+      "day": [
+        { "d": 15, "min": 2.0, "max": 4.0 },
+        { "d": 45, "min": 5.0, "max": 8.5 },
+        { "d": 90, "min": 7.5, "max": 11.0 }
+      ],
+      "source": "Greenhouse mature stem ~8 mm mid-shoot"
+    }
+  }
+}
