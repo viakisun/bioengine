@@ -90,6 +90,15 @@ export interface CultivarGrowthProfile {
    * ≈ 0.35 (relative to fruit=1.0).
    */
   sourceSinkSensitivity: number;
+
+  /**
+   * Iter 30 Phase 4 — Side-shoot potential (0.0-1.0). Side-shoot leaf
+   * allocation factor에 곱해져 측지 leaf 크기 제한. 클수록 측지 활발.
+   * Default 0.4 (가벼운 억제). Indeterminate 강한 측지 cultivar 0.6+.
+   *
+   * Backward compat: optional ?:.
+   */
+  sideShootPotential?: number;
 }
 
 /**
@@ -108,6 +117,7 @@ export const DEFAULT_CULTIVAR_GROWTH_PROFILE: CultivarGrowthProfile = {
   trussIntervalNodes: 3,
   baseStemRadiusMm: 8,
   sourceSinkSensitivity: 0.35,     // Marcelis 1996 sink leaf
+  sideShootPotential: 0.4,         // Iter 30 Phase 4 — medium suppression
 };
 
 /** Partial JSON shape — every field optional, defaults from
@@ -147,6 +157,9 @@ export function resolveCultivarGrowthProfile(
     baseStemRadiusMm: p.baseStemRadiusMm ?? DEFAULT_CULTIVAR_GROWTH_PROFILE.baseStemRadiusMm,
     sourceSinkSensitivity:
       p.sourceSinkSensitivity ?? DEFAULT_CULTIVAR_GROWTH_PROFILE.sourceSinkSensitivity,
+    // Iter 30 Phase 4 — optional side-shoot allocation potential.
+    sideShootPotential:
+      p.sideShootPotential ?? DEFAULT_CULTIVAR_GROWTH_PROFILE.sideShootPotential,
   };
 }
 

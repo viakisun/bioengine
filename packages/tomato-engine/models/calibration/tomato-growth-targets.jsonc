@@ -89,5 +89,75 @@
       ],
       "source": "Greenhouse mature stem ~8 mm mid-shoot"
     }
+  },
+
+  // ── Iter 30 Phase 6 — Axis-level capacity band ────────────────────
+  // Plan §3 axisCapacityFactor 검증 (CALIBRATION-AXIS-V2-01).
+  // Main axis canonical: capacity 충분 → factor 1.0 근처. Side-shoot은
+  // 약한 stem → 0.7~0.9 typical.
+  "axis": {
+    "mainAxisCapacityFactor": {
+      "day": [
+        { "d": 15, "min": 0.85, "max": 1.0 },
+        { "d": 45, "min": 0.80, "max": 1.0 },
+        { "d": 90, "min": 0.70, "max": 1.0 }
+      ],
+      "source": "main axis structural capacity proxy >= demand typical"
+    },
+    "sideShootAxisCapacityFactor": {
+      "day": [
+        { "d": 30, "min": 0.45, "max": 0.85 },
+        { "d": 45, "min": 0.50, "max": 0.85 },
+        { "d": 90, "min": 0.55, "max": 0.90 }
+      ],
+      "source": "side-shoot stem 더 얇음 → capacity proxy 낮음"
+    }
+  },
+
+  // ── Iter 30 Phase 6 — Side-shoot leaf size band ──────────────────
+  // Plan §6 SIDE-SHOOT-MEAN-LEAF-RATIO-01 검증 (CALIBRATION-SIDE-SHOOT-V2-01).
+  "sideShoot": {
+    "leafAreaCm2": {
+      "ageTT": [
+        { "tt": 0,    "min": 0,   "max": 5   },
+        { "tt": 100,  "min": 5,   "max": 70  },
+        { "tt": 400,  "min": 100, "max": 350 },
+        { "tt": 800,  "min": 150, "max": 490 }
+      ],
+      "source": "side-shoot leaf < main leaf × 0.7 (cultivarSideShootPotential 0.4 default)"
+    },
+    "leafAreaMainRatio": {
+      "day": [
+        { "d": 30, "min": 0.2, "max": 0.7 },
+        { "d": 45, "min": 0.2, "max": 0.7 },
+        { "d": 90, "min": 0.2, "max": 0.7 }
+      ],
+      "source": "ageTT band 안에서 측지/메인 mean ratio (Plan SIDE-SHOOT-MEAN-LEAF-RATIO-01)"
+    }
+  },
+
+  // ── Iter 30 Phase 6 — Leaf posture band ──────────────────────────
+  // Plan §11 + Phase 5 9-필드 (CALIBRATION-POSTURE-V2-01).
+  // 상부광 + young mature leaf: finalBladePlaneTiltDeg ≈ 0° (ground-parallel).
+  // 큰 잎 + 노화: finalDroopDeg 25-45°.
+  "posture": {
+    "finalBladePlaneTiltDeg": {
+      "ageTT": [
+        { "tt": 0,    "min": 0,   "max": 5   },
+        { "tt": 400,  "min": 0,   "max": 15  },
+        { "tt": 800,  "min": 0,   "max": 30  },
+        { "tt": 1200, "min": 5,   "max": 45  }
+      ],
+      "source": "상부광 0° → gravity + senescence droop 누적 → +로 tilt 증가"
+    },
+    "finalDroopDeg": {
+      "ageTT": [
+        { "tt": 0,    "min": 0,   "max": 5   },
+        { "tt": 400,  "min": 5,   "max": 25  },
+        { "tt": 800,  "min": 10,  "max": 35  },
+        { "tt": 1200, "min": 20,  "max": 50  }
+      ],
+      "source": "gravity (현재 area↑) + senescence + waterStress 합산"
+    }
   }
 }

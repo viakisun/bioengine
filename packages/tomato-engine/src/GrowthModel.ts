@@ -34,9 +34,11 @@ import {
   type LeafMorphologyState,
   type TrussOrganState,
   type SideShootState,
+  type LeafAllocationState,
   computeLeafExpansionProgress,
   makeLeafOrganStateFromFlat,
   applyMorphologyVariance,
+  composeLeafAllocation,
 } from './growth/LeafGrowthModel';
 import {
   computeSenescenceStartTT,
@@ -45,8 +47,10 @@ import {
 } from './growth/SenescenceModel';
 // Iter 29 Phase 2B — Source-Sink Proxy v1 (lightweight; NOT a full TOMSIM/
 // TOMGRO carbon partition). Applied multiplicatively to leaf.targetAreaCm2.
+// Iter 30 Phase 3 — per-axis variant.
 import {
   computeSourceSinkProxyV1FromPlant,
+  computeAxisSourceSinkProxyV1,
 } from './growth/SourceSinkProxyV1';
 // Iter 30 Phase 1-Pre — NodeGrowthContext minimum schema (5 fields).
 import {
@@ -54,6 +58,28 @@ import {
   makeMainAxisGrowthContext,
   makeSideShootGrowthContext,
 } from './growth/NodeGrowthContext';
+// Iter 30 Phase 1 — Axis Capacity Model (structural capacity proxy).
+import {
+  computeAxisStructuralCapacity,
+  computeAxisCapacityFactor,
+  computeAxisOrganDemand,
+  computeAxisMeanStemRadius,
+  computeAxisLengthCm,
+} from './growth/AxisCapacityModel';
+// Iter 30 Phase 4 — Side-shoot Allocation Factor (parent vigor × apex × light).
+import {
+  computeSideShootAllocationFactor,
+  computeApexDominanceReleaseFactor,
+  DEFAULT_CULTIVAR_SIDE_SHOOT_POTENTIAL,
+  DEFAULT_LIGHT_FACTOR,
+} from './growth/SideShootAllocation';
+// Iter 30 Phase 5 — Leaf Posture Composition (light-facing + gravity droop 분리).
+import {
+  computeGravityDroopDeg,
+  computePetioleBaseElevationDeg,
+  computeWaterStressDroopDeg,
+  composePosture,
+} from './growth/LeafPostureModel';
 
 // Phase 3: hybrid is now the default. Legacy sigmoid path remains as
 // fallback for paths that don't supply a physiology state.
@@ -639,22 +665,26 @@ function populateSideShootChain(
       * genome.leafSizeMultiplier * SHOOT_LEAF_SCALE;
     const leafSizeFactor = potentialSize * leafExpansion;
 
-    // Iter 30 Phase 0.A — Linear Product 4-Stage (R1 fix, side-shoot path).
+    // Iter 30 Phase 0.A + Phase 2 — Linear Product 4-Stage + Allocation.
     //
-    // 동일 quadratic 결함 (`leafSizeFactor² × max`)을 side-shoot에도 적용 중이었음.
-    // 4-stage linear product로 통일 (POTENTIAL-TARGET-CURRENT-01).
-    //
-    //   potential = max × position × SHOOT_LEAF_SCALE  (vigor는 side에 미적용,
-    //                                                    Phase 3 axisSourceFactor가 대신)
-    //   allocation = stress × proxy
+    //   potential = max × position × SHOOT_LEAF_SCALE
+    //   allocation 4-factor: plantSource × axisCapacity × sideShoot × stress
+    //     - sideShootAllocationFactor는 SHOOT_LEAF_SCALE을 imitating
+    //       (Phase 4에서 parent vigor × apex release × light로 정밀화)
+    //     - axisCapacityFactor: Pass 3 후 side axis 계산값으로 _덮어쓰기_
     //   target = potential × allocation
     //   current = target × leafExpansion
     const sidePotentialAreaCm2 =
-      cultivar.growthProfile.maxLeafAreaCm2 * (0.85 + 0.20 * positionFactor) * SHOOT_LEAF_SCALE;
-    const sideAllocationFactor =
-      sideSourceSinkProxyV1 *
+      cultivar.growthProfile.maxLeafAreaCm2 * (0.85 + 0.20 * positionFactor);
+    const sideStressFactor =
       Math.max(0.3, Math.min(1.0, 1 - stress.waterStress * 0.5 - stress.diseaseLoad * 0.3));
-    const sideTargetAreaCm2_linear = sidePotentialAreaCm2 * sideAllocationFactor;
+    const sideAllocationPhase2: LeafAllocationState = composeLeafAllocation({
+      plantSourceFactor: sideSourceSinkProxyV1,
+      axisCapacityFactor: 1.0,  // Pass 3 후 side axis 계산값으로 덮어쓰기
+      sideShootAllocationFactor: SHOOT_LEAF_SCALE,  // Phase 4에서 정밀화
+      stressFactor: sideStressFactor,
+    });
+    const sideTargetAreaCm2_linear = sidePotentialAreaCm2 * sideAllocationPhase2.finalAllocationFactor;
     const sideCurrentAreaCm2_linear = sideTargetAreaCm2_linear * leafExpansion;
 
     // Legacy alias for downstream consumers (leafAreaCm2 = currentAreaCm2)
@@ -744,14 +774,30 @@ function populateSideShootChain(
     );
     const sideBlendedSen = Math.max(sideCanonSen, yellowing);
     const sideSenescenceState = makeSenescenceState(sideBlendedSen);
+    // Iter 30 Phase 5 — side-shoot LeafPostureState 9-필드 composition.
     const SIDE_GOLDEN_DEG = 137.508;
-    const sidePosture: LeafPostureState = {
-      azimuthDeg: (k * SIDE_GOLDEN_DEG) % 360,
-      petioleElevationDeg: 35 - 23 * leafMaturity - sideSenescenceState.droopDeg * 0.5,
-      droopDeg: droopExtra,
+    const sideAzimuth = (k * SIDE_GOLDEN_DEG) % 360;
+    const sideAgeFactor = Math.max(1.0, Math.min(1.5, 1 + sideAgeTT / 1000));
+    const sideGravityDroop = computeGravityDroopDeg({
+      currentAreaCm2: sideCurrentAreaCm2_linear,
+      referenceAreaCm2: cultivar.growthProfile.maxLeafAreaCm2,
+      ageFactor: sideAgeFactor,
+      droopSensitivity: 1.0,
+    });
+    const sidePetioleBase = computePetioleBaseElevationDeg({
+      expansionProgress: leafMaturity,
+    });
+    const sideWaterStressDroop = computeWaterStressDroopDeg(stress.waterStress);
+    const sidePosture: LeafPostureState = composePosture({
+      azimuthDeg: sideAzimuth,
       twistDeg: 0,
+      lightSeekingBladePlaneTiltDeg: 0,
+      petioleBaseElevationDeg: sidePetioleBase,
+      gravityDroopDeg: sideGravityDroop,
+      senescenceDroopDeg: sideSenescenceState.droopDeg,
+      waterStressDroopDeg: sideWaterStressDroop,
       curl: 0.12 + yellowing * 0.15,
-    };
+    });
     // Iter 29 Phase 5 — side-shoot morphology with per-node variance.
     const sideBaseMorphology: LeafMorphologyState = {
       serrationDepth: genome.leafSerrationDepth ?? 0.12,
@@ -777,6 +823,8 @@ function populateSideShootChain(
       initiationTT: sideInitiationTT,
       visibleTT: sideVisibleTT,
       ageTT: sideAgeTT,
+      // Iter 30 Phase 2 — pre-allocation potential + allocation trace
+      potentialAreaCm2: sidePotentialAreaCm2,
       targetAreaCm2: sideTargetAreaCm2,
       currentAreaCm2: sideCurrentAreaCm2,
       expansionProgress: Math.max(sideCanonExp, leafMaturity),
@@ -784,6 +832,8 @@ function populateSideShootChain(
       posture: sidePosture,
       morphology: sideMorphology,
       senescence: sideSenescenceState,
+      // Phase 2 allocation 4-factor
+      allocation: sideAllocationPhase2,
     });
     let sideTrussOrgan: TrussOrganState | undefined;
     if (nodeTruss !== null) {
@@ -1014,6 +1064,9 @@ export function computePlantState(
     ? Math.floor((intNodeCount - arch.firstTrussNodeIdx) / arch.trussIntervalNodes) + 1
     : 0;
   const stressFactor = Math.max(0, Math.min(1, waterStress * 0.7 + diseaseLoad * 0.3));
+  // Iter 30 Phase 3 — sourceSinkSensitivity wire-in (SOURCESINK-SENSITIVITY-USED-01).
+  // cultivar.growthProfile.sourceSinkSensitivity (0.35~0.40)가 demand 가중치
+  // 보정에 반영 — beefsteak (0.40)는 더 큰 sink draw → proxy 낮아짐 → leaf 작아짐.
   const sourceSinkProxyV1 = computeSourceSinkProxyV1FromPlant({
     nodeCount: intNodeCount,
     averageLeafTargetAreaCm2: cultivar.growthProfile.maxLeafAreaCm2 * 0.7,
@@ -1021,6 +1074,7 @@ export function computePlantState(
     trussSinkStrength: 1.0,
     heightCm,
     stressFactor,
+    sourceSinkSensitivity: cultivar.growthProfile.sourceSinkSensitivity,
   });
 
   // --- Pass 3: Build node states with all properties ---
@@ -1081,26 +1135,27 @@ export function computePlantState(
     ));
     const leafSizeFactor = potentialSize * leafExpansion * plantJuvenileScale * stemVigorFactor;
 
-    // --- Leaf area & mass (Iter 30 Phase 0.A — Linear Product 4-Stage) ---
+    // --- Leaf area & mass (Iter 30 Phase 0.A + Phase 2 Allocation) ---
     //
-    // R1 fix: quadratic compounding (`leafSizeFactor²`) was Plan §6 violation.
-    // D=45 idx=10 trace: 700 × 1.344² = 1264 cm² > cultivar bound 700 (1.82×).
+    // Phase 0.A 4-stage linear product (R1 quadratic fix):
+    //   potential / allocation / target / current.
     //
-    // Phase 0.A canonical 4-stage (LEAF-POTENTIAL-TARGET-PREP-01):
-    //   (1) potentialAreaCm2 = max × position × vigor       — cultivar 잠재량
-    //   (2) allocationFactor = proxy × stress                — 할당측 modulator
-    //   (3) targetAreaCm2    = potential × allocation        — 목표 면적
-    //   (4) currentAreaCm2   = target × leafExpansion        — 현재 면적
-    //   (5) leafMassG는 currentAreaCm2 × juvenile (선형, 별도 보존)
-    //
-    // 위 4-stage는 Phase 2에서 LeafOrganState.potentialAreaCm2 +
-    // LeafAllocationState 필드로 승격 가능한 _준비된 형태_.
+    // Phase 2 (this) — allocationFactor를 _LeafAllocationState_의 4-factor로
+    // 분해 (plantSource × axisCapacity × sideShoot × stress).
+    // Main axis: sideShoot=1.0 (Phase 4 변별), axisCapacity는 _Pass 3 후_
+    // 갱신되므로 여기서는 1.0 placeholder (Pass 3 후 leaf.allocation 재계산).
     const potentialAreaCm2 =
       cultivar.growthProfile.maxLeafAreaCm2 * potentialSize * stemVigorFactor;
-    const allocationFactor =
-      sourceSinkProxyV1 *
+    const stressFactor =
       Math.max(0.3, Math.min(1.0, 1 - waterStress * 0.5 - diseaseLoad * 0.3));
-    const targetAreaCm2_linear = potentialAreaCm2 * allocationFactor;
+    // Phase 2: axisCapacityFactor=1.0 placeholder; Pass 3 후 axis 계산값으로 갱신
+    const allocationPhase2: LeafAllocationState = composeLeafAllocation({
+      plantSourceFactor: sourceSinkProxyV1,
+      axisCapacityFactor: 1.0,  // Pass 3 후 axis-level 계산값으로 _덮어쓰기_
+      sideShootAllocationFactor: 1.0,  // main axis
+      stressFactor,
+    });
+    const targetAreaCm2_linear = potentialAreaCm2 * allocationPhase2.finalAllocationFactor;
     const currentAreaCm2_linear = targetAreaCm2_linear * leafExpansion * plantJuvenileScale;
 
     // Legacy alias — currentAreaCm2 = 기존 leafAreaCm2 이름. Skin은 currentAreaCm2를 읽음.
@@ -1319,16 +1374,32 @@ export function computePlantState(
     const blendedProgress = Math.max(canonicalSenescenceProgress, yellowing);
     const senescenceState = makeSenescenceState(blendedProgress);
 
-    // Posture — Plan §11 / LEAF-POSTURE-01. PlantBase computes; Skin
-    // applies via anchor.rotation (Phase 3 wires this).
+    // Iter 30 Phase 5 — LeafPostureState 9-필드 composition.
+    // light-facing + gravity droop + senescence + water stress 분리.
+    // 상부광 = 0° (blade plane ground-parallel target).
     const GOLDEN_ANGLE_DEG = 137.508;
-    const posture: LeafPostureState = {
-      azimuthDeg: (i * GOLDEN_ANGLE_DEG + genome.phyllotaxisJitter * i * 0.3) % 360,
-      petioleElevationDeg: 35 - 23 * leafMaturity - senescenceState.droopDeg * 0.5,
-      droopDeg: droopExtra,
+    const azimuthDeg = (i * GOLDEN_ANGLE_DEG + genome.phyllotaxisJitter * i * 0.3) % 360;
+    const ageFactor = Math.max(1.0, Math.min(1.5, 1 + ageTT / 1000));
+    const gravityDroop = computeGravityDroopDeg({
+      currentAreaCm2: currentAreaCm2_linear,
+      referenceAreaCm2: cultivar.growthProfile.maxLeafAreaCm2,
+      ageFactor,
+      droopSensitivity: 1.0,  // Phase 6 calibration pack에서 cultivar별 정밀화
+    });
+    const petioleBaseElevation = computePetioleBaseElevationDeg({
+      expansionProgress: leafMaturity,
+    });
+    const waterStressDroopPhase5 = computeWaterStressDroopDeg(waterStress);
+    const posture: LeafPostureState = composePosture({
+      azimuthDeg,
       twistDeg: 0,
+      lightSeekingBladePlaneTiltDeg: 0,  // 상부광 default
+      petioleBaseElevationDeg: petioleBaseElevation,
+      gravityDroopDeg: gravityDroop,
+      senescenceDroopDeg: senescenceState.droopDeg,
+      waterStressDroopDeg: waterStressDroopPhase5,
       curl: 0.12 + yellowing * 0.15,
-    };
+    });
 
     // Iter 29 Phase 5 — morphology with per-node deterministic variance
     //   (VARIANCE-01 / VARIANCE-CLAMP-01). Baseline values flow from genome
@@ -1366,6 +1437,8 @@ export function computePlantState(
       initiationTT,
       visibleTT,
       ageTT,
+      // Iter 30 Phase 2 — pre-allocation potential + allocation trace
+      potentialAreaCm2,
       targetAreaCm2,
       currentAreaCm2,
       expansionProgress: Math.max(canonicalExpansionProgress, leafMaturity),
@@ -1373,6 +1446,8 @@ export function computePlantState(
       posture,
       morphology,
       senescence: senescenceState,
+      // Phase 2 allocation 4-factor (axisCapacityFactor는 Pass 3 후 갱신)
+      allocation: allocationPhase2,
     });
 
     // Iter 29 Phase 2A — Truss/SideShoot state shell (PHYTOMER-ORGAN-SHELL-01)
@@ -1426,6 +1501,58 @@ export function computePlantState(
       // Iter 30 Phase 1-Pre — NodeGrowthContext (main axis)
       growthContext: mainGrowthContext,
     });
+  }
+
+  // ── Iter 30 Phase 1 — Main-axis capacity factor (post-Pass 3 update) ──
+  //
+  // Plan §3 — axis structural capacity proxy를 계산해서 각 node.growthContext
+  // 에 전파. 약한 axis는 0.35~1.0 factor로 leaf demand 제한.
+  // 단 Phase 0.A의 4-stage 산식은 _Pass 3 안에서_ targetArea 계산하므로,
+  // 본 factor는 Phase 1에서 _growthContext에만 기록_하고, Phase 2 LeafAllocationState
+  // 에서 실제 allocation 산식 wire-in (LEAF-TARGET-INCLUDES-AXIS-CAP-01).
+  //
+  // 약한 axis 시각 회복 효과는 Phase 2 commit 이후 측정.
+  if (nodes.length > 0) {
+    const mainPotentialAreas = nodes.map((n) => n.leaf?.targetAreaCm2 ?? 0);
+    const mainNodeRadii = nodes.map((n) => n.stemRadiusMm);
+    const mainNodeHeights = nodes.map((n) => n.heightCm);
+    const mainMeanR = computeAxisMeanStemRadius({ nodeRadiiMm: mainNodeRadii });
+    const mainLengthCm = computeAxisLengthCm({ nodeHeightsCm: mainNodeHeights });
+    const mainCapacity = computeAxisStructuralCapacity({
+      meanStemRadiusMm: mainMeanR,
+      axisLengthCm: mainLengthCm,
+      structuralCapacityCoeff: 1.0,
+    });
+    const mainDemand = computeAxisOrganDemand({
+      leafPotentialAreasCm2: mainPotentialAreas,
+    });
+    const mainFactor = computeAxisCapacityFactor({
+      axisStructuralCapacity: mainCapacity,
+      axisOrganDemand: mainDemand,
+    });
+    for (const n of nodes) {
+      if (n.growthContext) {
+        n.growthContext = { ...n.growthContext, axisCapacityFactor: mainFactor };
+      }
+      // Phase 2 — leaf.allocation 재계산 (axisCapacityFactor 실제값 반영)
+      // LEAF-TARGET-INCLUDES-AXIS-CAP-01 strict 실현.
+      const leaf = n.leaf;
+      if (leaf?.allocation && leaf.potentialAreaCm2 !== undefined) {
+        const newAlloc = composeLeafAllocation({
+          plantSourceFactor: leaf.allocation.plantSourceFactor,
+          axisCapacityFactor: mainFactor,
+          sideShootAllocationFactor: leaf.allocation.sideShootAllocationFactor,
+          stressFactor: leaf.allocation.stressFactor,
+        });
+        leaf.allocation = newAlloc;
+        // targetArea = potential × final
+        leaf.targetAreaCm2 = leaf.potentialAreaCm2 * newAlloc.finalAllocationFactor;
+        // currentArea ≤ targetArea (clamp)
+        if (leaf.currentAreaCm2 > leaf.targetAreaCm2) {
+          leaf.currentAreaCm2 = leaf.targetAreaCm2;
+        }
+      }
+    }
   }
 
   // (v4.2: defoliation block moved below — needs walkSkeleton positions.)
@@ -1636,6 +1763,98 @@ export function computePlantState(
       sideShootOrdinal,
     );
     sideShootOrdinal++;
+  }
+
+  // ── Iter 30 Phase 1 — Side-shoot axis capacity (post-populate update) ──
+  //
+  // 각 side-shoot axis별 capacity proxy 계산 + node growthContext 갱신.
+  // 측지는 main 대비 _얇은 stem_이라 capacity가 작음 → demand 비율 ↑ →
+  // axisCapacityFactor ↓ → 약한 axis 자동 억제 (Phase 2 wire-in 후).
+  for (const axis of allAxes) {
+    if (axis.order === 0) continue;  // main axis 이미 처리
+    if (axis.nodes.length === 0) continue;
+    const sidePotentialAreas = axis.nodes.map((n) => n.leaf?.targetAreaCm2 ?? 0);
+    const sideNodeRadii = axis.nodes.map((n) => n.stemRadiusMm);
+    const sideNodeHeights = axis.nodes.map((n) => n.heightCm);
+    const sideMeanR = computeAxisMeanStemRadius({ nodeRadiiMm: sideNodeRadii });
+    const sideLengthCm = computeAxisLengthCm({ nodeHeightsCm: sideNodeHeights });
+    const sideCapacity = computeAxisStructuralCapacity({
+      meanStemRadiusMm: sideMeanR,
+      axisLengthCm: sideLengthCm,
+      structuralCapacityCoeff: 1.0,
+    });
+    const sideDemand = computeAxisOrganDemand({
+      leafPotentialAreasCm2: sidePotentialAreas,
+    });
+    const sideFactor = computeAxisCapacityFactor({
+      axisStructuralCapacity: sideCapacity,
+      axisOrganDemand: sideDemand,
+    });
+    // Iter 30 Phase 3 — per-axis SourceSinkProxy.
+    // Iter 30 Phase 4 — Side-shoot Allocation Factor (parent vigor × apex × light).
+    //   axisSupply = stem-volume × parentVigorFactor
+    //   parentVigorFactor 근사: parent (main-axis) node의 stemVigorFactor.
+    //     axis.parentNodeIdx로 main-axis node 참조 가능.
+    const parentMainNode = axis.parentNodeIdx != null
+      ? mainAxis.nodes[axis.parentNodeIdx]
+      : undefined;
+    // parent vigor ≈ stemVigorFactor evaluated at parent's height
+    const parentHeightCm = parentMainNode?.heightCm ?? heightCm;
+    const parentVigor = Math.max(0.5, Math.min(1.5,
+      Math.pow(Math.max(1, parentHeightCm) / 50, 0.5),
+    ));
+    // Apex dominance: parent node fraction from apex (0 = apex, 1 = basal)
+    const parentNodeFracFromApex = mainAxis.nodes.length > 0 && axis.parentNodeIdx != null
+      ? Math.max(0, Math.min(1, (mainAxis.nodes.length - 1 - axis.parentNodeIdx) / Math.max(1, mainAxis.nodes.length - 1)))
+      : 0.5;
+    const apexRelease = computeApexDominanceReleaseFactor({ parentNodeFracFromApex });
+
+    const sideShootAllocFactor = computeSideShootAllocationFactor({
+      parentNodeVigor: parentVigor,
+      cultivarSideShootPotential:
+        cultivar.growthProfile.sideShootPotential ?? DEFAULT_CULTIVAR_SIDE_SHOOT_POTENTIAL,
+      apexDominanceReleaseFactor: apexRelease,
+      lightFactor: DEFAULT_LIGHT_FACTOR,
+    });
+
+    const sideAxisAvgLeafTarget = sidePotentialAreas.length > 0
+      ? sidePotentialAreas.reduce((s, a) => s + a, 0) / sidePotentialAreas.length
+      : 0;
+    const sideAxisSourceProxy = computeAxisSourceSinkProxyV1({
+      axisLeafCount: axis.nodes.length,
+      axisAvgLeafTargetAreaCm2: sideAxisAvgLeafTarget,
+      axisTrussCount: 0,
+      axisMeanStemRadiusMm: sideMeanR,
+      axisLengthCm: sideLengthCm,
+      parentVigorFactor: parentVigor,  // ★ Phase 4 정밀화
+      sourceSinkSensitivity: cultivar.growthProfile.sourceSinkSensitivity,
+    });
+
+    for (const n of axis.nodes) {
+      if (n.growthContext) {
+        n.growthContext = {
+          ...n.growthContext,
+          axisCapacityFactor: sideFactor,
+          parentVigorFactor: parentVigor,  // ★ Phase 4 propagate
+        };
+      }
+      // Phase 2 + 3 + 4 — side-shoot leaf.allocation 재계산
+      const leaf = n.leaf;
+      if (leaf?.allocation && leaf.potentialAreaCm2 !== undefined) {
+        const newAlloc = composeLeafAllocation({
+          plantSourceFactor: leaf.allocation.plantSourceFactor,
+          axisSourceFactor: sideAxisSourceProxy,
+          axisCapacityFactor: sideFactor,
+          sideShootAllocationFactor: sideShootAllocFactor,  // ★ Phase 4 정밀화
+          stressFactor: leaf.allocation.stressFactor,
+        });
+        leaf.allocation = newAlloc;
+        leaf.targetAreaCm2 = leaf.potentialAreaCm2 * newAlloc.finalAllocationFactor;
+        if (leaf.currentAreaCm2 > leaf.targetAreaCm2) {
+          leaf.currentAreaCm2 = leaf.targetAreaCm2;
+        }
+      }
+    }
   }
 
   // ── Phase 3 hybrid: LAI-scaled leaf area + physiology heightCm ──

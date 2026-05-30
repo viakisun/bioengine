@@ -22,6 +22,125 @@ export type LeafStage =
   | 'senescent'
   | 'removed';
 
+// ============================================================
+// Iter 30 Phase 2 — LeafAllocationState
+// ============================================================
+
+/**
+ * Limitation reason — why this leaf's targetArea is smaller than potential.
+ * `none` = no limitation (finalAllocationFactor ≥ 0.95).
+ */
+export type LeafLimitationReason =
+  | 'none'
+  | 'plant_source_limited'    // plant-wide sourceSinkProxy < 0.95
+  | 'axis_capacity_limited'   // axis structural capacity < demand
+  | 'axis_source_limited'     // (Phase 3) per-axis source-sink proxy < 0.95
+  | 'side_shoot_limited'      // (Phase 4) side-shoot allocation factor < 0.95
+  | 'stress_limited';         // water + disease > threshold
+
+/**
+ * LeafAllocationState — _이 leaf가 왜 이 크기인지_ trace 가능.
+ *
+ * Plan §4 (sleepy-growing-pretzel.md).
+ * Phase 2 minimum 4-factor (Phase 3 axisSourceFactor 추가, Phase 4 별도 sideShoot).
+ */
+export interface LeafAllocationState {
+  /** plant-wide sourceSinkProxyV1 (clamp [0.65, 1.15]). */
+  plantSourceFactor: number;
+  /**
+   * Iter 30 Phase 3 — per-axis source-sink proxy (clamp [0.5, 1.15]).
+   * 측지가 main 대비 약한 axis임을 반영. Main axis = 1.0 (Phase 3 정밀화 전).
+   * Backward compat: optional ?:.
+   */
+  axisSourceFactor?: number;
+  /** axis-level capacity factor (from NodeGrowthContext.axisCapacityFactor, clamp [0.35, 1.0]). */
+  axisCapacityFactor: number;
+  /** side-shoot only allocation (main = 1.0). Phase 4에서 정밀화. */
+  sideShootAllocationFactor: number;
+  /** stress composite (water + disease). */
+  stressFactor: number;
+  /** product, clamp [0.15, 1.5]. */
+  finalAllocationFactor: number;
+  /** finalAllocationFactor < 0.95 이면 가장 큰 limiting factor. */
+  limitationReason: LeafLimitationReason;
+}
+
+const ALLOC_NEAR_FULL = 0.95;
+
+/**
+ * Compose final allocation factor + identify limiting reason.
+ *
+ * Plan §4 산식: final = plant × axis × sideShoot × stress (clamp [0.15, 1.5]).
+ */
+export function composeLeafAllocation(input: {
+  plantSourceFactor: number;
+  /** Iter 30 Phase 3 — axis source-sink proxy (optional; main=1.0 default). */
+  axisSourceFactor?: number;
+  axisCapacityFactor: number;
+  sideShootAllocationFactor: number;
+  stressFactor: number;
+}): LeafAllocationState {
+  const axisSource = input.axisSourceFactor ?? 1.0;
+  const product =
+    input.plantSourceFactor *
+    axisSource *
+    input.axisCapacityFactor *
+    input.sideShootAllocationFactor *
+    input.stressFactor;
+  const finalAllocationFactor = Math.max(0.15, Math.min(1.5, product));
+
+  // Identify limiting reason — 가장 낮은 factor (≤ 0.95 threshold)
+  let limitationReason: LeafLimitationReason = 'none';
+  if (finalAllocationFactor < ALLOC_NEAR_FULL) {
+    const factors: { name: LeafLimitationReason; value: number }[] = [
+      { name: 'plant_source_limited', value: input.plantSourceFactor },
+      { name: 'axis_source_limited', value: axisSource },
+      { name: 'axis_capacity_limited', value: input.axisCapacityFactor },
+      { name: 'side_shoot_limited', value: input.sideShootAllocationFactor },
+      { name: 'stress_limited', value: input.stressFactor },
+    ];
+    factors.sort((a, b) => a.value - b.value);  // 작은 순
+    limitationReason = factors[0].name;
+  }
+
+  return {
+    plantSourceFactor: input.plantSourceFactor,
+    axisSourceFactor: axisSource,
+    axisCapacityFactor: input.axisCapacityFactor,
+    sideShootAllocationFactor: input.sideShootAllocationFactor,
+    stressFactor: input.stressFactor,
+    finalAllocationFactor,
+    limitationReason,
+  };
+}
+
+/**
+ * Dev-only — allocation 4-factor 항등식 검증.
+ */
+export function assertAllocationConsistent(
+  alloc: LeafAllocationState,
+  contextHint?: string,
+): void {
+  const where = contextHint ? ` (${contextHint})` : '';
+  const axisSource = alloc.axisSourceFactor ?? 1.0;
+  const productClamped = Math.max(0.15, Math.min(1.5,
+    alloc.plantSourceFactor *
+    axisSource *
+    alloc.axisCapacityFactor *
+    alloc.sideShootAllocationFactor *
+    alloc.stressFactor,
+  ));
+  if (Math.abs(alloc.finalAllocationFactor - productClamped) > 1e-6) {
+    console.warn(
+      `[LeafAllocationState] finalAllocationFactor=${alloc.finalAllocationFactor.toFixed(4)} ` +
+      `vs product=${productClamped.toFixed(4)}${where}`,
+    );
+  }
+  if (alloc.finalAllocationFactor < ALLOC_NEAR_FULL && alloc.limitationReason === 'none') {
+    console.warn(`[LeafAllocationState] final < 0.95 but reason='none'${where}`);
+  }
+}
+
 /**
  * Leaf posture state — Plan §11.
  *
@@ -34,14 +153,36 @@ export type LeafStage =
 export interface LeafPostureState {
   /** Phyllotaxis azimuth (degrees) — baseAxis + index × 137.5 + node variation. */
   azimuthDeg: number;
-  /** Petiole elevation (degrees) — 0° = horizontal up. */
+  /** Petiole elevation (degrees) — 0° = horizontal up. (Legacy alias). */
   petioleElevationDeg: number;
-  /** Leaf blade droop (degrees) — mature droop + senescence sag. */
+  /** Leaf blade droop (degrees) — mature droop + senescence sag. (Legacy alias = finalDroopDeg). */
   droopDeg: number;
   /** Leaf twist (degrees) around the petiole axis. */
   twistDeg: number;
   /** Curl (0..1) — Phase 2A: posture field; future: deformation. */
   curl: number;
+
+  // ── Iter 30 Phase 5 — 9-필드 분해 (light-facing + gravity 분리) ──
+  // 사용자 review 6번 — 이름 정확화 (BladePlaneTilt 명명)
+  // 사용자 review 7번 — 부호 일관성 (droop이 양수면 tilt 증가)
+  // Backward compat: optional ?:. composePosture가 populate.
+
+  /** 빛 추구 — blade plane이 ground-parallel 향하는 목표 (상부광이면 0°). */
+  lightSeekingBladePlaneTiltDeg?: number;
+  /** 빛 추구 — blade upward normal (상부광이면 (0, 1, 0)). */
+  lightSeekingNormal?: { x: number; y: number; z: number };
+  /** 마디에서 잎자루(petiole axis) base elevation (degrees). */
+  petioleBaseElevationDeg?: number;
+  /** Gravity droop component (degrees) — f(currentArea, rachisLength, age). */
+  gravityDroopDeg?: number;
+  /** Senescence droop component (degrees) — f(senescence.progress). */
+  senescenceDroopDeg?: number;
+  /** Water stress droop component (degrees). */
+  waterStressDroopDeg?: number;
+  /** Final blade plane tilt = lightSeekingTilt + finalDroopDeg (부호 일관). */
+  finalBladePlaneTiltDeg?: number;
+  /** Final droop = gravity + senescence + waterStress (Legacy alias = droopDeg). */
+  finalDroopDeg?: number;
 }
 
 /**
@@ -94,9 +235,19 @@ export interface LeafOrganState {
   /** TT (GDD) since initiation. Mirrors PhytomerNode.ageTT. */
   ageTT: number;
 
-  /** Cultivar potential × position × vigor × stress (× source-sink in Phase 2B). */
+  /**
+   * Iter 30 Phase 2 — Pre-allocation potential.
+   * = cultivar.maxLeafAreaCm2 × nodePositionFactor × stemVigorFactor.
+   * 'allocation' 적용 _전_ 잠재 면적 (POTENTIAL-TARGET-CURRENT-01).
+   *
+   * Backward compat: optional ?:. Phase 0.A에서 _함수 내부 변수_로만 존재했고
+   * Phase 2부터 LeafOrganState 필드로 승격.
+   */
+  potentialAreaCm2?: number;
+
+  /** Cultivar potential × position × vigor × allocation. POTENTIAL-TARGET-CURRENT-01: ≤ potential. */
   targetAreaCm2: number;
-  /** Sigmoid-expanded actual area. Always ≤ targetAreaCm2 (LEAF-EXPANSION-01). */
+  /** Expansion-progress-scaled. Always ≤ targetAreaCm2 (LEAF-EXPANSION-01). */
   currentAreaCm2: number;
   /** 0..1 expansion sigmoid output. */
   expansionProgress: number;
@@ -109,6 +260,13 @@ export interface LeafOrganState {
   morphology: LeafMorphologyState;
   posture: LeafPostureState;
   senescence: LeafSenescenceState;
+
+  /**
+   * Iter 30 Phase 2 — LeafAllocationState (4-factor + finalAllocationFactor + reason).
+   * Plan §4 (sleepy-growing-pretzel.md). Phase 0.A allocationFactor scalar의 _분해_.
+   * Backward compat: optional ?:.
+   */
+  allocation?: LeafAllocationState;
 }
 
 /**
@@ -259,6 +417,8 @@ export function makeLeafOrganStateFromFlat(input: {
   initiationTT: number;
   visibleTT: number;
   ageTT: number;
+  /** Phase 2 신규 — pre-allocation potential. Optional for backward compat. */
+  potentialAreaCm2?: number;
   targetAreaCm2: number;
   currentAreaCm2: number;
   expansionProgress: number;
@@ -267,12 +427,17 @@ export function makeLeafOrganStateFromFlat(input: {
   posture: LeafPostureState;
   morphology: LeafMorphologyState;
   senescence: LeafSenescenceState;
+  /** Phase 2 신규 — LeafAllocationState. Optional for backward compat. */
+  allocation?: LeafAllocationState;
 }): LeafOrganState {
   return {
     nodeIndex: input.nodeIndex,
     initiationTT: input.initiationTT,
     visibleTT: input.visibleTT,
     ageTT: input.ageTT,
+    potentialAreaCm2: input.potentialAreaCm2 !== undefined
+      ? Math.max(0, input.potentialAreaCm2)
+      : undefined,
     targetAreaCm2: Math.max(0, input.targetAreaCm2),
     currentAreaCm2: Math.max(0, Math.min(input.targetAreaCm2, input.currentAreaCm2)),
     expansionProgress: Math.max(0, Math.min(1, input.expansionProgress)),
@@ -281,6 +446,7 @@ export function makeLeafOrganStateFromFlat(input: {
     morphology: input.morphology,
     posture: input.posture,
     senescence: input.senescence,
+    allocation: input.allocation,
   };
 }
 

@@ -74,13 +74,15 @@ test.describe('Iter 30 Phase 0.A — Linear Product 4-Stage (R1 fix)', () => {
     }
     // 두 곱셈 항등식 패턴 검증 (main + side-shoot 각각)
     // potential × allocation = target 패턴 (느슨하게)
-    expect(text, 'targetAreaCm2 = potentialAreaCm2 × allocationFactor 패턴')
-      .toMatch(/(targetAreaCm2_linear|targetAreaCm2)\s*=\s*\w*[Pp]otentialAreaCm2\s*\*\s*\w*[Aa]llocationFactor/);
-    // side-shoot에도 동일 패턴
+    // Iter 30 Phase 2 후: allocationFactor는 allocationPhase2.finalAllocationFactor로 승격 —
+    // member access (`.`) 허용 위해 [\w.]* 사용.
+    expect(text, 'targetAreaCm2 = potentialAreaCm2 × (final)AllocationFactor 패턴')
+      .toMatch(/(targetAreaCm2_linear|targetAreaCm2)\s*=\s*[\w.]*[Pp]otentialAreaCm2\s*\*\s*[\w.]*[Aa]llocationFactor/);
+    // side-shoot에도 동일 패턴 — Phase 2 후 sideAllocPhase2.finalAllocationFactor 또는 동등
     expect(text, 'side-shoot potential 변수 정의')
       .toMatch(/sidePotentialAreaCm2/);
-    expect(text, 'side-shoot allocation 변수 정의')
-      .toMatch(/sideAllocationFactor/);
+    expect(text, 'side-shoot allocation 변수 정의 (sideAllocationFactor 또는 sideAlloc*)')
+      .toMatch(/sideAlloc\w*/);
   });
 
   test('LEAF-CULTIVAR-BOUND-01: targetAreaCm2 수식 trace로 cultivar bound 1.725× 이내', () => {

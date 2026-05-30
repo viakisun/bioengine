@@ -85,6 +85,9 @@ export function computeSourceSinkProxyV1(supply: number, demand: number): number
  * Phase 2B v1: returns 1.0 when input is degenerate (avoids breaking Phase 2A
  * baseline if used as multiplier in a code path that hasn't migrated yet —
  * LEAF-SOURCESINK-PROXY-03 disable-test invariant).
+ *
+ * Iter 30 Phase 3: + cultivar.sourceSinkSensitivity 적용 (SOURCESINK-SENSITIVITY-USED-01).
+ * sensitivity 높을수록 demand 비중↑ → proxy 낮아짐 → 잎 작아짐.
  */
 export function computeSourceSinkProxyV1FromPlant(input: {
   nodeCount: number;
@@ -93,8 +96,57 @@ export function computeSourceSinkProxyV1FromPlant(input: {
   trussSinkStrength?: number;
   heightCm: number;
   stressFactor?: number;
+  /** Iter 30 Phase 3 — cultivar.growthProfile.sourceSinkSensitivity (default 0.35). */
+  sourceSinkSensitivity?: number;
 }): number {
-  const demand = computeOrganDemand(input);
+  const sensitivity = input.sourceSinkSensitivity ?? 0.35;
+  // Demand 가중치 = baseline + sensitivity 보정 (sensitivity 0.35 = 1.0, 0.45 = 1.29)
+  const sensitivityMultiplier = sensitivity / 0.35;
+  const baseDemand = computeOrganDemand(input);
+  const demand = baseDemand * sensitivityMultiplier;
   const supply = computeAssimilateSupply(input);
   return computeSourceSinkProxyV1(supply, demand);
+}
+
+// ============================================================
+// Iter 30 Phase 3 — Per-axis SourceSinkProxy
+// ============================================================
+
+/**
+ * Per-axis source-sink proxy.
+ *
+ * Plan §5 (sleepy-growing-pretzel.md). 측지가 _더 약한 axis_라는 정보가
+ * leaf까지 전달되도록 axis 단위로 별도 proxy.
+ *
+ * supply = stem-volume proxy × parentVigorFactor (측지일 때 parent main axis vigor).
+ * demand = axis leaf area + truss demand.
+ *
+ * Clamp [0.5, 1.15] — main axis 1.15 ceiling 동일, floor 0.5 (측지는 더 낮을 수 있음).
+ */
+export function computeAxisSourceSinkProxyV1(input: {
+  axisLeafCount: number;
+  axisAvgLeafTargetAreaCm2: number;
+  axisTrussCount: number;
+  axisMeanStemRadiusMm: number;
+  axisLengthCm: number;
+  parentVigorFactor: number;  // side-shoot only; main = 1.0
+  /** cultivar.growthProfile.sourceSinkSensitivity */
+  sourceSinkSensitivity?: number;
+}): number {
+  const sensitivity = input.sourceSinkSensitivity ?? 0.35;
+  const sensitivityMultiplier = sensitivity / 0.35;
+
+  const baseDemand =
+    input.axisLeafCount * input.axisAvgLeafTargetAreaCm2 +
+    input.axisTrussCount * 100;
+  const demand = baseDemand * sensitivityMultiplier;
+
+  // axis supply = stem-volume proxy × parent vigor (측지가 약한 parent에서 적게 받음)
+  const supply =
+    input.axisMeanStemRadiusMm * input.axisMeanStemRadiusMm *
+    input.axisLengthCm * 0.5 *
+    input.parentVigorFactor;
+
+  if (demand <= 0) return 1.0;
+  return Math.max(0.5, Math.min(1.15, supply / demand));
 }
