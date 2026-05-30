@@ -333,6 +333,28 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
       console.log(`[Vectors] showed ${stemCount} stem frames + ${leafCount} leaf axes`);
       console.log('[Vectors] colors: green=tangent, blue=normal/+y up, red=+x petiole, yellow=+z width');
       console.log('[Vectors] toggle off: __farmsim.showLeafVectors() again');
+
+      // ★ Auto-diagnosis: leaf mesh +y direction 통계
+      const leafBlueDirections: { name: string; yWorld: number; xWorld: number; zWorld: number }[] = [];
+      for (const edge of g.edges.values()) {
+        for (const a of edge.organAnchors ?? []) {
+          if (a.kind !== 'leaf_blade' || !a.rotation) continue;
+          const yW = rotateVec(a.rotation, { x: 0, y: 1, z: 0 });
+          leafBlueDirections.push({ name: a.id, yWorld: yW.y, xWorld: yW.x, zWorld: yW.z });
+        }
+      }
+      const upCount = leafBlueDirections.filter((d) => d.yWorld > 0.5).length;
+      const downCount = leafBlueDirections.filter((d) => d.yWorld < -0.5).length;
+      const horizCount = leafBlueDirections.filter((d) => Math.abs(d.yWorld) <= 0.5).length;
+      console.log(`[Vectors] LEAF blue (mesh +y → world) analysis: up=${upCount}, down=${downCount}, horizontal=${horizCount} / ${leafBlueDirections.length}`);
+      if (downCount > 0) {
+        console.warn(`[Vectors] ⚠️ ${downCount} leaves have blade up _DOWN_! (blade upside-down)`);
+        for (const d of leafBlueDirections.filter((x) => x.yWorld < -0.5)) {
+          console.warn(`  ${d.name}: +y → world (${d.xWorld.toFixed(2)}, ${d.yWorld.toFixed(2)}, ${d.zWorld.toFixed(2)})`);
+        }
+      } else if (upCount === leafBlueDirections.length) {
+        console.log(`[Vectors] ✅ All leaves blade-up direction = world up`);
+      }
     },
   };
   (globalThis as { __twinStore?: unknown }).__twinStore = useTwinStore;
