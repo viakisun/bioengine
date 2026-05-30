@@ -94,24 +94,35 @@ export interface StemLocalFrame {
 }
 
 /**
- * Iter 30 Phase 0.D (R4 fix) — Stem-local frame 기반 leaf rotation.
+ * Iter 30 Phase 0.D (R4 fix) + Iter 31 Phase 9 (R11 convention fix).
  *
- * 이전 (composeLeafRotation, R4 결함):
- *   quatY(azimuth) × quatX(-droop) × quatZ(twist)
- *   → world axis 기반. stem이 휘어도 leaf orientation은 world Y에 lock.
- *   → 모든 잎이 동일 평면에 누적 (사용자 사진 #2 직접 evidence).
+ * ── Mesh-local convention (buildLeafBladeOnly contract) ───────────
+ * leaflet mesh는 createOvateLeaflet에서 다음 axes로 build:
+ *   +x = petiole direction (rowX = t × length)
+ *   +y = blade normal (transverseCup + midribHeight, 위 향함)
+ *   +z = blade width (colNorm × rowWidth)
+ * 즉 leaf blade plane = xz-plane, blade normal = +y axis (정상 토마토).
  *
- * 신규 (composeLeafRotationLocal):
- *   1. stemFrame.tangent → 회전축으로 azimuth (phyllotaxy spiral)
- *      stem이 휘면 tangent 자동 회전 → leaf orientation 따라감.
- *   2. binormal (tangent × normal) → droop axis
- *   3. petiole axis (rotated normal) → twist axis
+ * ── Stem-local target (Iter 31 Phase 3 frame) ─────────────────────
+ * 회전 후 _이상적_ leaf 배치:
+ *   mesh +x → stemFrame.normal (radial outward, petiole이 stem 옆으로)
+ *   mesh +y → WORLD_UP (blade normal 위, blade plane horizontal — 햇빛 받음)
+ *   mesh +z → cross(normal, up) (blade width, orthogonal)
  *
- * @param stemFrame  SkeletonNode.frame (Iter 26 PR 1-1 populated)
- * @param azimuthDeg phyllotaxy angle (degrees, golden 137.5° × node index typical)
- * @param droopDeg   blade plane droop (degrees)
- * @param twistDeg   petiole roll (degrees)
- * @returns Quat4 quaternion for anchor.rotation
+ * ── Rotation steps ────────────────────────────────────────────────
+ * 1. baseAlign (★ R11 fix): mesh local → stem-local 기본 배치.
+ *    +x → stem outward, +y → world up projected onto plane ⊥ outward.
+ *    이 step _없이_는 mesh +y가 우연 방향으로 → blade plane vertical/random.
+ * 2. twist around stem outward (petiole roll).
+ * 3. droop around binormal (blade _아래로_ 처짐, gravity).
+ * 4. azimuth around tangent (phyllotaxy spiral).
+ *
+ * 회전 합성 (innermost 먼저 적용): qAz × qDroop × qTwist × baseAlign × v
+ *
+ * @param stemFrame  SkeletonNode.frame (parallel-transport from Iter 31 Phase 3)
+ * @param azimuthDeg phyllotaxy angle (golden 137.5° × node index)
+ * @param droopDeg   blade plane droop (positive = 아래로, gravity)
+ * @param twistDeg   petiole roll
  */
 export function composeLeafRotationLocal(
   stemFrame: StemLocalFrame,
@@ -119,19 +130,104 @@ export function composeLeafRotationLocal(
   droopDeg: number,
   twistDeg: number = 0,
 ): Quat4 {
-  // 1. Azimuth around tangent (stem-up direction).
-  //    stem이 휘면 tangent도 휘어 → leaf phyllotaxy가 stem follow.
-  const qAzimuth = quatAroundAxis(stemFrame.tangent, azimuthDeg);
+  // ★ Iter 31 Phase 9 (R11 fix) — Step 1: base alignment.
+  //    mesh-local +x → stemFrame.normal (radial outward).
+  //    mesh-local +y → WORLD_UP projected onto plane ⊥ stemFrame.normal.
+  const baseAlign = baseAlignmentQuat(stemFrame.normal);
 
-  // 2. Droop around binormal (tangent × normal). Negative = 아래로 처짐.
+  // Step 2: twist around stem outward direction (petiole axis).
+  const qTwist = quatAroundAxis(stemFrame.normal, twistDeg);
+
+  // Step 3: droop around binormal. Positive droop = blade _아래로_ 처짐 (gravity).
+  // -droopDeg sign convention: world up vector가 _stemFrame.normal 방향으로_ 기울임 (즉 blade가 아래로).
   const binormal = cross3(stemFrame.tangent, stemFrame.normal);
   const qDroop = quatAroundAxis(binormal, -droopDeg);
 
-  // 3. Twist around normal (petiole axis approximation).
-  const qTwist = quatAroundAxis(stemFrame.normal, twistDeg);
+  // Step 4: azimuth around tangent (stem-up). Phyllotaxy spiral.
+  const qAzimuth = quatAroundAxis(stemFrame.tangent, azimuthDeg);
 
-  // azimuth × droop × twist (twist innermost)
-  return quatMul(qAzimuth, quatMul(qDroop, qTwist));
+  // Composition: qAz × qDroop × qTwist × baseAlign (innermost first).
+  return quatMul(qAzimuth, quatMul(qDroop, quatMul(qTwist, baseAlign)));
+}
+
+/**
+ * Iter 31 Phase 9 (R11) — Base alignment quaternion.
+ *
+ * Mesh-local axes (build convention from buildLeafBladeOnly):
+ *   +x = petiole direction
+ *   +y = blade normal (up)
+ *   +z = blade width
+ *
+ * Target world axes:
+ *   +x → stemNormal (radial outward, petiole direction)
+ *   +y → worldUp projected onto plane ⊥ stemNormal (blade normal up)
+ *   +z → cross(targetX, targetY) (orthonormal)
+ *
+ * Rotation matrix columns = [targetX, targetY, targetZ], converted to quaternion.
+ */
+function baseAlignmentQuat(stemNormal: { x: number; y: number; z: number }): Quat4 {
+  const tx = normalize3(stemNormal);
+  // Project WORLD_UP onto plane ⊥ tx
+  const worldUp = { x: 0, y: 1, z: 0 };
+  const upDot = tx.x * worldUp.x + tx.y * worldUp.y + tx.z * worldUp.z;
+  const upProj = {
+    x: worldUp.x - tx.x * upDot,
+    y: worldUp.y - tx.y * upDot,
+    z: worldUp.z - tx.z * upDot,
+  };
+  let ty: { x: number; y: number; z: number };
+  if (lenSq(upProj) > 1e-6) {
+    ty = normalize3(upProj);
+  } else {
+    // Degenerate: stemNormal is parallel to WORLD_UP (stem fully vertical).
+    // Use world X axis as fallback blade normal.
+    ty = { x: 1, y: 0, z: 0 };
+  }
+  const tz = cross3(tx, ty);  // orthonormal
+
+  return matrixToQuat(tx, ty, tz);
+}
+
+function normalize3(v: { x: number; y: number; z: number }): { x: number; y: number; z: number } {
+  const L = Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
+  if (L < 1e-9) return { x: 1, y: 0, z: 0 };
+  return { x: v.x / L, y: v.y / L, z: v.z / L };
+}
+
+function lenSq(v: { x: number; y: number; z: number }): number {
+  return v.x * v.x + v.y * v.y + v.z * v.z;
+}
+
+/**
+ * Convert orthonormal basis (column vectors) to quaternion.
+ * Shepperd's method (numerically stable).
+ */
+function matrixToQuat(
+  ex: { x: number; y: number; z: number },
+  ey: { x: number; y: number; z: number },
+  ez: { x: number; y: number; z: number },
+): Quat4 {
+  // Matrix M = [ex | ey | ez] (column-major):
+  //   m00=ex.x, m01=ey.x, m02=ez.x
+  //   m10=ex.y, m11=ey.y, m12=ez.y
+  //   m20=ex.z, m21=ey.z, m22=ez.z
+  const m00 = ex.x, m01 = ey.x, m02 = ez.x;
+  const m10 = ex.y, m11 = ey.y, m12 = ez.y;
+  const m20 = ex.z, m21 = ey.z, m22 = ez.z;
+  const trace = m00 + m11 + m22;
+  if (trace > 0) {
+    const s = Math.sqrt(trace + 1) * 2;  // s = 4w
+    return { w: 0.25 * s, x: (m21 - m12) / s, y: (m02 - m20) / s, z: (m10 - m01) / s };
+  } else if (m00 > m11 && m00 > m22) {
+    const s = Math.sqrt(1 + m00 - m11 - m22) * 2;  // s = 4x
+    return { w: (m21 - m12) / s, x: 0.25 * s, y: (m01 + m10) / s, z: (m02 + m20) / s };
+  } else if (m11 > m22) {
+    const s = Math.sqrt(1 + m11 - m00 - m22) * 2;  // s = 4y
+    return { w: (m02 - m20) / s, x: (m01 + m10) / s, y: 0.25 * s, z: (m12 + m21) / s };
+  } else {
+    const s = Math.sqrt(1 + m22 - m00 - m11) * 2;  // s = 4z
+    return { w: (m10 - m01) / s, x: (m02 + m20) / s, y: (m12 + m21) / s, z: 0.25 * s };
+  }
 }
 
 /**
