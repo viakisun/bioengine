@@ -221,6 +221,116 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
     isProbeRunning(): boolean {
       return qualityProbe?.isRunning() ?? false;
     },
+    /**
+     * ★ Iter 31 Phase 10.3 — leaf/stem 벡터 시각화.
+     *
+     * Babylon scene에 라인 추가:
+     *   - 줄기 node: tangent (녹색) + normal (파란색)
+     *   - 잎 mesh: +x petiole (빨간색) + +y bladeUp (파란색) + +z width (노란색)
+     *
+     * DevTools: __farmsim.showLeafVectors()  // 토글
+     */
+    showLeafVectors(): void {
+      const sceneAny = scene as unknown as {
+        getMeshByName(name: string): unknown;
+        meshes: Array<{ name: string; dispose(): void; isEnabled(): boolean; rotationQuaternion?: { x: number; y: number; z: number; w: number } | null; position?: { x: number; y: number; z: number } }>;
+      };
+      // Remove existing vector lines
+      const existing = sceneAny.meshes.filter((m) => m.name.startsWith('vec_'));
+      for (const m of existing) m.dispose();
+      if (existing.length > 0) {
+        console.log(`[Vectors] removed ${existing.length} existing vector lines`);
+        return;
+      }
+
+      const w = window as unknown as {
+        __skinplantGraph?: {
+          nodes: Map<string, { id: string; type?: string; pos: { x: number; y: number; z: number }; frame?: { tangent: { x: number; y: number; z: number }; normal: { x: number; y: number; z: number } } }>;
+        };
+        BABYLON?: unknown;
+      };
+      const g = w.__skinplantGraph;
+      if (!g) {
+        console.warn('[Vectors] __skinplantGraph not available');
+        return;
+      }
+
+      // Dynamic import Babylon for LinesBuilder + Color3
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const BABYLON = (window as any).BABYLON ?? (globalThis as any).BABYLON;
+      if (!BABYLON) {
+        console.warn('[Vectors] BABYLON namespace not available');
+        return;
+      }
+
+      const SCALE = 0.05;  // meter — visible
+      let stemCount = 0, leafCount = 0;
+
+      // Stem frames (tangent green, normal blue)
+      for (const node of g.nodes.values()) {
+        if (!node.frame || (node.type !== 'main-stem-node' && node.type !== 'side-shoot-node')) continue;
+        const p = node.pos;
+        const t = node.frame.tangent;
+        const n = node.frame.normal;
+        const tangentLine = BABYLON.MeshBuilder.CreateLines(
+          `vec_stem_t_${node.id}`,
+          { points: [new BABYLON.Vector3(p.x, p.y, p.z), new BABYLON.Vector3(p.x + t.x * SCALE, p.y + t.y * SCALE, p.z + t.z * SCALE)] },
+          scene,
+        );
+        tangentLine.color = new BABYLON.Color3(0, 1, 0);  // green = tangent
+        const normalLine = BABYLON.MeshBuilder.CreateLines(
+          `vec_stem_n_${node.id}`,
+          { points: [new BABYLON.Vector3(p.x, p.y, p.z), new BABYLON.Vector3(p.x + n.x * SCALE, p.y + n.y * SCALE, p.z + n.z * SCALE)] },
+          scene,
+        );
+        normalLine.color = new BABYLON.Color3(0, 0.5, 1);  // blue = normal
+        stemCount++;
+      }
+
+      // Leaf mesh axes (mesh-local +x red, +y blue, +z yellow)
+      function rotateVec(q: { x: number; y: number; z: number; w: number }, v: { x: number; y: number; z: number }) {
+        const ix = q.w * v.x + q.y * v.z - q.z * v.y;
+        const iy = q.w * v.y + q.z * v.x - q.x * v.z;
+        const iz = q.w * v.z + q.x * v.y - q.y * v.x;
+        const iw = -q.x * v.x - q.y * v.y - q.z * v.z;
+        return {
+          x: ix * q.w + iw * -q.x + iy * -q.z - iz * -q.y,
+          y: iy * q.w + iw * -q.y + iz * -q.x - ix * -q.z,
+          z: iz * q.w + iw * -q.z + ix * -q.y - iy * -q.x,
+        };
+      }
+      for (const m of sceneAny.meshes) {
+        if (!m.name.startsWith('skinplant_leaf_') || !m.isEnabled() || !m.position) continue;
+        const q = m.rotationQuaternion ?? { x: 0, y: 0, z: 0, w: 1 };
+        const p = m.position;
+        const xW = rotateVec(q, { x: 1, y: 0, z: 0 });
+        const yW = rotateVec(q, { x: 0, y: 1, z: 0 });
+        const zW = rotateVec(q, { x: 0, y: 0, z: 1 });
+        const lineX = BABYLON.MeshBuilder.CreateLines(
+          `vec_leaf_x_${m.name}`,
+          { points: [new BABYLON.Vector3(p.x, p.y, p.z), new BABYLON.Vector3(p.x + xW.x * SCALE, p.y + xW.y * SCALE, p.z + xW.z * SCALE)] },
+          scene,
+        );
+        lineX.color = new BABYLON.Color3(1, 0, 0);  // red = mesh +x (petiole)
+        const lineY = BABYLON.MeshBuilder.CreateLines(
+          `vec_leaf_y_${m.name}`,
+          { points: [new BABYLON.Vector3(p.x, p.y, p.z), new BABYLON.Vector3(p.x + yW.x * SCALE, p.y + yW.y * SCALE, p.z + yW.z * SCALE)] },
+          scene,
+        );
+        lineY.color = new BABYLON.Color3(0, 0.5, 1);  // blue = mesh +y (blade up)
+        const lineZ = BABYLON.MeshBuilder.CreateLines(
+          `vec_leaf_z_${m.name}`,
+          { points: [new BABYLON.Vector3(p.x, p.y, p.z), new BABYLON.Vector3(p.x + zW.x * SCALE, p.y + zW.y * SCALE, p.z + zW.z * SCALE)] },
+          scene,
+        );
+        lineZ.color = new BABYLON.Color3(1, 1, 0);  // yellow = mesh +z (width)
+        leafCount++;
+      }
+
+      console.log(`[Vectors] showed ${stemCount} stem frames + ${leafCount} leaf axes`);
+      console.log('[Vectors] colors: green=tangent, blue=normal/+y, red=+x petiole, yellow=+z width');
+      console.log('[Vectors] toggle off: __farmsim.showLeafVectors()');
+    },
   };
   (globalThis as { __twinStore?: unknown }).__twinStore = useTwinStore;
 
