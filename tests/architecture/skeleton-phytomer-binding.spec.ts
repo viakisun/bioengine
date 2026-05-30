@@ -166,17 +166,29 @@ test.describe('Skeleton Phytomer Binding + Anchor Purity (Iter 29 Phase 3)', () 
     expect(composeLeafRotation(0, 0, 0)).toEqual(IDENTITY_QUAT);
   });
 
-  test('SKELETON-ANCHOR-POSTURE-01: posture는 PlantBase 계산값 _복사_ (populator는 재계산 안 함)', async () => {
-    // Populator source verification — must use composeLeafRotation with
-    // PhytomerNode.leaf.posture values, NOT internal angle computation.
+  test('SKELETON-ANCHOR-POSTURE-01: leaf rotation = PlantBase 계산값 (populator는 재계산 안 함)', async () => {
+    // ★ Iter 31 R26 갱신 (commit 4029b6b):
+    //   posture (azimuth/droop/twist) → _PlantBase petioleCurve_의 마지막 tangent.
+    //   populator는 edge.bonePath[last] tangent를 makeLeafQuaternion에 전달 — 산수 추가 0.
+    //
+    //   PlantBase _계산값_을 _복사_하는 contract는 _보존_ (재계산 금지).
+    //   다만 _계산값의 형태_가 posture 4-tuple → curve tangent vector로 변경.
     const text = await fs.readFile(
       path.join(REPO_ROOT, 'src/plant/skeleton/populator/populateAnchorMorphology.ts'),
       'utf-8',
     );
-    expect(text, 'populator imports composeLeafRotation').toMatch(/composeLeafRotation/);
-    // Verify it _reads_ from nodeState.leaf.posture (PlantBase's pre-computed value)
-    expect(text, 'populator reads leaf.posture from PlantState')
-      .toMatch(/nodeState\.leaf\.posture/);
+    // R26 contract: populator가 edge.bonePath의 마지막 segment tangent + makeLeafQuaternion 사용
+    expect(text, 'populator uses edge.bonePath[last] tangent (R26)').toMatch(
+      /edge\.bonePath\[edge\.bonePath\.length\s*-\s*1\]/,
+    );
+    expect(text, 'populator uses makeLeafQuaternion (R26)').toMatch(/makeLeafQuaternion/);
+    // populator는 _no_ composeLeafRotation/composeLeafRotationLocal 호출 (R26 갱신)
+    expect(text, 'populator does NOT import composeLeafRotation (R26)').not.toMatch(
+      /\bcomposeLeafRotation\b/,
+    );
+    expect(text, 'populator does NOT import composeLeafRotationLocal (R26)').not.toMatch(
+      /\bcomposeLeafRotationLocal\b/,
+    );
   });
 
   test('SKELETON-NO-GROWTH-CALC-01: 호출 금지 함수 (leafletCountFromMaturity / computeLeafExpansion / computeSenescence)', async () => {

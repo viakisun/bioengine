@@ -1,12 +1,12 @@
 // Iter 31 Phase 9 — R11 leaf blade orientation convention fix invariants.
 //
-// Plan: AnchorTransform.ts composeLeafRotationLocal에 baseAlignment 추가.
-//
-// Acceptance:
-//   LEAF-BASE-ALIGNMENT-01: baseAlignmentQuat 함수 정의 + JSDoc convention 명시
-//   LEAF-MESH-CONVENTION-01: createOvateLeaflet의 +x petiole / +y normal / +z width 명시
-//   LEAF-BLADE-NORMAL-UP-01: D=30 mature leaf의 _world_ blade normal이 +y에 가까움 (cos > 0.5)
-//   LEAF-VERTICAL-STACK-BREAK-01: D=30 leaf bbox aspect ratio 검증 — vertical (bboxY > bboxX & bboxZ) 0건
+// ★ Iter 31 R26 갱신 (commit 4029b6b): leaf rotation은 petioleCurve 마지막 tangent.
+// LEAF-BASE-ALIGNMENT-01 (baseAlignmentQuat grep)는 R26 cleanup으로 _제거_ —
+// baseAlignmentQuat는 composeLeafRotationLocal 내부 helper였고 둘 다 함께 제거됨.
+// 나머지 3개 invariant는 R26 contract에서도 _유효한 regression_:
+//   LEAF-MESH-CONVENTION-01: leafChunk mesh-local convention (R26 무관)
+//   LEAF-BLADE-NORMAL-UP-01: D=30 blade normal world +y 향함 (R26 통과)
+//   LEAF-VERTICAL-STACK-BREAK-01: vertical bbox 0건 (R26 통과)
 
 import { test, expect, type Page } from '@playwright/test';
 import { promises as fs } from 'fs';
@@ -44,17 +44,11 @@ async function enter(page: Page, day: number) {
 }
 
 test.describe('Iter 31 Phase 9 — R11 leaf orientation convention fix', () => {
-  test('LEAF-BASE-ALIGNMENT-01: baseAlignmentQuat 함수 + JSDoc convention 명시', async () => {
-    const text = await fs.readFile(
-      path.join(REPO_ROOT, 'src/plant/skeleton/AnchorTransform.ts'),
-      'utf-8',
-    );
-    expect(text, 'baseAlignmentQuat 함수 정의').toMatch(/function\s+baseAlignmentQuat/);
-    expect(text, 'matrixToQuat helper').toMatch(/function\s+matrixToQuat/);
-    expect(text, 'Mesh-local convention 명시').toMatch(/\+x\s*=\s*petiole/i);
-    expect(text, '+y blade normal up 명시').toMatch(/\+y\s*=\s*blade normal/i);
-    expect(text, 'R11 fix 주석').toMatch(/R11/);
-  });
+  // ★ LEAF-BASE-ALIGNMENT-01 (baseAlignmentQuat grep) — R26 cleanup으로 _제거_.
+  // baseAlignmentQuat는 composeLeafRotationLocal 내부 helper였고 R26 contract
+  // (edge.bonePath tangent + makeLeafQuaternion) 도입으로 둘 다 함께 제거.
+  // mesh-local convention (+x=petiole/+y=blade normal/+z=width)은 LEAF-MESH-CONVENTION-01
+  // (leafChunk.ts grep)에서 유지.
 
   test('LEAF-MESH-CONVENTION-01: leafChunk.ts mesh-local axes 의미 (코드 검증)', async () => {
     const text = await fs.readFile(

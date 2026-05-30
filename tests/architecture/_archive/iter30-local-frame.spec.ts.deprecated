@@ -1,3 +1,12 @@
+// ★ DEPRECATED — Iter 31 R26 (commit 4029b6b)이 stem-local frame composition을
+// _PlantBase petioleCurve 마지막 tangent_로 대체. 본 spec의 composeLeafRotationLocal
+// 계열 invariant (LEAF-LOCAL-FRAME-01 / LEAF-WORLD-LOCK-01 / LEAF-PHYLLOTAXY-*)는
+// _historic record_로만 보존. R26 contract 검증은
+// `tests/architecture/iter31-r26-leaf-rotation-contract.spec.ts` 참조.
+//
+// _파일 확장자가 `.deprecated`_라 Playwright matcher (`*.spec.ts`)에서 제외됨.
+//
+// 원본 Iter 30 Phase 0.D 문서:
 // Iter 30 Phase 0.D — Stem-local frame leaf rotation invariants.
 //
 // Plan §0.D (sleepy-growing-pretzel.md), R4 world-frame leaf rotation fix.

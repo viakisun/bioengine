@@ -67,15 +67,17 @@ test.describe('Iter 30 Phase 7 — Documentation', () => {
     expect(md, 'tilt law 명시').toMatch(/finalBladePlaneTiltDeg\s*=\s*lightSeekingBladePlaneTiltDeg/);
   });
 
-  test('DOCS-LOCAL-FRAME-01: STEM_LOCAL_FRAME.md + composeLeafRotationLocal 사용', async () => {
+  test('DOCS-LOCAL-FRAME-01: STEM_LOCAL_FRAME.md + R26 contract 명시', async () => {
+    // ★ Iter 31 R26 갱신: composeLeafRotationLocal 제거 → makeLeafQuaternion +
+    // edge.bonePath tangent. docs는 R26 contract 반영.
     const md = await readDoc('docs/architecture/STEM_LOCAL_FRAME.md');
-    expect(md, 'composeLeafRotationLocal 함수 명시').toMatch(/composeLeafRotationLocal/);
-    // 3축 분해 가이드
+    expect(md, 'R26 makeLeafQuaternion 명시').toMatch(/makeLeafQuaternion/);
+    expect(md, 'petioleCurve tangent 명시').toMatch(/petioleCurve|edge\.bonePath/);
+    // frame 정의는 유지 — parallel-transport가 petioleCurve 모양을 결정
     expect(md, 'tangent 축 명시').toMatch(/tangent/);
     expect(md, 'normal 축 명시').toMatch(/normal/);
-    expect(md, 'binormal/cross product 명시').toMatch(/binormal|cross/i);
-    // R4 결함 설명
-    expect(md, 'R4 명시').toMatch(/R4|world.{0,5}Y|world.{0,5}lock/i);
+    // R4 → R26 진화 history 명시
+    expect(md, 'R4 history 또는 R26 명시').toMatch(/R4|R26/);
   });
 
   test('Iter 30 audit doc 존재 — iter30-axis-capacity-design.md', async () => {
