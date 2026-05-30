@@ -36,7 +36,13 @@ import type {
 import type { PlantBase, AxisBase, LeafBase, FloralSiteBase } from '../../PlantBase';
 import type { PlantState, NodeState } from '@farmsim/tomato-engine/GrowthModel';
 import type { PlantGenome } from '@farmsim/tomato-engine/PlantGenome';
-import { composeLeafRotation, composeLeafRotationLocal, IDENTITY_QUAT } from '../AnchorTransform';
+import {
+  composeLeafRotation,
+  composeLeafRotationLocal,
+  IDENTITY_QUAT,
+  makeLeafQuaternion,
+  computeLeafPetioleAndBladeAxes,
+} from '../AnchorTransform';
 
 // ── Anchor id parsing ─────────────────────────────────────────────────
 
@@ -193,16 +199,20 @@ function fillLeafAnchor(
   //
   // SKELETON-ANCHOR-POSTURE-01 (Iter 29): rotation _copied_ from PlantBase posture.
   // SKELETON-ANCHOR-TRANSFORM-01 (Iter 29): Quat4 출력.
+  // ★ Iter 31 Phase 10 — Radical simplification (R11~R18 대체).
+  //
+  // 사용자 통찰: "잎 방향 하나를 결정하는데 왜 이렇게 복잡한가?"
+  // 답: 잎 회전 = _2 vector_ (petiole 방향 + blade up) → lookRotation quat.
+  // composeLeafRotationLocal (4 회전 합성)은 _legacy fallback_으로만 유지.
   if (nodeState) {
     const posture = nodeState.leaf.posture;
+    const droopDeg = posture.droopDeg;
     if (meshNode?.frame) {
-      anchor.rotation = composeLeafRotationLocal(
-        meshNode.frame,
-        posture.azimuthDeg,
-        posture.droopDeg,
-        posture.twistDeg,
-      );
+      // ★ Phase 10 — _직접_ petiole + bladeUp 계산 → quaternion (4 회전 합성 폐기)
+      const { petiole, bladeUp } = computeLeafPetioleAndBladeAxes(meshNode.frame.normal, droopDeg);
+      anchor.rotation = makeLeafQuaternion(petiole, bladeUp);
     } else {
+      // Legacy fallback — frame 부재
       anchor.rotation = composeLeafRotation(
         posture.azimuthDeg,
         posture.droopDeg,
@@ -210,18 +220,20 @@ function fillLeafAnchor(
       );
     }
   } else if (leaf) {
-    // Fallback for non-state populator paths (rare after Phase 0.B fix) —
-    // PlantBase leaf azimuth/droop direct.
-    const azDeg = (leaf.azimuthRad ?? 0) * (180 / Math.PI);
     const droopDeg = (leaf.droopRad ?? 0) * (180 / Math.PI);
     if (meshNode?.frame) {
-      anchor.rotation = composeLeafRotationLocal(meshNode.frame, azDeg, droopDeg, 0);
+      const { petiole, bladeUp } = computeLeafPetioleAndBladeAxes(meshNode.frame.normal, droopDeg);
+      anchor.rotation = makeLeafQuaternion(petiole, bladeUp);
     } else {
+      const azDeg = (leaf.azimuthRad ?? 0) * (180 / Math.PI);
       anchor.rotation = composeLeafRotation(azDeg, droopDeg, 0);
     }
   } else {
     anchor.rotation = IDENTITY_QUAT;
   }
+
+  // Mark unused (composeLeafRotationLocal는 legacy fallback 안 사용)
+  void composeLeafRotationLocal;
 
   // visualHint (Iter 26 PR 1-2 retained)
   const visualHint: AnchorVisualHint = {
