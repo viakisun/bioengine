@@ -33,15 +33,12 @@ import type {
   SkeletonEdge,
   SkeletonNode,
 } from '../PlantSkeletonGraph';
-import type { PlantBase, AxisBase, LeafBase, FloralSiteBase } from '../../PlantBase';
+import type { PlantBase, AxisBase, FloralSiteBase } from '../../PlantBase';
 import type { PlantState, NodeState } from '@farmsim/tomato-engine/GrowthModel';
 import type { PlantGenome } from '@farmsim/tomato-engine/PlantGenome';
 import {
-  composeLeafRotation,
-  composeLeafRotationLocal,
   IDENTITY_QUAT,
   makeLeafQuaternion,
-  computeLeafPetioleAndBladeAxes,
 } from '../AnchorTransform';
 
 // ── Anchor id parsing ─────────────────────────────────────────────────
@@ -84,15 +81,10 @@ function parseAnchorId(anchor: OrganAnchor): AnchorIds {
 
 // ── Source lookups ────────────────────────────────────────────────────
 
-function axisAt(plantBase: PlantBase, axisIdx: number): AxisBase | undefined {
-  if (axisIdx === 0) return plantBase.mainAxis;
-  const sideIdx = axisIdx - 1;
-  return plantBase.sideShoots[sideIdx];
-}
-
-function findLeafBase(axis: AxisBase, nodeIdx: number): LeafBase | undefined {
-  return axis.leaves.find((l) => l.nodeIdx === nodeIdx);
-}
+// Phase A cleanup (R26): axisAt + findLeafBase 제거 —
+// leaf rotation은 edge.bonePath tangent에서 직접 (LeafBase 미참조).
+// PlantBase.mainAxis / sideShoots 접근은 fillSiteAnchor가 axisAt-equivalent로
+// 직접 구현 (line 138~).
 
 /**
  * Iter 30 Phase 0.B (R2 fix) — Find NodeState by axisIdx + nodeIdx.
@@ -170,8 +162,6 @@ function fillLeafAnchor(
   state: PlantState | undefined,
 ): void {
   anchor.chain = buildChain(edge);
-  const axis = axisAt(plantBase, axisIdx);
-  const leaf = axis ? findLeafBase(axis, nodeIdx) : undefined;
   const nodeState = state ? findNodeState(state, axisIdx, nodeIdx) : undefined;
 
   // Phase 3 SKELETON-PHYTOMER-01 — bind PhytomerNode reference on the
@@ -188,35 +178,20 @@ function fillLeafAnchor(
     anchor.position = { x: meshNode.pos.x, y: meshNode.pos.y, z: meshNode.pos.z };
   }
 
-  // Iter 30 Phase 0.D (R4 fix) — Stem-local frame leaf rotation.
+  // ★ Iter 31 R26 (final, Phase 10.5 + Phase A cleanup) —
   //
-  // 이전 (Iter 29 결함): composeLeafRotation은 world Y/X/Z 기반. stem이 휘어도
-  // leaf가 world에 lock → 모든 잎이 동일 평면에 누적 (사용자 사진 #2 evidence).
+  // 사용자 통찰: "줄기는 curve 함수가 적용되어 있는거일꺼 아니야 / 마지막 curve의 x,y,z
+  //   함수의 기울기값이라는게 존재할거고, 그거대로 마지막 vector값을 계산해서 전달"
   //
-  // 신규: meshAnchorNode.frame (Iter 26 PR 2-1 populated)이 있으면
-  // composeLeafRotationLocal로 stem-local axis 기준 회전.
-  // frame 미존재 fallback은 legacy composeLeafRotation (안전한 점진 마이그레이션).
+  // leaf_blade anchor는 _petiole edge_의 organAnchor (buildTomatoSkeletonGraph.ts:268).
+  // edge.bonePath = PlantBase petioleCurve의 bones.
+  // edge.bonePath[last].p1 - p0 = ★ 마지막 segment tangent = leaf vector.
   //
-  // SKELETON-ANCHOR-POSTURE-01 (Iter 29): rotation _copied_ from PlantBase posture.
-  // SKELETON-ANCHOR-TRANSFORM-01 (Iter 29): Quat4 출력.
-  // ★ Iter 31 Phase 10.5 (R26 — 사용자 통찰):
+  // 산수 추가 _0_ — PlantBase가 이미 만든 curve의 마지막 tangent _그대로_.
   //
-  // 사용자: "줄기는 curve 함수가 적용되어 있는거일꺼 아니야 / 마지막 curve의 x,y,z 함수의
-  //         기울기값이라는게 존재할거고, 그거대로 마지막 vector값을 계산해서 전달"
-  //
-  // ★ leaf_blade anchor는 _petiole edge_의 organAnchor (buildTomatoSkeletonGraph.ts:268).
-  //   즉 _이 edge_가 _petiole edge_. edge.bonePath = petiole curve의 bones.
-  //   edge.bonePath[last] = 마지막 segment (사용자 ASCII의 1번 구간).
-  //   그 bone의 p1 - p0 = ★ leaf vector (마지막 segment tangent, _이미 PlantBase가 만든 curve_).
-  //
-  // 산수 _추가 0_ — PlantBase petioleCurve의 마지막 tangent _그대로_ 사용.
-  //
-  // 이전 시도 (모두 _근사_):
-  //   Phase 10.1 computeLeafPetioleAndBladeAxes — horizontal + droop _계산_ (근사)
-  //   Phase 10.2 stemFrame.normal + WORLD_UP — droop 무시 (근사)
-  //   R25 stemFrame.tangent — stem 위 방향 (잘못된 가정)
-  //
-  // ★ R26 — _실제 curve_의 마지막 tangent _직접_ 추출.
+  // validateSkeleton (EMPTY_BONE_PATH check)이 빈 bonePath를 미리 거르므로
+  // bonePath.length > 0 분기는 _production에서 항상 true_.
+  // empty 분기는 degenerate 안전망 (IDENTITY 반환).
   if (edge.bonePath.length > 0) {
     const lastBone = edge.bonePath[edge.bonePath.length - 1];
     const petioleTipTangent = {
@@ -226,20 +201,9 @@ function fillLeafAnchor(
     };
     const WORLD_UP_LOCAL = { x: 0, y: 1, z: 0 };
     anchor.rotation = makeLeafQuaternion(petioleTipTangent, WORLD_UP_LOCAL);
-  } else if (nodeState) {
-    const posture = nodeState.leaf.posture;
-    anchor.rotation = composeLeafRotation(posture.azimuthDeg, posture.droopDeg, posture.twistDeg);
-  } else if (leaf) {
-    const azDeg = (leaf.azimuthRad ?? 0) * (180 / Math.PI);
-    const droopDeg = (leaf.droopRad ?? 0) * (180 / Math.PI);
-    anchor.rotation = composeLeafRotation(azDeg, droopDeg, 0);
   } else {
     anchor.rotation = IDENTITY_QUAT;
   }
-
-  // Mark unused (legacy paths)
-  void composeLeafRotationLocal;
-  void computeLeafPetioleAndBladeAxes;
 
   // visualHint (Iter 26 PR 1-2 retained)
   const visualHint: AnchorVisualHint = {
