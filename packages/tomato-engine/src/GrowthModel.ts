@@ -798,7 +798,11 @@ function populateSideShootChain(
       gravityDroopDeg: sideGravityDroop,
       senescenceDroopDeg: sideSenescenceState.droopDeg,
       waterStressDroopDeg: sideWaterStressDroop,
-      curl: 0.12 + yellowing * 0.15,
+      // Iter 31 Phase 9.4 (R16 fix) — base curl 0.12 → 0.30.
+      // 사용자 결함: "잎의 메시가 빳빳하다, bending이 전혀 구현 안 됨".
+      // 0.12 base는 _9mm cup_ for 4.5cm leaflet (11% — 시각상 거의 안 보임).
+      // 0.30 base = 27% cup (시각상 명확 transverse arc).
+      curl: 0.30 + yellowing * 0.20,
     });
     // Iter 29 Phase 5 — side-shoot morphology with per-node variance.
     const sideBaseMorphology: LeafMorphologyState = {
@@ -1417,7 +1421,11 @@ export function computePlantState(
       gravityDroopDeg: gravityDroop,
       senescenceDroopDeg: senescenceState.droopDeg,
       waterStressDroopDeg: waterStressDroopPhase5,
-      curl: 0.12 + yellowing * 0.15,
+      // Iter 31 Phase 9.4 (R16 fix) — base curl 0.12 → 0.30.
+      // 사용자 결함: "잎의 메시가 빳빳하다, bending이 전혀 구현 안 됨".
+      // 0.12 base는 _9mm cup_ for 4.5cm leaflet (11% — 시각상 거의 안 보임).
+      // 0.30 base = 27% cup (시각상 명확 transverse arc).
+      curl: 0.30 + yellowing * 0.20,
     });
 
     // Iter 29 Phase 5 — morphology with per-node deterministic variance

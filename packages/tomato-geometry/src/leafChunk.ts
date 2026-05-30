@@ -501,8 +501,13 @@ function createOvateLeaflet(
         * Math.pow(absCol, 2)
         * Math.max(0, 1 - ageFrac * 0.5)   // cup flattens with senescence
         * size * 0.9;
-      const longitudinalDroop = (0.10 + ageFrac * 0.30)
-        * Math.pow(t, 2) * size;            // tip down; 0.10 base droop matches "slight"
+      // Iter 31 Phase 9.4 (R17 fix) — base droop 0.10 → 0.30.
+      // 사용자 결함: "중력이 전혀 고려가 안되어 있다, 메시가 빳빳하다".
+      // 0.10 base = 9mm tip droop for 9cm leaflet (10% — 시각상 안 보임).
+      // 0.30 base = 27% tip droop (정상 토마토 mature leaf cantilever 시각).
+      // ageFrac progression 0.30 → 0.40 (senescence drop intensifies).
+      const longitudinalDroop = (0.30 + ageFrac * 0.40)
+        * Math.pow(t, 2) * size;            // tip down; cantilever physics qL⁴/(EI)
       let y = transverseCup - longitudinalDroop;
 
       if (params.waviness > 0) {
@@ -527,7 +532,8 @@ function createOvateLeaflet(
       // forward (toward +x at tip). Single shading-quality estimate, the
       // mesh's per-face normals would refine this if recomputed downstream.
       const cupSlope = curl * absCol;
-      const droopSlope = (0.10 + ageFrac * 0.30) * t * 2;
+      // R17 base droop 0.10 → 0.30 sync (normal approximation도 갱신)
+      const droopSlope = (0.30 + ageFrac * 0.40) * t * 2;
       const ny = Math.max(0.3, 1 - cupSlope - droopSlope * 0.4);
       chunk.normals.push(0, ny, cupSlope * Math.sign(z || 0.01));
     }
