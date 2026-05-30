@@ -610,7 +610,9 @@ function readQualityFromUrl(): number | null {
   return Math.max(1, Math.min(10, n));
 }
 
-const BOOT_QUALITY = readQualityFromUrl() ?? 9;
+// Iter 31 — default boot quality 8 (사용자: "1단계는 너무 안보임").
+//   localStorage에 이전 저장된 renderQuality < 5는 _무시_ (낮은 화질 fallback 방지).
+const BOOT_QUALITY = readQualityFromUrl() ?? 8;
 
 // ===========================================================================
 // Lighting / renderQuality persistence — localStorage
@@ -643,7 +645,10 @@ function loadPersistedLighting(): PersistedLighting {
     if (p.lighting && typeof p.lighting === 'object') {
       out.lighting = p.lighting as Partial<LightingState>;
     }
-    if (typeof p.renderQuality === 'number' && p.renderQuality >= 1 && p.renderQuality <= 10) {
+    // Iter 31 — quality < 5 (이전 saved 1~4단계)는 _무시_ — BOOT_QUALITY로 fallback.
+    // 사용자 명시: "1단계는 너무 안보인다". 사용자가 의도적으로 dial-down한 경우는
+    // 5 이상에서 보존됨 (5는 의식적 선택). 1~4는 default 미인지 케이스로 간주.
+    if (typeof p.renderQuality === 'number' && p.renderQuality >= 5 && p.renderQuality <= 10) {
       out.renderQuality = Math.round(p.renderQuality);
     }
     return out;
