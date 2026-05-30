@@ -163,3 +163,31 @@ Iter 30 (155) + Iter 31 (49 = 6+7+15+8+7+6) = **204 architecture invariants**.
 Phase 7 Self-loop 1-3 수렴 + Quality Gate I _사용자 wake_ 의무.
 사용자 D=15/30/45/90 사진 재촬영 → fern stack + horizontal stem + size 평가.
 미해결 결함은 본 문서 R7/R8/R9/R10에 추가 분류.
+
+---
+
+## ★ Iter 31 R26 Cleanup 후 추가 후보 (Phase F~Z)
+
+### POSTURE-FIELD-CLEANUP-01 (Phase F marker → Iter 32 제거)
+
+R26 이후 `LeafPostureState` 4개 필드 — `azimuthDeg`, `petioleElevationDeg`,
+`droopDeg`, `twistDeg` — _leaf rotation에 미사용_. `curl`만 leafChunk mesh
+deformation에서 활용. Phase F는 _@deprecated JSDoc marker만_ 추가;
+실제 제거는 Iter 32:
+
+- LeafPostureState rotation 4 필드 _interface 제거_
+- `LeafPostureModel.composePosture()` 출력 4 필드 _drop_
+- PlantBase가 채워주는 _population 경로_ 정리
+- 관련 architecture invariant (`LEAF-POSTURE-COMPOSITION-01` 등) 갱신 또는 정리
+- ★ 사전 의존성 grep: `posture.azimuthDeg|petioleElevationDeg|droopDeg|twistDeg`
+  사용처 0건 확인
+
+### ANCHOR-TRANSFORM-COMPOSE-LEAF-ROTATION-REMOVAL-01 (Phase B 후보)
+
+Phase B에서 `composeLeafRotation` 함수는 _Iter 30 SKELETON-ANCHOR-TRANSFORM-01
+invariant 보존_ 위해 유지. Iter 32에서:
+
+- `composeLeafRotation` 함수 + `quatY` / `quatX` / `quatZ` / `quatMul` 의존 제거
+- Iter 30 `SKELETON-ANCHOR-TRANSFORM-01` invariant _deprecation_ 또는 단위 검증
+  대상을 _IDENTITY_QUAT + makeLeafQuaternion_으로 갱신
+- composeLeafRotation 호출하는 _test spec 정리_ (이미 `_archive`에 한 개 보존)
