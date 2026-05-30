@@ -22,6 +22,7 @@ import { getLabelOverlayHandle } from '../components/LabelOverlay';
 import { installDockingOverlayHotkey } from './dockingOverlay/hotkeyToggle';
 import { setBootStage, logBoot, setEnvInfo, setEnvCounters, notify } from '../store/notify';
 import { setSinglePlantEngineRef, setSinglePlantShowcaseRef, setSinglePlantSkinMeshRef } from '../ui/single-plant/useSinglePlantState';
+import { log } from '../utils/logger';
 
 import '@babylonjs/core/Helpers/sceneHelpers';
 import '@babylonjs/core/Materials/Textures/Loaders';
@@ -152,19 +153,19 @@ function applyLightingToScene(scene: Scene, setup: SceneSetupHandle, L: Lighting
 }
 
 export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<BabylonEngineHandle> {
-  console.log('[BabylonEngine] creating engine');
+  log.dev('[BabylonEngine] creating engine');
   setBootStage('engine', 'WebGPU 시도', 0.1);
 
   let engine: Engine | WebGPUEngine | null = await tryWebGPU(canvas);
   let backend: 'webgpu' | 'webgl2' = 'webgpu';
 
   if (!engine) {
-    console.log('[BabylonEngine] using WebGL2 fallback');
+    log.dev('[BabylonEngine] using WebGL2 fallback');
     notify.info('WebGPU 미지원', 'WebGL2 로 시작합니다');
     engine = createWebGL2(canvas);
     backend = 'webgl2';
   } else {
-    console.log('[BabylonEngine] using WebGPU');
+    log.dev('[BabylonEngine] using WebGPU');
   }
   logBoot('log', `engine: ${backend} 컨텍스트 생성 완료`);
 
@@ -187,7 +188,7 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
   // injection fails to compile on Babylon 9 WebGPU backend). WebGPU
   // gets a CPU sine fallback later.
   setShaderWindEnabled(backend === 'webgl2');
-  console.log(`[BabylonEngine] shader wind: ${isShaderWindEnabled() ? 'ON (WebGL2)' : 'OFF (WebGPU fallback)'}`);
+  log.dev(`[BabylonEngine] shader wind: ${isShaderWindEnabled() ? 'ON (WebGL2)' : 'OFF (WebGPU fallback)'}`);
 
   const scene = new Scene(engine);
   // Light-theme UI background is #e8e6df — pick a slightly cooler creme
@@ -236,7 +237,7 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
       (globalThis as { __leafModule?: unknown }).__leafModule = m.makeLeafModuleDevHook(scene);
     });
   }
-  console.log('[BabylonEngine] camera ready');
+  log.dev('[BabylonEngine] camera ready');
   logBoot('log', 'engine: 카메라 준비 완료');
 
   setBootStage('setup', 'IBL · 그림자 · SSAO 셋업', 0);
@@ -288,7 +289,7 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
   function logModeChange(label: string, signed: 'before-build' | 'before-dispose', before: ReturnType<typeof sceneStats>): void {
     const d = diff(before);
     const sign = signed === 'before-build' ? '+' : '';
-    console.log(
+    log.dev(
       `[Mode] ${label}  meshes ${sign}${d.meshes}  materials ${sign}${d.materials}  textures ${sign}${d.textures}  engineEntries ${sign}${d.engineEntries}`
     );
   }
@@ -472,7 +473,7 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
     }
   }
 
-  console.log('[BabylonEngine] starting render loop');
+  log.dev('[BabylonEngine] starting render loop');
 
   // 'shaders' — first-frame shader compilation. Babylon doesn't expose
   // an explicit progress signal here, so we just mark the stage as

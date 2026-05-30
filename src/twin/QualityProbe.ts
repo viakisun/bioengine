@@ -1,3 +1,4 @@
+import { log } from '../utils/logger';
 // QualityProbe — q7 baseline 위에 q8 의 fx 변경 4가지를 단일 항목씩 적용하며
 // fps 를 측정하는 진단 도구. single-plant 모드에서 사용자가 DevTools 의
 // `window.__farmsim.qualityProbe()` 로 트리거.
@@ -93,7 +94,7 @@ export function createQualityProbe(deps: {
     const fps = readFps();
     const memMB = readMem();
     const padded = label.padEnd(22, ' ');
-    console.log(`[QualityProbe] ${padded}  fps=${fps.toFixed(1)}  mem=${memMB}MB`);
+    log.dev(`[QualityProbe] ${padded}  fps=${fps.toFixed(1)}  mem=${memMB}MB`);
     return { label, fps, memMB };
   }
 
@@ -124,7 +125,7 @@ export function createQualityProbe(deps: {
       return;
     }
 
-    console.log(
+    log.dev(
       `[QualityProbe] start (q7 baseline, stepMs=${stepMs}, restoreQuality=${restoreQuality})`,
     );
     const startedAt = performance.now();
@@ -174,11 +175,11 @@ export function createQualityProbe(deps: {
     const rankStr = deltas
       .map((d) => `${d.key}:-${d.dfps.toFixed(1)}`)
       .join('  ');
-    console.log(
+    log.dev(
       `[QualityProbe] complete  total=${total}ms  restoredQuality=${restoreQuality}`,
     );
-    console.log(`[QualityProbe] ranking: ${rankStr}`);
-    console.log(
+    log.dev(`[QualityProbe] ranking: ${rankStr}`);
+    log.dev(
       `[QualityProbe] q8 sanity: fps=${r5.fps.toFixed(1)} (single-toggle sum ≈ ${deltas
         .reduce((s, d) => s + d.dfps, 0)
         .toFixed(1)} fps drop)`,
@@ -207,7 +208,7 @@ export function createQualityProbe(deps: {
     abort(reason) {
       if (!running) return;
       clearPending();
-      console.log(`[QualityProbe] aborted (${reason})`);
+      log.dev(`[QualityProbe] aborted (${reason})`);
       abortReason = reason;
       running = false;
     },

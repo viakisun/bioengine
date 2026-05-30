@@ -1,3 +1,4 @@
+import { log } from '../utils/logger';
 import { Scene } from '@babylonjs/core/scene';
 import { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight';
 import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
@@ -46,7 +47,7 @@ export async function setupScene(
   camera: Camera,
   options: SceneSetupOptions = { backend: 'webgl2' }
 ): Promise<SceneSetupHandle> {
-  console.log(`[SceneSetup] starting setup (backend=${options.backend})`);
+  log.dev(`[SceneSetup] starting setup (backend=${options.backend})`);
 
   scene.imageProcessingConfiguration.toneMappingEnabled = true;
   scene.imageProcessingConfiguration.toneMappingType =
@@ -117,14 +118,14 @@ export async function setupScene(
       ssao.expensiveBlur = true;
       ssao.bilateralSoften = 0.5;
       ssao.bilateralTolerance = 0.15;
-      console.log('[SceneSetup] SSAO2 enabled (WebGL2)');
+      log.dev('[SceneSetup] SSAO2 enabled (WebGL2)');
       logBoot('log', 'setup: SSAO2 활성화 (WebGL2)');
     } catch (err) {
       console.warn('[SceneSetup] SSAO2 init failed:', err);
       notify.warn('SSAO 초기화 실패', err instanceof Error ? err.message : String(err));
     }
   } else {
-    console.log(`[SceneSetup] SSAO2 skipped (backend=${options.backend} or unsupported)`);
+    log.dev(`[SceneSetup] SSAO2 skipped (backend=${options.backend} or unsupported)`);
     if (options.backend === 'webgpu') {
       notify.warnWebGPUUnsupported('SSAO');
     }
@@ -132,7 +133,7 @@ export async function setupScene(
 
   updateStageDetail('환경 텍스처 (IBL)', 0.9);
   logBoot('log', 'setup: IBL 환경 텍스처');
-  console.log('[SceneSetup] setup complete');
+  log.dev('[SceneSetup] setup complete');
 
   return { sun, hemi, shadowGenerator, pipeline, ssao };
 }
@@ -144,7 +145,7 @@ function setupIBL(scene: Scene) {
     env.level = 1.0;
     scene.environmentTexture = env;
     scene.environmentIntensity = 0.6;
-    console.log('[SceneSetup] IBL loaded from /hdri/environment.env');
+    log.dev('[SceneSetup] IBL loaded from /hdri/environment.env');
   } catch (err) {
     console.warn('[SceneSetup] local IBL load failed:', err);
   }

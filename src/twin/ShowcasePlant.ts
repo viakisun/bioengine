@@ -1,3 +1,4 @@
+import { log } from '../utils/logger';
 import { Scene } from '@babylonjs/core/scene';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
@@ -161,8 +162,8 @@ export function createShowcasePlant(
         }
       } catch { /* ignore */ }
     }
-    if (n === 0) { console.log(`[diag:4]   ${label}: 0 meshes`); return; }
-    console.log(
+    if (n === 0) { log.dev(`[diag:4]   ${label}: 0 meshes`); return; }
+    log.dev(
       `[diag:4]   ${label}: n=${n} world-bbox min=(${minX.toFixed(3)}, ${minY.toFixed(3)}, ${minZ.toFixed(3)}) ` +
       `max=(${maxX.toFixed(3)}, ${maxY.toFixed(3)}, ${maxZ.toFixed(3)})`,
     );
@@ -409,7 +410,7 @@ export function createShowcasePlant(
     root,
     update(day, physiology) {
       if (diag()) {
-        console.log(`[diag:1] showcase.update(day=${day.toFixed(2)}, physiology=${physiology ? 'yes' : 'no'})`);
+        log.dev(`[diag:1] showcase.update(day=${day.toFixed(2)}, physiology=${physiology ? 'yes' : 'no'})`);
       }
       // Single-plant mode (physiology supplied): always rebuild —
       // ignore the day-threshold throttle so 1-minute scrubs visibly
@@ -436,9 +437,9 @@ export function createShowcasePlant(
 
       if (diag()) {
         const apex = state.nodes[state.nodes.length - 1];
-        console.log(`[diag:1]   nodes=${state.nodes.length} allAxes=${state.allAxes?.length ?? '?'}`);
+        log.dev(`[diag:1]   nodes=${state.nodes.length} allAxes=${state.allAxes?.length ?? '?'}`);
         if (apex && apex.position) {
-          console.log(`[diag:1]   apex — heightCm=${apex.heightCm.toFixed(1)} position=(${apex.position.x.toFixed(3)}, ${apex.position.y.toFixed(3)}, ${apex.position.z.toFixed(3)})`);
+          log.dev(`[diag:1]   apex — heightCm=${apex.heightCm.toFixed(1)} position=(${apex.position.x.toFixed(3)}, ${apex.position.y.toFixed(3)}, ${apex.position.z.toFixed(3)})`);
         }
       }
     },
@@ -496,12 +497,12 @@ export function createShowcasePlant(
       this.setSkeletonEnabled(on);
       this.setLushEnabled(!on);
       if (diag()) {
-        console.log(`[diag:2] setSkeletonMode(${on})`);
+        log.dev(`[diag:2] setSkeletonMode(${on})`);
         const lushStem = scene.meshes.filter(
           (m) => m.name.startsWith('showcase_stem_') || m.name.startsWith('showcase_sidestem_'),
         );
         const skelMesh = scene.meshes.filter((m) => m.name.startsWith('skel_'));
-        console.log(`[diag:4] mesh tally — lush stem: ${lushStem.length}, skel: ${skelMesh.length}`);
+        log.dev(`[diag:4] mesh tally — lush stem: ${lushStem.length}, skel: ${skelMesh.length}`);
         logBbox('lush', lushStem);
         logBbox('skel', skelMesh);
       }
