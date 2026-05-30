@@ -1,27 +1,42 @@
-// SSOT #187 — Populate OrganAnchor morphology + state + chain + visualHint.
+// Iter 29 Phase 3 — Populate OrganAnchor transform + SkeletonNode.phytomer.
 //
-// Iter 26 PR 2-2. For every OrganAnchor on every edge:
-//   - chain: rootNodeId + attachmentNodeId + supportEdgeId + node/edge chains.
-//   - morphology: static shape (PlantBase / cultivar copy).
-//   - state: per-tick simulation (PlantState copy; original 원칙 3).
-//   - visualHint: self-describing color + label (overlay reads directly).
+// Plan §3 (sleepy-growing-pretzel.md). Replaces the Iter 26 PR 2-2
+// morphology/state populator with the Phase 3 anchor-purity contract:
 //
-// See: docs/architecture/SEMANTIC_GRAPH.md sections 2.3, 3.
-// See: PR 2-AUDIT (linear-stargazing-pretzel.md追加 audit) for the exact
-// PlantState / cultivar fields each organ kind consumes.
+//   - SkeletonNode.phytomer = direct reference to PhytomerNode (Plan §13.2)
+//   - OrganAnchor.position  = attachment point (Vec3, plant-local)
+//   - OrganAnchor.rotation  = posture quaternion (PlantBase-computed; populator copies)
+//   - OrganAnchor.chain     = preserved (Iter 26 PR 1-2 geometric path)
+//   - OrganAnchor.visualHint= preserved (Iter 26 PR 1-2 overlay self-description)
+//   - OrganAnchor.debugHint = derived from visualHint + chain visibility
+//
+//   ★ Removed (Phase 3 SKELETON-ANCHOR-PURE-01):
+//   - OrganAnchor.morphology — read via SkeletonNode.phytomer.leaf instead
+//   - OrganAnchor.state      — read via SkeletonNode.phytomer.leaf.senescence etc.
+//
+//   ★ Removed (Phase 3 SKELETON-NO-GROWTH-CALC-01):
+//   - Stage classifiers (leafGrowthStage / fruitGrowthStage) — Skeleton must
+//     NOT recompute growth state. PlantBase computes PhytomerNode and the
+//     populator copies the reference into SkeletonNode.phytomer.
+//
+// Backward compat:
+//   - Skin path readers of anchor.morphology/state are migrated in Phase 4
+//     (SKIN-NO-LEAFBASE-01 + SKIN-NO-GROWTH-LOGIC-01).
 
 import type {
-  AnchorMorphologyHint,
+  AnchorDebugHint,
   AnchorVisualHint,
   OrganAnchor,
   OrganChain,
-  OrganState,
+  PhytomerNodeRef,
   PlantSkeletonGraph,
   SkeletonEdge,
+  SkeletonNode,
 } from '../PlantSkeletonGraph';
 import type { PlantBase, AxisBase, LeafBase, FloralSiteBase } from '../../PlantBase';
 import type { PlantState, NodeState } from '@farmsim/tomato-engine/GrowthModel';
 import type { PlantGenome } from '@farmsim/tomato-engine/PlantGenome';
+import { composeLeafRotation, IDENTITY_QUAT } from '../AnchorTransform';
 
 // ── Anchor id parsing ─────────────────────────────────────────────────
 
@@ -74,8 +89,8 @@ function findLeafBase(axis: AxisBase, nodeIdx: number): LeafBase | undefined {
 }
 
 /** Side-shoot leaf state lookup is not yet supported — main axis only.
- *  Returns undefined for side shoots; populator falls back to PlantBase-only
- *  morphology (state stays partially populated). */
+ *  Returns undefined for side shoots; populator skips phytomer binding for
+ *  those anchors (Skin reads existing flat NodeState fallback). */
 function findNodeState(state: PlantState, axisIdx: number, nodeIdx: number): NodeState | undefined {
   if (axisIdx !== 0) return undefined; // side shoots not in state.nodes
   return state.nodes.find((n) => n.index === nodeIdx);
@@ -91,14 +106,9 @@ function findFloralSite(
   return truss.floralSites.find((s) => s.index === siteIdx);
 }
 
-// ── Chain composition ─────────────────────────────────────────────────
+// ── Chain composition (unchanged from Iter 26 PR 2-2) ─────────────────
 
 function buildChain(edge: SkeletonEdge): OrganChain {
-  // For every supported anchor edge type (petiole / pedicel), the support
-  // edge runs from rootNode (start) to anchorNode (end). nodeChain captures
-  // just those two nodes; edgeChain just the one support edge. Future
-  // multi-segment chains (e.g. rachis-spanning) can extend this without
-  // changing the shape.
   return {
     rootNodeId: edge.startNodeId,
     attachmentNodeId: edge.endNodeId,
@@ -108,25 +118,25 @@ function buildChain(edge: SkeletonEdge): OrganChain {
   };
 }
 
-// ── Stage / vigor heuristics ──────────────────────────────────────────
+// ── Phytomer binding (Phase 3 SKELETON-PHYTOMER-01) ───────────────────
 
-function leafGrowthStage(maturity: number, yellowing: number): OrganState['growthStage'] {
-  if (yellowing > 0.5) return 'senescing';
-  if (maturity < 0.3) return 'emerging';
-  if (maturity < 0.9) return 'expanding';
-  return 'mature';
-}
-
-function fruitGrowthStage(ripenStage: number): OrganState['growthStage'] {
-  // ripenStage 0..5 (녹숙기 → 완숙기)
-  if (ripenStage < 1) return 'expanding';
-  if (ripenStage < 4) return 'mature';
-  return 'senescing';
+/**
+ * Copy the engine PhytomerNode reference into the SkeletonNode.
+ *
+ * PlantBase owns the PhytomerNode object. Skeleton merely references it —
+ * no recomputation (SKELETON-NO-GROWTH-CALC-01).
+ */
+function bindPhytomer(node: SkeletonNode, nodeState: NodeState): void {
+  // Cast through unknown because the engine NodeState type is the canonical
+  // version, and PhytomerNodeRef is the structural sibling in the skeleton
+  // schema. They are designed to be assignment-compatible.
+  node.phytomer = nodeState as unknown as PhytomerNodeRef;
 }
 
 // ── Per-kind populators ───────────────────────────────────────────────
 
 function fillLeafAnchor(
+  graph: PlantSkeletonGraph,
   anchor: OrganAnchor,
   edge: SkeletonEdge,
   axisIdx: number,
@@ -139,47 +149,58 @@ function fillLeafAnchor(
   const leaf = axis ? findLeafBase(axis, nodeIdx) : undefined;
   const nodeState = state ? findNodeState(state, axisIdx, nodeIdx) : undefined;
 
-  // morphology: PlantBase first (sizeFactor / droopRad), then PlantState
-  // (leafletCount, ageFracForGravity composite).
-  const morphology: AnchorMorphologyHint = { kind: 'leaf' };
-  if (leaf) {
-    morphology.sizeFactor = leaf.sizeFactor;
-    morphology.droopFactor = leaf.droopRad;
-    morphology.leafletCount = leaf.leafletCount;
-  }
+  // Phase 3 SKELETON-PHYTOMER-01 — bind PhytomerNode reference on the
+  // mesh-anchor SkeletonNode (where Skin places the leaf mesh).
   if (nodeState) {
-    if (morphology.leafletCount === undefined) morphology.leafletCount = nodeState.leafletCount;
-    morphology.maturity = nodeState.leafMaturity;
-    morphology.ageFracForGravity =
-      Math.max(nodeState.droopExtra / 120, nodeState.age / 80) + nodeState.waterStress * 0.3;
+    const targetNodeId = anchor.meshAnchorNodeId ?? anchor.anchorNodeId;
+    const targetNode = graph.nodes.get(targetNodeId);
+    if (targetNode) bindPhytomer(targetNode, nodeState);
   }
-  anchor.morphology = morphology;
 
-  // state: per-tick. visibility from PlantBase (already filtered upstream by
-  // isLeafOrganVisible, but record it for symmetry).
-  const organState: OrganState = {
-    visibility: leaf?.visibility.visible ?? true,
-  };
+  // Phase 3 SKELETON-ANCHOR-TRANSFORM-01 — position from mesh anchor node.
+  const meshNode = graph.nodes.get(anchor.meshAnchorNodeId ?? anchor.anchorNodeId);
+  if (meshNode) {
+    anchor.position = { x: meshNode.pos.x, y: meshNode.pos.y, z: meshNode.pos.z };
+  }
+
+  // Phase 3 SKELETON-ANCHOR-POSTURE-01 — rotation _copied_ from PlantBase
+  // posture (Phase 2A populated leaf.posture). NO recomputation in Skeleton.
   if (nodeState) {
-    organState.growthStage = leafGrowthStage(nodeState.leafMaturity, nodeState.yellowing);
-    organState.yellowing = nodeState.yellowing;
-    organState.waterStress = nodeState.waterStress;
-    organState.diseaseLoad = nodeState.diseaseLoad;
-    organState.vigor = Math.max(0, 1 - nodeState.yellowing - 0.5 * nodeState.diseaseLoad);
+    const posture = nodeState.leaf.posture;
+    anchor.rotation = composeLeafRotation(
+      posture.azimuthDeg,
+      posture.droopDeg,
+      posture.twistDeg,
+    );
+  } else if (leaf) {
+    // Fallback for non-state populator paths (side-shoot leaf, etc.) —
+    // use PlantBase leaf azimuth/droop directly.
+    const azDeg = (leaf.azimuthRad ?? 0) * (180 / Math.PI);
+    const droopDeg = (leaf.droopRad ?? 0) * (180 / Math.PI);
+    anchor.rotation = composeLeafRotation(azDeg, droopDeg, 0);
+  } else {
+    anchor.rotation = IDENTITY_QUAT;
   }
-  anchor.state = organState;
 
-  // visualHint
-  const stage = organState.growthStage ?? 'expanding';
+  // visualHint (Iter 26 PR 1-2 retained)
   const visualHint: AnchorVisualHint = {
     markerColor: '#9ACD32', // yellow green
-    label: `leaf#${nodeIdx} ${stage}`,
+    label: `leaf#${nodeIdx}`,
     showAttachmentLine: true,
   };
   anchor.visualHint = visualHint;
+
+  // Phase 3 SKELETON-ANCHOR-PURE-01 — debugHint (renderer-only).
+  const debugHint: AnchorDebugHint = {
+    markerColor: visualHint.markerColor,
+    label: visualHint.label,
+    showAttachmentLine: visualHint.showAttachmentLine,
+  };
+  anchor.debugHint = debugHint;
 }
 
 function fillFruitAnchor(
+  graph: PlantSkeletonGraph,
   anchor: OrganAnchor,
   edge: SkeletonEdge,
   axisIdx: number,
@@ -188,37 +209,33 @@ function fillFruitAnchor(
   plantBase: PlantBase,
 ): void {
   anchor.chain = buildChain(edge);
-  const axis = axisAt(plantBase, axisIdx);
-  const site = axis ? findFloralSite(axis, trussIdx, siteIdx) : undefined;
-  const fruit = site?.fruit;
 
-  const morphology: AnchorMorphologyHint = { kind: 'fruit' };
-  if (fruit) {
-    morphology.targetDiameterM = fruit.diameterMm / 1000;
-    morphology.ripeness = fruit.ripenFraction;
-    morphology.maturity = Math.min(1, fruit.ripenStage / 5);
-    if (fruit.cultivarGenome) morphology.fruitGenome = fruit.cultivarGenome;
+  // Phase 3 SKELETON-ANCHOR-TRANSFORM-01 — position from mesh anchor node.
+  const meshNode = graph.nodes.get(anchor.meshAnchorNodeId ?? anchor.anchorNodeId);
+  if (meshNode) {
+    anchor.position = { x: meshNode.pos.x, y: meshNode.pos.y, z: meshNode.pos.z };
   }
-  anchor.morphology = morphology;
+  // Fruits hang downward — droop applied at the base; no phyllotaxis (already
+  // distributed along the truss). Phase 5 may refine via PhytomerNode.trussOrgan.
+  anchor.rotation = IDENTITY_QUAT;
 
-  const organState: OrganState = {
-    visibility: site?.visibility.visible ?? false,
-  };
-  if (fruit) {
-    organState.growthStage = fruitGrowthStage(fruit.ripenStage);
-    organState.vigor = 1.0;
-  }
-  anchor.state = organState;
-
-  const stage = organState.growthStage ?? 'expanding';
-  anchor.visualHint = {
+  const visualHint: AnchorVisualHint = {
     markerColor: '#FF6347', // tomato red
-    label: `fruit#${siteIdx} ${stage}`,
+    label: `fruit#${siteIdx}`,
     showAttachmentLine: true,
   };
+  anchor.visualHint = visualHint;
+  anchor.debugHint = {
+    markerColor: visualHint.markerColor,
+    label: visualHint.label,
+    showAttachmentLine: visualHint.showAttachmentLine,
+  };
+  // Reference plantBase for IDE go-to-definition completeness.
+  void plantBase; void axisIdx; void trussIdx;
 }
 
 function fillFlowerAnchor(
+  graph: PlantSkeletonGraph,
   anchor: OrganAnchor,
   edge: SkeletonEdge,
   axisIdx: number,
@@ -227,31 +244,27 @@ function fillFlowerAnchor(
   plantBase: PlantBase,
 ): void {
   anchor.chain = buildChain(edge);
-  const axis = axisAt(plantBase, axisIdx);
-  const site = axis ? findFloralSite(axis, trussIdx, siteIdx) : undefined;
-  const flower = site?.flower;
-
-  anchor.morphology = { kind: 'flower' };
-
-  const organState: OrganState = {
-    visibility: site?.visibility.visible ?? false,
-  };
-  if (flower) {
-    organState.growthStage = flower.bloomProgress < 0.3 ? 'emerging'
-      : flower.bloomProgress < 0.9 ? 'expanding'
-      : 'senescing';
-    organState.vigor = 1 - flower.petalDrop;
+  const meshNode = graph.nodes.get(anchor.meshAnchorNodeId ?? anchor.anchorNodeId);
+  if (meshNode) {
+    anchor.position = { x: meshNode.pos.x, y: meshNode.pos.y, z: meshNode.pos.z };
   }
-  anchor.state = organState;
-
-  anchor.visualHint = {
+  anchor.rotation = IDENTITY_QUAT;
+  const visualHint: AnchorVisualHint = {
     markerColor: '#FFD700', // gold
     label: `flower#${siteIdx}`,
     showAttachmentLine: true,
   };
+  anchor.visualHint = visualHint;
+  anchor.debugHint = {
+    markerColor: visualHint.markerColor,
+    label: visualHint.label,
+    showAttachmentLine: visualHint.showAttachmentLine,
+  };
+  void plantBase; void axisIdx; void trussIdx;
 }
 
 function fillCalyxAnchor(
+  graph: PlantSkeletonGraph,
   anchor: OrganAnchor,
   edge: SkeletonEdge,
   axisIdx: number,
@@ -260,26 +273,37 @@ function fillCalyxAnchor(
   plantBase: PlantBase,
 ): void {
   anchor.chain = buildChain(edge);
-  const axis = axisAt(plantBase, axisIdx);
-  const site = axis ? findFloralSite(axis, trussIdx, siteIdx) : undefined;
-
-  anchor.morphology = { kind: 'calyx' };
-  anchor.state = {
-    visibility: site?.visibility.visible ?? false,
-  };
-  anchor.visualHint = {
+  const meshNode = graph.nodes.get(anchor.meshAnchorNodeId ?? anchor.anchorNodeId);
+  if (meshNode) {
+    anchor.position = { x: meshNode.pos.x, y: meshNode.pos.y, z: meshNode.pos.z };
+  }
+  anchor.rotation = IDENTITY_QUAT;
+  const visualHint: AnchorVisualHint = {
     markerColor: '#228B22', // forest green
     label: `calyx#${siteIdx}`,
     showAttachmentLine: true,
   };
+  anchor.visualHint = visualHint;
+  anchor.debugHint = {
+    markerColor: visualHint.markerColor,
+    label: visualHint.label,
+    showAttachmentLine: visualHint.showAttachmentLine,
+  };
+  void plantBase; void axisIdx; void trussIdx;
 }
 
 // ── Entry ─────────────────────────────────────────────────────────────
 
 /**
- * Walk every organAnchor on every edge and populate chain + morphology +
- * state + visualHint. In-place; idempotent. Safe to call without state /
- * genome (partial populate — Skin must tolerate missing fields).
+ * Walk every organAnchor on every edge and populate Phase 3 fields:
+ *   - SkeletonNode.phytomer (for the mesh anchor node, when state is present)
+ *   - OrganAnchor.position (spatial transform — attachment point)
+ *   - OrganAnchor.rotation (spatial transform — posture quaternion, copied)
+ *   - OrganAnchor.chain (geometric path — unchanged from Iter 26 PR 2-2)
+ *   - OrganAnchor.visualHint + debugHint (renderer self-description)
+ *
+ * In-place; idempotent. Safe to call without state / genome (partial populate
+ * — anchor.rotation falls back to PlantBase leaf angles or identity).
  */
 export function populateAnchorMorphology(
   graph: PlantSkeletonGraph,
@@ -287,7 +311,7 @@ export function populateAnchorMorphology(
   state?: PlantState,
   // genome is stored on graph.cultivarGenomeSnapshot by the caller; this
   // function only needs it to mark intent (currently unused — reserved for
-  // future leaf-shape morphology fields).
+  // future leaf-shape morphology fields on PhytomerNode.leaf.morphology).
   _genome?: PlantGenome,
 ): void {
   for (const edge of graph.edges.values()) {
@@ -296,13 +320,13 @@ export function populateAnchorMorphology(
       const parsed = parseAnchorId(anchor);
       if (!parsed) continue;
       if (parsed.kind === 'leaf_blade') {
-        fillLeafAnchor(anchor, edge, parsed.axisIdx, parsed.nodeIdx, plantBase, state);
+        fillLeafAnchor(graph, anchor, edge, parsed.axisIdx, parsed.nodeIdx, plantBase, state);
       } else if (parsed.kind === 'fruit') {
-        fillFruitAnchor(anchor, edge, parsed.axisIdx, parsed.trussIdx, parsed.siteIdx, plantBase);
+        fillFruitAnchor(graph, anchor, edge, parsed.axisIdx, parsed.trussIdx, parsed.siteIdx, plantBase);
       } else if (parsed.kind === 'flower') {
-        fillFlowerAnchor(anchor, edge, parsed.axisIdx, parsed.trussIdx, parsed.siteIdx, plantBase);
+        fillFlowerAnchor(graph, anchor, edge, parsed.axisIdx, parsed.trussIdx, parsed.siteIdx, plantBase);
       } else if (parsed.kind === 'calyx') {
-        fillCalyxAnchor(anchor, edge, parsed.axisIdx, parsed.trussIdx, parsed.siteIdx, plantBase);
+        fillCalyxAnchor(graph, anchor, edge, parsed.axisIdx, parsed.trussIdx, parsed.siteIdx, plantBase);
       }
     }
   }

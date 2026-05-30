@@ -1,8 +1,20 @@
-// SSOT #187 — OrganAnchor completeness invariants.
-// See: docs/architecture/SEMANTIC_GRAPH.md sections 2.3, 3.
+// Iter 29 Phase 3 — PHYTOMER-COMP-01~04 invariants.
 //
-// Iter 26 PR 2-2: every organAnchor on every edge carries chain + morphology
-// + state + visualHint after the populator runs.
+// Replaces the Iter 26 PR 2-2 ANCHOR-COMP-01~04 contract — `anchor.morphology`
+// and `anchor.state` were removed from OrganAnchor schema as part of Phase 3
+// SKELETON-ANCHOR-PURE-01. The growth-state checks are now done against
+// SkeletonNode.phytomer (PhytomerNode reference) instead.
+//
+// Plan §3 (sleepy-growing-pretzel.md):
+//   "이전 Iter 26 PR 1-2 AnchorMorphologyHint / OrganState 필드는 _phytomer로
+//    이관_ + anchor는 _purity 회복_."
+//
+// Acceptance:
+//   PHYTOMER-COMP-01: 모든 PhytomerNode에 leaf.ageTT/initiationTT 있음
+//   PHYTOMER-COMP-02: 모든 PhytomerNode.leaf에 targetAreaCm2/currentAreaCm2 있음
+//   PHYTOMER-COMP-03: PhytomerNode.status와 LeafOrganState.stage 독립 일관성 검증
+//   PHYTOMER-COMP-04: anchor.position == PhytomerNode.leaf의 anchor 위치 (≤1mm)
+//                     + graph.cultivarGenomeSnapshot present (Iter 26 PR 1-3 preserved)
 
 import { test, expect, type Page } from '@playwright/test';
 
@@ -27,145 +39,195 @@ async function enterSkin(page: Page, day: number) {
   await page.waitForTimeout(3500);
 }
 
-test.describe('OrganAnchor Completeness (SSOT #187)', () => {
-  test('ANCHOR-COMP-01: every organAnchor has chain + morphology + state + visualHint', async ({ page }) => {
+test.describe('PhytomerNode Completeness (Iter 29 Phase 3, replaces ANCHOR-COMP)', () => {
+  test('PHYTOMER-COMP-01: 모든 PhytomerNode에 leaf.ageTT/initiationTT 있음', async ({ page }) => {
     test.setTimeout(120_000);
     await enterSkin(page, 45);
     const report = await page.evaluate(() => {
       const w = window as unknown as {
         __skinplantGraph?: {
+          nodes: Map<string, {
+            id: string;
+            phytomer?: {
+              index: number;
+              initiationTT: number;
+              ageTT: number;
+              leaf: { initiationTT: number; ageTT: number; visibleTT: number };
+            };
+          }>;
+        };
+      };
+      const g = w.__skinplantGraph;
+      if (!g) return null;
+      let withPhytomer = 0;
+      const issues: { id: string; reason: string }[] = [];
+      for (const node of g.nodes.values()) {
+        if (!node.phytomer) continue;
+        withPhytomer++;
+        const leaf = node.phytomer.leaf;
+        if (typeof leaf?.initiationTT !== 'number' || !Number.isFinite(leaf.initiationTT)) {
+          issues.push({ id: node.id, reason: 'leaf.initiationTT missing' });
+        }
+        if (typeof leaf?.ageTT !== 'number' || !Number.isFinite(leaf.ageTT)) {
+          issues.push({ id: node.id, reason: 'leaf.ageTT missing' });
+        }
+        if (typeof leaf?.visibleTT !== 'number' || !Number.isFinite(leaf.visibleTT)) {
+          issues.push({ id: node.id, reason: 'leaf.visibleTT missing' });
+        }
+      }
+      return { withPhytomer, issues };
+    });
+    expect(report, 'graph available').not.toBeNull();
+    expect(report!.withPhytomer, 'phytomer-bound nodes > 0').toBeGreaterThan(0);
+    expect(report!.issues, 'all phytomer-bound nodes have leaf TT fields').toEqual([]);
+  });
+
+  test('PHYTOMER-COMP-02: 모든 PhytomerNode.leaf에 targetAreaCm2/currentAreaCm2', async ({ page }) => {
+    test.setTimeout(120_000);
+    await enterSkin(page, 45);
+    const report = await page.evaluate(() => {
+      const w = window as unknown as {
+        __skinplantGraph?: {
+          nodes: Map<string, {
+            id: string;
+            phytomer?: {
+              leaf: {
+                targetAreaCm2: number;
+                currentAreaCm2: number;
+                expansionProgress: number;
+                leafletCount: number;
+              };
+            };
+          }>;
+        };
+      };
+      const g = w.__skinplantGraph;
+      if (!g) return null;
+      const samples: { id: string; target: number; current: number; progress: number; leaflets: number }[] = [];
+      for (const node of g.nodes.values()) {
+        if (!node.phytomer) continue;
+        const leaf = node.phytomer.leaf;
+        samples.push({
+          id: node.id,
+          target: leaf.targetAreaCm2,
+          current: leaf.currentAreaCm2,
+          progress: leaf.expansionProgress,
+          leaflets: leaf.leafletCount,
+        });
+      }
+      return samples;
+    });
+    expect(report, 'graph available').not.toBeNull();
+    expect(report!.length, 'phytomer-bound nodes present').toBeGreaterThan(0);
+    for (const s of report!) {
+      expect(s.target, `${s.id} targetAreaCm2 > 0`).toBeGreaterThan(0);
+      expect(s.current, `${s.id} currentAreaCm2 ≥ 0`).toBeGreaterThanOrEqual(0);
+      expect(s.current, `${s.id} currentAreaCm2 ≤ targetAreaCm2`).toBeLessThanOrEqual(s.target + 1e-6);
+      expect(s.progress, `${s.id} expansionProgress ∈ [0, 1]`).toBeGreaterThanOrEqual(0);
+      expect(s.progress, `${s.id} expansionProgress ∈ [0, 1]`).toBeLessThanOrEqual(1);
+      expect(s.leaflets, `${s.id} leafletCount > 0`).toBeGreaterThan(0);
+    }
+  });
+
+  test('PHYTOMER-COMP-03: PhytomerNode.status와 LeafOrganState.stage 독립 일관성', async ({ page }) => {
+    test.setTimeout(120_000);
+    await enterSkin(page, 45);
+    const report = await page.evaluate(() => {
+      const w = window as unknown as {
+        __skinplantGraph?: {
+          nodes: Map<string, {
+            id: string;
+            phytomer?: { status: string; leaf: { stage: string; ageTT: number } };
+          }>;
+        };
+      };
+      const g = w.__skinplantGraph;
+      if (!g) return null;
+      const VALID_STATUS = ['primordium', 'visible', 'expanding', 'mature', 'senescent', 'removed'];
+      const VALID_STAGES = ['primordium', 'simple_leaf', 'compound_developing', 'compound_mature', 'senescent', 'removed'];
+      const issues: { id: string; reason: string }[] = [];
+      let pairs = 0;
+      for (const node of g.nodes.values()) {
+        if (!node.phytomer) continue;
+        pairs++;
+        const { status } = node.phytomer;
+        const { stage } = node.phytomer.leaf;
+        if (!VALID_STATUS.includes(status)) issues.push({ id: node.id, reason: `bad status: ${status}` });
+        if (!VALID_STAGES.includes(stage)) issues.push({ id: node.id, reason: `bad stage: ${stage}` });
+      }
+      return { pairs, issues };
+    });
+    expect(report, 'graph available').not.toBeNull();
+    expect(report!.pairs, 'phytomer-bound nodes present').toBeGreaterThan(0);
+    expect(report!.issues, 'status + stage are valid enum values').toEqual([]);
+  });
+
+  test('PHYTOMER-COMP-04: anchor.position == mesh anchor node position (≤1mm) + cultivarGenomeSnapshot present', async ({ page }) => {
+    test.setTimeout(120_000);
+    await enterSkin(page, 45);
+    const report = await page.evaluate(() => {
+      const w = window as unknown as {
+        __skinplantGraph?: {
+          cultivarGenomeSnapshot?: unknown;
+          nodes: Map<string, { id: string; pos: { x: number; y: number; z: number } }>;
           edges: Map<string, {
             id: string;
             organAnchors?: Array<{
               id: string;
               kind: string;
-              chain?: { rootNodeId: string; attachmentNodeId: string; nodeChain: string[]; edgeChain: string[] };
-              morphology?: { kind: string };
-              state?: { visibility: boolean };
-              visualHint?: { markerColor: string; label: string };
+              meshAnchorNodeId?: string;
+              anchorNodeId: string;
+              position?: { x: number; y: number; z: number };
+              rotation?: { x: number; y: number; z: number; w: number };
             }>;
           }>;
         };
       };
       const g = w.__skinplantGraph;
       if (!g) return null;
-      let anchorCount = 0;
-      const missing: { id: string; missing: string[] }[] = [];
-      const kinds = new Set<string>();
+      let leafAnchors = 0;
+      const issues: { id: string; reason: string; delta?: number }[] = [];
+      let withRotation = 0;
       for (const edge of g.edges.values()) {
         if (!edge.organAnchors) continue;
         for (const a of edge.organAnchors) {
-          anchorCount++;
-          kinds.add(a.kind);
-          const m: string[] = [];
-          if (!a.chain) m.push('chain');
-          if (!a.morphology) m.push('morphology');
-          if (!a.state) m.push('state');
-          if (!a.visualHint) m.push('visualHint');
-          if (m.length > 0) missing.push({ id: a.id, missing: m });
+          if (a.kind !== 'leaf_blade') continue;
+          leafAnchors++;
+          const targetNodeId = a.meshAnchorNodeId ?? a.anchorNodeId;
+          const targetNode = g.nodes.get(targetNodeId);
+          if (!targetNode) {
+            issues.push({ id: a.id, reason: 'mesh anchor node missing' });
+            continue;
+          }
+          if (!a.position) {
+            issues.push({ id: a.id, reason: 'anchor.position missing' });
+            continue;
+          }
+          const dx = a.position.x - targetNode.pos.x;
+          const dy = a.position.y - targetNode.pos.y;
+          const dz = a.position.z - targetNode.pos.z;
+          const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+          if (dist > 0.001) {
+            issues.push({ id: a.id, reason: 'anchor.position vs node.pos drift', delta: dist });
+          }
+          if (a.rotation) {
+            withRotation++;
+            const mag = Math.sqrt(
+              a.rotation.x * a.rotation.x + a.rotation.y * a.rotation.y +
+              a.rotation.z * a.rotation.z + a.rotation.w * a.rotation.w,
+            );
+            if (Math.abs(mag - 1) > 0.01) {
+              issues.push({ id: a.id, reason: 'anchor.rotation not unit length', delta: mag });
+            }
+          }
         }
       }
-      return { anchorCount, missing, kinds: Array.from(kinds) };
+      return { leafAnchors, withRotation, issues, hasSnapshot: g.cultivarGenomeSnapshot !== undefined };
     });
     expect(report, 'graph available').not.toBeNull();
-    expect(report!.anchorCount, 'anchor count > 0').toBeGreaterThan(0);
-    expect(report!.missing, 'all anchors have chain+morphology+state+visualHint').toEqual([]);
-    // At day 45 a tomato has leaves + at least one truss → expect ≥2 kinds.
-    expect(report!.kinds.length, 'multiple anchor kinds').toBeGreaterThanOrEqual(2);
-  });
-
-  test('ANCHOR-COMP-02: leaf anchor morphology carries sizeFactor + leafletCount', async ({ page }) => {
-    test.setTimeout(120_000);
-    await enterSkin(page, 45);
-    const sample = await page.evaluate(() => {
-      const w = window as unknown as {
-        __skinplantGraph?: {
-          edges: Map<string, {
-            organAnchors?: Array<{
-              id: string;
-              kind: string;
-              morphology?: { sizeFactor?: number; leafletCount?: number };
-            }>;
-          }>;
-        };
-      };
-      const out: { id: string; sizeFactor?: number; leafletCount?: number }[] = [];
-      if (w.__skinplantGraph) {
-        for (const edge of w.__skinplantGraph.edges.values()) {
-          if (!edge.organAnchors) continue;
-          for (const a of edge.organAnchors) {
-            if (a.kind === 'leaf_blade' && a.morphology) {
-              out.push({
-                id: a.id,
-                sizeFactor: a.morphology.sizeFactor,
-                leafletCount: a.morphology.leafletCount,
-              });
-            }
-          }
-        }
-      }
-      return out;
-    });
-    expect(sample.length, 'has leaf anchors').toBeGreaterThan(0);
-    for (const s of sample) {
-      expect(s.sizeFactor, `${s.id} sizeFactor`).toBeGreaterThan(0);
-      expect(s.leafletCount, `${s.id} leafletCount`).toBeGreaterThan(0);
-    }
-  });
-
-  test('ANCHOR-COMP-03: fruit anchor morphology carries fruitGenome when set', async ({ page }) => {
-    test.setTimeout(120_000);
-    await enterSkin(page, 60); // ensure trusses present + fruit set
-    const sample = await page.evaluate(() => {
-      const w = window as unknown as {
-        __skinplantGraph?: {
-          edges: Map<string, {
-            organAnchors?: Array<{
-              id: string;
-              kind: string;
-              morphology?: {
-                targetDiameterM?: number;
-                fruitGenome?: { loculeCount: number; heightWidthRatio: number };
-              };
-            }>;
-          }>;
-        };
-      };
-      const out: { id: string; targetDiameterM?: number; hasGenome: boolean }[] = [];
-      if (w.__skinplantGraph) {
-        for (const edge of w.__skinplantGraph.edges.values()) {
-          if (!edge.organAnchors) continue;
-          for (const a of edge.organAnchors) {
-            if (a.kind === 'fruit' && a.morphology) {
-              out.push({
-                id: a.id,
-                targetDiameterM: a.morphology.targetDiameterM,
-                hasGenome: a.morphology.fruitGenome !== undefined,
-              });
-            }
-          }
-        }
-      }
-      return out;
-    });
-    // Spec is informational on D60 — fruits may or may not have set yet.
-    // Just verify shape: if morphology exists, fields obey schema.
-    for (const s of sample) {
-      if (s.targetDiameterM !== undefined) {
-        expect(s.targetDiameterM, `${s.id} targetDiameterM > 0`).toBeGreaterThan(0);
-      }
-    }
-  });
-
-  test('ANCHOR-COMP-04: graph.cultivarGenomeSnapshot present', async ({ page }) => {
-    test.setTimeout(120_000);
-    await enterSkin(page, 45);
-    const hasSnapshot = await page.evaluate(() => {
-      const w = window as unknown as {
-        __skinplantGraph?: { cultivarGenomeSnapshot?: unknown };
-      };
-      return w.__skinplantGraph?.cultivarGenomeSnapshot !== undefined;
-    });
-    expect(hasSnapshot, 'graph.cultivarGenomeSnapshot populated').toBe(true);
+    expect(report!.leafAnchors, 'leaf anchors present').toBeGreaterThan(0);
+    expect(report!.issues, 'anchor.position/rotation valid').toEqual([]);
+    expect(report!.withRotation, 'leaf anchors carry rotation').toBeGreaterThan(0);
+    expect(report!.hasSnapshot, 'graph.cultivarGenomeSnapshot populated').toBe(true);
   });
 });

@@ -698,11 +698,26 @@ export function createSkinMeshPlant(
         );
         leafMesh.parent = lushGroup;
         leafMesh.position = new Vector3(tipPlantPos.x, tipPlantPos.y, tipPlantPos.z);
-        leafMesh.rotationQuaternion = Quaternion.RotationAxis(Vector3.Up(), leafBase.azimuthRad)
-          .multiply(Quaternion.RotationAxis(new Vector3(0, 0, 1), -leafBase.droopRad));
-        // Iter 26 PR 3-1 — material yellowing from anchor.state (was node.yellowing).
-        // Same numerical source (populator copied PlantState.yellowing into anchor.state).
-        const yellowing = anchor.state?.yellowing ?? node.yellowing;
+        // Iter 29 Phase 3 — SKIN-NO-LEAFBASE-01 + SKELETON-ANCHOR-TRANSFORM-01.
+        //   Prefer anchor.rotation (populator copied from PlantBase posture).
+        //   Fallback to LeafBase azimuth/droop preserved for legacy callers
+        //   that don't run the Phase 3 populator yet — Phase 4 removes this fallback.
+        if (anchor.rotation) {
+          leafMesh.rotationQuaternion = new Quaternion(
+            anchor.rotation.x, anchor.rotation.y, anchor.rotation.z, anchor.rotation.w,
+          );
+        } else {
+          leafMesh.rotationQuaternion = Quaternion.RotationAxis(Vector3.Up(), leafBase.azimuthRad)
+            .multiply(Quaternion.RotationAxis(new Vector3(0, 0, 1), -leafBase.droopRad));
+        }
+        // Iter 29 Phase 3 — material yellowing from phytomer.leaf.senescence
+        //   (Plan SKELETON-PHYTOMER-01). anchor.state removed in Phase 3.
+        //   Fallback to flat node.yellowing for the legacy code path that
+        //   doesn't have phytomer bound — Phase 4 SKIN-NO-GROWTH-LOGIC-01
+        //   makes phytomer canonical.
+        const meshNode = graph.nodes.get(anchor.meshAnchorNodeId ?? anchor.anchorNodeId);
+        const phytomerLeaf = meshNode?.phytomer?.leaf;
+        const yellowing = phytomerLeaf?.senescence?.colorDullness ?? node.yellowing;
         leafMesh.material = yellowing > 0.4 ? yellowLeafMat : leafMat;
         currentMeshes.push(leafMesh);
         currentParts.leaves.push(leafMesh);

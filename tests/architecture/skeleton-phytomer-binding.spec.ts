@@ -1,0 +1,232 @@
+// Iter 29 Phase 3 — Skeleton phytomer binding + OrganAnchor purity invariants.
+//
+// Plan §3, §13.2 (sleepy-growing-pretzel.md).
+//
+// Phase 3 핵심: SkeletonNode가 PhytomerNode를 _직접 참조_. OrganAnchor는
+// _공간 변환 정보만_ — position + rotation + identifier + chain + debugHint.
+// morphology/state/growth field는 _금지_.
+//
+// Acceptance:
+//   SKELETON-PHYTOMER-01: SkeletonNode.phytomer 직접 참조 (PhytomerNode 타입)
+//   SKELETON-ANCHOR-PURE-01: morphology/state/growth field 0건
+//   SKELETON-ANCHOR-TRANSFORM-01: anchor.rotation은 Quat4 (단위 길이 ~ 1)
+//   SKELETON-ANCHOR-POSTURE-01: posture는 PlantBase 계산값을 Skeleton _복사_
+//   SKELETON-NO-GROWTH-CALC-01: Skeleton에서 leaf area/leafletCount/senescence/
+//                               expansionProgress/posture 새로 계산 0건
+//                               (호출 금지 함수: leafletCountFromMaturity,
+//                                computeLeafExpansion, computeSenescence)
+//   SKIN-NO-LEAFBASE-01: Skin path canonical에서 LeafBase.azimuthRad/droopRad
+//                        직접 참조 0건 (fallback path 허용 — Phase 4 제거)
+
+import { test, expect, type Page } from '@playwright/test';
+import { promises as fs } from 'fs';
+import * as path from 'path';
+import { fileURLToPath } from 'url';
+
+import {
+  composeLeafRotation,
+  quatY,
+  quatX,
+  quatZ,
+  quatMul,
+  quatMagnitude,
+  IDENTITY_QUAT,
+} from '../../src/plant/skeleton/AnchorTransform';
+
+const SPEC_DIR = path.dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = path.resolve(SPEC_DIR, '../..');
+
+async function enterSkin(page: Page, day: number) {
+  await page.goto('/', { waitUntil: 'networkidle' });
+  await page.waitForTimeout(8000);
+  await page.evaluate(() => {
+    const w = window as unknown as { __twinStore?: { getState(): { setMode(m: string): void; setUseImplicitMesh(v: boolean): void } } };
+    w.__twinStore?.getState().setMode('single-plant');
+    w.__twinStore?.getState().setUseImplicitMesh(false);
+  });
+  await page.waitForTimeout(1000);
+  await page.evaluate(() => {
+    const w = window as unknown as { __twinStore?: { getState(): { setUseImplicitMesh(v: boolean): void } } };
+    w.__twinStore?.getState().setUseImplicitMesh(true);
+  });
+  await page.waitForTimeout(3000);
+  await page.evaluate((d) => {
+    const w = window as unknown as { __twinStore?: { getState(): { setSinglePlantMinute(m: number): void } } };
+    w.__twinStore?.getState().setSinglePlantMinute(d * 1440 + 12 * 60);
+  }, day);
+  await page.waitForTimeout(3500);
+}
+
+test.describe('Skeleton Phytomer Binding + Anchor Purity (Iter 29 Phase 3)', () => {
+  test('SKELETON-PHYTOMER-01: SkeletonNode.phytomer 직접 참조 (interface + runtime)', async ({ page }) => {
+    test.setTimeout(120_000);
+    // Interface declared
+    const text = await fs.readFile(
+      path.join(REPO_ROOT, 'src/plant/skeleton/PlantSkeletonGraph.ts'),
+      'utf-8',
+    );
+    expect(text, 'SkeletonNode.phytomer field declared')
+      .toMatch(/phytomer\?:\s*PhytomerNodeRef/);
+    expect(text, 'PhytomerNodeRef type defined').toMatch(/export type PhytomerNodeRef/);
+
+    // Runtime: at least some SkeletonNode instances carry phytomer
+    await enterSkin(page, 45);
+    const report = await page.evaluate(() => {
+      const w = window as unknown as {
+        __skinplantGraph?: {
+          nodes: Map<string, { id: string; phytomer?: { leaf?: { nodeIndex: number } } }>;
+        };
+      };
+      const g = w.__skinplantGraph;
+      if (!g) return null;
+      let withPhytomer = 0;
+      let total = 0;
+      for (const node of g.nodes.values()) {
+        total++;
+        if (node.phytomer?.leaf) withPhytomer++;
+      }
+      return { withPhytomer, total };
+    });
+    expect(report).not.toBeNull();
+    expect(report!.withPhytomer, 'phytomer-bound nodes > 0').toBeGreaterThan(0);
+  });
+
+  test('SKELETON-ANCHOR-PURE-01: OrganAnchor에 morphology/state/growth field 0건', async ({ page }) => {
+    test.setTimeout(120_000);
+    // Interface check — schema source must NOT declare morphology/state on OrganAnchor.
+    const text = await fs.readFile(
+      path.join(REPO_ROOT, 'src/plant/skeleton/PlantSkeletonGraph.ts'),
+      'utf-8',
+    );
+    // Find OrganAnchor block (only)
+    const anchorMatch = text.match(/export interface OrganAnchor\s*\{[\s\S]*?\n\}/);
+    expect(anchorMatch, 'OrganAnchor interface block').toBeTruthy();
+    const anchorBlock = anchorMatch![0];
+    // Plan §3 strict: no `morphology?:` or `state?:` fields on OrganAnchor.
+    expect(anchorBlock, 'no anchor.morphology field').not.toMatch(/\n\s+morphology\?:/);
+    expect(anchorBlock, 'no anchor.state field').not.toMatch(/\n\s+state\?:/);
+    // Allowed fields only
+    expect(anchorBlock, 'position present').toMatch(/position\?:\s*V3/);
+    expect(anchorBlock, 'rotation present').toMatch(/rotation\?:\s*Quat4/);
+    expect(anchorBlock, 'debugHint present').toMatch(/debugHint\?:\s*AnchorDebugHint/);
+
+    // Runtime: live anchors do not have morphology/state populated
+    await enterSkin(page, 45);
+    const issues = await page.evaluate(() => {
+      const w = window as unknown as {
+        __skinplantGraph?: {
+          edges: Map<string, {
+            organAnchors?: Array<{
+              id: string; kind: string;
+              morphology?: unknown; state?: unknown;
+              position?: { x: number; y: number; z: number };
+              rotation?: { x: number; y: number; z: number; w: number };
+            }>;
+          }>;
+        };
+      };
+      const out: { id: string; field: string }[] = [];
+      const g = w.__skinplantGraph;
+      if (!g) return out;
+      for (const edge of g.edges.values()) {
+        if (!edge.organAnchors) continue;
+        for (const a of edge.organAnchors) {
+          if (a.morphology !== undefined) out.push({ id: a.id, field: 'morphology' });
+          if (a.state !== undefined) out.push({ id: a.id, field: 'state' });
+        }
+      }
+      return out;
+    });
+    expect(issues, 'no anchor has morphology or state populated').toEqual([]);
+  });
+
+  test('SKELETON-ANCHOR-TRANSFORM-01: rotation은 Quat4 (단위 길이) + composeLeafRotation', () => {
+    // Pure math invariants
+    expect(IDENTITY_QUAT).toEqual({ x: 0, y: 0, z: 0, w: 1 });
+    expect(quatMagnitude(IDENTITY_QUAT)).toBeCloseTo(1, 6);
+    expect(quatMagnitude(quatY(60))).toBeCloseTo(1, 6);
+    expect(quatMagnitude(quatX(45))).toBeCloseTo(1, 6);
+    expect(quatMagnitude(quatZ(30))).toBeCloseTo(1, 6);
+
+    // Identity multiplication
+    const a = quatY(60);
+    expect(quatMul(a, IDENTITY_QUAT)).toEqual(a);
+    expect(quatMul(IDENTITY_QUAT, a)).toEqual(a);
+
+    // composeLeafRotation produces unit-length quaternion
+    const q = composeLeafRotation(137.5, 25, 0);
+    expect(quatMagnitude(q)).toBeCloseTo(1, 6);
+
+    // Different azimuths produce different rotations
+    const q0 = composeLeafRotation(0, 25, 0);
+    const q1 = composeLeafRotation(137.5, 25, 0);
+    expect(q0).not.toEqual(q1);
+
+    // Zero rotation = identity
+    expect(composeLeafRotation(0, 0, 0)).toEqual(IDENTITY_QUAT);
+  });
+
+  test('SKELETON-ANCHOR-POSTURE-01: posture는 PlantBase 계산값 _복사_ (populator는 재계산 안 함)', async () => {
+    // Populator source verification — must use composeLeafRotation with
+    // PhytomerNode.leaf.posture values, NOT internal angle computation.
+    const text = await fs.readFile(
+      path.join(REPO_ROOT, 'src/plant/skeleton/populator/populateAnchorMorphology.ts'),
+      'utf-8',
+    );
+    expect(text, 'populator imports composeLeafRotation').toMatch(/composeLeafRotation/);
+    // Verify it _reads_ from nodeState.leaf.posture (PlantBase's pre-computed value)
+    expect(text, 'populator reads leaf.posture from PlantState')
+      .toMatch(/nodeState\.leaf\.posture/);
+  });
+
+  test('SKELETON-NO-GROWTH-CALC-01: 호출 금지 함수 (leafletCountFromMaturity / computeLeafExpansion / computeSenescence)', async () => {
+    // Skeleton layer files must NOT import or call growth model functions.
+    const populatorSrc = await fs.readFile(
+      path.join(REPO_ROOT, 'src/plant/skeleton/populator/populateAnchorMorphology.ts'),
+      'utf-8',
+    );
+    const FORBIDDEN = [
+      'leafletCountFromMaturity',
+      'computeLeafExpansion',
+      'computeLeafExpansionProgress',
+      'computeSenescence',
+      'computeSenescenceProgress',
+      'makeSenescenceState',
+    ];
+    for (const fn of FORBIDDEN) {
+      expect(populatorSrc, `populator must NOT call ${fn}`)
+        .not.toMatch(new RegExp(`\\b${fn}\\b`));
+    }
+    // PlantSkeletonGraph must not import from growth/ either
+    const graphSrc = await fs.readFile(
+      path.join(REPO_ROOT, 'src/plant/skeleton/PlantSkeletonGraph.ts'),
+      'utf-8',
+    );
+    for (const fn of FORBIDDEN) {
+      expect(graphSrc, `PlantSkeletonGraph must NOT reference ${fn}`)
+        .not.toMatch(new RegExp(`\\b${fn}\\b`));
+    }
+  });
+
+  test('SKIN-NO-LEAFBASE-01: Skin canonical path에서 LeafBase.azimuth/droop 직접 참조 0건 (fallback 허용)', async () => {
+    // Phase 3: Skin SHOULD use anchor.rotation when available.
+    // Fallback path (legacy callers) may still read LeafBase — Phase 4
+    // tightens to strict 0.
+    const skinSrc = await fs.readFile(
+      path.join(REPO_ROOT, 'src/twin/SkinMeshPlant.ts'),
+      'utf-8',
+    );
+    // Verify anchor.rotation usage exists (canonical Phase 3 path)
+    expect(skinSrc, 'SkinMeshPlant uses anchor.rotation when available')
+      .toMatch(/anchor\.rotation/);
+    // Verify fallback gated behind `if (anchor.rotation)` check (NOT direct read)
+    const azimuthHits = (skinSrc.match(/leafBase\.azimuthRad/g) ?? []).length;
+    const droopHits = (skinSrc.match(/leafBase\.droopRad/g) ?? []).length;
+    // Phase 3 still has 1 fallback path each (inside else branch).
+    // Phase 4 SKIN-DATA-DRIVEN-03 will reduce these to 0.
+    expect(azimuthHits, `leafBase.azimuthRad fallback occurrences (Phase 3 ≤ 1)`)
+      .toBeLessThanOrEqual(1);
+    expect(droopHits, `leafBase.droopRad fallback occurrences (Phase 3 ≤ 1)`)
+      .toBeLessThanOrEqual(1);
+  });
+});

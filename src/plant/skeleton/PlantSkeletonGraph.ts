@@ -111,6 +111,85 @@ export interface SkeletonNode {
   frame?: LocalFrame;
   /** Iter 26 PR 1-1 (원칙 2) — self-describing overlay hint. */
   visualHint?: NodeVisualHint;
+  /**
+   * Iter 29 Phase 3 (SKELETON-PHYTOMER-01) — direct reference to PlantBase
+   * growth state. Skin reads `node.phytomer.leaf.*` instead of legacy flat
+   * NodeState fields or anchor.morphology/state. Optional during
+   * migration; populator fills when SkeletonPopulator receives a PlantState.
+   *
+   * Plan §13.2: "SkeletonNode가 PhytomerNode를 _직접 참조_". Anchor wraps
+   * spatial-transform only.
+   */
+  phytomer?: PhytomerNodeRef;
+}
+
+/**
+ * Iter 29 Phase 3 — structural reference to a PhytomerNode from
+ * packages/tomato-engine. Kept as `unknown` shape here to avoid coupling
+ * the skeleton schema to the engine package; populator narrows the type
+ * via `as PhytomerNode` at the binding seam.
+ *
+ * Plan §3 (sleepy-growing-pretzel.md): the populator copies the engine
+ * PhytomerNode reference. Skin reads canonical fields (`.leaf.currentAreaCm2`,
+ * `.leaf.posture.droopDeg`, etc.) directly.
+ */
+export type PhytomerNodeRef = {
+  index: number;
+  initiationTT: number;
+  visibleTT: number;
+  ageTT: number;
+  // Phytomer status (string union — kept loose for schema decoupling)
+  status: string;
+  // Internode state (target/current/expansion)
+  internode: { targetLengthCm: number; currentLengthCm: number; expansionProgress: number };
+  // Leaf organ state — canonical structural reference. Skin reads here.
+  leaf: {
+    nodeIndex: number;
+    initiationTT: number;
+    visibleTT: number;
+    ageTT: number;
+    targetAreaCm2: number;
+    currentAreaCm2: number;
+    expansionProgress: number;
+    stage: string;
+    leafletCount: number;
+    morphology: {
+      serrationDepth: number;
+      lobeDepth: number;
+      petioleLengthM: number;
+      variationSeed: number;
+    };
+    posture: {
+      azimuthDeg: number;
+      petioleElevationDeg: number;
+      droopDeg: number;
+      twistDeg: number;
+      curl: number;
+    };
+    senescence: {
+      progress: number;
+      colorDullness: number;
+      visibleAreaFactor: number;
+      curl: number;
+      droopDeg: number;
+    };
+  };
+  // Optional reproductive/sideShoot organ shells (Phase 2A).
+  trussOrgan?: { initiationTT: number; ageTT: number; state: string };
+  sideShootOrgan?: { initiationTT: number; ageTT: number; potential: number; activatedAtTT?: number };
+};
+
+/**
+ * Iter 29 Phase 3 — quaternion as a structural 4-tuple (x, y, z, w).
+ * Matches Babylon Quaternion's public surface so callers can assign a
+ * Babylon Quaternion directly; kept structural to avoid pulling Babylon
+ * into the skeleton schema package.
+ */
+export interface Quat4 {
+  x: number;
+  y: number;
+  z: number;
+  w: number;
 }
 
 /** Tapered capsule segment along an edge centerline. */
@@ -227,6 +306,22 @@ export interface AnchorVisualHint {
   showAttachmentLine?: boolean;
 }
 
+/**
+ * Iter 29 Phase 3 (SKELETON-ANCHOR-PURE-01) — debug overlay hint.
+ * Renderer-only, NEVER growth state. Position + label + color + line toggle.
+ *
+ * Plan §13.2: "growth state / morphology / organ size / senescence /
+ * leafletCount 저장 _금지_. 위반 시 ANCHOR-PURE-01 fail."
+ */
+export interface AnchorDebugHint {
+  /** Debug overlay marker color (hex). Renderer-only — not growth state. */
+  markerColor?: string;
+  /** Debug overlay label. Renderer-only. */
+  label?: string;
+  /** Whether SkeletonOverlay should draw the attachment line (Iter 27 alarm). */
+  showAttachmentLine?: boolean;
+}
+
 export interface OrganAnchor {
   /** Stable id (string form for legacy attachedOrganIds passthrough). */
   id: string;
@@ -255,14 +350,36 @@ export interface OrganAnchor {
    * fallback (legacy 호환). populator는 항상 채움.
    */
   meshAnchorNodeId?: string;
-  /** Iter 26 PR 1-2 — static morphology (populator copies from cultivar). */
-  morphology?: AnchorMorphologyHint;
-  /** Iter 26 PR 1-2 (원칙 3) — per-tick simulation state. */
-  state?: OrganState;
+  /**
+   * Iter 29 Phase 3 (SKELETON-ANCHOR-TRANSFORM-01) — spatial transform
+   * resolved by the populator. Phase 4: Skin reads `position` + `rotation`
+   * directly; legacy node.pos lookup phased out.
+   *
+   * Plan §13.2: "anchors are SPATIAL TRANSFORM info only (where/how to
+   * attach mesh)".
+   */
+  position?: V3;
+  /**
+   * Iter 29 Phase 3 (SKELETON-ANCHOR-TRANSFORM-01) — organ posture
+   * quaternion (phyllotaxis × droop × twist composite). Computed by PlantBase
+   * and _copied_ into the anchor by the populator. Skeleton does NOT
+   * recompute (SKELETON-ANCHOR-POSTURE-01).
+   *
+   * Structural Quat4 — Babylon Quaternion is assignable directly.
+   */
+  rotation?: Quat4;
   /** Iter 26 PR 1-2 — geometric path on the graph for this organ. */
   chain?: OrganChain;
   /** Iter 26 PR 1-2 (원칙 2) — overlay self-description. */
   visualHint?: AnchorVisualHint;
+  /**
+   * Iter 29 Phase 3 (SKELETON-ANCHOR-PURE-01) — debug overlay hint.
+   * Renderer-only. NEVER growth state / morphology / organ size / senescence /
+   * leafletCount.
+   *
+   * Plan §13.2: "위반 시 ANCHOR-PURE-01 fail."
+   */
+  debugHint?: AnchorDebugHint;
 }
 
 /**
