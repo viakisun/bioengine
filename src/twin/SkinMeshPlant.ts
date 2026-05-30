@@ -80,7 +80,7 @@ import { defaultSkinEngine } from '../plant/skin/defaultSkinEngine';
 // Iter 18B PR 4 — switch to createLeafBladeOnlyMesh. SkinMeshPlant은 SDF
 // skeleton mesh가 petiole tube를 그리므로 leaf mesh 안의 중복 petiole
 // cylinder는 불필요. ShowcasePlant는 createLeafMeshFromNode 계속 사용 (legacy).
-import { createLeafBladeOnlyMesh, getLeafMaterial, getYellowLeafMaterial } from '../plant/LeafGenerator';
+import { createLeafBladeOnlyMesh, buildLeafMeshFromPhytomer, getLeafMaterial, getYellowLeafMaterial } from '../plant/LeafGenerator';
 import type { ShowcasePlantHandle } from './ShowcasePlant';
 
 // SkinMeshPlant implements the same surface API as ShowcasePlant so it
@@ -692,16 +692,27 @@ export function createSkinMeshPlant(
         if (!meshAnchorNode) continue;
         const tipPlantPos = meshAnchorNode.pos;
         const leafRng = new SeededRandom(seed * 1009 + axisIdx * 9173 + nodeIdx * 31 + 11);
-        const leafMesh = createLeafBladeOnlyMesh(
-          `skinplant_leaf_${seed}_a${axisIdx}_n${nodeIdx}`,
-          scene, node, genome, state.day, leafRng,
-        );
+        // Iter 29 Phase 4 — canonical data-driven Skin path (SKIN-DATA-DRIVEN-01):
+        //   - Read LeafOrganState from meshAnchorNode.phytomer.leaf (populator-bound).
+        //   - Use buildLeafMeshFromPhytomer (no plantAge param, no getLeafStage call).
+        //   - Fall back to legacy createLeafBladeOnlyMesh only when the node isn't
+        //     phytomer-bound (Phase 5 prunes this fallback once side-shoots are wired).
+        const phytomerLeaf = meshAnchorNode.phytomer?.leaf;
+        const leafMesh = phytomerLeaf
+          ? buildLeafMeshFromPhytomer(
+              `skinplant_leaf_${seed}_a${axisIdx}_n${nodeIdx}`,
+              scene, phytomerLeaf, genome, leafRng,
+            )
+          : createLeafBladeOnlyMesh(
+              `skinplant_leaf_${seed}_a${axisIdx}_n${nodeIdx}`,
+              scene, node, genome, state.day, leafRng,
+            );
         leafMesh.parent = lushGroup;
         leafMesh.position = new Vector3(tipPlantPos.x, tipPlantPos.y, tipPlantPos.z);
-        // Iter 29 Phase 3 — SKIN-NO-LEAFBASE-01 + SKELETON-ANCHOR-TRANSFORM-01.
-        //   Prefer anchor.rotation (populator copied from PlantBase posture).
-        //   Fallback to LeafBase azimuth/droop preserved for legacy callers
-        //   that don't run the Phase 3 populator yet — Phase 4 removes this fallback.
+        // Iter 29 Phase 4 — canonical rotation via anchor.rotation (SKIN-DATA-DRIVEN-03).
+        //   Plan §13.2: anchor.rotation already encodes PlantBase posture via the
+        //   populator. Legacy leafBase fallback retained only when anchor.rotation
+        //   missing (populator path failure) — Phase 5 LEGACY-ALIAS-REMOVE-02 prunes.
         if (anchor.rotation) {
           leafMesh.rotationQuaternion = new Quaternion(
             anchor.rotation.x, anchor.rotation.y, anchor.rotation.z, anchor.rotation.w,
@@ -710,13 +721,9 @@ export function createSkinMeshPlant(
           leafMesh.rotationQuaternion = Quaternion.RotationAxis(Vector3.Up(), leafBase.azimuthRad)
             .multiply(Quaternion.RotationAxis(new Vector3(0, 0, 1), -leafBase.droopRad));
         }
-        // Iter 29 Phase 3 — material yellowing from phytomer.leaf.senescence
-        //   (Plan SKELETON-PHYTOMER-01). anchor.state removed in Phase 3.
-        //   Fallback to flat node.yellowing for the legacy code path that
-        //   doesn't have phytomer bound — Phase 4 SKIN-NO-GROWTH-LOGIC-01
-        //   makes phytomer canonical.
-        const meshNode = graph.nodes.get(anchor.meshAnchorNodeId ?? anchor.anchorNodeId);
-        const phytomerLeaf = meshNode?.phytomer?.leaf;
+        // Iter 29 Phase 4 — material from phytomer.leaf.senescence.colorDullness.
+        //   PlantBase computes colorDullness; Skin applies (SKIN-SENESCENCE-APPLY-01).
+        //   Fallback for non-phytomer-bound nodes uses flat node.yellowing.
         const yellowing = phytomerLeaf?.senescence?.colorDullness ?? node.yellowing;
         leafMesh.material = yellowing > 0.4 ? yellowLeafMat : leafMat;
         currentMeshes.push(leafMesh);

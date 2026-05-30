@@ -14,8 +14,10 @@ import {
   SeededRandom,
   getLeafStage,
   getLeafBlendedColor,
+  LeafStage,
   type NodeState,
   type PlantGenome,
+  type LeafStageInfo,
 } from '@farmsim/tomato-engine';
 import {
   buildLeafChunk,        // Legacy ShowcasePlant path.
@@ -233,6 +235,168 @@ export function createLeafBladeOnlyMesh(
   const mesh = new Mesh(name, scene);
   applyChunkToMesh(chunk, mesh, vertexColors);
   return mesh;
+}
+
+// ---------------------------------------------------------------------------
+// Iter 29 Phase 4 — canonical Skin builder: data-driven from LeafOrganState.
+// ---------------------------------------------------------------------------
+
+/**
+ * Iter 29 Phase 4 canonical Skin leaf-mesh builder.
+ *
+ * Plan §13.3 (sleepy-growing-pretzel.md):
+ *   buildLeafMesh(leafOrganState, anchor, visualProfile) — Skin reads
+ *   `phytomer.leaf` + `anchor` only. No growth-state recomputation
+ *   (SKIN-NO-GROWTH-LOGIC-01). No `plantAge` parameter (SKIN-DATA-DRIVEN-01).
+ *   No LeafBase.azimuthRad/droopRad direct reads (SKIN-DATA-DRIVEN-03).
+ *
+ * Derives the existing LeafStageInfo struct from LeafOrganState fields so
+ * `buildLeafChunkSkin` keeps the same biology — only the input plumbing
+ * changes. `getLeafStage` is NOT called.
+ *
+ * Visual-only parameters (serration frequency, waviness, petiole length
+ * texture) still flow via `genome` for Phase 4; Phase 5 fully migrates
+ * those onto `cultivar.visualProfile`.
+ *
+ * @param leafOrganState  PlantBase-computed canonical leaf state
+ * @param visualGenome    shape/texture parameters (Phase 5 → visualProfile)
+ * @param rng             seeded RNG per-leaf
+ * @param name            mesh name
+ * @param scene           Babylon Scene
+ */
+export function buildLeafMeshFromPhytomer(
+  name: string,
+  scene: Scene,
+  leafOrganState: {
+    expansionProgress: number;
+    leafletCount: number;
+    currentAreaCm2: number;
+    targetAreaCm2: number;
+    stage: string;
+    posture: { droopDeg: number; curl: number };
+    senescence: { progress: number; colorDullness: number; curl: number };
+    morphology: { serrationDepth: number; lobeDepth: number; petioleLengthM: number };
+  },
+  visualGenome: PlantGenome,
+  rng: SeededRandom,
+): Mesh {
+  if (leafOrganState.expansionProgress < 0.01 && leafOrganState.currentAreaCm2 < 0.5) {
+    return new Mesh(name, scene);
+  }
+
+  // ─── LeafStageInfo derived from LeafOrganState (NO getLeafStage call) ──
+  const stageInfo = leafStageInfoFromOrganState(leafOrganState);
+
+  // Shape: morphology values come from PlantBase (Phase 2A computed); visual
+  // detail params (waviness, serrationFreq, petioleLength texture) still
+  // flow via genome until Phase 5 visualProfile.
+  const shape: LeafShapeParams = {
+    serrationDepth: leafOrganState.morphology.serrationDepth,
+    serrationFreq: visualGenome.leafSerrationFreq,
+    lobeDepth: leafOrganState.morphology.lobeDepth,
+    waviness: visualGenome.leafWaviness,
+    petioleLength: visualGenome.leafPetioleLength,
+  };
+
+  // ageFrac mirrors PlantBase senescence — Skin applies value, doesn't recompute.
+  // visibleAreaFactor (PlantBase senescence) reduces vertex-color baseline.
+  const ageFrac = Math.min(1, leafOrganState.senescence.progress);
+  const curl = leafOrganState.posture.curl + leafOrganState.senescence.curl * 0.5;
+
+  // Size factor — from PlantBase target/current area ratio + cultivar scale.
+  const referenceArea = Math.max(1, leafOrganState.targetAreaCm2);
+  const sizeFactor =
+    (leafOrganState.currentAreaCm2 / referenceArea) * visualGenome.leafSizeMultiplier;
+
+  const chunk = buildLeafChunkSkin(
+    {
+      stageInfo,
+      leafletCount: leafOrganState.leafletCount,
+      sizeFactor,
+      maturity: leafOrganState.expansionProgress,
+      curl,
+      ageFrac,
+      shape,
+    },
+    rng,
+  );
+  // SSOT #186 — Mesh anchor contract (Iter 24 acfad71 vertex shift).
+  normalizeLeafMeshVertices(chunk.positions);
+  const vertexCount = chunk.positions.length / 3;
+  // Senescence colorDullness drives the yellowing channel; waterStress flows
+  // through PlantBase plant-level signal (Phase 4: zero on the leaf entry — Phase 5
+  // wires per-leaf stress from PhytomerNode.leaf.stress).
+  const vertexColors = bakeLeafVertexColors(
+    vertexCount,
+    ageFrac,
+    0,
+    leafOrganState.senescence.colorDullness,
+  );
+  const mesh = new Mesh(name, scene);
+  applyChunkToMesh(chunk, mesh, vertexColors);
+  return mesh;
+}
+
+/**
+ * Build a LeafStageInfo struct from LeafOrganState fields WITHOUT calling
+ * the engine-level `getLeafStage`. Maps PhytomerNode-side stage enum
+ * ('primordium' | 'simple_leaf' | …) to the legacy LeafStage enum
+ * (COTYLEDON | EARLY_TRUE | …) so `buildLeafChunkSkin` consumers keep
+ * working unchanged.
+ *
+ * SKIN-NO-GROWTH-LOGIC-01: this function does NOT call getLeafStage,
+ * leafletCountFromMaturity, computeLeafExpansion, or computeSenescence —
+ * all values are read from the already-populated LeafOrganState fields.
+ */
+function leafStageInfoFromOrganState(input: {
+  expansionProgress: number;
+  leafletCount: number;
+  stage: string;
+  senescence: { progress: number };
+}): LeafStageInfo {
+  const expansion = Math.max(0, Math.min(1, input.expansionProgress));
+  const senescenceP = Math.max(0, Math.min(1, input.senescence.progress));
+
+  // Senescent / pruned override regardless of expansion
+  if (senescenceP >= 0.3 && input.stage === 'senescent') {
+    return {
+      stage: LeafStage.SENESCENT,
+      blendT: senescenceP,
+      leafletCount: input.leafletCount,
+      serrationStrength: 1,
+      lobeStrength: 1,
+    };
+  }
+  if (input.stage === 'removed') {
+    return {
+      stage: LeafStage.PRUNED,
+      blendT: 0,
+      leafletCount: 0,
+      serrationStrength: 0,
+      lobeStrength: 0,
+    };
+  }
+
+  // EARLY_TRUE (expansion < 0.4)
+  if (expansion < 0.4) {
+    const blendT = expansion / 0.4;
+    return {
+      stage: LeafStage.EARLY_TRUE,
+      blendT,
+      leafletCount: input.leafletCount,
+      serrationStrength: blendT * 0.4,
+      lobeStrength: blendT * 0.3,
+    };
+  }
+  // COMPOUND_DEVELOPING / COMPOUND_MATURE
+  const t = (expansion - 0.4) / 0.6;
+  return {
+    stage: t < 0.5 ? LeafStage.COMPOUND_DEVELOPING : LeafStage.COMPOUND_MATURE,
+    blendT: t,
+    leafletCount: input.leafletCount,
+    serrationStrength: 0.4 + t * 0.6,
+    lobeStrength: 0.5 + t * 0.5,
+  };
 }
 
 const cachedLeafMaterial = new WeakMap<Scene, PBRMaterial>();
