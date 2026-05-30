@@ -199,21 +199,23 @@ function fillLeafAnchor(
   //
   // SKELETON-ANCHOR-POSTURE-01 (Iter 29): rotation _copied_ from PlantBase posture.
   // SKELETON-ANCHOR-TRANSFORM-01 (Iter 29): Quat4 출력.
-  // ★ Iter 31 Phase 10.2 (사용자 통찰): 줄기 벡터 _그대로_ 적용.
+  // ★ Iter 31 Phase 10.3 (R25 — 사용자 통찰):
+  //   "줄기가 아래로 꺾여있으면 그걸 그대로 mesh 방향에 적용"
+  //   "WORLD_UP_LOCAL = 불필요한 수식" — stem 휜 정보 무시.
   //
-  // 사용자: "원래는 줄기 벡터 그대로 적용하면 되어야 돼. 별도로 산수할 필요 없어."
+  // Phase 10.2 (WORLD_UP 강제): blade up이 _world 기준_ 위 → stem 휘어도 blade
+  //   horizontal 유지. _stem 휘었다는 정보_ 무시.
   //
-  // 잎 회전 = 2 vector (petioleDir + bladeUp). 그 둘이 정확히:
-  //   petioleDir = stemFrame.normal (parallel-transport, phyllotaxy 표현)
-  //   bladeUp    = world up (잎 면 위 향함, 정상 토마토)
+  // R25 fix: bladeUp = stemFrame.tangent (stem 위 방향).
+  //   - mesh +x → stemFrame.normal (petiole 방향, stem outward)
+  //   - mesh +y → stemFrame.tangent (blade normal, stem 위 = leaf 따라감)
+  //   - stem이 휘면 leaf도 같이 휨 (자연)
   //
-  // droop은 _mesh vertex deformation_으로 이미 처리 (R16+R17 longitudinalDroop).
-  // _잎 전체 회전_에 droop 다시 적용 = double counting (Phase 10.1 결함).
-  const WORLD_UP_LOCAL = { x: 0, y: 1, z: 0 };
+  // parallel-transport frame이 _tangent ⊥ normal_ 보장 → orthonormal OK.
   if (nodeState) {
     const posture = nodeState.leaf.posture;
     if (meshNode?.frame) {
-      anchor.rotation = makeLeafQuaternion(meshNode.frame.normal, WORLD_UP_LOCAL);
+      anchor.rotation = makeLeafQuaternion(meshNode.frame.normal, meshNode.frame.tangent);
     } else {
       anchor.rotation = composeLeafRotation(
         posture.azimuthDeg,
@@ -223,7 +225,7 @@ function fillLeafAnchor(
     }
   } else if (leaf) {
     if (meshNode?.frame) {
-      anchor.rotation = makeLeafQuaternion(meshNode.frame.normal, WORLD_UP_LOCAL);
+      anchor.rotation = makeLeafQuaternion(meshNode.frame.normal, meshNode.frame.tangent);
     } else {
       const azDeg = (leaf.azimuthRad ?? 0) * (180 / Math.PI);
       const droopDeg = (leaf.droopRad ?? 0) * (180 / Math.PI);
