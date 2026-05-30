@@ -199,44 +199,45 @@ function fillLeafAnchor(
   //
   // SKELETON-ANCHOR-POSTURE-01 (Iter 29): rotation _copied_ from PlantBase posture.
   // SKELETON-ANCHOR-TRANSFORM-01 (Iter 29): Quat4 출력.
-  // ★ Iter 31 Phase 10.3 (R25 — 사용자 통찰):
-  //   "줄기가 아래로 꺾여있으면 그걸 그대로 mesh 방향에 적용"
-  //   "WORLD_UP_LOCAL = 불필요한 수식" — stem 휜 정보 무시.
+  // ★ Iter 31 Phase 10.5 (R26 — 사용자 통찰):
   //
-  // Phase 10.2 (WORLD_UP 강제): blade up이 _world 기준_ 위 → stem 휘어도 blade
-  //   horizontal 유지. _stem 휘었다는 정보_ 무시.
+  // 사용자: "줄기는 curve 함수가 적용되어 있는거일꺼 아니야 / 마지막 curve의 x,y,z 함수의
+  //         기울기값이라는게 존재할거고, 그거대로 마지막 vector값을 계산해서 전달"
   //
-  // R25 fix: bladeUp = stemFrame.tangent (stem 위 방향).
-  //   - mesh +x → stemFrame.normal (petiole 방향, stem outward)
-  //   - mesh +y → stemFrame.tangent (blade normal, stem 위 = leaf 따라감)
-  //   - stem이 휘면 leaf도 같이 휨 (자연)
+  // ★ leaf_blade anchor는 _petiole edge_의 organAnchor (buildTomatoSkeletonGraph.ts:268).
+  //   즉 _이 edge_가 _petiole edge_. edge.bonePath = petiole curve의 bones.
+  //   edge.bonePath[last] = 마지막 segment (사용자 ASCII의 1번 구간).
+  //   그 bone의 p1 - p0 = ★ leaf vector (마지막 segment tangent, _이미 PlantBase가 만든 curve_).
   //
-  // parallel-transport frame이 _tangent ⊥ normal_ 보장 → orthonormal OK.
-  if (nodeState) {
+  // 산수 _추가 0_ — PlantBase petioleCurve의 마지막 tangent _그대로_ 사용.
+  //
+  // 이전 시도 (모두 _근사_):
+  //   Phase 10.1 computeLeafPetioleAndBladeAxes — horizontal + droop _계산_ (근사)
+  //   Phase 10.2 stemFrame.normal + WORLD_UP — droop 무시 (근사)
+  //   R25 stemFrame.tangent — stem 위 방향 (잘못된 가정)
+  //
+  // ★ R26 — _실제 curve_의 마지막 tangent _직접_ 추출.
+  if (edge.bonePath.length > 0) {
+    const lastBone = edge.bonePath[edge.bonePath.length - 1];
+    const petioleTipTangent = {
+      x: lastBone.p1.x - lastBone.p0.x,
+      y: lastBone.p1.y - lastBone.p0.y,
+      z: lastBone.p1.z - lastBone.p0.z,
+    };
+    const WORLD_UP_LOCAL = { x: 0, y: 1, z: 0 };
+    anchor.rotation = makeLeafQuaternion(petioleTipTangent, WORLD_UP_LOCAL);
+  } else if (nodeState) {
     const posture = nodeState.leaf.posture;
-    if (meshNode?.frame) {
-      anchor.rotation = makeLeafQuaternion(meshNode.frame.normal, meshNode.frame.tangent);
-    } else {
-      anchor.rotation = composeLeafRotation(
-        posture.azimuthDeg,
-        posture.droopDeg,
-        posture.twistDeg,
-      );
-    }
+    anchor.rotation = composeLeafRotation(posture.azimuthDeg, posture.droopDeg, posture.twistDeg);
   } else if (leaf) {
-    if (meshNode?.frame) {
-      anchor.rotation = makeLeafQuaternion(meshNode.frame.normal, meshNode.frame.tangent);
-    } else {
-      const azDeg = (leaf.azimuthRad ?? 0) * (180 / Math.PI);
-      const droopDeg = (leaf.droopRad ?? 0) * (180 / Math.PI);
-      anchor.rotation = composeLeafRotation(azDeg, droopDeg, 0);
-    }
+    const azDeg = (leaf.azimuthRad ?? 0) * (180 / Math.PI);
+    const droopDeg = (leaf.droopRad ?? 0) * (180 / Math.PI);
+    anchor.rotation = composeLeafRotation(azDeg, droopDeg, 0);
   } else {
     anchor.rotation = IDENTITY_QUAT;
   }
 
-  // Mark unused (composeLeafRotationLocal, computeLeafPetioleAndBladeAxes는
-  // Phase 10.2에서 _완전_ 사용 안 함 — Iter 32 cleanup 후보)
+  // Mark unused (legacy paths)
   void composeLeafRotationLocal;
   void computeLeafPetioleAndBladeAxes;
 
