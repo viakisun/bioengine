@@ -138,10 +138,31 @@ export function composeLeafRotationLocal(
   // Step 2: twist around stem outward direction (petiole axis).
   const qTwist = quatAroundAxis(stemFrame.normal, twistDeg);
 
-  // Step 3: droop around binormal. Positive droop = blade _아래로_ 처짐 (gravity).
-  // -droopDeg sign convention: world up vector가 _stemFrame.normal 방향으로_ 기울임 (즉 blade가 아래로).
-  const binormal = cross3(stemFrame.tangent, stemFrame.normal);
-  const qDroop = quatAroundAxis(binormal, -droopDeg);
+  // ★ Iter 31 Phase 9.5 (R18 fix) — droop axis = horizontal ⊥ petiole.
+  //
+  // 진단 (사용자 사진 #4 D=30 top-down): 모든 leaf가 일관된 30° 우측 tilt.
+  // 원인: stemFrame.tangent가 _stem 휨_으로 horizontal component (예 D=30 idx=10:
+  // (0.61, -0.32, -0.72)) → binormal = cross(tangent, normal) = _거의 vertical_
+  // (y=0.94) → droop 회전이 _vertical axis 주위_ = horizontal plane 회전
+  // (gravity drop이 아니라 spiral).
+  //
+  // 정상 cantilever droop: petiole이 _world -Y_ 방향으로 처짐.
+  // Fix: droop axis = WORLD_UP × (stemFrame.normal projected onto horizontal plane)
+  //      = horizontal axis perpendicular to petiole horizontal direction.
+  //      이 axis 주위 회전 → petiole이 _아래로_ tilt (정상 gravity drop).
+  //
+  // ★ 하드코딩 _없음_ — binormal 산식 자체가 stem 휨에 따라 vertical 결과 발생.
+  const stemNormalH = {
+    x: stemFrame.normal.x,
+    y: 0,
+    z: stemFrame.normal.z,
+  };
+  const stemNormalHLen = Math.sqrt(stemNormalH.x * stemNormalH.x + stemNormalH.z * stemNormalH.z);
+  const stemNormalHNorm = stemNormalHLen > 1e-6
+    ? { x: stemNormalH.x / stemNormalHLen, y: 0, z: stemNormalH.z / stemNormalHLen }
+    : { x: 1, y: 0, z: 0 };
+  const droopAxis = cross3({ x: 0, y: 1, z: 0 }, stemNormalHNorm);
+  const qDroop = quatAroundAxis(droopAxis, -droopDeg);
 
   // ★ Iter 31 Phase 9.3 (R14 fix) — azimuth 회전 제거.
   //
