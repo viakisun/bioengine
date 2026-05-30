@@ -44,7 +44,9 @@ export interface LeafBuildParams {
   stageInfo?: LeafStageInfo;
   /** Total leaflet count (integer count; fractional rounded but smoothed via outermost-pair scale). */
   leafletCount: number;
-  /** Scale factor — leafSizeFactor × leafSizeMultiplier */
+  /** Scale factor — leafSizeFactor × leafSizeMultiplier.
+   *  ★ Iter 31 Phase 2 (R5 fix): legacy backward-compat field. Canonical Skin path
+   *  uses `leafAxisLengthScale` + `leafletBladeScale` (PlantBase computed) 대신. */
   sizeFactor: number;
   /** Leaf expansion 0–1 (typically leafMaturity) */
   maturity: number;
@@ -54,14 +56,26 @@ export interface LeafBuildParams {
   ageFrac: number;
   /** Per-plant shape (typically from genome.leaf* fields) */
   shape?: LeafShapeParams;
-  /** Iter 18B PR 5 — Skin variant: omit the rachis spine cylinder.
-   *  buildLeafBladeOnly only. Leaflets remain at their mesh-local positions
-   *  along the (now-invisible) rachis line. */
+  /** Iter 18B PR 5 — Skin variant: omit the rachis spine cylinder. */
   omitRachis?: boolean;
-  /** Iter 18B PR 6 — Skin variant: omit the per-leaflet petiolule cylinders
-   *  (small 8mm sticks between rachis and each leaflet). buildLeafBladeOnly
-   *  only. Leaflets remain in place (petiolule was cosmetic). */
+  /** Iter 18B PR 6 — Skin variant: omit the per-leaflet petiolule cylinders. */
   omitPetiolules?: boolean;
+
+  // ─── Iter 31 Phase 2 (R5 fix) — Canonical Skin path inputs ───
+  // ★ PlantBase가 _계산_, Skin은 _읽고 곱하기만_. 옵셔널 (legacy callers backward compat).
+
+  /** PlantBase computeLeafGeometryProjection().leafAxisLengthScale —
+   *  petiole + rachis 길이에 곱해질 _절대_ scale (cultivar reference 정규화 +
+   *  lengthMaturity × apicalYouthFactor 적용). */
+  leafAxisLengthScale?: number;
+  /** PlantBase computeLeafGeometryProjection().leafletBladeScale —
+   *  leaflet blade에 곱해질 scale. lengthMaturity × apicalYouthFactor _제외_
+   *  (currentAreaCm2가 이미 area 반영 — double scaling guard). */
+  leafletBladeScale?: number;
+  /** Cultivar reference rachis length (m). Replaces hardcoded 0.32. */
+  referenceRachisLengthM?: number;
+  /** Cultivar reference petiole length (m). Replaces visualGenome.leafPetioleLength fallback. */
+  referencePetioleLengthM?: number;
 }
 
 export function buildLeafChunk(paramsArg: LeafBuildParams, rng: SeededRandom): GeoChunk {
@@ -283,8 +297,29 @@ export function buildLeafBladeOnly(paramsArg: LeafBuildParams, rng: SeededRandom
 
   const chunks: GeoChunk[] = [];
 
-  const petioleLen = params.petioleLength * sizeFactor * maturity;
-  const rachisLen = 0.32 * sizeFactor * maturity;
+  // ─── Iter 31 Phase 2 (R5 fix) — Length computation ───
+  //
+  // ★ Canonical Skin path: leafAxisLengthScale + reference rachis/petiole 사용.
+  //   PlantBase가 _이미_ sqrt(current/reference) × lengthMaturity × apicalYouthFactor를
+  //   계산해서 leafAxisLengthScale에 담아 전달.
+  //   leafChunk는 _절대 reference_와 곱하기만 (cultivar-차등화된 mature length).
+  //
+  // ★ Legacy fallback (sizeFactor × maturity): canonical 필드 미전달 시.
+  //   기존 ShowcasePlant + 기타 호출 backward compat.
+  const refRachisM = paramsArg.referenceRachisLengthM;
+  const refPetioleM = paramsArg.referencePetioleLengthM;
+  const axisScale = paramsArg.leafAxisLengthScale;
+  const petioleLen =
+    refPetioleM != null && axisScale != null
+      ? refPetioleM * axisScale
+      : params.petioleLength * sizeFactor * maturity;
+  const rachisLen =
+    refRachisM != null && axisScale != null
+      ? refRachisM * axisScale
+      : 0.32 * sizeFactor * maturity;
+  // leaflet blade scale — canonical 시 leafletBladeScale (lengthMaturity 제외)
+  // legacy fallback: sizeFactor × maturity² (기존 expansionScale logic).
+  const bladeBase = paramsArg.leafletBladeScale ?? sizeFactor;
 
   // Petiole cylinder INTENTIONALLY OMITTED — the SDF skin mesh covers
   // the petiole region (its capsule centerline is PlantBase.petioleCurve).
@@ -300,8 +335,10 @@ export function buildLeafBladeOnly(paramsArg: LeafBuildParams, rng: SeededRandom
   //       so it must stay hoisted regardless of omitRachis.
   const rachisDroopFactor = 0.12 + af * 0.45;
   if (!paramsArg.omitRachis) {
-    const rachisBaseRadius = 0.0010 * sizeFactor;
-    const rachisTipRadius = 0.0005 * sizeFactor;
+    // ★ Iter 31 Phase 2 — rachis radius도 axisScale (없으면 legacy sizeFactor)
+    const rachisAxisScale = axisScale ?? sizeFactor;
+    const rachisBaseRadius = 0.0010 * rachisAxisScale;
+    const rachisTipRadius = 0.0005 * rachisAxisScale;
     const rachis = createCylinderChunk(rachisTipRadius, rachisBaseRadius, rachisLen, 4, 8, true);
     rotateChunkZ(rachis, -Math.PI / 2);
     translateChunk(rachis, petioleLen + rachisLen / 2, 0, 0);
@@ -323,10 +360,14 @@ export function buildLeafBladeOnly(paramsArg: LeafBuildParams, rng: SeededRandom
 
     const isTerminal = i === pairs;
     const baseSizeMod = isTerminal ? 1.2 : 0.5 + 0.5 * Math.sin(t * Math.PI);
-    const expansionScale = maturity * maturity;
+    // ★ Iter 31 Phase 2 (R5 fix) — leafletSize는 _blade scale_ 사용.
+    //   canonical (leafletBladeScale): currentArea가 이미 반영, expansionScale 불필요.
+    //   legacy (sizeFactor): 기존 maturity² expansionScale 유지.
+    const isCanonicalBlade = paramsArg.leafletBladeScale != null;
+    const expansionScale = isCanonicalBlade ? 1 : (maturity * maturity);
     const isOutermost = !isTerminal && i === pairs - 1;
     const stageScale = isOutermost ? outerScale : 1;
-    const leafletSize = 0.12 * sizeFactor * expansionScale * baseSizeMod * stageScale * rng.range(0.92, 1.08);
+    const leafletSize = 0.12 * bladeBase * expansionScale * baseSizeMod * stageScale * rng.range(0.92, 1.08);
 
     const leafletDroopRange = 0.14 + af * 0.48;
     const leafletTwistRange = 0.08 + af * 0.28;

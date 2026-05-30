@@ -35,7 +35,9 @@ import {
   type TrussOrganState,
   type SideShootState,
   type LeafAllocationState,
+  type LeafGeometryProjectionState,
   computeLeafExpansionProgress,
+  computeLeafGeometryProjection,
   makeLeafOrganStateFromFlat,
   applyMorphologyVariance,
   composeLeafAllocation,
@@ -818,6 +820,21 @@ function populateSideShootChain(
     const sideTargetAreaCm2 =
       (leafAreaCm2 / (sideExpSafe * sideExpSafe)) * sideSourceSinkProxyV1;
     const sideCurrentAreaCm2 = Math.min(leafAreaCm2, sideTargetAreaCm2);
+    // Iter 31 Phase 2 (R5) — side-shoot leaf geometry projection.
+    // ★ side-shoot도 동일 PlantBase 산식. Skin은 적용만.
+    const sideLeafGeometryProjection = computeLeafGeometryProjection({
+      currentAreaCm2: sideCurrentAreaCm2,
+      ageTT: sideAgeTT,
+      referenceLeafAreaCm2: cultivar.growthProfile.referenceLeafAreaCm2
+        ?? cultivar.growthProfile.maxLeafAreaCm2,
+      referenceRachisLengthM: cultivar.growthProfile.referenceRachisLengthM ?? 0.30,
+      referencePetioleLengthM: cultivar.growthProfile.referencePetioleLengthM ?? 0.10,
+      leafExpansionDurationTT: cultivar.growthProfile.leafExpansionDurationTT,
+      leafLengthExpansionDurationTT:
+        cultivar.growthProfile.leafLengthExpansionDurationTT,
+      leafSizeMultiplier: genome.leafSizeMultiplier,
+    });
+
     const sideLeafOrgan: LeafOrganState = makeLeafOrganStateFromFlat({
       nodeIndex: k,
       initiationTT: sideInitiationTT,
@@ -834,6 +851,8 @@ function populateSideShootChain(
       senescence: sideSenescenceState,
       // Phase 2 allocation 4-factor
       allocation: sideAllocationPhase2,
+      // Iter 31 Phase 2 (R5) — geometry projection
+      geometryProjection: sideLeafGeometryProjection,
     });
     let sideTrussOrgan: TrussOrganState | undefined;
     if (nodeTruss !== null) {
@@ -1432,6 +1451,24 @@ export function computePlantState(
     const targetAreaCm2 = targetAreaCm2_linear;
     const currentAreaCm2 = Math.min(targetAreaCm2, currentAreaCm2_linear);
 
+    // Iter 31 Phase 2 — Leaf geometry projection (PlantBase 산식).
+    //
+    // ★ Skin은 _읽고 곱하기만_. 모든 ageTT × cultivar × sigmoid 계산은 여기서 끝남.
+    // sqrt(current/reference) + cultivar reference rachis/petiole + lengthMaturity ×
+    // apicalYouthFactor (어린 leaf axis gate, R5 fix).
+    const mainLeafGeometryProjection = computeLeafGeometryProjection({
+      currentAreaCm2,
+      ageTT,
+      referenceLeafAreaCm2: cultivar.growthProfile.referenceLeafAreaCm2
+        ?? cultivar.growthProfile.maxLeafAreaCm2,
+      referenceRachisLengthM: cultivar.growthProfile.referenceRachisLengthM ?? 0.30,
+      referencePetioleLengthM: cultivar.growthProfile.referencePetioleLengthM ?? 0.10,
+      leafExpansionDurationTT: cultivar.growthProfile.leafExpansionDurationTT,
+      leafLengthExpansionDurationTT:
+        cultivar.growthProfile.leafLengthExpansionDurationTT,
+      leafSizeMultiplier: genome.leafSizeMultiplier,
+    });
+
     const leafOrgan: LeafOrganState = makeLeafOrganStateFromFlat({
       nodeIndex: i,
       initiationTT,
@@ -1448,6 +1485,8 @@ export function computePlantState(
       senescence: senescenceState,
       // Phase 2 allocation 4-factor (axisCapacityFactor는 Pass 3 후 갱신)
       allocation: allocationPhase2,
+      // Iter 31 Phase 2 (R5) — geometry projection (PlantBase 계산, Skin 적용만)
+      geometryProjection: mainLeafGeometryProjection,
     });
 
     // Iter 29 Phase 2A — Truss/SideShoot state shell (PHYTOMER-ORGAN-SHELL-01)

@@ -276,6 +276,13 @@ export function buildLeafMeshFromPhytomer(
     posture: { droopDeg: number; curl: number };
     senescence: { progress: number; colorDullness: number; curl: number };
     morphology: { serrationDepth: number; lobeDepth: number; petioleLengthM: number };
+    // Iter 31 Phase 2 (R5 fix) — optional canonical geometry projection.
+    geometryProjection?: {
+      leafAxisLengthScale: number;
+      leafletBladeScale: number;
+      referenceRachisLengthM: number;
+      referencePetioleLengthM: number;
+    };
   },
   visualGenome: PlantGenome,
   rng: SeededRandom,
@@ -303,20 +310,36 @@ export function buildLeafMeshFromPhytomer(
   const ageFrac = Math.min(1, leafOrganState.senescence.progress);
   const curl = leafOrganState.posture.curl + leafOrganState.senescence.curl * 0.5;
 
-  // Size factor — from PlantBase target/current area ratio + cultivar scale.
+  // ─── Iter 31 Phase 2 (R5 fix) — Geometry projection ───
+  //
+  // ★ PlantBase가 _계산_, Skin은 _읽고 곱하기만_. 어떤 ageTT / cultivar / sigmoid
+  //   계산도 Skin에서 하지 않음 (Iter 29 책임 분리 보존).
+  //
+  // canonical: leafOrganState.geometryProjection (PlantBase computeLeafGeometryProjection)
+  // legacy fallback: 기존 (current/target) ratio _sqrt 적용_ (mature-small leaf 문제 완화).
+  const projection = leafOrganState.geometryProjection;
+  // Legacy sizeFactor (back compat for state shapes without geometryProjection).
+  // ★ 정정: legacy도 sqrt 적용 — current/target ratio가 1.0이라도 _sqrt 효과_는 minimal.
   const referenceArea = Math.max(1, leafOrganState.targetAreaCm2);
-  const sizeFactor =
-    (leafOrganState.currentAreaCm2 / referenceArea) * visualGenome.leafSizeMultiplier;
+  const legacySizeFactor =
+    Math.sqrt(Math.max(0, leafOrganState.currentAreaCm2 / referenceArea))
+    * visualGenome.leafSizeMultiplier;
 
   const chunk = buildLeafChunkSkin(
     {
       stageInfo,
       leafletCount: leafOrganState.leafletCount,
-      sizeFactor,
+      // sizeFactor — legacy fallback (canonical path는 leafAxisLengthScale + leafletBladeScale 사용)
+      sizeFactor: legacySizeFactor,
       maturity: leafOrganState.expansionProgress,
       curl,
       ageFrac,
       shape,
+      // ★ Iter 31 Phase 2 canonical fields (PlantBase 계산값 그대로 전달).
+      leafAxisLengthScale: projection?.leafAxisLengthScale,
+      leafletBladeScale: projection?.leafletBladeScale,
+      referenceRachisLengthM: projection?.referenceRachisLengthM,
+      referencePetioleLengthM: projection?.referencePetioleLengthM,
     },
     rng,
   );

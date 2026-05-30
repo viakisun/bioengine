@@ -267,6 +267,157 @@ export interface LeafOrganState {
    * Backward compat: optional ?:.
    */
   allocation?: LeafAllocationState;
+
+  /**
+   * Iter 31 Phase 2 (R5 fix) — Leaf geometry projection state.
+   *
+   * ★ PlantBase가 _계산_, Skin은 _읽고 적용만_ (책임 분리).
+   * sqrt(currentArea / referenceLeafArea) + cultivar reference rachis/petiole +
+   * ageTT 기반 lengthMaturity × apicalYouthFactor.
+   *
+   * Skin은 `geometryProjection.leafAxisLengthScale` (petiole/rachis 용) 또는
+   * `geometryProjection.leafletBladeScale` (blade 용)을 곱하기만.
+   *
+   * Backward compat: optional ?:.
+   */
+  geometryProjection?: LeafGeometryProjectionState;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Iter 31 Phase 2 (R5 fix) — Leaf Geometry Projection State.
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * LeafGeometryProjectionState — Plan §3 (Iter 31 v3).
+ *
+ * PlantBase가 cultivar reference + currentAreaCm2 + ageTT로 계산.
+ * Skin은 _읽고 곱하기만_ — 어떤 ageTT/sigmoid 계산도 하지 않음.
+ *
+ * 9 필드 = reference 3 + area-derived 2 + time-derived 2 + final scales 2.
+ */
+export interface LeafGeometryProjectionState {
+  // ─── Input refs (cultivar/genome resolved) ───
+  /** Reference leaf area for length normalization (cm²). */
+  referenceLeafAreaCm2: number;
+  /** Reference petiole length at mature leaf (m). */
+  referencePetioleLengthM: number;
+  /** Reference rachis length at mature leaf (m). */
+  referenceRachisLengthM: number;
+
+  // ─── Area-derived (current 기준 _절대_) ───
+  /** = currentAreaCm2 / referenceLeafAreaCm2 (clamp ≥ 0). */
+  absoluteAreaRatio: number;
+  /** = sqrt(absoluteAreaRatio) × leafSizeMultiplier. blade scale의 base. */
+  linearAreaScale: number;
+
+  // ─── Time-derived (ageTT 기반) ───
+  /** sigmoid(ageTT, lengthDuration) — length는 area보다 _먼저_ 완성. */
+  lengthMaturity: number;
+  /** clamp(ageTT / YOUNG_LEAF_FULL_LENGTH_TT, 0.05, 1.0) — 어린 leaf gate. */
+  apicalYouthFactor: number;
+
+  // ─── Final scales (용도별 분리) ───
+  /** petiole + rachis 길이 용. = linearAreaScale × lengthMaturity × apicalYouthFactor. */
+  leafAxisLengthScale: number;
+  /** leaflet blade 용. = linearAreaScale (★ double scaling 방지 — lengthMaturity 제외). */
+  leafletBladeScale: number;
+}
+
+const YOUNG_LEAF_FULL_LENGTH_TT = 80;  // ~6 day @ ~13 GDD/day
+
+/**
+ * Iter 31 Phase 2.A — PlantBase canonical projection 산식.
+ *
+ * Botanical fact: 2D leaf area의 1D length는 sqrt(area)에 비례.
+ * cultivar reference로 _절대_ 정규화 (current/target이 아닌 current/reference).
+ *
+ * 호출 위치: GrowthModel.ts Pass 3 후 각 leaf마다.
+ * 결과: leaf.geometryProjection 채움.
+ *
+ * 사용처: Skin LeafGenerator.ts가 leafAxisLengthScale / leafletBladeScale을 곱하기만.
+ */
+export function computeLeafGeometryProjection(input: {
+  currentAreaCm2: number;
+  ageTT: number;
+  referenceLeafAreaCm2: number;
+  referencePetioleLengthM: number;
+  referenceRachisLengthM: number;
+  leafExpansionDurationTT: number;
+  leafLengthExpansionDurationTT?: number;
+  leafSizeMultiplier: number;
+}): LeafGeometryProjectionState {
+  const refArea = Math.max(1, input.referenceLeafAreaCm2);
+  const absoluteAreaRatio = Math.max(0, input.currentAreaCm2) / refArea;
+  const linearAreaScale =
+    Math.sqrt(absoluteAreaRatio) * Math.max(0, input.leafSizeMultiplier);
+
+  const lengthDuration =
+    input.leafLengthExpansionDurationTT
+    ?? Math.max(1, input.leafExpansionDurationTT * 0.5);
+  // Reuse existing sigmoid k pattern from computeLeafExpansionProgress.
+  const lengthMaturity = leafLengthSigmoid(input.ageTT, lengthDuration);
+
+  const apicalYouthFactor = Math.max(0.05, Math.min(1.0,
+    input.ageTT / YOUNG_LEAF_FULL_LENGTH_TT,
+  ));
+
+  const leafAxisLengthScale = linearAreaScale * lengthMaturity * apicalYouthFactor;
+  // ★ leafletBladeScale은 lengthMaturity × apicalYouthFactor _제외_ —
+  //   currentAreaCm2가 이미 area 반영하므로 blade에 length gate 곱하면 double scaling.
+  const leafletBladeScale = linearAreaScale;
+
+  return {
+    referenceLeafAreaCm2: refArea,
+    referencePetioleLengthM: Math.max(0, input.referencePetioleLengthM),
+    referenceRachisLengthM: Math.max(0, input.referenceRachisLengthM),
+    absoluteAreaRatio,
+    linearAreaScale,
+    lengthMaturity,
+    apicalYouthFactor,
+    leafAxisLengthScale,
+    leafletBladeScale,
+  };
+}
+
+/**
+ * Leaf length expansion sigmoid — area sigmoid와 동일 형태이나 mid-point가
+ * lengthDuration (보통 areaDuration × 0.5)에서 0.5로 떨어짐.
+ */
+function leafLengthSigmoid(ageTT: number, durationTT: number): number {
+  if (durationTT <= 0) return 1;
+  const k = 6 / durationTT;  // 0~duration에 sigmoid spread
+  const x = (ageTT - durationTT * 0.5) * k;
+  return 1 / (1 + Math.exp(-x));
+}
+
+/**
+ * Dev-only assert: geometryProjection 산식 일관성 검증.
+ *
+ * 검증:
+ *   - linearAreaScale ≥ 0
+ *   - leafAxisLengthScale ≤ linearAreaScale (lengthMaturity × apicalYouthFactor ≤ 1)
+ *   - leafletBladeScale == linearAreaScale (double scaling 금지)
+ */
+export function assertLeafGeometryProjectionValid(
+  s: LeafGeometryProjectionState,
+  hint?: string,
+): void {
+  const ctx = hint ? ` (${hint})` : '';
+  if (!(s.linearAreaScale >= 0)) {
+    throw new Error(`linearAreaScale must be ≥ 0${ctx}: ${s.linearAreaScale}`);
+  }
+  if (s.leafAxisLengthScale > s.linearAreaScale + 1e-6) {
+    throw new Error(
+      `leafAxisLengthScale > linearAreaScale${ctx}: ` +
+      `${s.leafAxisLengthScale.toFixed(4)} > ${s.linearAreaScale.toFixed(4)}`,
+    );
+  }
+  if (Math.abs(s.leafletBladeScale - s.linearAreaScale) > 1e-6) {
+    throw new Error(
+      `leafletBladeScale ≠ linearAreaScale${ctx} (double scaling guard 위반): ` +
+      `${s.leafletBladeScale.toFixed(4)} vs ${s.linearAreaScale.toFixed(4)}`,
+    );
+  }
 }
 
 /**
@@ -429,6 +580,8 @@ export function makeLeafOrganStateFromFlat(input: {
   senescence: LeafSenescenceState;
   /** Phase 2 신규 — LeafAllocationState. Optional for backward compat. */
   allocation?: LeafAllocationState;
+  /** Iter 31 Phase 2 신규 — LeafGeometryProjectionState. Optional for backward compat. */
+  geometryProjection?: LeafGeometryProjectionState;
 }): LeafOrganState {
   return {
     nodeIndex: input.nodeIndex,
@@ -447,6 +600,7 @@ export function makeLeafOrganStateFromFlat(input: {
     posture: input.posture,
     senescence: input.senescence,
     allocation: input.allocation,
+    geometryProjection: input.geometryProjection,
   };
 }
 

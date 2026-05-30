@@ -99,6 +99,50 @@ export interface CultivarGrowthProfile {
    * Backward compat: optional ?:.
    */
   sideShootPotential?: number;
+
+  // ───────────────────────────────────────────────────────────────────
+  // Iter 31 Phase 2 (R5 fix) — Geometry projection reference parameters.
+  //
+  // Skin은 _절대_ 크기 기반 length scale을 위해 cultivar reference를 사용.
+  // current/target ratio (Iter 29 결함)가 아니라 current/reference ratio.
+  // ───────────────────────────────────────────────────────────────────
+
+  /**
+   * Reference leaf area for geometry length normalization (cm²).
+   * Mature average leaf area for this cultivar — sqrt(current/reference)가
+   * leaf의 _절대_ linear dimension scale을 결정.
+   *
+   * Default: maxLeafAreaCm2 (= 700 medium standard).
+   * Cherry: ~500 / Beefsteak: ~900.
+   *
+   * Backward compat: optional, default = maxLeafAreaCm2.
+   */
+  referenceLeafAreaCm2?: number;
+
+  /**
+   * Reference rachis length at mature leaf (m). Iter 30 Phase 5 정의됨,
+   * Iter 31 Phase 2.B에서 leafChunk.ts hardcoded 0.32m 대체.
+   *
+   * Default: 0.30 medium. Cherry: 0.20 / Beefsteak: 0.35.
+   */
+  referenceRachisLengthM?: number;
+
+  /**
+   * Reference petiole length at mature leaf (m). Iter 31 Phase 2 신규.
+   * leafChunk.ts에서 cultivar-independent visualGenome.leafPetioleLength
+   * fallback 대체.
+   *
+   * Default: 0.10 medium. Cherry: 0.07 / Beefsteak: 0.12.
+   */
+  referencePetioleLengthM?: number;
+
+  /**
+   * Iter 31 Phase 2.C — Leaf _length_ expansion duration (GDD).
+   * Botanical fact: leaf length는 area보다 _먼저_ 완성 (≈ 50% of area duration).
+   *
+   * Default: leafExpansionDurationTT × 0.5. cultivar override 가능.
+   */
+  leafLengthExpansionDurationTT?: number;
 }
 
 /**
@@ -117,6 +161,11 @@ export const DEFAULT_CULTIVAR_GROWTH_PROFILE: CultivarGrowthProfile = {
   trussIntervalNodes: 3,
   baseStemRadiusMm: 8,
   sourceSinkSensitivity: 0.35,     // Marcelis 1996 sink leaf
+  // Iter 31 Phase 2 defaults (optional, all backward compat)
+  referenceLeafAreaCm2: 700,                  // medium standard mature ref
+  referenceRachisLengthM: 0.30,               // medium
+  referencePetioleLengthM: 0.10,              // medium
+  leafLengthExpansionDurationTT: 200,         // = areaDuration × 0.5
   sideShootPotential: 0.4,         // Iter 30 Phase 4 — medium suppression
 };
 
@@ -160,6 +209,19 @@ export function resolveCultivarGrowthProfile(
     // Iter 30 Phase 4 — optional side-shoot allocation potential.
     sideShootPotential:
       p.sideShootPotential ?? DEFAULT_CULTIVAR_GROWTH_PROFILE.sideShootPotential,
+    // Iter 31 Phase 2 — geometry projection reference parameters.
+    referenceLeafAreaCm2:
+      p.referenceLeafAreaCm2
+      ?? DEFAULT_CULTIVAR_GROWTH_PROFILE.referenceLeafAreaCm2,
+    referenceRachisLengthM:
+      p.referenceRachisLengthM
+      ?? DEFAULT_CULTIVAR_GROWTH_PROFILE.referenceRachisLengthM,
+    referencePetioleLengthM:
+      p.referencePetioleLengthM
+      ?? DEFAULT_CULTIVAR_GROWTH_PROFILE.referencePetioleLengthM,
+    leafLengthExpansionDurationTT:
+      p.leafLengthExpansionDurationTT
+      ?? DEFAULT_CULTIVAR_GROWTH_PROFILE.leafLengthExpansionDurationTT,
   };
 }
 
@@ -267,6 +329,10 @@ export function defaultGrowthProfileForType(
         maxLeafletCount: 7,            // cherry tends fewer
         baseInternodeLengthCm: 5,      // shorter internodes
         baseStemRadiusMm: 6,
+        // Iter 31 Phase 2 — cherry는 작은 잎 + 짧은 axis
+        referenceLeafAreaCm2: 500,
+        referenceRachisLengthM: 0.20,
+        referencePetioleLengthM: 0.07,
       };
     case 'beefsteak':
       return { ...DEFAULT_CULTIVAR_GROWTH_PROFILE,
@@ -274,6 +340,10 @@ export function defaultGrowthProfileForType(
         maxLeafletCount: 11,           // beefsteak more leaflets
         baseInternodeLengthCm: 8,
         baseStemRadiusMm: 10,
+        // Iter 31 Phase 2 — beefsteak 큰 잎 + 긴 axis
+        referenceLeafAreaCm2: 900,
+        referenceRachisLengthM: 0.35,
+        referencePetioleLengthM: 0.12,
       };
     case 'roma':
       return { ...DEFAULT_CULTIVAR_GROWTH_PROFILE,
@@ -281,6 +351,8 @@ export function defaultGrowthProfileForType(
         maxLeafletCount: 9,
         baseInternodeLengthCm: 6,
         firstTrussNodeIndex: 7,        // determinate trusses earlier
+        // Iter 31 Phase 2 — roma medium
+        referenceLeafAreaCm2: 650,
       };
     case 'round':
     default:
