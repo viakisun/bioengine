@@ -36,3 +36,4 @@ growth-calibration/sweeps/
 # Playwright outputs — screenshots/videos/traces regenerable from spec files.
 test-results/
 playwright-report/
+docs/iter31/r26-cleanup-baseline.json
