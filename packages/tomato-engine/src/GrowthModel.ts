@@ -1652,7 +1652,11 @@ export function computePlantState(
         };
         nodes[i].growthDir = synthesizeGrowthDir(
           prev.growthDir,
-          prev.position,
+          // Iter 31 Phase 1 (R6 fix) — sway phase + anchor restoring force는
+          // _현재_ node 위치 기준이어야 in-phase. prev.position을 전달하면
+          // phase lag 누적 → apex 마지막 internode Δy ≈ 0.06cm collapse.
+          // (Phase 0 baseline: D=20~D=90 모든 시점 evidence.)
+          nodes[i].position,
           anchor,
           nodes[i].age,
           nodes[i].massAboveKg,
