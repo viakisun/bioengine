@@ -11,6 +11,26 @@
 - ✅ F3 R6 — Stem direction (synthesizeGrowthDir current pos)
 - ✅ F2 R5 — Leaf geometry projection (PlantBase 계산, Skin 적용만)
 - ✅ F1 R4-후속 — Frame parallel-transport + side-shoot parent seed
+- ✅ F4 R11~R18 → **Phase 10** — leaf rotation 4줄 단순화 (`09233be`)
+  - R11 baseAlign convention
+  - R12 azimuth around world Y
+  - R14 azimuth 제거 (parallel-transport phyllotaxy)
+  - R16 curl 0.30 (transverse cup)
+  - R17 droop base 0.30 (cantilever)
+  - R18 droop axis horizontal ⊥ petiole
+  - **Phase 10 종합 폐기 + `makeLeafQuaternion(petiole, bladeUp)` 4줄**
+
+## Phase 10 사용자 통찰
+
+> "잎 방향 하나를 결정하는데 왜 이렇게 복잡한가?"
+
+R11~R18 6번 fix 반복은 _wrong abstraction (4 회전 합성) 안에서 헛바퀴_.
+사용자 지적 후 _2 vector (petiole + bladeUp) → lookRotation quat_ 4줄로 단순화.
+
+측정값 (D=30 9 leaves):
+- petiole world y _모두 음수_ (gravity drop) ✅
+- blade world y _모두 > 0.95_ (위 향함) ✅
+- petiole world az std 100.8° (phyllotaxy spread) ✅
 
 ## Iter 32 _분리된_ 후보 (자동 분류)
 
@@ -91,6 +111,26 @@ cultivar 차등 효과 미관찰.
 **Fix 방향**:
 - `SourceSinkProxyV1.computeSourceSinkProxyV1FromPlant` 산식에 sensitivity 영향
 - assertion test 강화
+
+---
+
+### R20 — Phase 10 cleanup + Quality Gate I wake (★ 우선순위 1)
+
+**Status**: Iter 31 close 시점 _Phase 10_ 4줄 산식 측정값 통과, 사용자 _시각 wake_ 미확인.
+
+**Iter 32 작업**:
+- Phase 10 사용자 D=30 사진 wake — visual 회복 확인
+- 시각 미회복 시 _추가 surgical fix_ — 단, **합성 회전 abstraction _금지_** (R11~R18 패턴 반복 금지)
+- `composeLeafRotationLocal` legacy fallback path cleanup (Phase 10 채택 후 거의 사용 안 됨)
+- `posture.azimuthDeg` 필드 제거 검토 (Phase 10에서 무시)
+- visual hard guard recalibration:
+  - VISUAL-D30-BBOX-HARD-01 (≤ 50cm) — R14+R16+R17 적용 후 회귀, 신규 baseline 측정 필요
+  - VISUAL-D45-BBOX-HARD-01 (≤ 65cm) — 동일
+
+**관련 파일**:
+- `src/plant/skeleton/AnchorTransform.ts`
+- `src/plant/skeleton/populator/populateAnchorMorphology.ts`
+- `tests/architecture/iter31-visual-recovery.spec.ts`
 
 ---
 
