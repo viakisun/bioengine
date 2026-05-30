@@ -254,5 +254,24 @@
         }
       }
     }
+  },
+
+  // Iter 29 Phase 1-Pre — cultivar growth profile (TT-based).
+  // Schema: CultivarGrowthProfile in src/Cultivar.ts.
+  // Tomimaru (premium Japanese beefsteak): large leaves, 11 leaflets,
+  // standard internodes. Phenology already tuned via botanicalOverride
+  // gompertz; growthProfile here governs leaf/internode structure.
+  "growthProfile": {
+    "phyllochronTT": 40,
+    "plastochronTT": 32,
+    "baseInternodeLengthCm": 7,
+    "maxLeafAreaCm2": 800,                 // premium beefsteak-cherry hybrid scale
+    "maxLeafletCount": 11,
+    "leafExpansionDurationTT": 430,
+    "leafLifespanTT": 1300,
+    "firstTrussNodeIndex": 10,
+    "trussIntervalNodes": 3,
+    "baseStemRadiusMm": 9,
+    "sourceSinkSensitivity": 0.40
   }
 }

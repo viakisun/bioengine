@@ -101,5 +101,23 @@
 
   // Botanical layer override (botanical.v1). Phase 1: empty — beefsteak uses
   // the default tomato botanical (ACTIVE_BOTANICAL.tomato) as-is.
-  "botanicalOverride": {}
+  "botanicalOverride": {},
+
+  // Iter 29 Phase 1-Pre — cultivar growth profile (TT-based).
+  // Schema: CultivarGrowthProfile in src/Cultivar.ts.
+  // Beefsteak: large leaves (750-950 cm² range), 11 leaflets, longer
+  // internodes, thicker stem.
+  "growthProfile": {
+    "phyllochronTT": 40,                   // slightly slower
+    "plastochronTT": 32,
+    "baseInternodeLengthCm": 8,
+    "maxLeafAreaCm2": 850,                 // large beefsteak
+    "maxLeafletCount": 11,
+    "leafExpansionDurationTT": 450,        // slower expansion (larger leaf)
+    "leafLifespanTT": 1300,
+    "firstTrussNodeIndex": 10,
+    "trussIntervalNodes": 3,
+    "baseStemRadiusMm": 10,
+    "sourceSinkSensitivity": 0.40          // larger fruit → higher sink draw
+  }
 }

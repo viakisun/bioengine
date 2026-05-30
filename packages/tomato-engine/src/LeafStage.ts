@@ -45,31 +45,47 @@ export interface LeafStageInfo {
 }
 
 /**
- * Iter 29 Phase 0 — leafletCount 단일 source of truth.
+ * Iter 29 Phase 0 + Phase 1-Pre — leafletCount 단일 source of truth.
  *
  * GrowthModel과 LeafStage.getLeafStage 둘 다 본 함수를 호출. 두 path
  * 불일치 bug (이전: GrowthModel은 5/7/9만, LeafStage는 1→3→5→7→9) 해소.
  *
+ * Phase 1-Pre 변경: implicit max = 9 hardcoded 제거.
+ *   - 이전: COMPOUND tail formula `5 + t * 4` (max always 9)
+ *   - 신규: maxLeafletCount cultivar-driven (7 | 9 | 11)
+ *          formula: `5 + t * (maxLeafletCount - 5)` (cherry 7 / standard 9 / beefsteak 11)
+ *
  * Progression:
  *   - biasedMaturity < 0.4 (EARLY_TRUE): 1 → 3 (single → few leaflets)
- *   - 0.4 ≤ biasedMaturity ≤ 1.0 (COMPOUND): 5 → 9
+ *   - 0.4 ≤ biasedMaturity ≤ 1.0 (COMPOUND): 5 → maxLeafletCount
  *
  * fractional 반환은 LeafStage 렌더 morphing 용. NodeState에 저장 시 Math.round.
  *
+ * Backward compat: `maxLeafletCount` 인자 생략 시 기존 동작 (max=9).
+ * Phase 5에서 모든 호출처가 cultivar.growthProfile.maxLeafletCount를 전달
+ * 하도록 마이그레이션 — 그 후 default 값은 제거.
+ *
  * @param maturity 0-1 leaf maturity
  * @param bias genome.leafletCountBias (보통 0) — 0.15 가중치 적용
+ * @param maxLeafletCount cultivar.growthProfile.maxLeafletCount (Phase 1-Pre).
+ *                        default 9 = backward compat.
  * @returns fractional leaflet count
  */
-export function leafletCountFromMaturity(maturity: number, bias: number = 0): number {
+export function leafletCountFromMaturity(
+  maturity: number,
+  bias: number = 0,
+  maxLeafletCount: 7 | 9 | 11 = 9,
+): number {
   const biasedMaturity = maturity + bias * 0.15;
   if (biasedMaturity < 0.4) {
-    // EARLY_TRUE: 1 → 3 leaflets
+    // EARLY_TRUE: 1 → 3 leaflets (cultivar-independent — primordium morphology
+    // is conserved across tomato cultivars; only mature count varies).
     const t = Math.max(0, biasedMaturity / 0.4);
     return 1 + t * 2;
   }
-  // COMPOUND_DEVELOPING → COMPOUND_MATURE: 5 → 9
+  // COMPOUND_DEVELOPING → COMPOUND_MATURE: 5 → maxLeafletCount
   const t = Math.min(1, (biasedMaturity - 0.4) / 0.6);
-  return 5 + t * 4;
+  return 5 + t * (maxLeafletCount - 5);
 }
 
 /**

@@ -111,5 +111,24 @@
   // Botanical layer override (botanical.v1). Phase 1: empty — cherry uses
   // the default tomato botanical (ACTIVE_BOTANICAL.tomato) as-is. Future
   // calibration can populate fields here without touching engine code.
-  "botanicalOverride": {}
+  "botanicalOverride": {},
+
+  // Iter 29 Phase 1-Pre — cultivar growth profile (TT-based).
+  // Schema: CultivarGrowthProfile in src/Cultivar.ts.
+  // Cherry: smaller leaves (450-650 cm² range), fewer leaflets (7),
+  // shorter internodes (5cm), thinner stem.
+  // Missing fields fall back to type-default (cherry) then DEFAULT.
+  "growthProfile": {
+    "phyllochronTT": 38,                  // Heuvelink 1996
+    "plastochronTT": 30,                   // v1 unused
+    "baseInternodeLengthCm": 5,
+    "maxLeafAreaCm2": 550,                 // cherry small
+    "maxLeafletCount": 7,                  // cherry tends fewer
+    "leafExpansionDurationTT": 380,        // slightly faster expansion
+    "leafLifespanTT": 1100,
+    "firstTrussNodeIndex": 8,
+    "trussIntervalNodes": 3,
+    "baseStemRadiusMm": 6,
+    "sourceSinkSensitivity": 0.35
+  }
 }

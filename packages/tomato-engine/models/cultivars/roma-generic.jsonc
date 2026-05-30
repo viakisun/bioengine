@@ -101,5 +101,22 @@
 
   // Botanical layer override (botanical.v1). Phase 1: empty — roma uses
   // the default tomato botanical (ACTIVE_BOTANICAL.tomato) as-is.
-  "botanicalOverride": {}
+  "botanicalOverride": {},
+
+  // Iter 29 Phase 1-Pre — cultivar growth profile (TT-based).
+  // Schema: CultivarGrowthProfile in src/Cultivar.ts.
+  // Roma (determinate paste type): mid leaves, earlier truss, 9 leaflets.
+  "growthProfile": {
+    "phyllochronTT": 36,                   // slightly faster (determinate)
+    "plastochronTT": 28,
+    "baseInternodeLengthCm": 6,
+    "maxLeafAreaCm2": 650,
+    "maxLeafletCount": 9,
+    "leafExpansionDurationTT": 380,
+    "leafLifespanTT": 1100,
+    "firstTrussNodeIndex": 7,              // determinate trusses earlier
+    "trussIntervalNodes": 3,
+    "baseStemRadiusMm": 7,
+    "sourceSinkSensitivity": 0.38
+  }
 }

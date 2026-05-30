@@ -508,9 +508,10 @@ function populateSideShootChain(
       * genome.leafSizeMultiplier * SHOOT_LEAF_SCALE;
     const leafSizeFactor = potentialSize * leafExpansion;
 
-    // Leaf area / mass scale with leafSizeFactor² (same formula as main).
-    const BASE_LEAF_AREA_CM2 = 880;
-    const leafAreaCm2 = BASE_LEAF_AREA_CM2 * leafSizeFactor * leafSizeFactor;
+    // Iter 29 Phase 1-Pre — BASE_LEAF_AREA_CM2 hardcoded 제거.
+    // cultivar.growthProfile.maxLeafAreaCm2 (cherry 550 / round 700 /
+    // beefsteak 850 / roma 650 / tomimaru 800) cultivar-driven.
+    const leafAreaCm2 = cultivar.growthProfile.maxLeafAreaCm2 * leafSizeFactor * leafSizeFactor;
     const leafMassG = 25 * leafSizeFactor * leafSizeFactor * leafMaturity;
 
     // Yellowing — side shoots typically don't reach senescence age before
@@ -530,11 +531,16 @@ function populateSideShootChain(
       weightDroop + ageDroop + stress.waterStress * 30 + yellowing * 25,
     );
 
-    // Iter 29 Phase 0 — leafletCount path 통합.
+    // Iter 29 Phase 0 + Phase 1-Pre — leafletCount cultivar-driven.
     // 이전 bug: 5/7/9만 분기, EARLY_TRUE (1-3 leaflet) 단계 건너뜀.
-    // fix: leafletCountFromMaturity 단일 source of truth 사용 → 1 → 3 → 5 → 7 → 9.
+    // fix P0: leafletCountFromMaturity 단일 source of truth → 1 → 3 → 5 → 7 → max.
+    // fix P1-Pre: max cultivar-driven (cherry 7 / standard 9 / beefsteak 11).
     const leafletCount = Math.round(
-      leafletCountFromMaturity(leafMaturity, genome.leafletCountBias),
+      leafletCountFromMaturity(
+        leafMaturity,
+        genome.leafletCountBias,
+        cultivar.growthProfile.maxLeafletCount,
+      ),
     );
 
     // Stem radius — pipe-model approx: parent radius × 0.6 base × taper.
@@ -810,10 +816,10 @@ export function computePlantState(
     const leafSizeFactor = potentialSize * leafExpansion * plantJuvenileScale * stemVigorFactor;
 
     // --- Leaf area & mass ---
-    // 720 → 880 cm² — closer to the upper end of beefsteak compound
-    // leaves (real mature outdoor leaves can hit 900–1000 cm²).
-    const BASE_LEAF_AREA_CM2 = 880;
-    const leafAreaCm2 = BASE_LEAF_AREA_CM2 * leafSizeFactor * leafSizeFactor;
+    // Iter 29 Phase 1-Pre — BASE_LEAF_AREA_CM2 hardcoded 제거.
+    // cultivar.growthProfile.maxLeafAreaCm2 (cherry 550 / round 700 /
+    // beefsteak 850 / roma 650 / tomimaru 800) cultivar-driven.
+    const leafAreaCm2 = cultivar.growthProfile.maxLeafAreaCm2 * leafSizeFactor * leafSizeFactor;
     const leafMassG = 25 * leafSizeFactor * leafSizeFactor * leafMaturity;
 
     const yellowing = age > 60 ? Math.min(1, (age - 60) / 30) : 0;
@@ -837,11 +843,16 @@ export function computePlantState(
       weightDroop + ageDroop + waterStressDroop + senescenceDroop
     );
 
-    // Iter 29 Phase 0 — leafletCount path 통합 (LeafStage와 동일).
+    // Iter 29 Phase 0 + Phase 1-Pre — leafletCount cultivar-driven (LeafStage와 동일).
     // 이전 bug: 5/7/9만 분기, EARLY_TRUE (1-3 leaflet) 단계 건너뜀.
-    // fix: leafletCountFromMaturity 단일 source of truth → 1 → 3 → 5 → 7 → 9.
+    // fix P0: leafletCountFromMaturity 단일 source of truth → 1 → 3 → 5 → 7 → max.
+    // fix P1-Pre: max cultivar-driven (cherry 7 / standard 9 / beefsteak 11).
     const leafletCount = Math.round(
-      leafletCountFromMaturity(leafMaturity, genome.leafletCountBias),
+      leafletCountFromMaturity(
+        leafMaturity,
+        genome.leafletCountBias,
+        cultivar.growthProfile.maxLeafletCount,
+      ),
     );
 
     // Truss logic — v3.0 Phase 3.

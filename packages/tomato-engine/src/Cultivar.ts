@@ -26,6 +26,29 @@ export interface GaussianDist {
   sigma: number;
 }
 
+// ---------------------------------------------------------------------------
+// Iter 29 Phase 1-Pre — CultivarGrowthProfile re-export.
+//
+// Schema, default, and resolver live in CultivarGrowthProfile.ts (an
+// independent module with no JSONC-loader dependency, so architecture
+// invariant tests can import directly via the Playwright Node loader).
+// ---------------------------------------------------------------------------
+
+export {
+  type CultivarGrowthProfile,
+  type CultivarGrowthProfileJson,
+  DEFAULT_CULTIVAR_GROWTH_PROFILE,
+  resolveCultivarGrowthProfile,
+  defaultGrowthProfileForType,
+} from './CultivarGrowthProfile';
+
+import {
+  type CultivarGrowthProfile,
+  type CultivarGrowthProfileJson,
+  resolveCultivarGrowthProfile,
+  defaultGrowthProfileForType,
+} from './CultivarGrowthProfile';
+
 export interface Cultivar {
   name: string;
   type: CultivarType;
@@ -119,6 +142,14 @@ export interface Cultivar {
    *  Higher = abortion 더 늦게 결정됨 (회복 기회↑). */
   abortionLagDays: number;
 
+  // --- Iter 29 Phase 1-Pre: cultivar growth profile (TT-based) ---
+  //
+  // Cultivar-level biological growth parameters. v1 canonical Thermal Time
+  // driven. See CultivarGrowthProfile (above) for field descriptions.
+  // Phase 5 will deprecate flat aliases (phyllochronGDD, firstTrussNodeIdx,
+  // trussIntervalNodes) in favor of growthProfile.* canonical path.
+  growthProfile: CultivarGrowthProfile;
+
   // --- v3.0 Phase 4: reproductive truss-order profile + scenarios ---
   reproductive: ReproductiveBundle;
   scenarios: Record<string, CultivarScenario>;
@@ -193,6 +224,15 @@ function adaptCultivar(j: CultivarJson): Cultivar {
   const resolvedBotanical = resolveBotanical(ACTIVE_BOTANICAL.tomato, j.botanicalOverride);
   const resolvedGompertz = resolvedBotanical.fruitDevelopment.gompertz;
 
+  // Iter 29 Phase 1-Pre — growthProfile: type-specific default + JSONC override.
+  // Each field independently overridable; missing fields fall back to the
+  // type-default, which itself falls back to DEFAULT_CULTIVAR_GROWTH_PROFILE.
+  const typeDefault = defaultGrowthProfileForType(j.metadata.type as CultivarType);
+  const growthProfile: CultivarGrowthProfile = resolveCultivarGrowthProfile({
+    ...typeDefault,
+    ...(j.growthProfile ?? {}),
+  });
+
   return {
     name: j.metadata.name,
     type: j.metadata.type as CultivarType,
@@ -252,6 +292,9 @@ function adaptCultivar(j: CultivarJson): Cultivar {
     // Iter 6f (SSOT #61): abortion cultivar-level override with global fallback
     abortionThresholdRatio: j.abortion?.thresholdRatio ?? ACTIVE_MODEL.abortion.threshold_ratio,
     abortionLagDays: j.abortion?.lagDays ?? ACTIVE_MODEL.abortion.lag_days,
+
+    // Iter 29 Phase 1-Pre — cultivar growth profile (TT-based).
+    growthProfile,
 
     // v3.0 Phase 4: reproductive profile + scenarios
     reproductive: j.reproductive

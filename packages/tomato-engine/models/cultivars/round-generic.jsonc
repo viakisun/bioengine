@@ -101,5 +101,22 @@
 
   // Botanical layer override (botanical.v1). Phase 1: empty — round uses
   // the default tomato botanical (ACTIVE_BOTANICAL.tomato) as-is.
-  "botanicalOverride": {}
+  "botanicalOverride": {},
+
+  // Iter 29 Phase 1-Pre — cultivar growth profile (TT-based).
+  // Schema: CultivarGrowthProfile in src/Cultivar.ts.
+  // Round (medium standard): mid-range leaves, 9 leaflets, standard internodes.
+  "growthProfile": {
+    "phyllochronTT": 38,
+    "plastochronTT": 30,
+    "baseInternodeLengthCm": 7,
+    "maxLeafAreaCm2": 700,                 // medium standard
+    "maxLeafletCount": 9,
+    "leafExpansionDurationTT": 400,
+    "leafLifespanTT": 1200,
+    "firstTrussNodeIndex": 9,
+    "trussIntervalNodes": 3,
+    "baseStemRadiusMm": 8,
+    "sourceSinkSensitivity": 0.35
+  }
 }

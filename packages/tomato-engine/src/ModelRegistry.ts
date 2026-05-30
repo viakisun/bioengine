@@ -257,6 +257,25 @@ export interface CultivarJson {
   // (additionalProperties:false on each merge step). Missing → use
   // ACTIVE_BOTANICAL[crop] as-is.
   botanicalOverride?: BotanicalPartial;
+
+  // ── Iter 29 Phase 1-Pre: cultivar growth profile (TT-based) ────────
+  // Optional partial override. Missing fields fall back to type-default
+  // (cherry/round/beefsteak/roma), then to DEFAULT_CULTIVAR_GROWTH_PROFILE.
+  // Schema: see CultivarGrowthProfile in Cultivar.ts. Phase 5 adds
+  // per-field provenance metadata.
+  growthProfile?: {
+    phyllochronTT?: number;
+    plastochronTT?: number;
+    baseInternodeLengthCm?: number;
+    maxLeafAreaCm2?: number;
+    maxLeafletCount?: 7 | 9 | 11;
+    leafExpansionDurationTT?: number;
+    leafLifespanTT?: number;
+    firstTrussNodeIndex?: number;
+    trussIntervalNodes?: number;
+    baseStemRadiusMm?: number;
+    sourceSinkSensitivity?: number;
+  };
 }
 
 /** Structural mirror of LeafShapePartial (src/plant/leaf/LeafShapeSchema.ts).
