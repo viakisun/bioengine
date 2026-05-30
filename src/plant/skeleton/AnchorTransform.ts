@@ -143,25 +143,24 @@ export function composeLeafRotationLocal(
   const binormal = cross3(stemFrame.tangent, stemFrame.normal);
   const qDroop = quatAroundAxis(binormal, -droopDeg);
 
-  // ★ Iter 31 Phase 9.2 (R12 fix) — azimuth는 _world Y_ 주위로 회전.
+  // ★ Iter 31 Phase 9.3 (R14 fix) — azimuth 회전 제거.
   //
-  // 진단: stemFrame.tangent 주위 회전은 tangent가 _stem 휨_으로 horizontal
-  // component 가지면 leaf base를 _수직 평면 안에서_ 회전시켜 blade plane을
-  // vertical로 만듬 (Iter 30 R4 fix가 _과도_ 보정).
+  // 진단 (R13 8 variant 비교): parallel-transport frame.normal이 _스스로_
+  // phyllotaxy spiral 표현 (petiole std 100.8°). 추가 azimuth 회전은 _double
+  // counting_으로 cancel → world azimuth lock (std 3.1°).
   //
-  // World Y 회전: blade가 _horizontal 평면 안에서 spiral_만 일어남 → 항상
-  // ground-parallel 유지 (정상 토마토 leaf orientation).
+  // Phyllotaxy 책임은 _SkeletonGraph.frame_ (Iter 26 PR 1-1 + Iter 31 Phase 3
+  // parallel-transport)이 가져감. composeLeafRotationLocal은 _base alignment +
+  // droop + twist_만 적용.
   //
-  // Trade-off: stem이 _크게 휘어도_ leaf 회전축이 world Y 고정 → side-shoot
-  // 의 _stem follow_ 효과 일부 retreat. 그러나 R12 진단 (8 variant 비교)에서
-  // _유일한_ blade-up fix (mean world y 0.156 → 0.997, up ratio 44% → 100%).
+  // posture.azimuthDeg는 _legacy field_로 무시. Iter 32에서 PhytomerNode에서
+  // 제거 검토 (architecture invariant 영향).
   //
-  // Iter 32 R12-followup: stemFrame.tangent.y < 0.7인 _크게 휜_ stem에서만
-  // local axis 사용 (조건부 hybrid) 검토.
-  const qAzimuth = quatAroundAxis({ x: 0, y: 1, z: 0 }, azimuthDeg);
+  // void 명시 (린트 경고 회피 + intent 명시):
+  void azimuthDeg;
 
-  // Composition: qAz × qDroop × qTwist × baseAlign (innermost first).
-  return quatMul(qAzimuth, quatMul(qDroop, quatMul(qTwist, baseAlign)));
+  // Composition: qDroop × qTwist × baseAlign (innermost first).
+  return quatMul(qDroop, quatMul(qTwist, baseAlign));
 }
 
 /**
