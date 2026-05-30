@@ -247,6 +247,7 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
       const w = window as unknown as {
         __skinplantGraph?: {
           nodes: Map<string, { id: string; type?: string; pos: { x: number; y: number; z: number }; frame?: { tangent: { x: number; y: number; z: number }; normal: { x: number; y: number; z: number } } }>;
+          edges: Map<number, { id: number; organAnchors?: Array<{ id: string; kind: string; position?: { x: number; y: number; z: number }; rotation?: { x: number; y: number; z: number; w: number } }> }>;
         };
       };
       const g = w.__skinplantGraph;
@@ -255,7 +256,8 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
         return;
       }
 
-      const SCALE = 0.08;  // meter — visible at quality 8
+      const SCALE = 0.25;  // 25cm — clearly visible
+      const RENDERING_GROUP = 2;  // render on top of leaf meshes
       let stemCount = 0, leafCount = 0;
 
       // Stem frames (tangent green, normal blue)
@@ -270,16 +272,18 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
           scene,
         );
         tangentLine.color = new Color3(0, 1, 0);  // green = tangent
+        tangentLine.renderingGroupId = RENDERING_GROUP;
         const normalLine = CreateLines(
           `vec_stem_n_${node.id}`,
           { points: [new Vector3(p.x, p.y, p.z), new Vector3(p.x + n.x * SCALE, p.y + n.y * SCALE, p.z + n.z * SCALE)] },
           scene,
         );
         normalLine.color = new Color3(0, 0.5, 1);  // blue = normal
+        normalLine.renderingGroupId = RENDERING_GROUP;
         stemCount++;
       }
 
-      // Leaf mesh axes (mesh-local +x red, +y blue, +z yellow)
+      // Leaf anchors (★ anchor.position 직접 사용 — mesh.position은 _world origin_일 수 있음)
       function rotateVec(q: { x: number; y: number; z: number; w: number }, v: { x: number; y: number; z: number }) {
         const ix = q.w * v.x + q.y * v.z - q.z * v.y;
         const iy = q.w * v.y + q.z * v.x - q.x * v.z;
@@ -291,32 +295,39 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
           z: iz * q.w + iw * -q.z + ix * -q.y - iy * -q.x,
         };
       }
-      for (const m of sceneAny.meshes) {
-        if (!m.name.startsWith('skinplant_leaf_') || !m.isEnabled() || !m.position) continue;
-        const q = m.rotationQuaternion ?? { x: 0, y: 0, z: 0, w: 1 };
-        const p = m.position;
-        const xW = rotateVec(q, { x: 1, y: 0, z: 0 });
-        const yW = rotateVec(q, { x: 0, y: 1, z: 0 });
-        const zW = rotateVec(q, { x: 0, y: 0, z: 1 });
-        const lineX = CreateLines(
-          `vec_leaf_x_${m.name}`,
-          { points: [new Vector3(p.x, p.y, p.z), new Vector3(p.x + xW.x * SCALE, p.y + xW.y * SCALE, p.z + xW.z * SCALE)] },
-          scene,
-        );
-        lineX.color = new Color3(1, 0, 0);  // red = mesh +x (petiole)
-        const lineY = CreateLines(
-          `vec_leaf_y_${m.name}`,
-          { points: [new Vector3(p.x, p.y, p.z), new Vector3(p.x + yW.x * SCALE, p.y + yW.y * SCALE, p.z + yW.z * SCALE)] },
-          scene,
-        );
-        lineY.color = new Color3(0, 0.5, 1);  // blue = mesh +y (blade up)
-        const lineZ = CreateLines(
-          `vec_leaf_z_${m.name}`,
-          { points: [new Vector3(p.x, p.y, p.z), new Vector3(p.x + zW.x * SCALE, p.y + zW.y * SCALE, p.z + zW.z * SCALE)] },
-          scene,
-        );
-        lineZ.color = new Color3(1, 1, 0);  // yellow = mesh +z (width)
-        leafCount++;
+      // Iterate edges → organAnchors
+      for (const edge of g.edges.values()) {
+        const anchors = edge.organAnchors ?? [];
+        for (const a of anchors) {
+          if (a.kind !== 'leaf_blade' || !a.position || !a.rotation) continue;
+          const p = a.position;
+          const q = a.rotation;
+          const xW = rotateVec(q, { x: 1, y: 0, z: 0 });
+          const yW = rotateVec(q, { x: 0, y: 1, z: 0 });
+          const zW = rotateVec(q, { x: 0, y: 0, z: 1 });
+          const lineX = CreateLines(
+            `vec_leaf_x_${a.id}`,
+            { points: [new Vector3(p.x, p.y, p.z), new Vector3(p.x + xW.x * SCALE, p.y + xW.y * SCALE, p.z + xW.z * SCALE)] },
+            scene,
+          );
+          lineX.color = new Color3(1, 0, 0);  // red = +x (petiole)
+          lineX.renderingGroupId = RENDERING_GROUP;
+          const lineY = CreateLines(
+            `vec_leaf_y_${a.id}`,
+            { points: [new Vector3(p.x, p.y, p.z), new Vector3(p.x + yW.x * SCALE, p.y + yW.y * SCALE, p.z + yW.z * SCALE)] },
+            scene,
+          );
+          lineY.color = new Color3(0, 0.5, 1);  // blue = +y (blade up)
+          lineY.renderingGroupId = RENDERING_GROUP;
+          const lineZ = CreateLines(
+            `vec_leaf_z_${a.id}`,
+            { points: [new Vector3(p.x, p.y, p.z), new Vector3(p.x + zW.x * SCALE, p.y + zW.y * SCALE, p.z + zW.z * SCALE)] },
+            scene,
+          );
+          lineZ.color = new Color3(1, 1, 0);  // yellow = +z (width)
+          lineZ.renderingGroupId = RENDERING_GROUP;
+          leafCount++;
+        }
       }
 
       console.log(`[Vectors] showed ${stemCount} stem frames + ${leafCount} leaf axes`);
