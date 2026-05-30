@@ -199,20 +199,22 @@ function fillLeafAnchor(
   //
   // SKELETON-ANCHOR-POSTURE-01 (Iter 29): rotation _copied_ from PlantBase posture.
   // SKELETON-ANCHOR-TRANSFORM-01 (Iter 29): Quat4 출력.
-  // ★ Iter 31 Phase 10 — Radical simplification (R11~R18 대체).
+  // ★ Iter 31 Phase 10.2 (사용자 통찰): 줄기 벡터 _그대로_ 적용.
   //
-  // 사용자 통찰: "잎 방향 하나를 결정하는데 왜 이렇게 복잡한가?"
-  // 답: 잎 회전 = _2 vector_ (petiole 방향 + blade up) → lookRotation quat.
-  // composeLeafRotationLocal (4 회전 합성)은 _legacy fallback_으로만 유지.
+  // 사용자: "원래는 줄기 벡터 그대로 적용하면 되어야 돼. 별도로 산수할 필요 없어."
+  //
+  // 잎 회전 = 2 vector (petioleDir + bladeUp). 그 둘이 정확히:
+  //   petioleDir = stemFrame.normal (parallel-transport, phyllotaxy 표현)
+  //   bladeUp    = world up (잎 면 위 향함, 정상 토마토)
+  //
+  // droop은 _mesh vertex deformation_으로 이미 처리 (R16+R17 longitudinalDroop).
+  // _잎 전체 회전_에 droop 다시 적용 = double counting (Phase 10.1 결함).
+  const WORLD_UP_LOCAL = { x: 0, y: 1, z: 0 };
   if (nodeState) {
     const posture = nodeState.leaf.posture;
-    const droopDeg = posture.droopDeg;
     if (meshNode?.frame) {
-      // ★ Phase 10 — _직접_ petiole + bladeUp 계산 → quaternion (4 회전 합성 폐기)
-      const { petiole, bladeUp } = computeLeafPetioleAndBladeAxes(meshNode.frame.normal, droopDeg);
-      anchor.rotation = makeLeafQuaternion(petiole, bladeUp);
+      anchor.rotation = makeLeafQuaternion(meshNode.frame.normal, WORLD_UP_LOCAL);
     } else {
-      // Legacy fallback — frame 부재
       anchor.rotation = composeLeafRotation(
         posture.azimuthDeg,
         posture.droopDeg,
@@ -220,20 +222,21 @@ function fillLeafAnchor(
       );
     }
   } else if (leaf) {
-    const droopDeg = (leaf.droopRad ?? 0) * (180 / Math.PI);
     if (meshNode?.frame) {
-      const { petiole, bladeUp } = computeLeafPetioleAndBladeAxes(meshNode.frame.normal, droopDeg);
-      anchor.rotation = makeLeafQuaternion(petiole, bladeUp);
+      anchor.rotation = makeLeafQuaternion(meshNode.frame.normal, WORLD_UP_LOCAL);
     } else {
       const azDeg = (leaf.azimuthRad ?? 0) * (180 / Math.PI);
+      const droopDeg = (leaf.droopRad ?? 0) * (180 / Math.PI);
       anchor.rotation = composeLeafRotation(azDeg, droopDeg, 0);
     }
   } else {
     anchor.rotation = IDENTITY_QUAT;
   }
 
-  // Mark unused (composeLeafRotationLocal는 legacy fallback 안 사용)
+  // Mark unused (composeLeafRotationLocal, computeLeafPetioleAndBladeAxes는
+  // Phase 10.2에서 _완전_ 사용 안 함 — Iter 32 cleanup 후보)
   void composeLeafRotationLocal;
+  void computeLeafPetioleAndBladeAxes;
 
   // visualHint (Iter 26 PR 1-2 retained)
   const visualHint: AnchorVisualHint = {
