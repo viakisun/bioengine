@@ -120,13 +120,13 @@ test.describe('Iter 31 Phase 9 — R11 leaf orientation convention fix', () => {
     // eslint-disable-next-line no-console
     console.log(`  mean y: ${result.meanY.toFixed(3)} | up count (y>0.5): ${result.upCount} / ${result.count}`);
     expect(result.count, 'leaf mesh count').toBeGreaterThan(0);
-    // ★ Iter 30 baseline: blade normal world 모두 horizontal (y ≈ 0, vertical leaf stack).
-    // Iter 31 R11 honest baseline:
-    //   - mean y > 0.05 (Iter 30 0 lock → 양수 회복)
-    //   - up count > 30% (일부 leaf horizontal blade)
-    // Visual target (mean y > 0.5, up ratio > 70%)은 R11 + droop 추가 calibration 후 목표 (Iter 32).
-    expect(result.meanY, 'mean blade normal y > 0.05 (Iter 30 lock 0 → R11 fix 양수 회복)').toBeGreaterThan(0.05);
-    expect(result.upCount / result.count, 'blade up ratio > 30%').toBeGreaterThan(0.3);
+    // ★ Iter 30 baseline: 모두 horizontal (y ≈ 0, vertical leaf stack).
+    // ★ Iter 31 R11 (baseAlign 추가): partial (mean 0.156, up 44%).
+    // ★ Iter 31 R12 (★ az → world Y, 진단 winner): complete (mean 0.997, up 100%).
+    //
+    // Visual target (정상 토마토 ground-parallel blade) 달성.
+    expect(result.meanY, 'mean blade normal y > 0.7 (R12 fix: ground-parallel blade)').toBeGreaterThan(0.7);
+    expect(result.upCount / result.count, 'blade up ratio > 80%').toBeGreaterThan(0.8);
   });
 
   test('LEAF-VERTICAL-STACK-BREAK-01: D=30 leaf bbox aspect (bboxY가 dominant 0건)', async ({ page }) => {
@@ -159,9 +159,8 @@ test.describe('Iter 31 Phase 9 — R11 leaf orientation convention fix', () => {
       console.log(`  ⚠️ ${a.name}: dx=${a.dx.toFixed(1)} dy=${a.dy.toFixed(1)} dz=${a.dz.toFixed(1)}`);
     }
     // ★ vertical bbox (dy > dx && dy > dz)는 _leaf가 vertical_ 신호.
-    // Iter 30 baseline: 대부분 vertical. R11 fix 후 _감소_ 확인.
-    // Honest baseline < 50% (Iter 32 cultivar/droop calibration 후 < 30% 목표).
+    // Iter 30 baseline: 대부분 vertical (stack). R12 fix 후 0건 (모든 leaf horizontal).
     const verticalRatio = result.verticalCount / Math.max(1, result.count);
-    expect(verticalRatio, 'vertical bbox ratio < 50% (Iter 31 honest, Iter 32 < 30% 목표)').toBeLessThan(0.5);
+    expect(verticalRatio, 'vertical bbox ratio = 0 (R12 fix: 모든 leaf horizontal)').toBe(0);
   });
 });
