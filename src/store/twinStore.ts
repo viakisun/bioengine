@@ -5,8 +5,9 @@ import { QUALITY_PRESETS, RENDER_FX_DEFAULTS } from '../twin/RenderQuality';
 
 export type CompareMode = 'off' | 'yesterday' | '7days';
 
-/** Top-level app mode — drives which scene/layout is mounted. */
-export type AppMode = 'lobby' | 'greenhouse' | 'single-plant' | 'robot' | 'sandbox';
+/** Top-level app mode — drives which scene/layout is mounted.
+ *  Iter 35: single-plant only (lobby/greenhouse/robot/sandbox archived). */
+export type AppMode = 'single-plant';
 
 /** Output variables the Single-Plant TimelineChart can plot. */
 export type SinglePlantChartVar =
@@ -26,12 +27,10 @@ export const SINGLE_PLANT_CHART_VARS: { id: SinglePlantChartVar; label: string; 
   { id: 'T_now', label: 'Air temp (instant.)', unit: '°C' },
 ];
 
-const VALID_MODES: AppMode[] = ['lobby', 'greenhouse', 'single-plant', 'robot', 'sandbox'];
-
+// Iter 35: AppMode 단일 — URL hash와 무관하게 항상 'single-plant'.
+//   #lobby / #greenhouse 등 legacy hash가 와도 single-plant fallback.
 function readModeFromHash(): AppMode {
-  if (typeof window === 'undefined') return 'lobby';
-  const h = window.location.hash.replace(/^#/, '');
-  return (VALID_MODES as string[]).includes(h) ? (h as AppMode) : 'lobby';
+  return 'single-plant';
 }
 
 export type ToneMappingMode = 'aces' | 'standard' | 'none';

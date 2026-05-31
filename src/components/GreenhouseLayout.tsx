@@ -20,7 +20,6 @@ export function GreenhouseLayout() {
   // Two heights for the bottom row: collapsed 88px vs expanded 296px.
   // Single-plant 모드에서는 timeline 자체가 hide 이므로 0.
   const consoleH = isSinglePlant ? 0 : (consoleExpanded ? 296 : 88);
-  const setMode = useTwinStore((s) => s.setMode);
 
   return (
     <div
@@ -40,30 +39,7 @@ export function GreenhouseLayout() {
         {!isSinglePlant && <LabelOverlay />}
         {!isSinglePlant && <LayerDock />}
 
-        {/* Back-to-lobby chip — greenhouse 모드에서만. single-plant 는
-            FloatingTopBar 의 좌측 끝 ◂ Lobby 버튼이 대체. */}
-        {!isSinglePlant && (
-          <button
-            type="button"
-            onClick={() => setMode('lobby')}
-            style={{
-              position: 'absolute',
-              top: 14,
-              left: 14,
-              zIndex: 50,
-              background: 'rgba(255, 255, 255, 0.92)',
-              border: '1px solid rgba(25, 30, 25, 0.18)',
-              borderRadius: 4,
-              padding: '6px 10px',
-              fontSize: 11,
-              fontFamily: 'ui-monospace, monospace',
-              cursor: 'pointer',
-              color: '#1a1d1a',
-            }}
-          >
-            ◂ Lobby
-          </button>
-        )}
+        {/* Iter 35: back-to-lobby chip 제거 (lobby mode archived). */}
 
         {/* Dev-mode FPS / backend HUD — hidden visually but the id-bearing
             spans must stay so BabylonEngine.runRenderLoop's

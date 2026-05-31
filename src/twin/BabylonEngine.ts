@@ -518,10 +518,7 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
   engine.runRenderLoop(() => {
     const state = useTwinStore.getState();
 
-    // App-mode idle — lobby 일 때는 render tick 전부 skip.
-    // 메쉬는 그대로 보존 + render 작업만 정지 → 다시 모드 진입 시
-    // 재부팅 없이 즉시 활성.
-    if (state.mode === 'lobby') return;
+    // Iter 35: lobby mode 부재 — render tick idle 분기 제거.
 
     const now = performance.now();
     const dtInter = (now - lastInteractionTick) / 1000;

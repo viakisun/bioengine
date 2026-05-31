@@ -1,7 +1,8 @@
 // FloatingTopBar — pill-shaped HUD anchored to the top of the
-// single-plant viewport. Replaces the old full-width opaque top bar.
+// single-plant viewport.
 //
-// Layout: [Lobby/Greenhouse back] · [Day n / 120 · phase] · ...spacer...
+// Iter 35: lobby/greenhouse back-nav 제거 (single-plant only).
+// Layout: [Day n / 120 · phase] · ...spacer...
 //         · [filter pills 전체|잎|화방|과실|작업|환경]
 
 import type { PlantPhysiologyState } from '@farmsim/tomato-engine';
@@ -44,7 +45,6 @@ function phaseOf(ps: PlantPhysiologyState | null): string {
 }
 
 export function FloatingTopBar() {
-  const setMode = useTwinStore((s) => s.setMode);
   const filter = useTwinStore((s) => s.singlePlantTopFilter);
   const setFilter = useTwinStore((s) => s.setSinglePlantTopFilter);
   const ps = useSinglePlantState();
@@ -84,12 +84,6 @@ export function FloatingTopBar() {
           maxWidth: 'min(96vw, 1080px)',
         }}
       >
-        {/* Back navigation */}
-        <BackBtn label="◂ Lobby" onClick={() => setMode('lobby')} />
-        <BackBtn label="◂ Greenhouse" onClick={() => setMode('greenhouse')} />
-
-        <Divider />
-
         {/* Day + phase */}
         <span style={{ fontFamily: FONT_SERIF, fontSize: 13, fontWeight: 600 }}>
           Day {day}<span style={{ color: C_FG_MUTE }}> / 120</span>
@@ -130,28 +124,3 @@ export function FloatingTopBar() {
   );
 }
 
-function BackBtn({ label, onClick }: { label: string; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{
-        background: 'transparent',
-        color: C_FG_MUTE,
-        border: `1px solid ${C_BORDER}`,
-        borderRadius: 14,
-        padding: '3px 9px',
-        fontSize: 11,
-        fontFamily: FONT_MONO,
-        cursor: 'pointer',
-        whiteSpace: 'nowrap',
-      }}
-    >
-      {label}
-    </button>
-  );
-}
-
-function Divider() {
-  return <span style={{ width: 1, height: 18, background: C_BORDER }} />;
-}

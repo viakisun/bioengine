@@ -5,7 +5,7 @@ dist/
 .DS_Store
 .env
 .env.local
-.claude/settings.local.json
+.claude/
 verify-farmsim.mjs
 _ref/
 

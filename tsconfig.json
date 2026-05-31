@@ -22,5 +22,6 @@
       "@farmsim/tomato-geometry/*": ["packages/tomato-geometry/src/*"]
     }
   },
-  "include": ["src", "packages/*/src", "growth-calibration/schema", "growth-calibration/scripts"]
+  "include": ["src", "packages/*/src", "growth-calibration/schema", "growth-calibration/scripts"],
+  "exclude": ["node_modules", "src/_archive"]
 }
