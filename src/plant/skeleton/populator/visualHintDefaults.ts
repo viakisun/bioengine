@@ -92,6 +92,17 @@ export const NODE_VISUAL_HINT_DEFAULTS: Record<SkeletonNodeType, NodeVisualHint>
     markerShape: 'sphere',
     markerSizeM: 0.0018,
   },
+  // Iter 36 v5 Phase M — 발아 + 생장점 marker.
+  'cotyledon-node': {
+    markerColor: '#7FFFD4',     // aquamarine (떡잎 — 발아 시 처음 나오는 2개)
+    markerShape: 'disk',
+    markerSizeM: 0.0030,
+  },
+  'apex-node': {
+    markerColor: '#FFD700',     // gold (생장점 — 새 잎 emerge)
+    markerShape: 'ring',
+    markerSizeM: 0.0040,
+  },
 };
 
 /** Returns a fresh visualHint clone for the given type (label injected by caller). */

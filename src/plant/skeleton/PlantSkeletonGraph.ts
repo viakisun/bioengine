@@ -65,7 +65,10 @@ export type SkeletonNodeType =
   | 'calyx-root'
   // Iter 36 v5 Phase B (★ NEW) — compound leaf morphology + axillary bud.
   | 'leaflet-node'           // per-leaflet position (terminal/primary/secondary/intercalary)
-  | 'bud-node';              // axillary bud (dormant/activated/growing)
+  | 'bud-node'               // axillary bud (dormant/activated/growing)
+  // Iter 36 v5 Phase M (★ NEW) — 발아 + 생장점 botanical 구조.
+  | 'cotyledon-node'         // 떡잎 — 발아 시 처음 나오는 2개 잎 (left/right)
+  | 'apex-node';             // 생장점 (apical meristem) — 새 잎이 emerge하는 mainStem top
 
 /**
  * Iter 36 v5 Phase B — Compound leaf leaflet position type.

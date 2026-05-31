@@ -106,7 +106,12 @@ export function buildTomatoSkeletonGraph(
     addTrussesForAxis(axis, axisIdx, stemEdgeId, divisions, anatomy, nodes, edges);
     // Iter 36 v5 Phase B — axillary buds (dormant + activated 모두).
     addBudsForAxis(axis, axisIdx, nodes);
+    // Iter 36 v5 Phase M — 생장점 (apex meristem) — 각 axis 최상단 표시.
+    if (isMain) addApexNode(axis, axisIdx, nodes);
   }
+
+  // Iter 36 v5 Phase M — 떡잎 (cotyledon) — plant당 좌/우 2개.
+  addCotyledonNodes(plantBase, nodes);
 
   const graph: PlantSkeletonGraph = { nodes, edges, rootEdgeId };
   if (opts.genome) graph.cultivarGenomeSnapshot = opts.genome;
@@ -542,6 +547,55 @@ function addLeafletNodesForLeaf(
  * axis.buds (BudMarker[])를 순회 — dormant + activated 모두 skeleton에 표현.
  * activated 시 activatedAxisId로 sideShoot edge link (lineage 추적).
  */
+/**
+ * Iter 36 v5 Phase M — 생장점 (apex meristem) node.
+ *
+ * 사용자 botanical: "줄기의 마디에서 잎·곁가지·꽃이 나오고, 잎겨드랑이에서 곁가지·
+ * 화방이 생긴다." 생장점은 줄기 _최상단_의 새 organ emerge 부위.
+ *
+ * 산식: mainAxis stemCurve 마지막 segment 위쪽 ~5cm offset (visible marker).
+ */
+function addApexNode(
+  axis: AxisBase,
+  axisIdx: number,
+  nodes: Map<string, SkeletonNode>,
+): void {
+  if (axis.stemCurve.length === 0) return;
+  const top = axis.stemCurve[axis.stemCurve.length - 1];
+  const aid = `n:apex:axis${axisIdx}`;
+  // apex는 stem top에서 위쪽으로 약간 offset (~3cm visible marker).
+  nodes.set(aid, {
+    id: aid,
+    pos: { x: top.position.x, y: top.position.y + 0.03, z: top.position.z },
+    radius: 0.0015,
+    edgeIds: [],
+  });
+}
+
+/**
+ * Iter 36 v5 Phase M — 떡잎 (cotyledon) node.
+ *
+ * 사용자 botanical: 발아 시 처음 나오는 _2개의 잎_ (좌 -1 / 우 +1, side field).
+ * 발아 후 곧 떨어지지만 D=0~10에서 visible. PlantBase.cotyledons 데이터를 그대로
+ * skeleton node로 표현 (visibility는 OrganVisibility로 PlantBase가 이미 결정).
+ */
+function addCotyledonNodes(
+  plantBase: PlantBase,
+  nodes: Map<string, SkeletonNode>,
+): void {
+  for (let i = 0; i < plantBase.cotyledons.length; i++) {
+    const cot = plantBase.cotyledons[i];
+    if (!cot.visibility.visible) continue;
+    const cid = `n:cotyledon:side${cot.side === -1 ? 'L' : 'R'}`;
+    nodes.set(cid, {
+      id: cid,
+      pos: { ...cot.position },
+      radius: 0.0015,
+      edgeIds: [],
+    });
+  }
+}
+
 function addBudsForAxis(
   axis: AxisBase,
   axisIdx: number,
