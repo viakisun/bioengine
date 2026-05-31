@@ -1,3 +1,6 @@
+import { createLogger } from '../../utils/logger';
+const log = createLogger('overlay');
+
 // Iter 20 PR 6 — keyboard hotkey for the petiole-stem junction overlay.
 // 'd' / 'D' (English) and 'ㅇ' (Korean — same physical key on 2벌식) all toggle.
 // Iter 25+: 'l' / 'L' / 'ㅣ' for leaf wireframe debug.
@@ -36,24 +39,24 @@ export function installDockingOverlayHotkey(): void {
     if (DOCKING_KEYS.has(e.key)) {
       const api = (window as unknown as { __dockingOverlay?: DockingApi }).__dockingOverlay;
       if (!api) {
-        console.warn('[dockingOverlay.hotkey] __dockingOverlay not yet ready');
+        log.warn('__dockingOverlay not yet ready');
         return;
       }
       dockingEnabled = !dockingEnabled;
       api({ enable: dockingEnabled });
-      console.log(`[dockingOverlay.hotkey] '${e.key}' → ${dockingEnabled ? 'ON' : 'OFF'}`);
+      log.info(`'${e.key}' → dockingOverlay ${dockingEnabled ? 'ON' : 'OFF'}`);
       return;
     }
 
     if (LEAF_WIRE_KEYS.has(e.key)) {
       const api = (window as unknown as { __leafWireframe?: LeafWireApi }).__leafWireframe;
       if (!api) {
-        console.warn('[leafWireframe.hotkey] __leafWireframe not yet ready');
+        log.warn('__leafWireframe not yet ready');
         return;
       }
       leafWireEnabled = !leafWireEnabled;
       api(leafWireEnabled);
-      console.log(`[leafWireframe.hotkey] '${e.key}' → ${leafWireEnabled ? 'ON' : 'OFF'}`);
+      log.info(`'${e.key}' → leafWireframe ${leafWireEnabled ? 'ON' : 'OFF'}`);
       return;
     }
   });

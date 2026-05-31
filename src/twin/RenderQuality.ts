@@ -1,3 +1,6 @@
+import { createLogger } from '../utils/logger';
+const log = createLogger('engine');
+
 /**
  * Render-quality 10-level preset table + applier.
  *
@@ -379,7 +382,7 @@ export function applyRenderQuality(
         existingGen.dispose();
         gen = new ShadowGenerator(res, setup.sun);
       } catch (err) {
-        console.warn(`[RenderQuality] Shadow ${res} failed, falling back`, err);
+        log.warn(`Shadow ${res} failed, falling back`, err);
         if (res > 4096) {
           res = 4096;
           notify.warn('그림자맵 다운그레이드', `${fx.shadowResolution} → ${res} (VRAM 부족)`);
@@ -533,7 +536,7 @@ export function applyRenderQuality(
           ip.colorGradingTexture = lut;
           ip.colorGradingEnabled = true;
         } catch (err) {
-          console.warn('[RenderQuality] Color LUT load failed', err);
+          log.warn('Color LUT load failed', err);
         }
       } else {
         ip.colorGradingEnabled = true;

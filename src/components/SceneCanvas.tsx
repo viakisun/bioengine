@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { createBabylonEngine, type BabylonEngineHandle } from '../twin/BabylonEngine';
 import { notify } from '../store/notify';
+import { createLogger } from '../utils/logger';
+const log = createLogger('scene');
 
 export function SceneCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -24,7 +26,7 @@ export function SceneCanvas() {
         }
       })
       .catch((err) => {
-        console.error('[SceneCanvas] engine create failed:', err);
+        log.error('engine create failed:', err);
         notify.error('엔진 초기화 실패', err instanceof Error ? err : String(err));
         const hud = document.getElementById('hud-backend');
         if (hud) hud.textContent = 'ENGINE ERROR — check console';

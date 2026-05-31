@@ -1,4 +1,5 @@
-import { log } from '../utils/logger';
+import { createLogger } from '../utils/logger';
+const log = createLogger('skinplant');
 // SkinMeshPlant — SSOT Phase 4 sibling of ShowcasePlant.
 //
 // Same ShowcasePlantHandle interface, same lifecycle, same materials,
@@ -325,7 +326,7 @@ export function createSkinMeshPlant(
       vertexEdgeTag: engineResult.stemVertexEdgeTag,
     };
 
-    log.dev(
+    log.debug(
       `[skinplant] graph: nodes=${graph.nodes.size} edges=${graph.edges.size} | ` +
       `tube: edges=${skin.stats.edgeCount} branches=${skin.stats.branchCount} ` +
       `verts=${skin.stats.vertexCount} tris=${skin.stats.triangleCount} ` +
@@ -346,10 +347,10 @@ export function createSkinMeshPlant(
         : 'ren=∅';
       return `  ${t.padEnd(10)} graph=${String(inGraph).padStart(3)} emitted=${String(emitted).padStart(3)} ${fmt(bio)} ${renFmt}`;
     });
-    log.dev(`[skinplant] per-edge-type breakdown:\n${typeRows.join('\n')}`);
+    log.debug(`per-edge-type breakdown:\n${typeRows.join('\n')}`);
     if (skin.stats.floatingCandidateCount > 0) {
-      console.warn(
-        `[skinplant] ⚠ floating candidates=${skin.stats.floatingCandidateCount}: `
+      log.warn(
+        `⚠ floating candidates=${skin.stats.floatingCandidateCount}: `
         + skin.stats.floatingCandidateIds.slice(0, 8).join(', ')
         + (skin.stats.floatingCandidateIds.length > 8 ? ' …' : ''),
       );
@@ -388,7 +389,7 @@ export function createSkinMeshPlant(
         for (const m of currentParts.fruits) m.setEnabled(truOn);
         // Truss organs live under transform nodes; toggle the whole node.
         for (const n of currentTransformNodes) n.setEnabled(truOn);
-        log.dev(`[skinplant.view] mode=${mode} stem=${stemOn} leaf=${leafOn} truss=${truOn}`);
+        log.debug(`mode=${mode} stem=${stemOn} leaf=${leafOn} truss=${truOn}`);
       };
 
     // Iter 18C — Petiole docking debug overlay (replaces earlier stub).
@@ -560,7 +561,7 @@ export function createSkinMeshPlant(
       // Iter 20 PR 5 — expose flag so BabylonEngine can enable conditional
       // shadow-build of skinMeshPlant when overlay is on in Skeleton mode.
       (window as unknown as { __dockingOverlayEnabled?: boolean }).__dockingOverlayEnabled = opts.enable;
-      log.dev(`[dockingOverlay] enable=${opts.enable} edgeTypes=${merged.edgeTypes?.join(',')} focus=${merged.focus} labelMode=${merged.labelMode}`);
+      log.debug(`enable=${opts.enable} edgeTypes=${merged.edgeTypes?.join(',')} focus=${merged.focus} labelMode=${merged.labelMode}`);
     };
 
     // Leaf wireframe debug API — material 없이 mesh 자체 (vertex/edge)만 표시.
@@ -568,7 +569,7 @@ export function createSkinMeshPlant(
       .__leafWireframe = (enable) => {
       leafWireframeEnabled = enable;
       applyLeafWireframe();
-      log.dev(`[leafWireframe] ${enable ? 'ON' : 'OFF'} — ${currentParts.leaves.length} leaves`);
+      log.debug(`${enable ? 'ON' : 'OFF'} — ${currentParts.leaves.length} leaves`);
     };
 
     (window as unknown as { __skinplantPetioleDock?: (opts: {
@@ -593,7 +594,7 @@ export function createSkinMeshPlant(
         perPetiole: diag, summary,
       };
       if (!opts.enable) {
-        log.dev('[skinplant.petioleDock] OFF — JSON published only');
+        log.debug('OFF — JSON published only');
         return;
       }
       // Decide which subset to render.
@@ -624,7 +625,7 @@ export function createSkinMeshPlant(
         if (d.leafBase) mkLine(`dock_l_tip_${d.edgeId}`, d.tip, d.leafBase,
           (d.tipDelta_mm ?? 0) > 1 ? C_WARN : C_YELLOW);
         // Console label
-        log.dev(
+        log.debug(
           `[dock ${d.edgeId.replace('e:petiole:', '')}] `
           + `pb→gr=${d.plantBaseGraphDelta_mm.toFixed(2)}mm  `
           + `gr→rd=${(d.graphRenderedDelta_mm ?? -1).toFixed(2)}mm  `
@@ -633,7 +634,7 @@ export function createSkinMeshPlant(
           + `severity=${d.severity}`,
         );
       }
-      log.dev(
+      log.debug(
         `[skinplant.petioleDock] ON — ${subset.length}/${diag.length} petioles. `
         + `worstPB→GR=${summary.worstPlantBaseGraphDelta_mm.toFixed(2)}mm  `
         + `worstGR→RD=${summary.worstGraphRenderedDelta_mm.toFixed(2)}mm  `
@@ -727,7 +728,7 @@ export function createSkinMeshPlant(
         leafMeshCount++;
       }
     }
-    log.dev(`[skinplant.leaf] per-leaf meshes=${leafMeshCount} (PR 3-1 graph-anchor entry)`);
+    log.debug(`per-leaf meshes=${leafMeshCount} (PR 3-1 graph-anchor entry)`);
     void cultivarKey;
 
     // === Truss organs — Iter 26 PR 3-2 (SSOT #187 원칙 4 partial) ===
@@ -829,7 +830,7 @@ export function createSkinMeshPlant(
     root,
     update(day, physiology) {
       if (diag()) {
-        log.dev(
+        log.debug(
           `[diag:1] skinplant.update(day=${day.toFixed(2)}, physiology=${physiology ? 'yes' : 'no'})`,
         );
       }
@@ -871,8 +872,8 @@ export function createSkinMeshPlant(
           (m) => PREFIXES.some((p) => m.name.startsWith(p)) && m.isEnabled(),
         );
         if (orphans.length > 0) {
-          console.warn(
-            `[skinplant lush ownership] ${orphans.length} mesh(es) still enabled `
+          log.warn(
+            `${orphans.length} mesh(es) still enabled `
             + `after setLushEnabled(false). Names:`,
             orphans.map((m) => m.name).slice(0, 10),
           );

@@ -1,3 +1,6 @@
+import { createLogger } from '../utils/logger';
+const log = createLogger('scene');
+
 // SkeletonOverlay — wireframe + node-marker visualization (v4.0 consumer
 // of PlantBase). No biological / world-transform logic lives here; all
 // position decisions arrive pre-baked in PlantBase via computePlantGeometry.
@@ -285,8 +288,8 @@ export function createSkeletonOverlay(
     // PlantBase always populates v4.1 fields → this path should be
     // unreachable. Dev warn for regression detection.
     if (import.meta.env?.DEV) {
-      console.warn(
-        `[v4.0 path reached] SkeletonOverlay drawTruss legacy fallback hit `
+      log.warn(
+        `SkeletonOverlay drawTruss legacy fallback hit `
         + `for axis ${axisIdx} truss n${truss.nodeIdx}. `
         + `PlantBase should populate v4.1 fields.`,
       );
@@ -551,7 +554,7 @@ export function createSkeletonOverlay(
         drawAxisAll(pb.sideShoots[i], i + 1);
       }
     } catch (err) {
-      console.error('[SkeletonOverlay] draw failed:', err);
+      log.error('draw failed:', err);
       clearMeshes();
     }
     syncDockingOverlay();

@@ -1,4 +1,5 @@
-import { log } from '../utils/logger';
+import { createLogger } from '../utils/logger';
+const log = createLogger('overlay');
 // SinglePlantOverlay — HUD-first analysis UI for the single-plant mode.
 //
 // Mounts on top of GreenhouseLayout. The container is pointer-events:
@@ -42,7 +43,7 @@ export function SinglePlantOverlay() {
   // Dev-only diagnostic: log toggle changes so headless capture can verify
   // zustand subscription is firing.
   useEffect(() => {
-    log.dev(`[SinglePlantOverlay] useImplicitMesh changed → ${useImplicitMesh}`);
+    log.debug(`useImplicitMesh changed → ${useImplicitMesh}`);
   }, [useImplicitMesh]);
 
   // Drive the live simulation as the user scrubs the timeline.
@@ -50,7 +51,7 @@ export function SinglePlantOverlay() {
   // setTimeout 으로 예약, 300ms 안에 끝나면 cancel).
   useEffect(() => {
     const engine = getSinglePlantEngine();
-    log.dev(`[SinglePlantOverlay] effect: minute=${minute} useImplicitMesh=${useImplicitMesh} engine=${!!engine} skin=${!!getSinglePlantSkinMesh()}`);
+    log.debug(`effect: minute=${minute} useImplicitMesh=${useImplicitMesh} engine=${!!engine} skin=${!!getSinglePlantSkinMesh()}`);
     if (!engine) return;
     const setBusy = useTwinStore.getState().setBusy;
     const showAt = window.setTimeout(() => setBusy(true, 'Simulating...'), 300);

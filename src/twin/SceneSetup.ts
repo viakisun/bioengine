@@ -1,4 +1,5 @@
-import { log } from '../utils/logger';
+import { createLogger } from '../utils/logger';
+const log = createLogger('scene');
 import { Scene } from '@babylonjs/core/scene';
 import { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight';
 import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
@@ -47,7 +48,7 @@ export async function setupScene(
   camera: Camera,
   options: SceneSetupOptions = { backend: 'webgl2' }
 ): Promise<SceneSetupHandle> {
-  log.dev(`[SceneSetup] starting setup (backend=${options.backend})`);
+  log.debug(`starting setup (backend=${options.backend})`);
 
   scene.imageProcessingConfiguration.toneMappingEnabled = true;
   scene.imageProcessingConfiguration.toneMappingType =
@@ -118,14 +119,14 @@ export async function setupScene(
       ssao.expensiveBlur = true;
       ssao.bilateralSoften = 0.5;
       ssao.bilateralTolerance = 0.15;
-      log.dev('[SceneSetup] SSAO2 enabled (WebGL2)');
+      log.debug('SSAO2 enabled (WebGL2)');
       logBoot('log', 'setup: SSAO2 활성화 (WebGL2)');
     } catch (err) {
-      console.warn('[SceneSetup] SSAO2 init failed:', err);
+      log.warn('SSAO2 init failed:', err);
       notify.warn('SSAO 초기화 실패', err instanceof Error ? err.message : String(err));
     }
   } else {
-    log.dev(`[SceneSetup] SSAO2 skipped (backend=${options.backend} or unsupported)`);
+    log.debug(`SSAO2 skipped (backend=${options.backend} or unsupported)`);
     if (options.backend === 'webgpu') {
       notify.warnWebGPUUnsupported('SSAO');
     }
@@ -133,7 +134,7 @@ export async function setupScene(
 
   updateStageDetail('환경 텍스처 (IBL)', 0.9);
   logBoot('log', 'setup: IBL 환경 텍스처');
-  log.dev('[SceneSetup] setup complete');
+  log.debug('setup complete');
 
   return { sun, hemi, shadowGenerator, pipeline, ssao };
 }
@@ -145,9 +146,9 @@ function setupIBL(scene: Scene) {
     env.level = 1.0;
     scene.environmentTexture = env;
     scene.environmentIntensity = 0.6;
-    log.dev('[SceneSetup] IBL loaded from /hdri/environment.env');
+    log.debug('IBL loaded from /hdri/environment.env');
   } catch (err) {
-    console.warn('[SceneSetup] local IBL load failed:', err);
+    log.warn('local IBL load failed:', err);
   }
 }
 
@@ -168,6 +169,6 @@ function setupSky(scene: Scene) {
     skybox.receiveShadows = false;
     skybox.applyFog = false;
   } catch (err) {
-    console.warn('[SceneSetup] GradientMaterial sky failed, falling back to clearColor:', err);
+    log.warn('GradientMaterial sky failed, falling back to clearColor:', err);
   }
 }

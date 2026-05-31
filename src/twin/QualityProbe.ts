@@ -1,4 +1,5 @@
-import { log } from '../utils/logger';
+import { createLogger } from '../utils/logger';
+const log = createLogger('quality');
 // QualityProbe — q7 baseline 위에 q8 의 fx 변경 4가지를 단일 항목씩 적용하며
 // fps 를 측정하는 진단 도구. single-plant 모드에서 사용자가 DevTools 의
 // `window.__farmsim.qualityProbe()` 로 트리거.
@@ -80,7 +81,7 @@ export function createQualityProbe(deps: {
     try {
       applyRenderQuality(scene, sceneSetup, engine, fx);
     } catch (err) {
-      console.warn(`[QualityProbe] applyRenderQuality failed at ${label}:`, err);
+      log.warn(`applyRenderQuality failed at ${label}:`, err);
     }
     // 안정화 — shadow generator 재생성, post-FX pipeline rebuild 흡수.
     await wait(stepMs / 2);
@@ -94,7 +95,7 @@ export function createQualityProbe(deps: {
     const fps = readFps();
     const memMB = readMem();
     const padded = label.padEnd(22, ' ');
-    log.dev(`[QualityProbe] ${padded}  fps=${fps.toFixed(1)}  mem=${memMB}MB`);
+    log.debug(`${padded}  fps=${fps.toFixed(1)}  mem=${memMB}MB`);
     return { label, fps, memMB };
   }
 
@@ -102,15 +103,15 @@ export function createQualityProbe(deps: {
     // ---- Pre-checks ----------------------------------------------------
     const store = useTwinStore.getState();
     if (store.mode !== 'single-plant') {
-      console.warn(
-        '[QualityProbe] mode 가 single-plant 이 아닙니다. greenhouse 모드에서는 supporting 720 의 영향 으로 측정 의도가 흐려짐. 중단.',
+      log.warn(
+        'mode 가 single-plant 이 아닙니다. greenhouse 모드에서는 supporting 720 의 영향 으로 측정 의도가 흐려짐. 중단.',
       );
       running = false;
       return;
     }
     if (progressiveIsRunning?.()) {
-      console.warn(
-        '[QualityProbe] ProgressiveLoad 가 진행 중. complete 로그 확인 후 다시 시도 부탁.',
+      log.warn(
+        'ProgressiveLoad 가 진행 중. complete 로그 확인 후 다시 시도 부탁.',
       );
       running = false;
       return;
@@ -120,12 +121,12 @@ export function createQualityProbe(deps: {
     const q7 = QUALITY_PRESETS[7];
     const q8 = QUALITY_PRESETS[8];
     if (!q7 || !q8) {
-      console.warn('[QualityProbe] QUALITY_PRESETS[7/8] 미존재. 중단.');
+      log.warn('QUALITY_PRESETS[7/8] 미존재. 중단.');
       running = false;
       return;
     }
 
-    log.dev(
+    log.debug(
       `[QualityProbe] start (q7 baseline, stepMs=${stepMs}, restoreQuality=${restoreQuality})`,
     );
     const startedAt = performance.now();
@@ -175,11 +176,11 @@ export function createQualityProbe(deps: {
     const rankStr = deltas
       .map((d) => `${d.key}:-${d.dfps.toFixed(1)}`)
       .join('  ');
-    log.dev(
+    log.debug(
       `[QualityProbe] complete  total=${total}ms  restoredQuality=${restoreQuality}`,
     );
-    log.dev(`[QualityProbe] ranking: ${rankStr}`);
-    log.dev(
+    log.debug(`ranking: ${rankStr}`);
+    log.debug(
       `[QualityProbe] q8 sanity: fps=${r5.fps.toFixed(1)} (single-toggle sum ≈ ${deltas
         .reduce((s, d) => s + d.dfps, 0)
         .toFixed(1)} fps drop)`,
@@ -191,7 +192,7 @@ export function createQualityProbe(deps: {
   return {
     async start() {
       if (running) {
-        console.warn('[QualityProbe] 이미 진행 중. abort 후 재시작.');
+        log.warn('이미 진행 중. abort 후 재시작.');
         clearPending();
         running = false;
         abortReason = 'restart';
@@ -201,14 +202,14 @@ export function createQualityProbe(deps: {
       try {
         await runSequence();
       } catch (err) {
-        console.error('[QualityProbe] 측정 중 예외:', err);
+        log.error('측정 중 예외:', err);
         running = false;
       }
     },
     abort(reason) {
       if (!running) return;
       clearPending();
-      log.dev(`[QualityProbe] aborted (${reason})`);
+      log.debug(`aborted (${reason})`);
       abortReason = reason;
       running = false;
     },

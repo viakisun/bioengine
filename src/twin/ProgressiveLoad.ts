@@ -1,4 +1,5 @@
-import { log } from '../utils/logger';
+import { createLogger } from '../utils/logger';
+const log = createLogger('progressive');
 // ProgressiveLoad — single-plant 모드 진입 시 단계별로 환경 → skeleton →
 // lush → quality 점진 적용하면서 매 단계 metric (FPS / heap / mesh count)
 // 을 console.log 로 남기는 orchestrator.
@@ -60,7 +61,7 @@ export function createProgressiveLoad(deps: {
     const materials = scene.materials.length;
     const t = Math.round(performance.now() - startedAt);
     const padded = stageLabel.padEnd(14, ' ');
-    log.dev(
+    log.debug(
       `[ProgressiveLoad] ${padded}  fps=${fps}  mem=${heapMB}MB  meshes=${meshes}  materials=${materials}  t=${t}ms`,
     );
   }
@@ -76,7 +77,7 @@ export function createProgressiveLoad(deps: {
 
   async function runSequence(savedQuality: number, currentDay: number): Promise<void> {
     startedAt = performance.now();
-    log.dev(`[ProgressiveLoad] start (savedQuality=${savedQuality})`);
+    log.debug(`start (savedQuality=${savedQuality})`);
 
     // ---- Stage 1: env-only ------------------------------------------
     // Showcase lush + skeleton 둘 다 OFF. quality 1 적용.
@@ -138,7 +139,7 @@ export function createProgressiveLoad(deps: {
       // 진행 중이면 abort 후 새로 시작.
       if (running) {
         clearPending();
-        log.dev(`[ProgressiveLoad] aborted at stage=${currentStageName}  (restart)`);
+        log.debug(`aborted at stage=${currentStageName}  (restart)`);
       }
       running = true;
       void runSequence(Math.max(1, Math.min(10, savedQuality)), currentDay);
@@ -146,7 +147,7 @@ export function createProgressiveLoad(deps: {
     abort(reason) {
       if (!running) return;
       clearPending();
-      log.dev(`[ProgressiveLoad] aborted at stage=${currentStageName}  (${reason})`);
+      log.debug(`aborted at stage=${currentStageName}  (${reason})`);
       running = false;
     },
     isRunning: () => running,
