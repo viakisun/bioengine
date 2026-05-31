@@ -34,11 +34,7 @@ import {
 import { normalizeLeafMeshVertices } from './anchors';
 // Iter 36 v5 Phase E — leaf-engine procedural variation (Conservative 분리).
 import { buildCompoundLeaf as leafEngineBuildCompoundLeaf } from '../scene/leaf-engine';
-// Iter 36 v5 Phase K — 개별 leaflet plane mesh path (사용자 §9).
-import { buildCompoundLeafMesh } from '../scene/leaf-engine/buildCompoundLeafMesh';
 import type { LeafBladeRef, LeafletNodeRef } from './skeleton/PlantSkeletonGraph';
-
-interface V3 { x: number; y: number; z: number }
 
 /** Simple djb2 string hash → deterministic numeric seed (per leaf instance). */
 function hashStr(s: string): number {
@@ -188,35 +184,23 @@ export function buildLeafMeshFromPhytomer(
   //   Phase E에서 leaf-engine buildCompoundLeaf 통합 (procedural variation).
   bladeRef?: LeafBladeRef,
   leafletNodes?: ReadonlyArray<LeafletNodeRef>,
-  // Iter 36 v5 Phase K — leaflet skeleton positions (mesh-local 변환용).
-  //   key = leaflet node ID, value = plant-local position.
-  leafletPositions?: ReadonlyMap<string, V3>,
-  // Iter 36 v5 Phase K — leaf-blade-root anchor 위치 (mesh.position 기준).
-  leafBladeRootPos?: V3,
 ): Mesh {
-  // Iter 36 v5 Phase K — 개별 leaflet plane mesh path (★ 사용자 §9 의도).
-  //   bladeRef + leafletNodes + positions _전부_ 있을 때:
-  //     → buildCompoundLeafMesh 호출 → 개별 leaflet mesh batch
-  //     → buildLeafChunkSkin _bypass_ (통합 chunk 안 만듦)
-  //   부분만 있으면 legacy path (buildLeafChunkSkin) fallback.
-  if (bladeRef && leafletNodes && leafletNodes.length > 0
-      && leafletPositions && leafBladeRootPos) {
-    const seed = hashStr(name);
-    const mesh = buildCompoundLeafMesh(
-      name, scene, bladeRef, leafletNodes, leafBladeRootPos, leafletPositions, seed,
-    );
-    return mesh;
-  }
-
-  // Iter 36 v5 Phase E (legacy path) — bladeRef/leafletNodes 부분 있을 때.
-  //   buildCompoundLeaf descriptor에서 serration/lobe만 추출 → shape에 전달.
-  //   leafletCount는 leaflet skeleton nodes 길이.
+  // Iter 36 v5 Phase E — leaf-engine 통합. bladeRef + leafletNodes 있을 때
+  //   buildCompoundLeaf 호출 → CompoundLeafDescriptor.
+  //   descriptor.resolved 의 serrationAmp/lobeDepth/serrationFreq 등을 shape에
+  //   전달 → mesh vertex variation 결과 반영.
+  //   leafletCount는 leaflet skeleton nodes 길이 사용 (4 position types 합).
+  //
+  //   ★ buildLeafChunkSkin은 외부 패키지 (변경 X). 산출값만 leaf-engine 경유.
+  //   ★ Phase E 시점에 intercalary/secondary 별도 mesh 생성은 추후 (skeleton
+  //     marker로 _기본_ 시각화 — buildLeafChunkSkin이 leafletCount 기반).
   let leafEngineLeafletCount = leafOrganState.leafletCount;
   let leafEngineSerrationDepth = leafOrganState.morphology.serrationDepth;
   let leafEngineLobeDepth = leafOrganState.morphology.lobeDepth;
   if (bladeRef && leafletNodes && leafletNodes.length > 0) {
     const seed = hashStr(name);
     const descriptor = leafEngineBuildCompoundLeaf(bladeRef, leafletNodes, seed);
+    // primary + intercalary + secondary leaflet 수의 합 (4 types).
     leafEngineLeafletCount = leafletNodes.length;
     leafEngineSerrationDepth = descriptor.resolved.serrationAmp;
     leafEngineLobeDepth = descriptor.resolved.lobeDepth;
