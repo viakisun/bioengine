@@ -7,6 +7,9 @@
 
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { notify } from '../store/notify';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('app');
 
 interface Props {
   children: ReactNode;
@@ -25,7 +28,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
-    console.error('[ErrorBoundary]', error, info.componentStack);
+    log.error('UI 컴포넌트 크래시', error, info.componentStack);
     notify.error(
       'UI 컴포넌트 크래시',
       error,

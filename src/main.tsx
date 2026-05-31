@@ -2,7 +2,10 @@ import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { useTwinStore } from './store/twinStore';
 import { notify } from './store/notify';
+import { createLogger } from './utils/logger';
 import './ui/ui-kit.css';
+
+const log = createLogger('app');
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/consistent-type-definitions
@@ -21,11 +24,11 @@ const root = document.getElementById('root');
 if (!root) throw new Error('#root not found');
 
 window.addEventListener('error', (e) => {
-  console.error('[window.error]', e.message, e.error);
+  log.error(`window.error: ${e.message}`, e.error);
   notify.error(e.message || '예기치 못한 오류', e.error instanceof Error ? e.error : e.message);
 });
 window.addEventListener('unhandledrejection', (e) => {
-  console.error('[unhandledrejection]', e.reason);
+  log.error('unhandledrejection', e.reason);
   const reason = e.reason;
   const title = reason instanceof Error
     ? `Unhandled Promise: ${reason.message}`
