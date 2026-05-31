@@ -5,7 +5,7 @@
 import { useMemo, useState } from 'react';
 import { useTwinStore } from '../../store/twinStore';
 import { getSinglePlantEngine } from './useSinglePlantState';
-import { SHOWCASE_SEED } from '../../twin/SceneInfrastructure';
+import { SHOWCASE_SEED } from '../../rendering/SceneInfrastructure';
 import { buildSinglePlantEvents, EVENT_COLOR, type TimelineEvent } from './events';
 import { FONT_MONO, C_FG, C_BORDER } from './styles';
 

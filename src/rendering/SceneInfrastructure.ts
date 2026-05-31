@@ -7,7 +7,7 @@
 //   - ShowcasePlant + SkinMeshPlant (single)
 //
 // 13 beds / greenhouse 골조 / cocopeat / tube rail / 와이어 / supporting plants
-// 모두 `src/_archive/twin/`로 archive됨 (Iter 35 Phase C).
+// 모두 `src/_archive/rendering/`로 archive됨 (Iter 35 Phase C).
 
 import { Scene } from '@babylonjs/core/scene';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';

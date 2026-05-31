@@ -1,7 +1,7 @@
 import { create } from 'zustand';
-import type { PresetView } from '../twin/CameraRig';
+import type { PresetView } from '../rendering/CameraRig';
 import { SCENARIO } from '../data/mockScenario';
-import { QUALITY_PRESETS, RENDER_FX_DEFAULTS } from '../twin/RenderQuality';
+import { QUALITY_PRESETS, RENDER_FX_DEFAULTS } from '../rendering/RenderQuality';
 
 export type CompareMode = 'off' | 'yesterday' | '7days';
 

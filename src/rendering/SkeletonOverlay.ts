@@ -27,7 +27,7 @@ import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import '@babylonjs/core/Meshes/Builders/sphereBuilder';
-import { catmullRomPath } from '../plant/StemGenerator';
+import { catmullRomPath } from './stem/StemGenerator';
 import type {
   PlantBase,
   AxisBase,

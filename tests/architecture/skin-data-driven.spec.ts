@@ -27,7 +27,7 @@ const SPEC_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(SPEC_DIR, '../..');
 
 const SKIN_FILES = [
-  'src/twin/SkinMeshPlant.ts',
+  'src/rendering/SkinMeshPlant.ts',
   'src/plant/LeafGenerator.ts',
 ];
 
@@ -67,7 +67,7 @@ test.describe('Skin Data-Driven Refactor (Iter 29 Phase 4)', () => {
   });
 
   test('SKIN-DATA-DRIVEN-03: canonical Skin path 0 LeafBase.azimuthRad/droopRad reads; legacy fallback ≤ 1 each', async () => {
-    const text = await readSource('src/twin/SkinMeshPlant.ts');
+    const text = await readSource('src/rendering/SkinMeshPlant.ts');
     const azimuthHits = (text.match(/leafBase\.azimuthRad/g) ?? []).length;
     const droopHits = (text.match(/leafBase\.droopRad/g) ?? []).length;
     // Phase 4: legacy fallback retained in the `else` branch — 1 hit each.
@@ -90,7 +90,7 @@ test.describe('Skin Data-Driven Refactor (Iter 29 Phase 4)', () => {
     // Inspect canonical Skin path:
     //   - SkinMeshPlant.ts MUST NOT call any of these
     //   - LeafGenerator.buildLeafMeshFromPhytomer body MUST NOT call any of these
-    const skin = await readSource('src/twin/SkinMeshPlant.ts');
+    const skin = await readSource('src/rendering/SkinMeshPlant.ts');
     for (const fn of FORBIDDEN) {
       expect(skin, `SkinMeshPlant MUST NOT call ${fn}`)
         .not.toMatch(new RegExp(`\\b${fn}\\s*\\(`));
@@ -137,7 +137,7 @@ test.describe('Skin Data-Driven Refactor (Iter 29 Phase 4)', () => {
     expect(block, 'legacy NodeState param retained').toMatch(/node:\s*NodeState/);
 
     // ShowcasePlant.ts still imports and uses legacy function
-    const showcase = await readSource('src/twin/ShowcasePlant.ts');
+    const showcase = await readSource('src/rendering/ShowcasePlant.ts');
     expect(showcase, 'ShowcasePlant uses legacy createLeafMeshFromNode or createLeafBladeOnlyMesh')
       .toMatch(/createLeafMeshFromNode|createLeafBladeOnlyMesh/);
   });
@@ -145,7 +145,7 @@ test.describe('Skin Data-Driven Refactor (Iter 29 Phase 4)', () => {
   test('SKIN-SENESCENCE-APPLY-01: Skin applies PlantBase senescence values; doesn\'t reinterpret progress', async () => {
     // Skin reads phytomer.leaf.senescence.colorDullness — PlantBase computed.
     // No formula like `progress * 25` or `yellowing * <number>` in Skin path.
-    const skin = await readSource('src/twin/SkinMeshPlant.ts');
+    const skin = await readSource('src/rendering/SkinMeshPlant.ts');
     expect(skin, 'SkinMeshPlant reads phytomer.leaf.senescence')
       .toMatch(/phytomer\.\w+\.leaf\??\.\s*senescence|phytomer\?\.\w*\.\s*senescence|phytomerLeaf\??\.senescence/);
     // No senescenceProgress recomputation in Skin (no `progress * 0.X` patterns)

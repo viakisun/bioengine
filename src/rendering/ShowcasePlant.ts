@@ -16,7 +16,7 @@ import {
   getYellowLeafMaterial,
   getDiseasedLeafMaterial,
 } from '../plant/LeafGenerator';
-import { createStemMesh, createStemMeshFromSegments, getStemMaterial, createCurvedTube } from '../plant/StemGenerator';
+import { createStemMesh, createStemMeshFromSegments, getStemMaterial, createCurvedTube } from './stem/StemGenerator';
 import { createTrussNode, createTrussNodeFromBase } from '../plant/TrussGenerator';
 import { buildCotyledonChunk } from '@farmsim/tomato-geometry';
 import type { GrowthEngine, PlantState } from '@farmsim/tomato-engine';

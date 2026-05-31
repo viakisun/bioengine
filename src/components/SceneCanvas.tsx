@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { createBabylonEngine, type BabylonEngineHandle } from '../twin/BabylonEngine';
+import { createBabylonEngine, type BabylonEngineHandle } from '../rendering/BabylonEngine';
 import { notify } from '../store/notify';
 import { createLogger } from '../utils/logger';
 const log = createLogger('scene');

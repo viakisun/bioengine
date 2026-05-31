@@ -38,7 +38,7 @@ import {
   getCultivar,
 } from '@farmsim/tomato-engine';
 import { computePlantGeometry, type PlantBase, type AxisBase } from '../plant/PlantBase';
-import { getStemMaterial } from '../plant/StemGenerator';
+import { getStemMaterial } from './stem/StemGenerator';
 import { createTrussFruitOrgansOnly } from '../plant/TrussGenerator';
 import { buildCotyledonChunk } from '@farmsim/tomato-geometry';
 import type {

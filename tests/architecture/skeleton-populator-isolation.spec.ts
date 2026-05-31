@@ -8,7 +8,7 @@
 // 진행 정책 (점진):
 //   - Iter 26 PR 2-0 baseline 기록 (현재 위반 위치 인벤토리).
 //   - PR 3-1/3-2 후 SkinMeshPlant leaf/truss 루프 = 0 위반.
-//   - PR 5-1 후 src/twin/SkinMeshPlant.ts SkinEngine 호출에 plantBase 인자 0건
+//   - PR 5-1 후 src/rendering/SkinMeshPlant.ts SkinEngine 호출에 plantBase 인자 0건
 //     + src/plant/skin/** PlantState 참조 0건.
 //
 // 본 spec은 node-context (fs)에서 grep 실행 — playwright config는 architecture
@@ -29,8 +29,8 @@ const POPULATOR_PATHS = [
 
 // 시각 경로 (graph만 봐야 함, simulation 직접 참조 0 목표).
 const VISUAL_PATHS = [
-  'src/twin/SkinMeshPlant.ts',
-  'src/twin/SkeletonOverlay.ts',
+  'src/rendering/SkinMeshPlant.ts',
+  'src/rendering/SkeletonOverlay.ts',
   'src/plant/skin',
 ];
 

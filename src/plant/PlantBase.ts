@@ -10,9 +10,9 @@
  * All coordinates are scene-world (meters), all angles radians.
  *
  * Consumers (after v4.0):
- *   - SkeletonView (src/twin/SkeletonOverlay)
- *   - PlantView (src/twin/ShowcasePlant)
- *   - SupportingPlantView (src/twin/SupportingPlant)
+ *   - SkeletonView (src/rendering/SkeletonOverlay)
+ *   - PlantView (src/rendering/ShowcasePlant)
+ *   - SupportingPlantView (src/rendering/SupportingPlant)
  *
  * After v4.0 any direct PlantState → Renderer organ interpretation
  * is a bug (see plan-tomato-truss-anatomy-magical-pancake.md).

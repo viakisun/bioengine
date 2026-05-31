@@ -11,8 +11,8 @@
 import { useEffect, useState } from 'react';
 import { useTwinStore } from '../../store/twinStore';
 import type { GrowthEngine, PlantPhysiologyState, PlantState } from '@farmsim/tomato-engine';
-import type { ShowcasePlantHandle } from '../../twin/ShowcasePlant';
-import { SHOWCASE_SEED } from '../../twin/SceneInfrastructure';
+import type { ShowcasePlantHandle } from '../../rendering/ShowcasePlant';
+import { SHOWCASE_SEED } from '../../rendering/SceneInfrastructure';
 
 let engineRef: GrowthEngine | null = null;
 let showcaseRef: ShowcasePlantHandle | null = null;

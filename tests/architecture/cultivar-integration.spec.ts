@@ -157,7 +157,7 @@ test.describe('Cultivar Integration + Variance (Iter 29 Phase 5)', () => {
     // Phase 4 left 1 fallback occurrence each (legacy `else` branch). Phase 5
     // LEGACY-ALIAS-REMOVE-02 strictly removed the fallback — canonical path
     // is now anchor.rotation only.
-    const text = await readSrc('src/twin/SkinMeshPlant.ts');
+    const text = await readSrc('src/rendering/SkinMeshPlant.ts');
     const azimuthHits = (text.match(/leafBase\.azimuthRad/g) ?? []).length;
     const droopHits = (text.match(/leafBase\.droopRad/g) ?? []).length;
     expect(azimuthHits, 'leafBase.azimuthRad references').toBe(0);

@@ -55,7 +55,7 @@ test.describe('Iter 34 C6 — Leaf mesh build 진입점 단일 보장', () => {
       }
     }
     // ★ 호출 site는 SkinMeshPlant.ts _1건_만 (canonical)
-    expect(callSites).toEqual(['src/twin/SkinMeshPlant.ts']);
+    expect(callSites).toEqual(['src/rendering/SkinMeshPlant.ts']);
   });
 
   test('LEAF-MESH-DEAD-FALLBACK-REMOVED-01: createLeafBladeOnlyMesh 정의 0 (Iter 34 C1)', async () => {

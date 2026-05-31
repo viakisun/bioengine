@@ -17,7 +17,7 @@ declare global {
   interface Window {
     __twinStore?: typeof useTwinStore;
     __debugScene?: import('@babylonjs/core/scene').Scene;
-    __debugEngine?: import('./twin/BabylonEngine').BabylonEngineHandle;
+    __debugEngine?: import('./rendering/BabylonEngine').BabylonEngineHandle;
   }
 }
 

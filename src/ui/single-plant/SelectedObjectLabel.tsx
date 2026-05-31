@@ -4,7 +4,7 @@
 // ai-snuggly-badger.md "Out of scope").
 
 import { useSinglePlantState } from './useSinglePlantState';
-import { SHOWCASE_SEED } from '../../twin/SceneInfrastructure';
+import { SHOWCASE_SEED } from '../../rendering/SceneInfrastructure';
 import { FONT_MONO, C_FG, C_BORDER } from './styles';
 
 export function SelectedObjectLabel() {
