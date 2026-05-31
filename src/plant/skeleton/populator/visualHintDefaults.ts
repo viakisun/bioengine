@@ -103,6 +103,12 @@ export const NODE_VISUAL_HINT_DEFAULTS: Record<SkeletonNodeType, NodeVisualHint>
     markerShape: 'ring',
     markerSizeM: 0.0040,
   },
+  // Iter 36 v5 Phase O — rachis 부착점 (잎줄기 마디).
+  'rachis-attach-node': {
+    markerColor: '#5D8C36',     // dark olive (rachis 마디)
+    markerShape: 'sphere',
+    markerSizeM: 0.0012,
+  },
 };
 
 /** Returns a fresh visualHint clone for the given type (label injected by caller). */

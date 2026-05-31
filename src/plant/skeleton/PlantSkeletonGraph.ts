@@ -73,7 +73,11 @@ export type SkeletonNodeType =
   | 'bud-node'               // axillary bud (dormant/activated/growing)
   // Iter 36 v5 Phase M (★ NEW) — 발아 + 생장점 botanical 구조.
   | 'cotyledon-node'         // 떡잎 — 발아 시 처음 나오는 2개 잎 (left/right)
-  | 'apex-node';             // 생장점 (apical meristem) — 새 잎이 emerge하는 mainStem top
+  | 'apex-node'              // 생장점 (apical meristem) — 새 잎이 emerge하는 mainStem top
+  // Iter 36 v5 Phase O (★ NEW) — rachis 위 leaflet 부착점.
+  //   사용자 의도: 잎줄기에 _여러 마디_가 있고 각 마디에서 좌우 소엽 분기.
+  //   현재 lateral-vein/petiolule이 _terminal node 하나_에서 시작 (별모양) → 분산.
+  | 'rachis-attach-node';    // rachis 위 부착점 (rachisU 0.18, 0.35, 0.55, ...)
 
 /**
  * Iter 36 v5 Phase B — Compound leaf leaflet position type.

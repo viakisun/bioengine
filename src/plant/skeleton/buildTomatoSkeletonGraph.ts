@@ -420,50 +420,112 @@ function addLeafletNodesForLeaf(
     z: tipPos.z + rachisDir.z * u * rachisLen,
   });
 
-  // ── 1. Terminal leaflet (rachisU=1.0) ──
-  const terminalU = 1.0;
-  const terminalSf = 1.15;
-  const terminalPos = rachisPointAt(terminalU);
-  const terminalLid = `n:leaflet:axis${axisIdx}:n${leafNodeIdx}:terminal:0`;
-  const terminalTargetSize = rachisLen * terminalSf * 0.4;
+  // ── Phase O — rachis를 _multiple sub-edges_로 분할 + attach nodes 분산 ──
+  //   사용자 의도: 잎줄기에 _여러 마디_가 있고 각 마디에서 좌우 소엽 분기.
+  //   이전 (Phase J): leaf-rachis edge가 하나 — 모든 leaflet이 terminal에서 분기 (별모양).
+  //   신규: rachisU별 attach node + sub-rachis edge → botanical fishbone.
 
-  // leaf-rachis edge: leaf-blade-root (parentLeafNodeId) → terminal leaflet
-  const leafRachisEdgeId = `e:leaf-rachis:axis${axisIdx}:n${leafNodeIdx}`;
-  edges.set(leafRachisEdgeId, {
-    id: leafRachisEdgeId,
-    type: 'leaf-rachis',
-    startNodeId: parentLeafNodeId,
-    endNodeId: terminalLid,
-    bonePath: [{
-      p0: { ...tipPos },
-      p1: { ...terminalPos },
-      r0: 0.0010,    // 1mm rachis base
-      r1: 0.0006,    // 0.6mm rachis tip
-    }],
-    parentEdgeId,
-    cuttable: true,
-    semanticLabel: `leaf ${leafNodeIdx} rachis`,
-    attachedOrganIds: [],
-  });
+  // 1. 모든 attachment rachisU 수집 (primary + intercalary) + terminal(1.0)
+  const primaryUs = [0.18, 0.35, 0.55, 0.75].slice(0, bladeRef.primaryPairs);
+  const intercalaryUs: number[] = [];
+  for (let i = 0; i < bladeRef.intercalaryCount; i++) {
+    intercalaryUs.push(0.25 + (i / Math.max(1, bladeRef.intercalaryCount)) * 0.5);
+  }
+  // attach points: primary + intercalary + terminal(1.0). 중복 제거 + 정렬.
+  const attachUsSet = new Set<number>();
+  for (const u of primaryUs) attachUsSet.add(Math.round(u * 100) / 100);
+  for (const u of intercalaryUs) attachUsSet.add(Math.round(u * 100) / 100);
+  attachUsSet.add(1.0);  // terminal
+  const attachUs = Array.from(attachUsSet).sort((a, b) => a - b);
 
-  // Terminal leaflet node (endNode of leaf-rachis).
-  nodes.set(terminalLid, {
-    id: terminalLid,
-    pos: terminalPos,
-    radius: 0.0006,
-    edgeIds: [leafRachisEdgeId],
-    leafletRef: {
-      parentLeafNodeId,
-      position: 'terminal',
-      rachisU: terminalU,
-      sizeFactor: terminalSf,
-      targetSizeM: terminalTargetSize,
-    } satisfies LeafletNodeRef,
-  });
+  // 2. rachis를 sub-edges로 분할 — leaf-blade-root → attach[0] → attach[1] → ... → terminal.
+  //    각 attach node 생성 + sub-edge 등록 + parent edge id Map (rachisU → edge id).
+  const attachNodeByU = new Map<number, string>();
+  const subRachisEdgeIdByU = new Map<number, string>();
+  let prevNodeId = parentLeafNodeId;
+  let prevPos: V3 = { ...tipPos };
 
-  // leaf-blade-root (parentLeafNodeId)에도 leaf-rachis edge 등록.
-  const parentNode = nodes.get(parentLeafNodeId);
-  if (parentNode) parentNode.edgeIds.push(leafRachisEdgeId);
+  for (let i = 0; i < attachUs.length; i++) {
+    const u = attachUs[i];
+    const attachPos = rachisPointAt(u);
+    const isTerminal = u >= 0.999;
+    const attachNodeId = isTerminal
+      ? `n:leaflet:axis${axisIdx}:n${leafNodeIdx}:terminal:0`  // terminal node ID 유지
+      : `n:rachis-attach:axis${axisIdx}:n${leafNodeIdx}:u${u.toFixed(2)}`;
+
+    // sub-rachis edge.
+    const subEdgeId = `e:leaf-rachis:axis${axisIdx}:n${leafNodeIdx}:seg${i}`;
+    const r0 = 0.0010 - 0.0004 * (i / Math.max(1, attachUs.length));  // 점차 가늘어짐
+    const r1 = 0.0010 - 0.0004 * ((i + 1) / Math.max(1, attachUs.length));
+    edges.set(subEdgeId, {
+      id: subEdgeId,
+      type: 'leaf-rachis',
+      startNodeId: prevNodeId,
+      endNodeId: attachNodeId,
+      bonePath: [{
+        p0: { ...prevPos },
+        p1: { ...attachPos },
+        r0,
+        r1,
+      }],
+      parentEdgeId: i === 0 ? parentEdgeId : subRachisEdgeIdByU.get(attachUs[i - 1])!,
+      cuttable: true,
+      semanticLabel: `leaf ${leafNodeIdx} rachis seg ${i}`,
+      attachedOrganIds: [],
+    });
+    subRachisEdgeIdByU.set(u, subEdgeId);
+
+    // attach node 생성 (terminal은 leafletRef 포함).
+    if (isTerminal) {
+      const terminalSf = 1.15;
+      nodes.set(attachNodeId, {
+        id: attachNodeId,
+        pos: attachPos,
+        radius: 0.0006,
+        edgeIds: [subEdgeId],
+        leafletRef: {
+          parentLeafNodeId,
+          position: 'terminal',
+          rachisU: 1.0,
+          sizeFactor: terminalSf,
+          targetSizeM: rachisLen * terminalSf * 0.4,
+        } satisfies LeafletNodeRef,
+      });
+    } else {
+      nodes.set(attachNodeId, {
+        id: attachNodeId,
+        pos: attachPos,
+        radius: 0.0006,
+        edgeIds: [subEdgeId],
+        // leafletRef 없음 — rachis-attach node는 _분기점_만, leaflet 자체 아님.
+      });
+    }
+
+    // 이전 노드에 sub-edge 등록.
+    const prevNode = nodes.get(prevNodeId);
+    if (prevNode) prevNode.edgeIds.push(subEdgeId);
+
+    attachNodeByU.set(u, attachNodeId);
+    prevNodeId = attachNodeId;
+    prevPos = attachPos;
+  }
+
+  const terminalLid = attachNodeByU.get(1.0)!;
+  const leafRachisEdgeId = subRachisEdgeIdByU.get(1.0)!;  // 마지막 sub-edge — sub-vein parent로 사용.
+
+  // attach node lookup helper — rachisU에 가장 가까운 attach node 찾기.
+  const findAttachNodeForU = (u: number): string => {
+    const rounded = Math.round(u * 100) / 100;
+    if (attachNodeByU.has(rounded)) return attachNodeByU.get(rounded)!;
+    // fallback: 가장 가까운 attachU.
+    let bestU = attachUs[0];
+    let bestDist = Math.abs(rounded - bestU);
+    for (const a of attachUs) {
+      const d = Math.abs(rounded - a);
+      if (d < bestDist) { bestDist = d; bestU = a; }
+    }
+    return attachNodeByU.get(bestU)!;
+  };
 
   let leafletCounter = 1;
   // ── primary / intercalary 추가 (rachis 위 직접 부착) ──
@@ -486,24 +548,34 @@ function addLeafletNodesForLeaf(
     };
     const targetSizeM = rachisLen * sf * 0.4;
 
+    // ★ Phase O — attach node에서 분기 (이전: terminalLid에서 모두 시작).
+    const attachNodeId = findAttachNodeForU(rachisU);
+    const attachNode = nodes.get(attachNodeId);
+    const attachPos = attachNode?.pos ?? rachisPos;
+    const parentSubRachisEdgeId =
+      subRachisEdgeIdByU.get(Math.round(rachisU * 100) / 100)
+      ?? leafRachisEdgeId;
+
     const edgeId =
       `e:${edgeType}:axis${axisIdx}:n${leafNodeIdx}:${position}:${leafletCounter}`;
     edges.set(edgeId, {
       id: edgeId,
       type: edgeType,
-      startNodeId: terminalLid,  // rachis end (mid-attach approximation, cut hierarchy 보존)
+      startNodeId: attachNodeId,  // ★ rachis attach node (마디)
       endNodeId: lid,
       bonePath: [{
-        p0: { ...rachisPos },
+        p0: { ...attachPos },
         p1: { ...leafletPos },
         r0: 0.0005,
         r1: 0.0003,
       }],
-      parentEdgeId: leafRachisEdgeId,
+      parentEdgeId: parentSubRachisEdgeId,
       cuttable: true,
       semanticLabel: `${position} ${edgeType}`,
       attachedOrganIds: [],
     });
+    // attach node의 edgeIds에 이 분기 등록.
+    if (attachNode) attachNode.edgeIds.push(edgeId);
 
     nodes.set(lid, {
       id: lid,
@@ -579,10 +651,8 @@ function addLeafletNodesForLeaf(
     if (parentNodeRef) parentNodeRef.edgeIds.push(subVeinEdgeId);
   };
 
-  // 2. Primary pairs (left/right, rachisU 0.18~0.75) — lateral-vein 사용.
-  //    각 primary는 _sub-leaflet의 부모_가 될 수 있음.
+  // 2. Primary pairs (left/right) — 위에서 산출한 primaryUs 사용.
   const primaries: { lid: string; pos: V3 }[] = [];
-  const primaryUs = [0.18, 0.35, 0.55, 0.75].slice(0, bladeRef.primaryPairs);
   for (let i = 0; i < primaryUs.length; i++) {
     const sf = 0.85 - i * 0.10;
     primaries.push(addRachisChild('primary', primaryUs[i], sf, -1, 'lateral-vein'));
@@ -591,7 +661,7 @@ function addLeafletNodesForLeaf(
 
   // 3. Intercalary — rachis 직접 부착 (petiolule edge).
   for (let i = 0; i < bladeRef.intercalaryCount; i++) {
-    const u = 0.25 + (i / Math.max(1, bladeRef.intercalaryCount)) * 0.5;
+    const u = intercalaryUs[i];
     const sf = 0.10 + (i % 3) * 0.08;
     const sign = i % 2 === 0 ? -1 : +1;
     addRachisChild('intercalary', u, sf, sign, 'petiolule');
