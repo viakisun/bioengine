@@ -724,13 +724,15 @@ export function createSkinMeshPlant(
         leafMesh.parent = lushGroup;
         leafMesh.position = new Vector3(tipPlantPos.x, tipPlantPos.y, tipPlantPos.z);
         // 적엽 (defoliation): 하부 plant-local Y < threshold 인 leaf blade _hide_.
-        //   작물 height 보존. 줄기 (skin SDF surface) + petiole(skin)은 그대로 —
-        //   _잎 blade만_ 사라짐. 토마토 농가의 진짜 하부 적엽 결과 시각화.
         const defolHeightCm = useTwinStore.getState().defoliationHeightCm;
         const leafYcm = tipPlantPos.y * 100;
+        // 진단: 사용자 보고 _안 됨_ → leaf Y range 확인 위해 _warn level_ 임시 사용
+        //   (skinplant namespace default 'warn' — 사용자 console에 즉시 표시).
+        if (defolHeightCm > 0) {
+          log.warn(`[defol] leaf a${axisIdx}_n${nodeIdx} Y=${leafYcm.toFixed(1)}cm threshold=${defolHeightCm}cm hide=${leafYcm < defolHeightCm}`);
+        }
         if (defolHeightCm > 0 && leafYcm < defolHeightCm) {
           leafMesh.setEnabled(false);
-          if (diag()) log.debug(`defol: hide leaf a${axisIdx}_n${nodeIdx} Y=${leafYcm.toFixed(1)}cm < ${defolHeightCm}cm`);
         }
         // R26 contract — anchor.rotation 그대로 적용 (petioleCurve tangent → makeLeafQuaternion).
         const rot = anchor.rotation ?? { x: 0, y: 0, z: 0, w: 1 };
