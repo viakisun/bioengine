@@ -755,7 +755,7 @@ export function createSkinMeshPlant(
           hiddenCount++;
         }
       }
-      log.warn(`[defol] hidden=${hiddenCount}/${currentParts.leaves.length} minY=${(minY * 100).toFixed(1)}cm threshold=${(thresholdY * 100).toFixed(1)}cm`);
+      log.debug(`[defol] hidden=${hiddenCount}/${currentParts.leaves.length} minY=${(minY * 100).toFixed(1)}cm threshold=${(thresholdY * 100).toFixed(1)}cm`);
     }
 
     // === Truss organs — Iter 26 PR 3-2 (SSOT #187 원칙 4 partial) ===

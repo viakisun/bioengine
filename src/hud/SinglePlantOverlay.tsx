@@ -19,6 +19,7 @@ import { useTwinStore } from '../state/twinStore';
 import { FloatingTopBar } from '../hud/single-plant/FloatingTopBar';
 import { BottomPlaybackBar } from '../hud/single-plant/BottomPlaybackBar';
 import { RightBottomToggles } from '../hud/single-plant/RightBottomToggles';
+import { DefoliationSlider } from '../hud/single-plant/DefoliationSlider';
 import { DrawerStack } from './DrawerStack';
 import { C_FG } from '../hud/single-plant/styles';
 import { SHOWCASE_SEED } from '../scene/SceneInfrastructure';
@@ -99,6 +100,7 @@ export function SinglePlantOverlay() {
       }}
     >
       <FloatingTopBar />
+      <DefoliationSlider />
       <BottomPlaybackBar />
       <RightBottomToggles />
       <DrawerStack />
