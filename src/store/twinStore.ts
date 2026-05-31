@@ -9,23 +9,8 @@ export type CompareMode = 'off' | 'yesterday' | '7days';
  *  Iter 35: single-plant only (lobby/greenhouse/robot/sandbox archived). */
 export type AppMode = 'single-plant';
 
-/** Output variables the Single-Plant TimelineChart can plot. */
-export type SinglePlantChartVar =
-  | 'TT' | 'LAI' | 'W' | 'W_f' | 'W_m' | 'HI' | 'N' | 'heightCm'
-  | 'PAR_now' | 'T_now';
-
-export const SINGLE_PLANT_CHART_VARS: { id: SinglePlantChartVar; label: string; unit: string }[] = [
-  { id: 'TT', label: 'Thermal time', unit: '°C·d' },
-  { id: 'LAI', label: 'Leaf area index', unit: 'm²/m²' },
-  { id: 'W', label: 'Plant DM', unit: 'g DM' },
-  { id: 'W_f', label: 'Fruit DM', unit: 'g DM' },
-  { id: 'W_m', label: 'Mature fruit DM', unit: 'g DM' },
-  { id: 'HI', label: 'Harvest index', unit: '–' },
-  { id: 'N', label: 'Node count', unit: 'nodes' },
-  { id: 'heightCm', label: 'Height', unit: 'cm' },
-  { id: 'PAR_now', label: 'PAR (instant.)', unit: 'μmol/m²/s' },
-  { id: 'T_now', label: 'Air temp (instant.)', unit: '°C' },
-];
+// Iter 35 PR 2 Phase J: SinglePlantChartVar + SINGLE_PLANT_CHART_VARS 제거
+//   (TimelineChart archived, 사용처 0).
 
 // Iter 35: AppMode 단일 — URL hash와 무관하게 항상 'single-plant'.
 //   #lobby / #greenhouse 등 legacy hash가 와도 single-plant fallback.
@@ -115,7 +100,8 @@ export interface LightingState {
 // Skeleton overlay 설정 (Plan 3a Phase ζ)
 // ──────────────────────────────────────────────────────────────────
 
-export type DrawerKind = 'lighting' | 'inspector' | 'skeleton';
+// Iter 35 PR 2 Phase J: inspector 제거. Phase M에서 wind + settings 추가 예정.
+export type DrawerKind = 'lighting' | 'skeleton';
 
 export interface SkeletonConfig {
   // 두께 (월드 단위, m). 0.001 m = 1mm.
@@ -507,26 +493,12 @@ interface TwinState {
   singlePlantPlaying: boolean;
   /** Playback speed multiplier. */
   singlePlantSpeed: 1 | 4 | 24;
-  /** Which output variable the TimelineChart graphs as the y-axis. */
-  singlePlantChartVar: SinglePlantChartVar;
-  /** History window for the TimelineChart. */
-  singlePlantChartWindow: '1d' | '7d' | '30d' | 'all';
-  /** Camera preset in the single-plant viewport. */
+  // Iter 35 PR 2 Phase J: chart/metrics/inspector fields 제거
+  //   (TimelineChart + MetricsTray + InspectorPanel archived).
+  /** Camera preset in the single-plant viewport. (Phase K에서 정리 검토) */
   singlePlantCamera: 'free' | 'truss' | 'fruit' | 'top';
-  /** HUD-refactor: top-bar filter pill ('전체|잎|화방|과실|작업|환경').
-   *  Wiring is reserved — toggling the active filter is supported but
-   *  downstream rendering hooks are Phase E+. */
+  /** HUD-refactor: top-bar filter pill (Phase K에서 정리 검토). */
   singlePlantTopFilter: 'all' | 'leaf' | 'truss' | 'fruit' | 'work' | 'env';
-  /** HUD-refactor: collapsible MetricsTray (TimelineChart wrapper). */
-  singlePlantMetricsOpen: boolean;
-  /** Which inspector sections are expanded. */
-  singlePlantInspectorOpen: {
-    cultivar: boolean;
-    state: boolean;
-    truss: boolean;
-    phenology: boolean;
-    genome: boolean;
-  };
   /** Plan 3a — toggle skeleton-only view. While true the lush mesh hides
    *  and a wireframe + node-marker overlay shows. Used to verify biology
    *  (apex, node bulge, side shoots, pruning) without visual clutter. */
@@ -546,7 +518,7 @@ interface TwinState {
   setSkeleton: (patch: Partial<SkeletonConfig>) => void;
   resetSkeleton: () => void;
 
-  /** 우측 드로어 — 'lighting' | 'inspector' | 'skeleton' | null. 동시 하나만. */
+  /** 우측 드로어 — 'lighting' | 'skeleton' | null. 동시 하나만 (Iter 35 PR 2). */
   openDrawer: DrawerKind | null;
   setOpenDrawer: (d: DrawerKind | null) => void;
 
@@ -558,12 +530,9 @@ interface TwinState {
   setSinglePlantMinute: (m: number) => void;
   setSinglePlantPlaying: (p: boolean) => void;
   setSinglePlantSpeed: (s: 1 | 4 | 24) => void;
-  setSinglePlantChartVar: (v: SinglePlantChartVar) => void;
-  setSinglePlantChartWindow: (w: '1d' | '7d' | '30d' | 'all') => void;
   setSinglePlantCamera: (c: 'free' | 'truss' | 'fruit' | 'top') => void;
   setSinglePlantTopFilter: (f: 'all' | 'leaf' | 'truss' | 'fruit' | 'work' | 'env') => void;
-  toggleSinglePlantMetrics: () => void;
-  toggleSinglePlantInspector: (key: 'cultivar' | 'state' | 'truss' | 'phenology' | 'genome') => void;
+  // Iter 35 PR 2 Phase J: chart/metrics/inspector setters 제거.
 
   // -- Boot progress + notifications + live log + env --
   boot: BootSnapshot;
@@ -808,12 +777,9 @@ export const useTwinStore = create<TwinState>((set) => ({
   singlePlantMinute: 45 * 24 * 60 + 12 * 60,
   singlePlantPlaying: false,
   singlePlantSpeed: 4,
-  singlePlantChartVar: 'LAI',
-  singlePlantChartWindow: '7d',
+  // Iter 35 PR 2 Phase J: chart/metrics/inspector defaults 제거.
   singlePlantCamera: 'free',
   singlePlantTopFilter: 'all',
-  singlePlantMetricsOpen: false,
-  singlePlantInspectorOpen: { cultivar: true, state: true, truss: true, phenology: true, genome: false },
   showSkeleton: false,
   setShowSkeleton: (v) => set({ showSkeleton: v }),
   debugDiagnostics: false,
@@ -835,16 +801,9 @@ export const useTwinStore = create<TwinState>((set) => ({
     set({ singlePlantMinute: Math.max(0, Math.min(120 * 24 * 60 - 1, Math.round(m))) }),
   setSinglePlantPlaying: (p) => set({ singlePlantPlaying: p }),
   setSinglePlantSpeed: (s) => set({ singlePlantSpeed: s }),
-  setSinglePlantChartVar: (v) => set({ singlePlantChartVar: v }),
-  setSinglePlantChartWindow: (w) => set({ singlePlantChartWindow: w }),
   setSinglePlantCamera: (c) => set({ singlePlantCamera: c }),
   setSinglePlantTopFilter: (f) => set({ singlePlantTopFilter: f }),
-  toggleSinglePlantMetrics: () =>
-    set((s) => ({ singlePlantMetricsOpen: !s.singlePlantMetricsOpen })),
-  toggleSinglePlantInspector: (key) =>
-    set((s) => ({
-      singlePlantInspectorOpen: { ...s.singlePlantInspectorOpen, [key]: !s.singlePlantInspectorOpen[key] },
-    })),
+  // Iter 35 PR 2 Phase J: chart/metrics/inspector setters 제거.
 
   // -- Boot progress + notifications + live log + env --
   boot: {

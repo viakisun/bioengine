@@ -1,19 +1,11 @@
 // DrawerStack — unified right-side drawer system for single-plant mode.
-// 3 drawers: 조명 / 정보 (Inspector) / 스켈레톤.
-//   • 우측 모서리에 vertical 한 tab 3개 stacked.
-//   • 하나만 동시 open. tab 클릭 → 그 drawer 가 슬라이드 인 + 다른 건 close.
-//   • ESC 또는 ✕ 로 close.
-//
-// Why a unified stack instead of 3 independent drawers:
-//   • 화면 우측 공간 380px 만 사용 (배타적).
-//   • 사용자가 어떤 drawer 가 열려있는지 명확.
-//   • store.openDrawer 로 중앙 관리 → localStorage persist 가능 (선택).
+// Iter 35 PR 2 Phase J: inspector 제거. Phase M에서 wind + settings 추가 예정.
+// 현재 2 drawers: 조명 / 스켈레톤.
 
 import { useEffect, type ReactNode } from 'react';
 import { useTwinStore } from '../store/twinStore';
 import type { DrawerKind } from '../store/twinStore';
 import { LightingTab } from './LightingTab';
-import { InspectorPanel } from '../ui/single-plant/InspectorPanel';
 import { SkeletonTab } from './SkeletonTab';
 
 interface DrawerSpec {
@@ -25,7 +17,6 @@ interface DrawerSpec {
 
 const DRAWERS: DrawerSpec[] = [
   { id: 'lighting',  label: '조명',     title: '조명 / 포스트FX 튜닝',  content: () => <LightingTab /> },
-  { id: 'inspector', label: '정보',     title: 'Plant Inspector',       content: () => <InspectorPanel /> },
   { id: 'skeleton',  label: '스켈레톤', title: 'Skeleton 표시 설정',    content: () => <SkeletonTab /> },
 ];
 

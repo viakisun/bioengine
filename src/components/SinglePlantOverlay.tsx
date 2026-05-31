@@ -21,7 +21,7 @@ import { PARGauge } from '../ui/single-plant/PARGauge';
 import { FloatingTopBar } from '../ui/single-plant/FloatingTopBar';
 import { BottomPlaybackBar } from '../ui/single-plant/BottomPlaybackBar';
 import { RightBottomToggles } from '../ui/single-plant/RightBottomToggles';
-import { MetricsTray } from '../ui/single-plant/MetricsTray';
+// Iter 35 PR 2 Phase J: MetricsTray archived.
 import { SelectedObjectLabel } from '../ui/single-plant/SelectedObjectLabel';
 import { DrawerStack } from './DrawerStack';
 import { C_FG } from '../ui/single-plant/styles';
@@ -88,7 +88,7 @@ export function SinglePlantOverlay() {
       <FloatingTopBar />
       <SelectedObjectLabel />
       <PARGauge />
-      <MetricsTray />
+      {/* Iter 35 PR 2 Phase J: MetricsTray archived. */}
       <BottomPlaybackBar />
       <RightBottomToggles />
       <DrawerStack />

@@ -1,33 +1,21 @@
-// RightBottomToggles — compact HUD pills replacing the old left-dock
-// Display / Camera sections. Direct toggles for the binary actions
-// (Skeleton, Heatmap, Settings) and popover dropdowns for the multi-
-// choice ones (Layer set, Camera preset).
+// RightBottomToggles — Iter 35 PR 2 Phase J: 2 pills only (Skeleton + Settings).
+//
+// Phase J: Layer/Skin/Heatmap/Metrics/Camera 5 pills 제거.
+//   PillWithPopover + Section + CheckRow + RadioRow + Popover은 _보존_
+//   (Phase M Settings popover에서 재사용).
+//
+// Phase M (예정): Skeleton dbl-click → drawer 폐기 (단순 toggle).
+//   Settings = PillWithPopover (4 menu items → lighting/skeleton/wind/settings drawer).
 
-import { useState, type CSSProperties, type ReactNode } from 'react';
+import { type CSSProperties, type ReactNode } from 'react';
 import { useTwinStore } from '../../store/twinStore';
 import { Popover } from './Popover';
 import { FONT_MONO, C_FG, C_FG_MUTE, C_BORDER, C_ACCENT } from './styles';
 
-type Camera = 'free' | 'truss' | 'fruit' | 'top';
-
-const CAMERAS: { id: Camera; label: string }[] = [
-  { id: 'free', label: 'Free' },
-  { id: 'truss', label: 'Truss' },
-  { id: 'fruit', label: 'Fruit' },
-  { id: 'top', label: 'Top' },
-];
-
 export function RightBottomToggles() {
-  const camera = useTwinStore((s) => s.singlePlantCamera);
-  const setCamera = useTwinStore((s) => s.setSinglePlantCamera);
   const showSkeleton = useTwinStore((s) => s.showSkeleton);
   const setShowSkeleton = useTwinStore((s) => s.setShowSkeleton);
   const setOpenDrawer = useTwinStore((s) => s.setOpenDrawer);
-  const metricsOpen = useTwinStore((s) => s.singlePlantMetricsOpen);
-  const toggleMetrics = useTwinStore((s) => s.toggleSinglePlantMetrics);
-
-  const [layerOpen, setLayerOpen] = useState(false);
-  const [cameraOpen, setCameraOpen] = useState(false);
 
   return (
     <div
@@ -41,75 +29,20 @@ export function RightBottomToggles() {
         alignItems: 'flex-end',
       }}
     >
-      {/* Layer — popover */}
-      <PillWithPopover
-        label="Layer"
-        open={layerOpen}
-        onOpen={() => setLayerOpen((v) => !v)}
-        onClose={() => setLayerOpen(false)}
-      >
-        <Section label="Layer">
-          <CheckRow label="Plant" checked disabled />
-          <CheckRow
-            label="Skeleton"
-            checked={showSkeleton}
-            onClick={() => setShowSkeleton(!showSkeleton)}
-          />
-          <CheckRow label="Wireframe" checked={false} disabled />
-          <CheckRow label="Heatmap" checked={false} disabled />
-          <CheckRow label="Light field" checked={false} disabled />
-        </Section>
-      </PillWithPopover>
-
       {/* Skeleton — direct toggle */}
       <Pill
         label="Skeleton"
         active={showSkeleton}
         onClick={() => setShowSkeleton(!showSkeleton)}
-        title="Skeleton 표시 (lush mesh hide, 노드/곁가지/apex 만)"
+        title="Skeleton 표시 (lush mesh hide, wireframe + 노드 markers)"
       />
 
-      {/* Iter 35 PR 2: Skin pill 제거 — SkinMesh가 유일 renderer (toggle 부재). */}
-
-      {/* Heatmap — disabled stub */}
-      <Pill label="Heatmap" active={false} disabled title="Phase E+" />
-
-      {/* Metrics — chart panel toggle */}
-      <Pill
-        label="Metrics"
-        active={metricsOpen}
-        onClick={toggleMetrics}
-        title="LAI / H / Fruits 시계열 차트"
-      />
-
-      {/* Camera — popover */}
-      <PillWithPopover
-        label={`Camera · ${CAMERAS.find((c) => c.id === camera)?.label ?? 'Free'}`}
-        open={cameraOpen}
-        onOpen={() => setCameraOpen((v) => !v)}
-        onClose={() => setCameraOpen(false)}
-      >
-        <Section label="Camera">
-          {CAMERAS.map((c) => (
-            <RadioRow
-              key={c.id}
-              label={c.label}
-              checked={camera === c.id}
-              onSelect={() => {
-                setCamera(c.id);
-                setCameraOpen(false);
-              }}
-            />
-          ))}
-        </Section>
-      </PillWithPopover>
-
-      {/* Settings — opens lighting drawer */}
+      {/* Settings — Phase M: PillWithPopover (4-menu) 변환 예정. 현재는 lighting drawer 직접. */}
       <Pill
         label="Settings"
         active={false}
         onClick={() => setOpenDrawer('lighting')}
-        title="조명 · 환경 · 렌더 설정"
+        title="조명 · 환경 · 렌더 설정 (Phase M에서 4-menu popover로 확장)"
       />
     </div>
   );
@@ -132,7 +65,8 @@ function Pill({
   );
 }
 
-function PillWithPopover({
+/** Phase M 사용 예정 — Settings popover에서 4-menu 표시. */
+export function PillWithPopover({
   label, open, onOpen, onClose, children,
 }: {
   label: string;
@@ -175,62 +109,16 @@ function pillStyle(active: boolean, disabled: boolean): CSSProperties {
   };
 }
 
-// ── Popover content rows ─────────────────────────────────────────────
+// ── Popover content rows (Phase M 재사용) ────────────────────────────────
 
-function Section({ label, children }: { label: string; children: ReactNode }) {
+/** Section header for popover groups. */
+export function Section({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div style={{ padding: '4px 8px', minWidth: 140 }}>
       <div style={{ fontSize: 10, color: C_FG_MUTE, marginBottom: 4, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
         {label}
       </div>
       {children}
-    </div>
-  );
-}
-
-function CheckRow({
-  label, checked, disabled, onClick,
-}: { label: string; checked: boolean; disabled?: boolean; onClick?: () => void }) {
-  return (
-    <div
-      onClick={!disabled && onClick ? onClick : undefined}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        padding: '4px 0',
-        fontFamily: FONT_MONO,
-        fontSize: 11,
-        cursor: !disabled && onClick ? 'pointer' : 'default',
-        opacity: disabled ? 0.5 : 1,
-        color: checked ? C_FG : C_FG_MUTE,
-      }}
-    >
-      <span style={{ width: 12 }}>{checked ? '☑' : '☐'}</span>
-      <span>{label}</span>
-    </div>
-  );
-}
-
-function RadioRow({
-  label, checked, onSelect,
-}: { label: string; checked: boolean; onSelect: () => void }) {
-  return (
-    <div
-      onClick={onSelect}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        padding: '4px 0',
-        fontFamily: FONT_MONO,
-        fontSize: 11,
-        cursor: 'pointer',
-        color: checked ? C_FG : C_FG_MUTE,
-      }}
-    >
-      <span style={{ width: 12 }}>{checked ? '◉' : '○'}</span>
-      <span>{label}</span>
     </div>
   );
 }
