@@ -28,7 +28,11 @@ const MAX_RADIUS_MM = 11.5;
 // Tuned so W8 base ≈ 12mm and W16 base ≈ 20mm, matching standard
 // 12–14mm @ W8 and 18–22mm @ W16 with natural plant-to-plant spread.
 const CAMBIAL_GROWTH_MM2_PER_DAY = 0.7;
-const WIRE_HEIGHT_CM = 350; // training wire at 3.5m
+// 사용자 보고: "main stem에 꼬임 발생" (deflection 누적 + SDF junction blend).
+//   string-trellis 농가 현실 — stem 전체가 _수직 지지_, deflection 부재.
+//   0 = 모든 node가 _above wire_ → isAboveWire=true → deflection 0 (수직 보장).
+//   가지 (petiole/peduncle) 휨은 PlantBase.parabolicArc에서 별개로 처리.
+const WIRE_HEIGHT_CM = 0; // string-trellis: main stem 완전 수직 (이전 350: free cantilever)
 
 /**
  * Compute physics for all nodes: mass accumulation, stem radius, bending.
