@@ -64,13 +64,14 @@ log.error('setupScene failed', err); // 항상 출력
 | `growth` | warn | tomato-engine/growth/* + BotanicalSpec |
 | `leaf` | warn | LeafShapeSchema, widthProfile |
 | `plant` | warn | TrussGenerator |
-| `app` | error | main.tsx, ErrorBoundary, legacy `log.*` wrapper |
+| `ui` | error | main.tsx global handler, ErrorBoundary (warn/info silent) |
 
 ★ `info` default namespace는 `progressive`, `overlay` — milestone + 사용자 직접
 인터랙션 피드백.
 
-★ `app` default `error` — legacy `log.dev/info/warn/error` wrapper는 silent (점진
-migrate 후 Iter 32 제거).
+★ `ui` default `error` — main.tsx의 `window.error` / `unhandledrejection` handler +
+ErrorBoundary `componentDidCatch` 전용. warn/info 호출 시 자동 silent. M1 cleanup
+(commit 446b25a)에서 legacy `app` namespace + `LegacyLogger.dev` wrapper 제거됨.
 
 ---
 
@@ -89,13 +90,43 @@ http://localhost:5173?debug=skinplant&silence=growth   ← skinplant 자세히 +
 ### localStorage (영구)
 
 ```js
-// DevTools console
+// DevTools console (수동)
 localStorage.setItem('debug', 'engine,growth');
 localStorage.setItem('silence', 'growth');  // 선택 — growth warn mute
 location.reload();
 ```
 
 URL `?debug=` 미설정 시 localStorage fallback. 평가 순서: **URL > localStorage > NS_DEFAULTS**.
+
+### ★ DevTools helper (DEV-only, 권장)
+
+`__farmsim.debug.*` (DEV 모드에서 자동 install — `import.meta.env.DEV` guard):
+
+```js
+// DevTools console — 한 줄로 enable + reload
+__farmsim.debug.enable('engine,growth');     // localStorage 설정 + 자동 reload
+__farmsim.debug.enableAll();                 // = enable('*')
+__farmsim.debug.disable();                   // 모두 해제 + reload
+__farmsim.debug.silence('growth');           // warn mute + reload
+__farmsim.debug.current();                   // 현재 활성 상태 + effective level 출력
+```
+
+`current()` 출력 예:
+```
+[debug] URL ?debug    = (none)
+[debug] URL ?silence  = (none)
+[debug] localStorage.debug    = engine,growth
+[debug] localStorage.silence  = (none)
+[debug] NS_DEFAULTS  = { engine: 'warn', scene: 'warn', ... }
+[debug] effective per namespace:
+  [engine     ] debug
+  [scene      ] warn
+  [growth     ] debug
+  ...
+```
+
+★ production build에서는 `installDebugHelper()` 호출 안 됨 → `window.__farmsim.debug`
+부재 (production 영향 0).
 
 ### CSV 규칙
 
@@ -122,12 +153,14 @@ URL `?debug=` 미설정 시 localStorage fallback. 평가 순서: **URL > localS
 
 ```
 1. DevTools console 열기 (F12)
-2. 다음 입력:
-   localStorage.setItem('debug', 'growth,leaf,plant,skinplant');
-3. location.reload();
-4. 문제 재현 (예: D=30 stage 진입)
-5. console 우클릭 → "Save as..." 또는 "Preserve log" 체크 후 캡쳐
-6. dev에게 share
+2. 다음 입력 (한 줄):
+   __farmsim.debug.enable('growth,leaf,plant,skinplant');
+   (자동으로 localStorage 설정 + reload)
+3. 문제 재현 (예: D=30 stage 진입)
+4. console 우클릭 → "Save as..." 또는 "Preserve log" 체크 후 캡쳐
+5. dev에게 share
+
+진단 끝나면: __farmsim.debug.disable();
 ```
 
 `growth + leaf + plant + skinplant` namespace 활성화 시:
@@ -141,7 +174,7 @@ URL `?debug=` 미설정 시 localStorage fallback. 평가 순서: **URL > localS
 ### 모든 진단 로그 (Phase H 이전 수준)
 
 ```js
-localStorage.setItem('debug', '*'); location.reload();
+__farmsim.debug.enableAll();   // = enable('*')
 ```
 
 ---
@@ -282,17 +315,25 @@ if (DEBUG_ENABLED) log.debug(`...heavy concat...`);
 
 ## 관련 commit chain
 
-- `4d21f3c` — Phase L0: logger 재설계 + 12 spec
-- `201e0bc` — Phase L1: src/twin + src/components migrate
-- `974ed9f` — Phase L2: src/ui + src/main.tsx
-- `cfc9c82` — Phase L3: src/plant
-- `5701191` — Phase L4: packages/tomato-engine logger + growth migrate
+### Phase L0~L6 (logger system 구축)
+- `4d21f3c` — L0: logger 재설계 + 12 spec
+- `201e0bc` — L1: src/twin + src/components migrate
+- `974ed9f` — L2: src/ui + src/main.tsx
+- `cfc9c82` — L3: src/plant
+- `5701191` — L4: packages/tomato-engine logger + growth migrate
+- `980cf14` — L5: LOGGING.md + CLAUDE.md
+- `cc992f9` — L6: enforcement + production silence (5 invariants)
 
-Phase L5~L7 진행 중.
+### M1~M4 (감사 follow-up)
+- `446b25a` — M1: app→ui namespace rename + LegacyLogger 제거 + installDebugHelper
+- `ff34936` — M2: overlay hotkey 메시지 가독성
 
 ---
 
-## Iter 32 후보
+## Iter 32+ 후보
 
-- Legacy `log.dev/info/warn/error` wrapper (`createLogger('app')` alias) 완전 제거
-- Phase H의 `app` namespace 의존 코드 _전부_ 명시 namespace로 migrate 완료 후
+현재 cleanup 완료. 추가 후보 없음 (감사 통과).
+
+- 외부 logging 서비스 (Sentry/Datadog) — 별도 initiative
+- 로그 _persistence_ (파일 저장) — out of scope
+- Structured (JSON) output — 필요시 별도 layer
