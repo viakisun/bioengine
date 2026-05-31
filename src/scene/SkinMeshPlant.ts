@@ -366,7 +366,9 @@ export function createSkinMeshPlant(
       scene, parent: lushGroup,
       // Iter 21 — rootRadiusScale 1.15 → 1.30. petiole 첫 ring을 더 굵게 하여
       // stem-petiole junction에 자연 collar 효과 강화 (visual emerge 완화).
-      stemOpts: { radialSegments: 8, rootRadiusScale: 1.30, parentSwellingScale: 1.25 },
+      // 사용자 보고: stem 두께 불규칙 → "꼬임" 시각 (적엽으로 junction 일부 사라져
+      //   bulge node + flat node 혼재). parentSwellingScale 1.25 → 1.05 (5% 약한 bulge).
+      stemOpts: { radialSegments: 8, rootRadiusScale: 1.30, parentSwellingScale: 1.05 },
     });
     // Compatibility shim — preserve the existing `skin.faceGroups` shape so
     // the metadata block below doesn't need rewriting. defaultSkinEngine
