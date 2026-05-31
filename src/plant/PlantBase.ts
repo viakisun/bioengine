@@ -556,17 +556,25 @@ function vcross(a: V3, b: V3): V3 {
   return { x: a.y * b.z - a.z * b.y, y: a.z * b.x - a.x * b.z, z: a.x * b.y - a.y * b.x };
 }
 
-/** Parabolic arc from start → end with mild downward sag at midpoint. */
+/** Cantilever beam arc from start → end with tip-weighted droop.
+ *
+ * 사용자 의도 (__/|| 구조): junction 부근 수평 유지, 후반에서 휨 집중.
+ * 실제 cantilever beam (free end load):  y(t) = t² × (3 - t) / 2
+ *   t=0.34: 0.15 (15% — 거의 수평)
+ *   t=0.66: 0.51 (51% — 꺾임 중간)
+ *   t=1.00: 1.00 (100% — apex)
+ * 이전 산식 (p1=0.45 p2=0.85)은 junction 부근부터 _바로 휨_ — 정정.
+ */
 function parabolicArc(start: V3, end: V3, sagFrac = 0.06): V3[] {
-  const mid = vscale(vadd(start, end), 0.5);
+  void vscale; // mid 미사용 (기존 placeholder)
   // Sag depth proportional to arc length.
   const arcLen = vlen(vsub(end, start));
   const sag = arcLen * sagFrac;
   // 4 control points: start, near-start, near-end, end.
   const p1 = vadd(vscale(start, 0.66), vscale(end, 0.34));
-  p1.y -= sag * 0.45;
+  p1.y -= sag * 0.15;   // ← was 0.45 (cantilever t² × (3-t) / 2 at t=0.34)
   const p2 = vadd(vscale(start, 0.34), vscale(end, 0.66));
-  p2.y -= sag * 0.85;
+  p2.y -= sag * 0.51;   // ← was 0.85 (at t=0.66)
   return [start, p1, p2, end];
 }
 
