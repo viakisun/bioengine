@@ -12,10 +12,10 @@ import { PBRCustomMaterial } from '@babylonjs/materials/custom/pbrCustomMaterial
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import {
   SeededRandom,
-  getLeafStage,
+  // Iter 35 PR 2 Phase L: getLeafStage 제거 (createLeafMeshFromNode archived).
   getLeafBlendedColor,
   LeafStage,
-  type NodeState,
+  // Iter 35 PR 2 Phase L: NodeState type 제거 (createLeafMeshFromNode archived).
   type PlantGenome,
   type LeafStageInfo,
 } from '@farmsim/tomato-engine';
@@ -28,7 +28,7 @@ import {
 import {
   getLeafColorTexture,
   getLeafNormalTexture,
-  getDiseasedLeafColorTexture,
+  // Iter 35 PR 2 Phase L: getDiseasedLeafColorTexture import 제거 (getDiseasedLeafMaterial archived).
 } from './LeafTexture';
 // SSOT #186 — Iter 24 acfad71 vertex shift logic을 anchors/ utility로 분리.
 import { normalizeLeafMeshVertices } from './anchors';
@@ -111,66 +111,8 @@ export function createLeafMesh(
   return mesh;
 }
 
-/**
- * Build a leaf mesh driven by GrowthEngine NodeState + genome.
- *
- * Pulls the leaf's stage via getLeafStage(node, plantAge) so the geometry
- * morphs smoothly between early-true → compound-developing → mature,
- * instead of snap-changing leafletCount.
- *
- * waterStress is folded into ageFrac for petiole/rachis gravity sag.
- */
-export function createLeafMeshFromNode(
-  name: string,
-  scene: Scene,
-  node: NodeState,
-  genome: PlantGenome,
-  plantAge: number,
-  rng: SeededRandom
-): Mesh {
-  if (node.leafMaturity < 0.01) return new Mesh(name, scene);
-
-  const stageInfo = getLeafStage(node, plantAge);
-
-  const shape: LeafShapeParams = {
-    serrationDepth: genome.leafSerrationDepth,
-    serrationFreq: genome.leafSerrationFreq,
-    lobeDepth: genome.leafLobeDepth,
-    waviness: genome.leafWaviness,
-    petioleLength: genome.leafPetioleLength,
-  };
-
-  const ageFromDroop = Math.min(1, node.droopExtra / 120);
-  const ageFromAge = Math.min(1, node.age / 80);
-  const ageFrac = Math.max(ageFromDroop, ageFromAge) + node.waterStress * 0.3;
-
-  const curl = 0.12 + node.yellowing * 0.15;
-
-  const chunk = buildLeafChunkLegacy(
-    {
-      stageInfo,
-      leafletCount: node.leafletCount,
-      sizeFactor: node.leafSizeFactor * genome.leafSizeMultiplier,
-      maturity: node.leafMaturity,
-      curl,
-      ageFrac,
-      shape,
-    },
-    rng
-  );
-
-  const vertexCount = chunk.positions.length / 3;
-  const vertexColors = bakeLeafVertexColors(
-    vertexCount,
-    ageFrac,
-    node.waterStress,
-    node.yellowing
-  );
-
-  const mesh = new Mesh(name, scene);
-  applyChunkToMesh(chunk, mesh, vertexColors);
-  return mesh;
-}
+// Iter 35 PR 2 Phase L — createLeafMeshFromNode 제거 (ShowcasePlant 전용, 사용처 0).
+// Canonical entry는 buildLeafMeshFromPhytomer (Iter 33 LEAF-LIVE-FALLBACK-NEVER-01).
 
 // ★ Iter 34 C1 — `createLeafBladeOnlyMesh` (NodeState 기반 dead fallback) 제거.
 // LEAF-LIVE-FALLBACK-NEVER-01 (Iter 33 V1)가 _0% 진입_ 검증 — populator가 100%
@@ -373,7 +315,7 @@ function leafStageInfoFromOrganState(input: {
 
 const cachedLeafMaterial = new WeakMap<Scene, PBRMaterial>();
 const cachedYellowLeafMaterial = new WeakMap<Scene, PBRMaterial>();
-const cachedDiseasedLeafMaterial = new WeakMap<Scene, PBRMaterial>();
+// Iter 35 PR 2 Phase L: cachedDiseasedLeafMaterial 제거.
 
 /**
  * Shader-side wind toggle.
@@ -531,24 +473,4 @@ export function getYellowLeafMaterial(scene: Scene): PBRMaterial {
   return mat;
 }
 
-export function getDiseasedLeafMaterial(scene: Scene): PBRMaterial {
-  let mat = cachedDiseasedLeafMaterial.get(scene);
-  if (!mat) {
-    mat = new PBRMaterial('diseasedLeafMat', scene);
-    mat.albedoColor = new Color3(1, 1, 1);
-    mat.albedoTexture = getDiseasedLeafColorTexture(scene, 0.75);
-    mat.bumpTexture = getLeafNormalTexture(scene);
-    mat.metallic = 0.0;
-    mat.roughness = 0.7;
-    mat.backFaceCulling = false;
-    mat.twoSidedLighting = true;
-    mat.environmentIntensity = 0.55;
-
-    mat.subSurface.isTranslucencyEnabled = true;
-    mat.subSurface.translucencyIntensity = 0.35;
-    mat.subSurface.tintColor = Color3.FromHexString('#4a3818');
-
-    cachedDiseasedLeafMaterial.set(scene, mat);
-  }
-  return mat;
-}
+// Iter 35 PR 2 Phase L — getDiseasedLeafMaterial 제거 (ShowcasePlant 전용, 사용처 0).

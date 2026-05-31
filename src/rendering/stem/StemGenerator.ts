@@ -15,8 +15,7 @@ import { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { PBRMaterial } from '@babylonjs/core/Materials/PBR/pbrMaterial';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
-import { SeededRandom } from '@farmsim/tomato-engine';
-import type { NodeState } from '@farmsim/tomato-engine';
+// Iter 35 PR 2 Phase L: SeededRandom + NodeState import 제거 (createStemMesh archived).
 
 // ─────────────────────────────────────────────────────────────────────────
 // Catmull-Rom utilities (exported — SkeletonOverlay reuses these).
@@ -122,134 +121,14 @@ export function createCurvedTube(
  *
  * Vertex colors encode woodiness — brown at the base, herbaceous green
  * at the tip — and optionally are modulated by `verticalStripeCount`
- * longitudinal grooves for vascular-bundle hints under close inspection.
- */
-export function createStemMesh(
-  name: string,
-  scene: Scene,
-  nodes: NodeState[],
-  rng: SeededRandom,
-  options: StemMeshOptions = {},
-): Mesh | null {
-  const radialSegments = Math.max(3, options.radialSegments ?? DEFAULT_RADIAL_SEGMENTS);
-  const nodeBulge = Math.max(0, options.nodeBulge ?? 0);
-  const stripeCount = Math.max(0, options.verticalStripeCount ?? 0);
-  const stripeDepth = Math.max(0, Math.min(1, options.stripeDepth ?? 0));
-
-  // origin: undefined → ground (0,0,0); null → no prefix; object → custom.
-  const originPoint: Vector3 | null = options.origin === undefined
-    ? new Vector3(0, 0, 0)
-    : options.origin === null
-      ? null
-      : new Vector3(options.origin.x, options.origin.y, options.origin.z);
-
-  // With origin prefix, even 1-node axis (origin + node) yields 2 points.
-  const minNodes = originPoint ? 1 : 2;
-  if (nodes.length < minNodes) return null;
-
-  const { controlPoints, controlRadii } = buildControlSpine(nodes, rng, originPoint);
-  const curvePoints = catmullRomPath(controlPoints, DIVISIONS_PER_NODE);
-
-  // Per-curve-sample radius — linear blend between control radii, plus
-  // node bulge swelling at the integer indices.
-  const curveRadii = sampleRadiiBetween(curvePoints.length, controlRadii, DIVISIONS_PER_NODE, nodeBulge);
-
-  const vd = sweepTube(curvePoints, curveRadii, radialSegments, stripeCount, stripeDepth);
-
-  const mesh = new Mesh(name, scene);
-  vd.applyToMesh(mesh);
-  return mesh;
-}
-
-/**
- * v4.0 — same as createStemMesh but consumes PlantBase StemSegment[]
- * (already-deflected world-space positions + radii). Used by the
- * Showcase / Supporting renderers so both views and the skeleton wire
- * read the exact same stem control points.
- *
- * Segments are { position, radius } only; jitter and physics deflection
- * have already been applied upstream in computePlantGeometry.
- */
-export function createStemMeshFromSegments(
-  name: string,
-  scene: Scene,
-  segments: ReadonlyArray<{ position: { x: number; y: number; z: number }; radius: number }>,
-  options: StemMeshOptions = {},
-): Mesh | null {
-  const radialSegments = Math.max(3, options.radialSegments ?? DEFAULT_RADIAL_SEGMENTS);
-  const nodeBulge = Math.max(0, options.nodeBulge ?? 0);
-  const stripeCount = Math.max(0, options.verticalStripeCount ?? 0);
-  const stripeDepth = Math.max(0, Math.min(1, options.stripeDepth ?? 0));
-
-  const originPoint: Vector3 | null = options.origin === undefined
-    ? new Vector3(0, 0, 0)
-    : options.origin === null
-      ? null
-      : new Vector3(options.origin.x, options.origin.y, options.origin.z);
-
-  const controlPoints: Vector3[] = [];
-  const controlRadii: number[] = [];
-  if (originPoint) {
-    controlPoints.push(originPoint);
-    controlRadii.push((segments[0]?.radius ?? 0.005) * 1.1);
-  }
-  for (const seg of segments) {
-    controlPoints.push(new Vector3(seg.position.x, seg.position.y, seg.position.z));
-    controlRadii.push(seg.radius);
-  }
-
-  const minPoints = originPoint ? 2 : 2;
-  if (controlPoints.length < minPoints) return null;
-
-  const curvePoints = catmullRomPath(controlPoints, DIVISIONS_PER_NODE);
-  const curveRadii = sampleRadiiBetween(curvePoints.length, controlRadii, DIVISIONS_PER_NODE, nodeBulge);
-  const vd = sweepTube(curvePoints, curveRadii, radialSegments, stripeCount, stripeDepth);
-  const mesh = new Mesh(name, scene);
-  vd.applyToMesh(mesh);
-  return mesh;
-}
+// Iter 35 PR 2 Phase L — createStemMesh + createStemMeshFromSegments 제거
+//   (ShowcasePlant 전용, 사용처 0. SkinMesh는 defaultSkinEngine.render() 사용).
 
 // ─────────────────────────────────────────────────────────────────────────
 // Internals
 // ─────────────────────────────────────────────────────────────────────────
 
-/**
- * Convert NodeState[] → polyline control points + per-control radii.
- * Each node.position is consumed directly; PhysicsModel's
- * deflectionRad/Azimuth adds an extra X/Z bend on top.
- */
-function buildControlSpine(
-  nodes: NodeState[],
-  rng: SeededRandom,
-  originPoint: Vector3 | null,
-): { controlPoints: Vector3[]; controlRadii: number[] } {
-  const controlPoints: Vector3[] = [];
-  const controlRadii: number[] = [];
-  if (originPoint) {
-    controlPoints.push(originPoint);
-    // Root flare — first node's radius × 1.1 for a slight basal swell.
-    controlRadii.push((nodes[0].stemRadiusMm / 1000) * 1.1);
-  }
-  let accX = 0;
-  let accZ = 0;
-  for (let i = 0; i < nodes.length; i++) {
-    const node = nodes[i];
-    if (node.deflectionRad > 0.001) {
-      const segLen = (i > 0 ? node.heightCm - nodes[i - 1].heightCm : node.heightCm) / 100;
-      accX += Math.sin(node.deflectionRad) * Math.cos(node.deflectionAzimuth) * segLen;
-      accZ += Math.sin(node.deflectionRad) * Math.sin(node.deflectionAzimuth) * segLen;
-    }
-    const jitterX = rng.gaussian(0, 0.002);
-    const jitterZ = rng.gaussian(0, 0.002);
-    controlPoints.push(new Vector3(
-      node.position.x + accX + jitterX,
-      node.position.y,
-      node.position.z + accZ + jitterZ,
-    ));
-    controlRadii.push(node.stemRadiusMm / 1000);
-  }
-  return { controlPoints, controlRadii };
-}
+// Iter 35 PR 2 Phase L — buildControlSpine 제거 (createStemMesh와 함께 dead).
 
 /**
  * Interpolate per-curve-sample radius from per-control values. With

@@ -125,21 +125,22 @@ test.describe('Skin Data-Driven Refactor (Iter 29 Phase 4)', () => {
     expect(block, 'no plantBase param').not.toMatch(/plantBase/);
   });
 
-  test('SKIN-LEGACY-01: ShowcasePlant legacy path preserved (createLeafBladeOnlyMesh signature unchanged)', async () => {
-    // Plan §4 SKIN-LEGACY-01: ShowcasePlant 구조 회귀 0. createLeafBladeOnlyMesh
-    // 시그니처 변화 _없음_ — Phase 4 추가 함수 buildLeafMeshFromPhytomer는
-    // _parallel_, 기존 함수 그대로.
-    const text = await readSource('src/plant/LeafGenerator.ts');
-    const legacySig = text.match(/export function createLeafBladeOnlyMesh\([\s\S]*?\)\s*:\s*Mesh/);
-    expect(legacySig, 'legacy createLeafBladeOnlyMesh preserved').toBeTruthy();
-    const block = legacySig![0];
-    expect(block, 'legacy plantAge param retained').toMatch(/plantAge:\s*number/);
-    expect(block, 'legacy NodeState param retained').toMatch(/node:\s*NodeState/);
+  test('SKIN-LEGACY-REMOVED-01: ShowcasePlant + createLeafMeshFromNode archived (Iter 35 PR 2 Phase I+L)', async () => {
+    // Iter 35 PR 2: ShowcasePlant 완전 제거 → legacy createLeafMeshFromNode 사용처 0.
+    // src/rendering/ShowcasePlant.ts 부재 + LeafGenerator.ts에 createLeafMeshFromNode export 부재.
+    const lg = await readSource('src/plant/LeafGenerator.ts');
+    expect(lg, 'createLeafMeshFromNode export 0 (Phase L archived)')
+      .not.toMatch(/export function createLeafMeshFromNode/);
 
-    // ShowcasePlant.ts still imports and uses legacy function
-    const showcase = await readSource('src/rendering/ShowcasePlant.ts');
-    expect(showcase, 'ShowcasePlant uses legacy createLeafMeshFromNode or createLeafBladeOnlyMesh')
-      .toMatch(/createLeafMeshFromNode|createLeafBladeOnlyMesh/);
+    // ShowcasePlant.ts는 active 경로에서 archive됨
+    let showcaseExists = false;
+    try {
+      await readSource('src/rendering/ShowcasePlant.ts');
+      showcaseExists = true;
+    } catch {
+      // expected — file archived
+    }
+    expect(showcaseExists, 'src/rendering/ShowcasePlant.ts archived (Phase I)').toBe(false);
   });
 
   test('SKIN-SENESCENCE-APPLY-01: Skin applies PlantBase senescence values; doesn\'t reinterpret progress', async () => {

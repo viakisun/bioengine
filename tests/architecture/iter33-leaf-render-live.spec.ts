@@ -18,23 +18,10 @@ import { test, expect, type Page } from '@playwright/test';
 const DAYS = [30, 60, 90] as const;  // V1 1차 — 3 timepoint (시간 절약)
 
 async function enter(page: Page, day: number) {
+  // Iter 35 PR 2: SkinMesh이 default visible. setUseImplicitMesh API 부재.
+  //   single-plant이 default mode (URL hash 무관).
   await page.goto('/?quality=8', { waitUntil: 'networkidle' });
   await page.waitForTimeout(8000);
-  await page.evaluate(() => {
-    const w = window as unknown as {
-      __twinStore?: { getState(): { setMode(m: string): void; setUseImplicitMesh(v: boolean): void } };
-    };
-    w.__twinStore?.getState().setMode('single-plant');
-    w.__twinStore?.getState().setUseImplicitMesh(false);
-  });
-  await page.waitForTimeout(1000);
-  await page.evaluate(() => {
-    const w = window as unknown as {
-      __twinStore?: { getState(): { setUseImplicitMesh(v: boolean): void } };
-    };
-    w.__twinStore?.getState().setUseImplicitMesh(true);
-  });
-  await page.waitForTimeout(3000);
   await page.evaluate((d) => {
     const w = window as unknown as {
       __twinStore?: { getState(): { setSinglePlantMinute(m: number): void } };
