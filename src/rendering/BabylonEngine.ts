@@ -321,7 +321,8 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
   let lastCountersUpdate = 0;
 
   let lastFpsUpdate = 0;
-  let lastDayUpdate = -999;
+  // Iter 35 PR 4 Phase P: lastDayUpdate 제거 — SinglePlantOverlay useEffect [minute]가
+  //   유일 skin.update path (TOMGRO 일관성).
   let lastPlayTime = performance.now();
   const hudFps = document.getElementById('hud-fps');
   const hudDay = document.getElementById('hud-day');
@@ -440,16 +441,13 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
     }
     lastPlayTime = now;
 
-    if (greenhouse && Math.abs(state.currentDay - lastDayUpdate) > 0.05) {
-      // Iter 35 PR 2: SkinMesh가 유일 plant renderer — 항상 update (toggle 부재).
-      greenhouse.skinMeshPlant.update(state.currentDay);
-      // Iter 35: LabelOverlay + greenhouseContent.update 제거 — single-plant only.
-
-      // Sun + ambient are driven by store.lighting (see applyLightingToScene
-      // in the subscribe handler) — they no longer follow currentDay here.
-
-      lastDayUpdate = state.currentDay;
-    }
+    // Iter 35 PR 4 Phase P: BabylonEngine의 skin.update 호출 _제거_.
+    //   기존 호출 (physiology 없음) → Sigmoid path (낙과 필터 없음) → 부정확한
+    //   fruit count. SinglePlantOverlay.useEffect [minute]가 physiology 포함
+    //   simulatePlantToMinute 호출 → TOMGRO path (낙과/수확 필터) → 정확.
+    //   사용자 보고 "첫 진입 fruit 많은데 click 시 줄어듦" 해소.
+    //
+    // Sun + ambient은 store.lighting subscribe로 처리 (currentDay 무관).
 
     scene.render();
 
