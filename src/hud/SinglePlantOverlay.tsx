@@ -14,7 +14,7 @@ const log = createLogger('overlay');
 //   - PARGauge / SelectedObjectLabel (Phase K)
 //   - MetricsTray + TimelineChart + InspectorPanel (Phase J)
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useTwinStore } from '../state/twinStore';
 import { FloatingTopBar } from '../hud/single-plant/FloatingTopBar';
 import { BottomPlaybackBar } from '../hud/single-plant/BottomPlaybackBar';
@@ -22,7 +22,11 @@ import { RightBottomToggles } from '../hud/single-plant/RightBottomToggles';
 import { DrawerStack } from './DrawerStack';
 import { C_FG } from '../hud/single-plant/styles';
 import { SHOWCASE_SEED } from '../scene/SceneInfrastructure';
-import { getSinglePlantEngine, getSinglePlantSkinMesh } from '../hud/single-plant/useSinglePlantState';
+import {
+  getSinglePlantEngine,
+  getSinglePlantSkinMesh,
+  subscribeSinglePlantRefs,
+} from '../hud/single-plant/useSinglePlantState';
 
 // Dev-only: expose store on window for headless capture inspection.
 if (typeof window !== 'undefined' && import.meta.env?.DEV) {
@@ -35,17 +39,29 @@ export function SinglePlantOverlay() {
   const speed = useTwinStore((s) => s.singlePlantSpeed);
   const setMinute = useTwinStore((s) => s.setSinglePlantMinute);
 
+  // Iter 35 PR 4 Phase P 후속 fix: BabylonEngine async init이 React mount보다 늦으면
+  //   getSinglePlantEngine() = null → 첫 useEffect 즉시 return → 영원히 update 안 됨.
+  //   refsReady가 listener로 set되면 useEffect 재실행 → 첫 frame 확보.
+  const [refsReady, setRefsReady] = useState(
+    () => !!getSinglePlantEngine() && !!getSinglePlantSkinMesh(),
+  );
+  useEffect(() => {
+    return subscribeSinglePlantRefs(() => {
+      setRefsReady(!!getSinglePlantEngine() && !!getSinglePlantSkinMesh());
+    });
+  }, []);
+
   // Drive the live simulation as the user scrubs the timeline.
   // Iter 35 PR 2: SkinMesh가 유일 plant renderer — useImplicitMesh toggle 부재.
   useEffect(() => {
     const engine = getSinglePlantEngine();
-    log.debug(`effect: minute=${minute} engine=${!!engine} skin=${!!getSinglePlantSkinMesh()}`);
+    log.debug(`effect: minute=${minute} refsReady=${refsReady} engine=${!!engine} skin=${!!getSinglePlantSkinMesh()}`);
     if (!engine) return;
     const physiology = engine.simulatePlantToMinute(SHOWCASE_SEED, minute);
     const day = Math.floor(minute / 1440);
     const skin = getSinglePlantSkinMesh();
     if (skin) skin.update(day, physiology);
-  }, [minute]);
+  }, [minute, refsReady]);
 
   // Playback loop — rAF, scales minute by speed × elapsed.
   useEffect(() => {

@@ -25,6 +25,13 @@ export function setSinglePlantEngineRef(engine: GrowthEngine | null): void {
   listeners.forEach((l) => l());
 }
 
+/** Iter 35 PR 4 Phase P 후속 fix: engine/skin ref ready signal subscribe.
+ *  SinglePlantOverlay가 BabylonEngine async init 후 _첫 update_ trigger 위해 사용. */
+export function subscribeSinglePlantRefs(cb: () => void): () => void {
+  listeners.add(cb);
+  return () => listeners.delete(cb);
+}
+
 /** SkinMeshPlant ref (Iter 35 PR 2: 유일 plant renderer).
  *  Iter 35: index 기반 (default 0). null 인자 (dispose) 시 해당 인덱스 비움. */
 export function setSinglePlantSkinMeshRef(
@@ -40,6 +47,9 @@ export function setSinglePlantSkinMeshRef(
   } else {
     skinMeshPlants[index] = skin;
   }
+  // Iter 35 PR 4 Phase P fix: skin ref set 시도 listener 호출 — SinglePlantOverlay
+  //   첫 frame mount _후_에 ref가 set되는 race condition cover.
+  listeners.forEach((l) => l());
 }
 
 /** Module-level access to the live GrowthEngine for non-React callers
