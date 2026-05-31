@@ -289,7 +289,10 @@ export function buildLeafChunkSkin(paramsArg: LeafBuildParams, rng: SeededRandom
   return buildLeafBladeOnly({ ...paramsArg, omitRachis: true, omitPetiolules: true }, rng);
 }
 
-export function buildLeafBladeOnly(paramsArg: LeafBuildParams, rng: SeededRandom): GeoChunk {
+// ★ Iter 34 C1 — `buildLeafBladeOnly` _internal_ only (export 제거).
+// 외부에서 보이는 leaf blade entry = `buildLeafChunkSkin` (line 288)만.
+// 직접 호출 0 — buildLeafChunkSkin이 omit flags forcing wrapper.
+function buildLeafBladeOnly(paramsArg: LeafBuildParams, rng: SeededRandom): GeoChunk {
   const params = paramsArg.shape ?? DEFAULT_LEAF_PARAMS;
   const stageInfo = paramsArg.stageInfo;
   const af = paramsArg.ageFrac;

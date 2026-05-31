@@ -82,7 +82,7 @@ import { defaultSkinEngine } from '../plant/skin/defaultSkinEngine';
 // Iter 18B PR 4 — switch to createLeafBladeOnlyMesh. SkinMeshPlant은 SDF
 // skeleton mesh가 petiole tube를 그리므로 leaf mesh 안의 중복 petiole
 // cylinder는 불필요. ShowcasePlant는 createLeafMeshFromNode 계속 사용 (legacy).
-import { createLeafBladeOnlyMesh, buildLeafMeshFromPhytomer, getLeafMaterial, getYellowLeafMaterial } from '../plant/LeafGenerator';
+import { buildLeafMeshFromPhytomer, getLeafMaterial, getYellowLeafMaterial } from '../plant/LeafGenerator';
 import type { ShowcasePlantHandle } from './ShowcasePlant';
 
 // SkinMeshPlant implements the same surface API as ShowcasePlant so it
@@ -697,31 +697,22 @@ export function createSkinMeshPlant(
         // Iter 29 Phase 4 — canonical data-driven Skin path (SKIN-DATA-DRIVEN-01):
         //   - Read LeafOrganState from meshAnchorNode.phytomer.leaf (populator-bound).
         //   - Use buildLeafMeshFromPhytomer (no plantAge param, no getLeafStage call).
-        //   - Fall back to legacy createLeafBladeOnlyMesh only when the node isn't
-        //     phytomer-bound (Phase 5 prunes this fallback once side-shoots are wired).
-        const phytomerLeaf = meshAnchorNode.phytomer?.leaf;
-        const leafMesh = phytomerLeaf
-          ? buildLeafMeshFromPhytomer(
-              `skinplant_leaf_${seed}_a${axisIdx}_n${nodeIdx}`,
-              scene, phytomerLeaf, genome, leafRng,
-            )
-          : createLeafBladeOnlyMesh(
-              `skinplant_leaf_${seed}_a${axisIdx}_n${nodeIdx}`,
-              scene, node, genome, state.day, leafRng,
-            );
+        //   ★ Iter 34 C1 — fallback (createLeafBladeOnlyMesh) 제거. populator가
+        //     100% phytomer-bind 보장 (LEAF-LIVE-FALLBACK-NEVER-01 verified).
+        //     leafOrganState 부재 시 safe skip (populator 위반 catch).
+        const leafOrganState = meshAnchorNode.phytomer?.leaf;
+        if (!leafOrganState) continue;
+        const leafMesh = buildLeafMeshFromPhytomer(
+          `skinplant_leaf_${seed}_a${axisIdx}_n${nodeIdx}`,
+          scene, leafOrganState, genome, leafRng,
+        );
         leafMesh.parent = lushGroup;
         leafMesh.position = new Vector3(tipPlantPos.x, tipPlantPos.y, tipPlantPos.z);
-        // Iter 29 Phase 5 — canonical rotation via anchor.rotation.
-        //   LEGACY-ALIAS-REMOVE-02: legacy LeafBase.azimuthRad/droopRad
-        //   fallback removed. Populator always populates anchor.rotation
-        //   (identity quaternion for non-bound paths). Skin reads
-        //   anchor.rotation strictly.
+        // R26 contract — anchor.rotation 그대로 적용 (petioleCurve tangent → makeLeafQuaternion).
         const rot = anchor.rotation ?? { x: 0, y: 0, z: 0, w: 1 };
         leafMesh.rotationQuaternion = new Quaternion(rot.x, rot.y, rot.z, rot.w);
-        // Iter 29 Phase 4 — material from phytomer.leaf.senescence.colorDullness.
-        //   PlantBase computes colorDullness; Skin applies (SKIN-SENESCENCE-APPLY-01).
-        //   Fallback for non-phytomer-bound nodes uses flat node.yellowing.
-        const yellowing = phytomerLeaf?.senescence?.colorDullness ?? node.yellowing;
+        // Material — phytomer.leaf.senescence.colorDullness (PlantBase 계산값).
+        const yellowing = leafOrganState.senescence?.colorDullness ?? 0;
         leafMesh.material = yellowing > 0.4 ? yellowLeafMat : leafMat;
         currentMeshes.push(leafMesh);
         currentParts.leaves.push(leafMesh);
