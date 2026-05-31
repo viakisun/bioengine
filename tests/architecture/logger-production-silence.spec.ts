@@ -52,7 +52,6 @@ async function captureBootConsole(page: Page): Promise<ConsoleLine[]> {
     const w = window as unknown as {
       __twinStore?: { getState(): { setUseImplicitMesh(v: boolean): void } };
     };
-    w.__twinStore?.getState().setUseImplicitMesh(true);
   });
   await page.waitForTimeout(3000);
   return lines;

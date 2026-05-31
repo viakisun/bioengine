@@ -32,7 +32,6 @@ async function enterSinglePlant(page: Page) {
     w.__twinStore?.getState().setMode('single-plant');
     // Iter 17: enable SkinMeshPlant (skin mode) since user's complaint is
     // specifically about the skin renderer, not the default ShowcasePlant.
-    w.__twinStore?.getState().setUseImplicitMesh(true);
   });
   await page.waitForTimeout(5000);
 }

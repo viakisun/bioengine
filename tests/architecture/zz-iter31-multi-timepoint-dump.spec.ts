@@ -25,14 +25,12 @@ async function initOnce(page: Page) {
       __twinStore?: { getState(): { setMode(m: string): void; setUseImplicitMesh(v: boolean): void } };
     };
     w.__twinStore?.getState().setMode('single-plant');
-    w.__twinStore?.getState().setUseImplicitMesh(false);
   });
   await page.waitForTimeout(1000);
   await page.evaluate(() => {
     const w = window as unknown as {
       __twinStore?: { getState(): { setUseImplicitMesh(v: boolean): void } };
     };
-    w.__twinStore?.getState().setUseImplicitMesh(true);
   });
   await page.waitForTimeout(3000);
 }

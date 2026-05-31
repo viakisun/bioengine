@@ -26,7 +26,6 @@ async function enterScene(page: Page) {
       } };
     };
     w.__twinStore?.getState().setMode('single-plant');
-    w.__twinStore?.getState().setUseImplicitMesh(false);  // start in Skeleton mode
   });
   await page.waitForTimeout(1000);
   // Bring Skin once so all data publishes, then we'll toggle per-shot.
@@ -34,7 +33,6 @@ async function enterScene(page: Page) {
     const w = window as unknown as {
       __twinStore?: { getState(): { setUseImplicitMesh(v: boolean): void } };
     };
-    w.__twinStore?.getState().setUseImplicitMesh(true);
   });
   await page.waitForTimeout(3000);
 }
