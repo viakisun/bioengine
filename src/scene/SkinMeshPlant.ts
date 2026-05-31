@@ -723,17 +723,6 @@ export function createSkinMeshPlant(
         );
         leafMesh.parent = lushGroup;
         leafMesh.position = new Vector3(tipPlantPos.x, tipPlantPos.y, tipPlantPos.z);
-        // 적엽 (defoliation): 하부 plant-local Y < threshold 인 leaf blade _hide_.
-        const defolHeightCm = useTwinStore.getState().defoliationHeightCm;
-        const leafYcm = tipPlantPos.y * 100;
-        // 진단: 사용자 보고 _안 됨_ → leaf Y range 확인 위해 _warn level_ 임시 사용
-        //   (skinplant namespace default 'warn' — 사용자 console에 즉시 표시).
-        if (defolHeightCm > 0) {
-          log.warn(`[defol] leaf a${axisIdx}_n${nodeIdx} Y=${leafYcm.toFixed(1)}cm threshold=${defolHeightCm}cm hide=${leafYcm < defolHeightCm}`);
-        }
-        if (defolHeightCm > 0 && leafYcm < defolHeightCm) {
-          leafMesh.setEnabled(false);
-        }
         // R26 contract — anchor.rotation 그대로 적용 (petioleCurve tangent → makeLeafQuaternion).
         const rot = anchor.rotation ?? { x: 0, y: 0, z: 0, w: 1 };
         leafMesh.rotationQuaternion = new Quaternion(rot.x, rot.y, rot.z, rot.w);
@@ -747,6 +736,27 @@ export function createSkinMeshPlant(
     }
     log.debug(`per-leaf meshes=${leafMeshCount} (PR 3-1 graph-anchor entry)`);
     void cultivarKey;
+
+    // 적엽 (defoliation) — 사용자 결정 store 값 (cm).
+    //   D=100 plant은 자연 abscission으로 _가장 낮은 살아있는 잎_이 root 위 ~37cm.
+    //   → relative 적엽: minLeafY ≤ Y < minLeafY + defolHeightCm 인 leaves hide.
+    //   결과: 살아있는 잎의 _하부 30cm_가 사라짐 (농가 작업 결과와 일치).
+    const defolHeightCm = useTwinStore.getState().defoliationHeightCm;
+    if (defolHeightCm > 0 && currentParts.leaves.length > 0) {
+      let minY = Number.POSITIVE_INFINITY;
+      for (const m of currentParts.leaves) {
+        if (m.position.y < minY) minY = m.position.y;
+      }
+      const thresholdY = minY + defolHeightCm / 100;
+      let hiddenCount = 0;
+      for (const m of currentParts.leaves) {
+        if (m.position.y < thresholdY) {
+          m.setEnabled(false);
+          hiddenCount++;
+        }
+      }
+      log.warn(`[defol] hidden=${hiddenCount}/${currentParts.leaves.length} minY=${(minY * 100).toFixed(1)}cm threshold=${(thresholdY * 100).toFixed(1)}cm`);
+    }
 
     // === Truss organs — Iter 26 PR 3-2 (SSOT #187 원칙 4 partial) ===
     //   Entry via graph.edges (type === 'peduncle'); each peduncle's id
