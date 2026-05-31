@@ -55,12 +55,12 @@ export function RightBottomToggles() {
         title="Skeleton 표시 (lush mesh hide, wireframe + 노드 markers)"
       />
 
-      {/* 적엽 — 하부 30cm 잎 제거 toggle */}
+      {/* 적엽 — 하부 30cm 줄기 + 잎 통째 제거 toggle */}
       <Pill
         label="적엽"
         active={defoliationOn}
         onClick={() => setDefoliationHeightCm(defoliationOn ? 0 : DEFOLIATION_HEIGHT_CM)}
-        title={`하부 ${DEFOLIATION_HEIGHT_CM}cm 이하 잎 제거 (시각화)`}
+        title={`하부 ${DEFOLIATION_HEIGHT_CM}cm 줄기 + 잎 통째 제거 (시각화)`}
       />
 
       {/* Settings — popover with 4 menu items */}

@@ -25,7 +25,7 @@ export const SHOWCASE_SEED = 20260520;
  *   MOUND_APEX    = 0.012
  *   → 1.062
  */
-const SUBSTRATE_TOP_Y = SCENARIO.bedY + 0.10 + 0.012;
+export const SUBSTRATE_TOP_Y = SCENARIO.bedY + 0.10 + 0.012;
 
 export interface SceneInfrastructureHandle {
   growthEngine: GrowthEngine;
