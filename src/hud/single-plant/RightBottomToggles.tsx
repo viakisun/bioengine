@@ -22,11 +22,18 @@ const SETTINGS_MENU: MenuItem[] = [
   { drawer: 'settings', label: '기타' },
 ];
 
+/** 적엽 (defoliation) — toggle ON 시 하부 plant-local Y 30cm 이하 leaves hide. */
+const DEFOLIATION_HEIGHT_CM = 30;
+
 export function RightBottomToggles() {
   const showSkeleton = useTwinStore((s) => s.showSkeleton);
   const setShowSkeleton = useTwinStore((s) => s.setShowSkeleton);
+  const defoliationHeightCm = useTwinStore((s) => s.defoliationHeightCm);
+  const setDefoliationHeightCm = useTwinStore((s) => s.setDefoliationHeightCm);
   const setOpenDrawer = useTwinStore((s) => s.setOpenDrawer);
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  const defoliationOn = defoliationHeightCm > 0;
 
   return (
     <div
@@ -46,6 +53,14 @@ export function RightBottomToggles() {
         active={showSkeleton}
         onClick={() => setShowSkeleton(!showSkeleton)}
         title="Skeleton 표시 (lush mesh hide, wireframe + 노드 markers)"
+      />
+
+      {/* 적엽 — 하부 30cm 잎 제거 toggle */}
+      <Pill
+        label="적엽"
+        active={defoliationOn}
+        onClick={() => setDefoliationHeightCm(defoliationOn ? 0 : DEFOLIATION_HEIGHT_CM)}
+        title={`하부 ${DEFOLIATION_HEIGHT_CM}cm 이하 잎 제거 (시각화)`}
       />
 
       {/* Settings — popover with 4 menu items */}

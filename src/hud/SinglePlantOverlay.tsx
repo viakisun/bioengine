@@ -38,6 +38,7 @@ export function SinglePlantOverlay() {
   const playing = useTwinStore((s) => s.singlePlantPlaying);
   const speed = useTwinStore((s) => s.singlePlantSpeed);
   const setMinute = useTwinStore((s) => s.setSinglePlantMinute);
+  const defoliationHeightCm = useTwinStore((s) => s.defoliationHeightCm);
 
   // Iter 35 PR 4 Phase P 후속 fix: BabylonEngine async init이 React mount보다 늦으면
   //   getSinglePlantEngine() = null → 첫 useEffect 즉시 return → 영원히 update 안 됨.
@@ -55,13 +56,13 @@ export function SinglePlantOverlay() {
   // Iter 35 PR 2: SkinMesh가 유일 plant renderer — useImplicitMesh toggle 부재.
   useEffect(() => {
     const engine = getSinglePlantEngine();
-    log.debug(`effect: minute=${minute} refsReady=${refsReady} engine=${!!engine} skin=${!!getSinglePlantSkinMesh()}`);
+    log.debug(`effect: minute=${minute} refsReady=${refsReady} defoliation=${defoliationHeightCm} engine=${!!engine} skin=${!!getSinglePlantSkinMesh()}`);
     if (!engine) return;
     const physiology = engine.simulatePlantToMinute(SHOWCASE_SEED, minute);
     const day = Math.floor(minute / 1440);
     const skin = getSinglePlantSkinMesh();
     if (skin) skin.update(day, physiology);
-  }, [minute, refsReady]);
+  }, [minute, refsReady, defoliationHeightCm]);
 
   // Playback loop — rAF, scales minute by speed × elapsed.
   useEffect(() => {

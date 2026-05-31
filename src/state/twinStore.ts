@@ -429,6 +429,12 @@ interface TwinState {
   showSkeleton: boolean;
   setShowSkeleton: (v: boolean) => void;
 
+  /** 적엽 (defoliation) — plant-local Y가 이 값(cm) 이하인 leaves _hide_.
+   *  0 = OFF. 기본 30cm (토마토 농가 하부 적엽 — 병해 예방, 통풍 개선).
+   *  단순 _시각화_ 토글 (simulation 미영향). */
+  defoliationHeightCm: number;
+  setDefoliationHeightCm: (cm: number) => void;
+
   // Iter 35 PR 2: useImplicitMesh + setUseImplicitMesh 제거 — SkinMesh가 유일 renderer.
 
   /** Plan 3b Phase η-2 — 진단 로그 토글. ON 시 ShowcasePlant.update 와
@@ -634,6 +640,8 @@ export const useTwinStore = create<TwinState>((set) => ({
   singlePlantCamera: 'free',
   showSkeleton: false,
   setShowSkeleton: (v) => set({ showSkeleton: v }),
+  defoliationHeightCm: 0,
+  setDefoliationHeightCm: (cm) => set({ defoliationHeightCm: Math.max(0, cm) }),
   debugDiagnostics: false,
   setDebugDiagnostics: (v) => set({ debugDiagnostics: v }),
 

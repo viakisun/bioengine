@@ -723,6 +723,12 @@ export function createSkinMeshPlant(
         );
         leafMesh.parent = lushGroup;
         leafMesh.position = new Vector3(tipPlantPos.x, tipPlantPos.y, tipPlantPos.z);
+        // 적엽 (defoliation) — 사용자 결정 store 값 (cm). plant-local Y가 threshold 이하면 hide.
+        //   토마토 농가 하부 적엽 시각화 (병해 예방, 통풍 개선).
+        const defolHeightCm = useTwinStore.getState().defoliationHeightCm;
+        if (defolHeightCm > 0 && tipPlantPos.y * 100 < defolHeightCm) {
+          leafMesh.setEnabled(false);
+        }
         // R26 contract — anchor.rotation 그대로 적용 (petioleCurve tangent → makeLeafQuaternion).
         const rot = anchor.rotation ?? { x: 0, y: 0, z: 0, w: 1 };
         leafMesh.rotationQuaternion = new Quaternion(rot.x, rot.y, rot.z, rot.w);
