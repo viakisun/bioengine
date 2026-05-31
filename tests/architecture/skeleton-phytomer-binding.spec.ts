@@ -24,13 +24,10 @@ import * as path from 'path';
 import { fileURLToPath } from 'url';
 
 import {
-  composeLeafRotation,
-  quatY,
-  quatX,
-  quatZ,
-  quatMul,
-  quatMagnitude,
+  // ★ Iter 34 C4 — composeLeafRotation + quatY/X/Z/Mul/quatMagnitude 제거.
+  //   SKELETON-ANCHOR-TRANSFORM-01 → R26 contract spec 4 신규로 _대체_.
   IDENTITY_QUAT,
+  makeLeafQuaternion,
 } from '../../src/plant/skeleton/AnchorTransform';
 
 const SPEC_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -140,30 +137,25 @@ test.describe('Skeleton Phytomer Binding + Anchor Purity (Iter 29 Phase 3)', () 
     expect(issues, 'no anchor has morphology or state populated').toEqual([]);
   });
 
-  test('SKELETON-ANCHOR-TRANSFORM-01: rotation은 Quat4 (단위 길이) + composeLeafRotation', () => {
-    // Pure math invariants
+  test('SKELETON-ANCHOR-TRANSFORM-01: rotation은 Quat4 + makeLeafQuaternion (R26 contract)', () => {
+    // ★ Iter 34 C4 — composeLeafRotation + quatY/X/Z/Mul 제거.
+    //   기존 _3-axis composition 검증_ → R26 _petioleCurve tangent 검증_으로 대체.
+    function quatMag(q: { x: number; y: number; z: number; w: number }): number {
+      return Math.sqrt(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w);
+    }
+
+    // IDENTITY_QUAT 검증 (populator fallback 사용)
     expect(IDENTITY_QUAT).toEqual({ x: 0, y: 0, z: 0, w: 1 });
-    expect(quatMagnitude(IDENTITY_QUAT)).toBeCloseTo(1, 6);
-    expect(quatMagnitude(quatY(60))).toBeCloseTo(1, 6);
-    expect(quatMagnitude(quatX(45))).toBeCloseTo(1, 6);
-    expect(quatMagnitude(quatZ(30))).toBeCloseTo(1, 6);
+    expect(quatMag(IDENTITY_QUAT)).toBeCloseTo(1, 6);
 
-    // Identity multiplication
-    const a = quatY(60);
-    expect(quatMul(a, IDENTITY_QUAT)).toEqual(a);
-    expect(quatMul(IDENTITY_QUAT, a)).toEqual(a);
+    // makeLeafQuaternion (R26 contract entry) unit quaternion 검증
+    const qHoriz = makeLeafQuaternion({ x: 1, y: 0, z: 0 }, { x: 0, y: 1, z: 0 });
+    expect(quatMag(qHoriz)).toBeCloseTo(1, 6);
+    const qOff = makeLeafQuaternion({ x: 0.6, y: -0.3, z: -0.7 }, { x: 0, y: 1, z: 0 });
+    expect(quatMag(qOff)).toBeCloseTo(1, 6);
 
-    // composeLeafRotation produces unit-length quaternion
-    const q = composeLeafRotation(137.5, 25, 0);
-    expect(quatMagnitude(q)).toBeCloseTo(1, 6);
-
-    // Different azimuths produce different rotations
-    const q0 = composeLeafRotation(0, 25, 0);
-    const q1 = composeLeafRotation(137.5, 25, 0);
-    expect(q0).not.toEqual(q1);
-
-    // Zero rotation = identity
-    expect(composeLeafRotation(0, 0, 0)).toEqual(IDENTITY_QUAT);
+    // 다른 petiole tangent → 다른 quaternion (R26 contract: rotation은 tangent로부터)
+    expect(qHoriz).not.toEqual(qOff);
   });
 
   test('SKELETON-ANCHOR-POSTURE-01: leaf rotation = PlantBase 계산값 (populator는 재계산 안 함)', async () => {

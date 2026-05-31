@@ -24,8 +24,12 @@ import { fileURLToPath } from 'url';
 import {
   IDENTITY_QUAT,
   makeLeafQuaternion,
-  quatMagnitude,
 } from '../../src/plant/skeleton/AnchorTransform';
+
+// ★ Iter 34 C4 — `quatMagnitude` helper 제거됨. 직접 계산.
+function quatMag(q: { x: number; y: number; z: number; w: number }): number {
+  return Math.sqrt(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w);
+}
 
 const SPEC_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(SPEC_DIR, '../..');
@@ -60,14 +64,14 @@ test.describe('Iter 31 R26 — Leaf Rotation Contract (★ final)', () => {
       { x: 1, y: 0, z: 0 },
       { x: 0, y: 1, z: 0 },
     );
-    expect(quatMagnitude(qHoriz), 'horizontal |q| ≈ 1').toBeCloseTo(1, 6);
+    expect(quatMag(qHoriz), 'horizontal |q| ≈ 1').toBeCloseTo(1, 6);
 
     // 휜 petiole (R26 실 사용 input 형태) — non-axis aligned
     const qOff = makeLeafQuaternion(
       { x: 0.6, y: -0.3, z: -0.7 },
       { x: 0, y: 1, z: 0 },
     );
-    expect(quatMagnitude(qOff), 'non-axis aligned |q| ≈ 1').toBeCloseTo(1, 6);
+    expect(quatMag(qOff), 'non-axis aligned |q| ≈ 1').toBeCloseTo(1, 6);
 
     // Zero petiole → safe (no NaN). 출력 unit이거나 IDENTITY로 fallback.
     const qZero = makeLeafQuaternion(
@@ -115,7 +119,7 @@ test.describe('Iter 31 R26 — Leaf Rotation Contract (★ final)', () => {
 
     // IDENTITY_QUAT 자체 검증
     expect(IDENTITY_QUAT).toEqual({ x: 0, y: 0, z: 0, w: 1 });
-    expect(quatMagnitude(IDENTITY_QUAT)).toBeCloseTo(1, 6);
+    expect(quatMag(IDENTITY_QUAT)).toBeCloseTo(1, 6);
   });
 
   test('R26-CONTRACT-MAKE-LEAF-QUATERNION-EXISTS-01: makeLeafQuaternion exported from AnchorTransform', async () => {
