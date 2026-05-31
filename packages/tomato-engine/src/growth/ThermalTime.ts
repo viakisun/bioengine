@@ -1,3 +1,5 @@
+import { createLogger } from '../utils/logger';
+const log = createLogger('growth');
 // Iter 29 Phase 1 — ThermalTime module (canonical growth clock).
 //
 // Plan §2 (sleepy-growing-pretzel.md): `PlantState.currentTT`는 canonical
@@ -76,7 +78,7 @@ export function accumulateTT(
 export function assertCanonicalTT(currentTT: number, contextHint?: string): void {
   if (typeof currentTT !== 'number' || !Number.isFinite(currentTT) || currentTT < 0) {
     const where = contextHint ? ` (${contextHint})` : '';
-    console.warn(`[ThermalTime] assertCanonicalTT failed${where}: currentTT=${currentTT}`);
+    log.warn(`assertCanonicalTT failed${where}: currentTT=${currentTT}`);
   }
 }
 

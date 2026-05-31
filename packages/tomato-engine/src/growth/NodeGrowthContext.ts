@@ -1,3 +1,5 @@
+import { createLogger } from '../utils/logger';
+const log = createLogger('growth');
 // Iter 30 Phase 1-Pre — NodeGrowthContext minimum schema (5 fields).
 //
 // Plan §2 (sleepy-growing-pretzel.md):
@@ -123,35 +125,35 @@ export function assertGrowthContextValid(
 ): void {
   const where = contextHint ? ` (${contextHint})` : '';
   if (!ctx.axisId) {
-    console.warn(`[NodeGrowthContext] axisId missing${where}`);
+    log.warn(`axisId missing${where}`);
     return;
   }
   if (!ctx.axisId.match(/^(main|side:\d+)$/)) {
-    console.warn(`[NodeGrowthContext] axisId malformed${where}: ${ctx.axisId}`);
+    log.warn(`axisId malformed${where}: ${ctx.axisId}`);
   }
   if (!Number.isFinite(ctx.localStemRadiusMm) || ctx.localStemRadiusMm < 0) {
-    console.warn(`[NodeGrowthContext] localStemRadiusMm invalid${where}: ${ctx.localStemRadiusMm}`);
+    log.warn(`localStemRadiusMm invalid${where}: ${ctx.localStemRadiusMm}`);
   }
   if (
     !Number.isFinite(ctx.axisCapacityFactor) ||
     ctx.axisCapacityFactor < 0.35 - 1e-6 ||
     ctx.axisCapacityFactor > 1.0 + 1e-6
   ) {
-    console.warn(`[NodeGrowthContext] axisCapacityFactor out of [0.35, 1.0]${where}: ${ctx.axisCapacityFactor}`);
+    log.warn(`axisCapacityFactor out of [0.35, 1.0]${where}: ${ctx.axisCapacityFactor}`);
   }
   if (
     !Number.isFinite(ctx.parentVigorFactor) ||
     ctx.parentVigorFactor < 0 ||
     ctx.parentVigorFactor > 1.5
   ) {
-    console.warn(`[NodeGrowthContext] parentVigorFactor out of [0, 1.5]${where}: ${ctx.parentVigorFactor}`);
+    log.warn(`parentVigorFactor out of [0, 1.5]${where}: ${ctx.parentVigorFactor}`);
   }
   // isSideShoot consistency with axisId
   const axisIsMain = ctx.axisId === 'main';
   if (axisIsMain && ctx.isSideShoot) {
-    console.warn(`[NodeGrowthContext] isSideShoot=true but axisId='main'${where}`);
+    log.warn(`isSideShoot=true but axisId='main'${where}`);
   }
   if (!axisIsMain && !ctx.isSideShoot) {
-    console.warn(`[NodeGrowthContext] isSideShoot=false but axisId='${ctx.axisId}'${where}`);
+    log.warn(`isSideShoot=false but axisId='${ctx.axisId}'${where}`);
   }
 }

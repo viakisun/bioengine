@@ -1,3 +1,5 @@
+import { createLogger } from '../utils/logger';
+const log = createLogger('growth');
 // Iter 30 Phase 1 — AxisCapacityModel module.
 //
 // Plan §3 (sleepy-growing-pretzel.md):
@@ -104,6 +106,6 @@ export function assertAxisCapacityFactorValid(
 ): void {
   const where = contextHint ? ` (${contextHint})` : '';
   if (!Number.isFinite(factor) || factor < 0.35 - 1e-6 || factor > 1.0 + 1e-6) {
-    console.warn(`[AxisCapacityModel] axisCapacityFactor out of [0.35, 1.0]${where}: ${factor}`);
+    log.warn(`axisCapacityFactor out of [0.35, 1.0]${where}: ${factor}`);
   }
 }

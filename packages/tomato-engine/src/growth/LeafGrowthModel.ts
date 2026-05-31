@@ -1,3 +1,5 @@
+import { createLogger } from '../utils/logger';
+const log = createLogger('growth');
 // Iter 29 Phase 2A — LeafGrowthModel module (LeafOrganState + helpers).
 //
 // Plan §5, §6, §7, §8, §10, §11 (sleepy-growing-pretzel.md).
@@ -131,13 +133,13 @@ export function assertAllocationConsistent(
     alloc.stressFactor,
   ));
   if (Math.abs(alloc.finalAllocationFactor - productClamped) > 1e-6) {
-    console.warn(
-      `[LeafAllocationState] finalAllocationFactor=${alloc.finalAllocationFactor.toFixed(4)} ` +
+    log.warn(
+      `finalAllocationFactor=${alloc.finalAllocationFactor.toFixed(4)} ` +
       `vs product=${productClamped.toFixed(4)}${where}`,
     );
   }
   if (alloc.finalAllocationFactor < ALLOC_NEAR_FULL && alloc.limitationReason === 'none') {
-    console.warn(`[LeafAllocationState] final < 0.95 but reason='none'${where}`);
+    log.warn(`final < 0.95 but reason='none'${where}`);
   }
 }
 
@@ -639,14 +641,14 @@ export function assertLeafOrganStateValid(
 ): void {
   const where = contextHint ? ` (${contextHint})` : '';
   if (!Number.isFinite(leaf.initiationTT)) {
-    console.warn(`[LeafGrowthModel] leaf.initiationTT missing${where}`);
+    log.warn(`leaf.initiationTT missing${where}`);
   }
   if (!Number.isFinite(leaf.ageTT)) {
-    console.warn(`[LeafGrowthModel] leaf.ageTT missing${where}`);
+    log.warn(`leaf.ageTT missing${where}`);
   }
   if (leaf.currentAreaCm2 > leaf.targetAreaCm2 + 1e-6) {
-    console.warn(
-      `[LeafGrowthModel] leaf[${leaf.nodeIndex}].currentAreaCm2=${leaf.currentAreaCm2.toFixed(2)} ` +
+    log.warn(
+      `leaf[${leaf.nodeIndex}].currentAreaCm2=${leaf.currentAreaCm2.toFixed(2)} ` +
       `> targetAreaCm2=${leaf.targetAreaCm2.toFixed(2)}${where}`,
     );
   }

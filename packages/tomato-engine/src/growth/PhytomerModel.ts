@@ -1,3 +1,5 @@
+import { createLogger } from '../utils/logger';
+const log = createLogger('growth');
 // Iter 29 Phase 1 — PhytomerModel module.
 //
 // Plan §3 (sleepy-growing-pretzel.md):
@@ -125,18 +127,18 @@ export function assertPhytomerStateValid(node: {
 }, currentTT: number, contextHint?: string): void {
   const where = contextHint ? ` (${contextHint})` : '';
   if (node.initiationTT === undefined || !Number.isFinite(node.initiationTT)) {
-    console.warn(`[PhytomerModel] node[${node.index}].initiationTT missing${where}`);
+    log.warn(`node[${node.index}].initiationTT missing${where}`);
     return;
   }
   if (node.ageTT === undefined || !Number.isFinite(node.ageTT)) {
-    console.warn(`[PhytomerModel] node[${node.index}].ageTT missing${where}`);
+    log.warn(`node[${node.index}].ageTT missing${where}`);
     return;
   }
   const expected = Math.max(0, currentTT - node.initiationTT);
   // tolerate small floating drift
   if (Math.abs(node.ageTT - expected) > 0.1) {
-    console.warn(
-      `[PhytomerModel] node[${node.index}].ageTT=${node.ageTT.toFixed(2)} ` +
+    log.warn(
+      `node[${node.index}].ageTT=${node.ageTT.toFixed(2)} ` +
       `vs expected=${expected.toFixed(2)} (currentTT - initiationTT)${where}`,
     );
   }

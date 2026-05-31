@@ -1,3 +1,5 @@
+import { createLogger } from '../utils/logger';
+const log = createLogger('growth');
 // Iter 29 Phase 1 — InternodeGrowthModel module.
 //
 // Plan §4.1 (sleepy-growing-pretzel.md):
@@ -56,12 +58,12 @@ export function assertInternodeStateValid(
 ): void {
   const where = contextHint ? ` (${contextHint})` : '';
   if (!Number.isFinite(internode.targetLengthCm) || internode.targetLengthCm < 0) {
-    console.warn(`[InternodeGrowthModel] targetLengthCm invalid${where}: ${internode.targetLengthCm}`);
+    log.warn(`targetLengthCm invalid${where}: ${internode.targetLengthCm}`);
     return;
   }
   if (internode.currentLengthCm > internode.targetLengthCm + 1e-6) {
-    console.warn(
-      `[InternodeGrowthModel] currentLengthCm=${internode.currentLengthCm} ` +
+    log.warn(
+      `currentLengthCm=${internode.currentLengthCm} ` +
       `> targetLengthCm=${internode.targetLengthCm}${where}`,
     );
   }

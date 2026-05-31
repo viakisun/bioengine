@@ -1,3 +1,5 @@
+import { createLogger } from '../utils/logger';
+const log = createLogger('growth');
 // Iter 30 Phase 4 — SideShootAllocation module.
 //
 // Plan §6 (sleepy-growing-pretzel.md):
@@ -75,6 +77,6 @@ export function assertSideShootAllocationValid(
 ): void {
   const where = contextHint ? ` (${contextHint})` : '';
   if (!Number.isFinite(factor) || factor < 0.2 - 1e-6 || factor > 0.7 + 1e-6) {
-    console.warn(`[SideShootAllocation] factor out of [0.2, 0.7]${where}: ${factor}`);
+    log.warn(`factor out of [0.2, 0.7]${where}: ${factor}`);
   }
 }

@@ -1,3 +1,5 @@
+import { createLogger } from '../utils/logger';
+const log = createLogger('growth');
 // Iter 30 Phase 5 — LeafPostureModel module.
 //
 // Plan §7 (sleepy-growing-pretzel.md), R5 light-facing + gravity droop 분리.
@@ -147,8 +149,8 @@ export function assertPostureCompositionValid(
   ) {
     const sum = posture.gravityDroopDeg + posture.senescenceDroopDeg + posture.waterStressDroopDeg;
     if (Math.abs(posture.finalDroopDeg - sum) > 1e-6) {
-      console.warn(
-        `[LeafPostureModel] finalDroopDeg=${posture.finalDroopDeg.toFixed(4)} ` +
+      log.warn(
+        `finalDroopDeg=${posture.finalDroopDeg.toFixed(4)} ` +
         `vs sum=${sum.toFixed(4)}${where}`,
       );
     }
@@ -160,8 +162,8 @@ export function assertPostureCompositionValid(
   ) {
     const expectedTilt = posture.lightSeekingBladePlaneTiltDeg + posture.finalDroopDeg;
     if (Math.abs(posture.finalBladePlaneTiltDeg - expectedTilt) > 1e-6) {
-      console.warn(
-        `[LeafPostureModel] finalBladePlaneTiltDeg=${posture.finalBladePlaneTiltDeg.toFixed(4)} ` +
+      log.warn(
+        `finalBladePlaneTiltDeg=${posture.finalBladePlaneTiltDeg.toFixed(4)} ` +
         `vs expected=${expectedTilt.toFixed(4)}${where}`,
       );
     }

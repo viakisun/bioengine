@@ -1,3 +1,5 @@
+import { createLogger } from './utils/logger';
+const log = createLogger('growth');
 // BotanicalSpec — botanical.v1 schema (crop morphology + organ development).
 //
 // SSOT #26 (botanical layer separation): 모든 작물별 botanical/physiological
@@ -356,8 +358,8 @@ export function resolveBotanical(
     const defaultRank = CONFIDENCE_RANK[base.provenance.confidence];
     if (overrideRank < defaultRank) {
       // eslint-disable-next-line no-console
-      console.warn(
-        `[botanical] override confidence '${override.provenance.confidence}' < default '${base.provenance.confidence}'. Verify cultivar JSONC.`,
+      log.warn(
+        `override confidence '${override.provenance.confidence}' < default '${base.provenance.confidence}'. Verify cultivar JSONC.`,
       );
     }
   }
