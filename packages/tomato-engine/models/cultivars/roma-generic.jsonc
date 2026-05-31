@@ -117,6 +117,14 @@
     "firstTrussNodeIndex": 7,              // determinate trusses earlier
     "trussIntervalNodes": 3,
     "baseStemRadiusMm": 7,
-    "sourceSinkSensitivity": 0.38
+    "sourceSinkSensitivity": 0.38,
+    // Iter 36 v5 Phase F — roma (determinate paste): 빠른 turnover, mature 우세.
+    "leafPresetDistribution": {
+      "young":        0.25,
+      "mature":       0.60,
+      "old":          0.10,
+      "complex":      0.05,
+      "potato-leaf":  0
+    }
   }
 }

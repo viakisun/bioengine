@@ -157,6 +157,34 @@ export interface CultivarGrowthProfile {
    * Default: 1.0 (backward compat).
    */
   droopSensitivity?: number;
+
+  // ───────────────────────────────────────────────────────────────────
+  // Iter 36 v5 Phase F — Compound leaf age preset distribution.
+  //
+  // 사용자 botanical reference §7 (5 age presets) — 각 cultivar별 _사용 비율_.
+  // Sum = 1.0 (validator 검증). Rendering engine (leaf-engine)이 leaf instance
+  // 의 ageTT + complexity seed에 따라 distribution sampling.
+  // ───────────────────────────────────────────────────────────────────
+
+  /**
+   * 5 age presets 사용 비율 (사용자 §7). 합 = 1.0.
+   *
+   * Cultivar별 차이 예시:
+   *   - cherry: young 30%, mature 60%, old 5%, complex 5%
+   *   - round: young 20%, mature 65%, old 10%, complex 5%
+   *   - beef: young 15%, mature 50%, old 20%, complex 15%
+   *   - tomimaru: young 15%, mature 60%, old 15%, complex 10%
+   *
+   * Default: round-generic 분포 (mature 65%).
+   * Backward compat: optional ?:.
+   */
+  leafPresetDistribution?: {
+    young: number;
+    mature: number;
+    old: number;
+    complex: number;
+    'potato-leaf': number;
+  };
 }
 
 /**
@@ -182,6 +210,14 @@ export const DEFAULT_CULTIVAR_GROWTH_PROFILE: CultivarGrowthProfile = {
   leafLengthExpansionDurationTT: 200,         // = areaDuration × 0.5
   droopSensitivity: 1.0,                       // Iter 32 — medium default
   sideShootPotential: 0.4,         // Iter 30 Phase 4 — medium suppression
+  // Iter 36 v5 Phase F — round-generic baseline (사용자 §7).
+  leafPresetDistribution: {
+    young: 0.20,
+    mature: 0.65,
+    old: 0.10,
+    complex: 0.05,
+    'potato-leaf': 0,
+  },
 };
 
 /** Partial JSON shape — every field optional, defaults from

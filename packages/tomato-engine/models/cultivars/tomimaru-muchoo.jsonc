@@ -272,6 +272,14 @@
     "firstTrussNodeIndex": 10,
     "trussIntervalNodes": 3,
     "baseStemRadiusMm": 9,
-    "sourceSinkSensitivity": 0.40
+    "sourceSinkSensitivity": 0.40,
+    // Iter 36 v5 Phase F — tomimaru-muchoo: premium beefsteak-cherry hybrid.
+    "leafPresetDistribution": {
+      "young":        0.15,
+      "mature":       0.60,
+      "old":          0.15,
+      "complex":      0.10,
+      "potato-leaf":  0
+    }
   }
 }
