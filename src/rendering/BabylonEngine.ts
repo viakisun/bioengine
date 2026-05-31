@@ -20,7 +20,7 @@ import { setShaderWindEnabled, isShaderWindEnabled } from '../plant/LeafGenerato
 // Iter 20 — hotkey for petiole-stem junction overlay ('d'/'D'/'ㅇ').
 import { installDockingOverlayHotkey } from './dockingOverlay/hotkeyToggle';
 import { setBootStage, logBoot, setEnvInfo, setEnvCounters, notify } from '../store/notify';
-import { setSinglePlantEngineRef, setSinglePlantShowcaseRef, setSinglePlantSkinMeshRef } from '../ui/single-plant/useSinglePlantState';
+import { setSinglePlantEngineRef, setSinglePlantSkinMeshRef } from '../ui/single-plant/useSinglePlantState';
 import { createLogger } from '../utils/logger';
 const log = createLogger('engine');
 
@@ -256,7 +256,6 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
   try {
     greenhouse = await buildSceneInfrastructure(scene);
     setSinglePlantEngineRef(greenhouse.growthEngine);
-    setSinglePlantShowcaseRef(greenhouse.showcasePlant);
     setSinglePlantSkinMeshRef(greenhouse.skinMeshPlant);
   } catch (err) {
     log.error('buildSceneInfrastructure failed:', err);
@@ -290,39 +289,15 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
       cameraRig.setPreset(s.cameraPreset);
     }
     if (s.analysisMode !== prev.analysisMode && greenhouse) {
-      greenhouse.showcasePlant.setSegmentationMode(s.analysisMode);
       greenhouse.skinMeshPlant.setSegmentationMode(s.analysisMode);
     }
     if (s.showSkeleton !== prev.showSkeleton && greenhouse) {
-      greenhouse.showcasePlant.setSkeletonMode(s.showSkeleton);
       greenhouse.skinMeshPlant.setSkeletonMode(s.showSkeleton);
     }
     if (s.skeleton !== prev.skeleton && greenhouse) {
-      greenhouse.showcasePlant.setSkeletonConfig(s.skeleton);
       greenhouse.skinMeshPlant.setSkeletonConfig(s.skeleton);
     }
-    // SSOT Phase 4 — implicit skin mesh toggle. Swap showcase ↔ skin mesh.
-    // SkinMeshPlant is hidden by default; on toggle ON we both show it AND
-    // immediately update it (it skips updates while hidden to save SDF cost).
-    // Iter 20 PR 5 — conditional shadow build: when __dockingOverlayEnabled
-    // is true and we're flipping to skeleton mode, still pump one skin update
-    // so the overlay has fresh renderedRoot / parentContext data.
-    if (s.useImplicitMesh !== prev.useImplicitMesh && greenhouse) {
-      const day = useTwinStore.getState().currentDay;
-      const dockingOn = !!(window as unknown as { __dockingOverlayEnabled?: boolean }).__dockingOverlayEnabled;
-      if (s.useImplicitMesh) {
-        greenhouse.showcasePlant.setVisible(false);
-        greenhouse.skinMeshPlant.setVisible(true);
-        greenhouse.skinMeshPlant.update(day);
-      } else {
-        greenhouse.skinMeshPlant.setVisible(false);
-        greenhouse.showcasePlant.setVisible(true);
-        if (dockingOn) {
-          // shadow build — keep skin data fresh for skeleton-mode overlay.
-          greenhouse.skinMeshPlant.update(day);
-        }
-      }
-    }
+    // Iter 35 PR 2: useImplicitMesh subscription 제거 — SkinMesh가 유일 renderer.
     if (s.lighting !== prev.lighting && sceneSetup) {
       applyLightingToScene(scene, sceneSetup, s.lighting);
     }
@@ -340,9 +315,9 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
   if (greenhouse) {
     const initialState = useTwinStore.getState();
     applyInitialMode();
-    greenhouse.showcasePlant.setSkeletonConfig(initialState.skeleton);
+    greenhouse.skinMeshPlant.setSkeletonConfig(initialState.skeleton);
     if (initialState.showSkeleton) {
-      greenhouse.showcasePlant.setSkeletonMode(true);
+      greenhouse.skinMeshPlant.setSkeletonMode(true);
     }
   }
 
@@ -463,14 +438,14 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
       // WebGPU fallback — gently rock the plant root TransformNodes so
       // the whole plant breathes. Only z-axis tilt (subtle) so leaves
       // don't appear locked-frame static.
+      // ★ Iter 35 PR 2 Phase I — wind sway target: showcase.root → skinMeshPlant.root.
       const t = now / 1000;
       const baseAmp = 0.012 * state.windStrength;
       const baseFreq = 0.7;
-      const showcase = greenhouse.showcasePlant.root;
-      const showcaseSway = Math.sin(t * baseFreq + showcase.position.x * 0.3) * baseAmp;
-      showcase.rotation.z = showcaseSway;
-      showcase.rotation.x = Math.sin(t * baseFreq * 1.3 + showcase.position.z * 0.4) * baseAmp * 0.5;
-      // Iter 35: supporting plants loop 제거 — single-plant only.
+      const plant = greenhouse.skinMeshPlant.root;
+      const plantSway = Math.sin(t * baseFreq + plant.position.x * 0.3) * baseAmp;
+      plant.rotation.z = plantSway;
+      plant.rotation.x = Math.sin(t * baseFreq * 1.3 + plant.position.z * 0.4) * baseAmp * 0.5;
     }
 
     if (state.playing) {
@@ -486,16 +461,8 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
     lastPlayTime = now;
 
     if (greenhouse && Math.abs(state.currentDay - lastDayUpdate) > 0.05) {
-      // Showcase plant 는 mode 무관 항상 update — single-plant 와 greenhouse 모두 보임.
-      greenhouse.showcasePlant.update(state.currentDay);
-      // SSOT Phase 4 — SkinMeshPlant only updates when visible (SDF build
-      // is non-trivial). Toggle-ON handler above pumps an initial update.
-      // Iter 20 PR 5 — also update when docking overlay is enabled so
-      // skeleton-mode markers have fresh data (conditional shadow build).
-      const dockingOn = !!(window as unknown as { __dockingOverlayEnabled?: boolean }).__dockingOverlayEnabled;
-      if (useTwinStore.getState().useImplicitMesh || dockingOn) {
-        greenhouse.skinMeshPlant.update(state.currentDay);
-      }
+      // Iter 35 PR 2: SkinMesh가 유일 plant renderer — 항상 update (toggle 부재).
+      greenhouse.skinMeshPlant.update(state.currentDay);
       // Iter 35: LabelOverlay + greenhouseContent.update 제거 — single-plant only.
 
       // Sun + ambient are driven by store.lighting (see applyLightingToScene

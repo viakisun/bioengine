@@ -81,13 +81,34 @@ import { defaultSkinEngine } from '../plant/skin/defaultSkinEngine';
 // the "half the canopy disappears at parallel-camera angles" symptom.
 // Iter 18B PR 4 — switch to createLeafBladeOnlyMesh. SkinMeshPlant은 SDF
 // skeleton mesh가 petiole tube를 그리므로 leaf mesh 안의 중복 petiole
-// cylinder는 불필요. ShowcasePlant는 createLeafMeshFromNode 계속 사용 (legacy).
+// cylinder는 불필요.
 import { buildLeafMeshFromPhytomer, getLeafMaterial, getYellowLeafMaterial } from '../plant/LeafGenerator';
-import type { ShowcasePlantHandle } from './ShowcasePlant';
 
-// SkinMeshPlant implements the same surface API as ShowcasePlant so it
-// can be swapped 1:1 by BabylonEngine.
-export type SkinMeshPlantHandle = ShowcasePlantHandle;
+// Iter 35 PR 2 Phase I — ShowcasePlant archived. SkinMeshPlantHandle interface는
+//   원래 ShowcasePlant에서 import하던 type을 _자체 정의_로 inline (1:1 동일).
+export interface SkinMeshPlantHandle {
+  root: TransformNode;
+  /**
+   * Rebuild the visual. If `physiology` is provided (Single-Plant
+   * Analysis mode), the truss/fruit data is overlaid from the TOMGRO
+   * PhysiologyState so the visual matches the academic model. Without
+   * it, the legacy sigmoid path is used.
+   */
+  update: (day: number, physiology?: import('@farmsim/tomato-engine').PlantPhysiologyState) => void;
+  setVisible: (v: boolean) => void;
+  setSegmentationMode: (on: boolean) => void;
+  /** Plan 3a — toggle wireframe + node-marker skeleton view. While ON,
+   *  the lush mesh is hidden so the user can verify the biology.
+   *  Equivalent to `setSkeletonEnabled(on) + setLushEnabled(!on)`. */
+  setSkeletonMode: (on: boolean) => void;
+  /** ProgressiveLoad 용 — lush mesh visibility 만 독립 토글 (Iter 35: ProgressiveLoad archived). */
+  setLushEnabled: (v: boolean) => void;
+  /** ProgressiveLoad 용 — skeleton overlay visibility 만 독립 토글. */
+  setSkeletonEnabled: (v: boolean) => void;
+  /** Plan 3a Phase ζ — push new SkeletonConfig (thickness/color/toggles). */
+  setSkeletonConfig: (cfg: import('../store/twinStore').SkeletonConfig) => void;
+  currentState: () => import('@farmsim/tomato-engine').PlantState | null;
+}
 
 interface PartGroup {
   leaves: Mesh[];

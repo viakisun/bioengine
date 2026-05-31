@@ -22,8 +22,6 @@ export function RightBottomToggles() {
   const setCamera = useTwinStore((s) => s.setSinglePlantCamera);
   const showSkeleton = useTwinStore((s) => s.showSkeleton);
   const setShowSkeleton = useTwinStore((s) => s.setShowSkeleton);
-  const useImplicitMesh = useTwinStore((s) => s.useImplicitMesh);
-  const setUseImplicitMesh = useTwinStore((s) => s.setUseImplicitMesh);
   const setOpenDrawer = useTwinStore((s) => s.setOpenDrawer);
   const metricsOpen = useTwinStore((s) => s.singlePlantMetricsOpen);
   const toggleMetrics = useTwinStore((s) => s.toggleSinglePlantMetrics);
@@ -71,13 +69,7 @@ export function RightBottomToggles() {
         title="Skeleton 표시 (lush mesh hide, 노드/곁가지/apex 만)"
       />
 
-      {/* Implicit Skin — SSOT Phase 4: SDF + marching cubes single mesh */}
-      <Pill
-        label="Skin"
-        active={useImplicitMesh}
-        onClick={() => setUseImplicitMesh(!useImplicitMesh)}
-        title="Implicit Skin Mesh — SDF 기반 단일 watertight stem mesh (분기점 자동 fillet). 환경/skeleton 공유."
-      />
+      {/* Iter 35 PR 2: Skin pill 제거 — SkinMesh가 유일 renderer (toggle 부재). */}
 
       {/* Heatmap — disabled stub */}
       <Pill label="Heatmap" active={false} disabled title="Phase E+" />

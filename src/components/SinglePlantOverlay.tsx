@@ -26,7 +26,7 @@ import { SelectedObjectLabel } from '../ui/single-plant/SelectedObjectLabel';
 import { DrawerStack } from './DrawerStack';
 import { C_FG } from '../ui/single-plant/styles';
 import { SHOWCASE_SEED } from '../rendering/SceneInfrastructure';
-import { getSinglePlantEngine, getSinglePlantShowcase, getSinglePlantSkinMesh } from '../ui/single-plant/useSinglePlantState';
+import { getSinglePlantEngine, getSinglePlantSkinMesh } from '../ui/single-plant/useSinglePlantState';
 
 // Dev-only: expose store on window for headless capture inspection.
 if (typeof window !== 'undefined' && import.meta.env?.DEV) {
@@ -38,35 +38,18 @@ export function SinglePlantOverlay() {
   const playing = useTwinStore((s) => s.singlePlantPlaying);
   const speed = useTwinStore((s) => s.singlePlantSpeed);
   const setMinute = useTwinStore((s) => s.setSinglePlantMinute);
-  const useImplicitMesh = useTwinStore((s) => s.useImplicitMesh);
-
-  // Dev-only diagnostic: log toggle changes so headless capture can verify
-  // zustand subscription is firing.
-  useEffect(() => {
-    log.debug(`useImplicitMesh changed → ${useImplicitMesh}`);
-  }, [useImplicitMesh]);
 
   // Drive the live simulation as the user scrubs the timeline.
-  // Iter 35: BusyIndicator 제거 (사용자 결정). 300ms+ scrub은 freeze로 허용.
+  // Iter 35 PR 2: SkinMesh가 유일 plant renderer — useImplicitMesh toggle 부재.
   useEffect(() => {
     const engine = getSinglePlantEngine();
-    log.debug(`effect: minute=${minute} useImplicitMesh=${useImplicitMesh} engine=${!!engine} skin=${!!getSinglePlantSkinMesh()}`);
+    log.debug(`effect: minute=${minute} engine=${!!engine} skin=${!!getSinglePlantSkinMesh()}`);
     if (!engine) return;
     const physiology = engine.simulatePlantToMinute(SHOWCASE_SEED, minute);
     const day = Math.floor(minute / 1440);
-    const showcase = getSinglePlantShowcase();
-    if (showcase) {
-      showcase.update(day, physiology);
-    }
-    // SSOT Phase 4 — keep SkinMeshPlant in sync. Only updates when the
-    // toggle is on (avoids wasted SDF builds). Toggle change is also
-    // a dependency so flipping the pill rebuilds immediately at the
-    // current minute.
-    if (useImplicitMesh) {
-      const skin = getSinglePlantSkinMesh();
-      if (skin) skin.update(day, physiology);
-    }
-  }, [minute, useImplicitMesh]);
+    const skin = getSinglePlantSkinMesh();
+    if (skin) skin.update(day, physiology);
+  }, [minute]);
 
   // Playback loop — rAF, scales minute by speed × elapsed.
   useEffect(() => {

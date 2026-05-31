@@ -1,13 +1,7 @@
 // SceneInfrastructure — Iter 35 single-plant scene host.
 //
-// 기존 `GreenhouseScene.ts` (563 lines, 13 beds + frame + roof + walls + wires +
-// supporting plants) 의 _shared subset_ 만 추출:
-//   - 단순 ground mesh
-//   - GrowthEngine + environment (1 plant)
-//   - ShowcasePlant + SkinMeshPlant (single)
-//
-// 13 beds / greenhouse 골조 / cocopeat / tube rail / 와이어 / supporting plants
-// 모두 `src/_archive/rendering/`로 archive됨 (Iter 35 Phase C).
+// Iter 35 PR 2 Phase I: SkinMeshPlant이 _기본 visible_ (사용자 결정 — "skin이
+// 메인"). ShowcasePlant 완전 제거 (archive). 단일 plant = SkinMeshPlant.
 
 import { Scene } from '@babylonjs/core/scene';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
@@ -17,7 +11,6 @@ import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { GrowthEngine } from '@farmsim/tomato-engine';
 import { SCENARIO } from '../data/mockScenario';
 import { logBoot, updateStageDetail } from '../store/notify';
-import { createShowcasePlant, type ShowcasePlantHandle } from './ShowcasePlant';
 import { createSkinMeshPlant, type SkinMeshPlantHandle } from './SkinMeshPlant';
 
 /** Showcase seed — Iter 33 V1 baseline tomato plant. */
@@ -36,9 +29,8 @@ const SUBSTRATE_TOP_Y = SCENARIO.bedY + 0.10 + 0.012;
 
 export interface SceneInfrastructureHandle {
   growthEngine: GrowthEngine;
-  showcasePlant: ShowcasePlantHandle;
-  /** SSOT Phase 4 — Implicit skin mesh sibling view. Same seed/position
-   *  as showcasePlant, default hidden. Toggle via useImplicitMesh store. */
+  /** Iter 35 PR 2: SkinMeshPlant — 유일 plant renderer (ShowcasePlant archived).
+   *  SDF + marching cubes single watertight stem mesh. Default visible. */
   skinMeshPlant: SkinMeshPlantHandle;
 }
 
@@ -61,7 +53,7 @@ export async function buildSceneInfrastructure(scene: Scene): Promise<SceneInfra
   ground.receiveShadows = true;
 
   updateStageDetail('생장 엔진 + 식물 1', 0.4);
-  logBoot('log', 'scene: GrowthEngine + showcase plant');
+  logBoot('log', 'scene: GrowthEngine + skin plant');
   await new Promise((r) => setTimeout(r, 0));
 
   // Iter 35: single-plant — GrowthEngine에 1 plant만 등록 (기존 30 plants 대신).
@@ -79,30 +71,21 @@ export async function buildSceneInfrastructure(scene: Scene): Promise<SceneInfra
     cultivarName: 'tomimaru-muchoo',
   });
 
-  // Showcase position — 기존 GreenhouseScene에서 main bed Z=0 + bed의 중앙 X.
-  // Iter 35: 단일 plant이므로 origin 위.
-  const showcasePos = new Vector3(0, SUBSTRATE_TOP_Y, 0);
+  // Skin position — origin (single plant).
+  const skinPos = new Vector3(0, SUBSTRATE_TOP_Y, 0);
 
-  updateStageDetail('Showcase mesh 빌드', 0.6);
-  logBoot('log', 'scene: ShowcasePlant + SkinMeshPlant');
+  updateStageDetail('SkinMesh 빌드', 0.6);
+  logBoot('log', 'scene: SkinMeshPlant');
   await new Promise((r) => setTimeout(r, 0));
 
-  const showcasePlant = createShowcasePlant(
-    scene,
-    growthEngine,
-    SHOWCASE_SEED,
-    showcasePos,
-  );
-
-  // SSOT Phase 4 — sibling SkinMeshPlant at the same world position,
-  // sharing GrowthEngine + PlantBase. Default hidden; toggle via store.
+  // ★ Iter 35 PR 2 Phase I: SkinMesh default visible — ShowcasePlant 완전 제거.
   const skinMeshPlant = createSkinMeshPlant(
     scene,
     growthEngine,
     SHOWCASE_SEED,
-    showcasePos,
+    skinPos,
   );
-  skinMeshPlant.setVisible(false);
+  skinMeshPlant.setVisible(true);
 
   updateStageDetail('인프라 완료', 1.0);
   logBoot('log', 'scene: 인프라 완료');
@@ -110,7 +93,6 @@ export async function buildSceneInfrastructure(scene: Scene): Promise<SceneInfra
 
   return {
     growthEngine,
-    showcasePlant,
     skinMeshPlant,
   };
 }
