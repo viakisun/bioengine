@@ -28,6 +28,9 @@ const MATERIAL_ROLE: Record<SkeletonEdgeType, NonNullable<EdgeRenderPolicy['mate
   peduncle: 'peduncle',
   rachis: 'rachis',
   pedicel: 'pedicel',
+  // Iter 36 v5 Phase J — compound leaf 계층 (사용자 botanical model).
+  'leaf-rachis': 'leaf-rachis',
+  petiolule: 'petiolule',
 };
 
 const EDGE_COLOR: Record<SkeletonEdgeType, string> = {
@@ -37,6 +40,9 @@ const EDGE_COLOR: Record<SkeletonEdgeType, string> = {
   peduncle: '#A52A2A',
   rachis: '#CD5C5C',
   pedicel: '#B22222',
+  // Iter 36 v5 Phase J — leaf hierarchy wireframe 색 (skeleton overlay 식별용).
+  'leaf-rachis': '#6B8E23',   // olive drab (petiole-tip 톤)
+  petiolule: '#9ACD32',        // yellow green (leaflet 부착)
 };
 
 const ZERO_DIR: PlantLocalV3 = { x: 0, y: 0, z: 0 } as PlantLocalV3;

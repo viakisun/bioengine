@@ -132,6 +132,10 @@ const COLOR_BY_EDGE_TYPE: Record<SkeletonEdgeType, [number, number, number]> = {
   peduncle:  [0.29, 0.54, 0.19],
   rachis:    [0.35, 0.60, 0.25],
   pedicel:   [0.35, 0.60, 0.25],
+  // Iter 36 v5 Phase J — leaf hierarchy edges는 _SDF tube mesh 생성 안 함_
+  //   (skeleton wireframe overlay만 사용). 색은 dummy.
+  'leaf-rachis': [0, 0, 0],
+  petiolule:    [0, 0, 0],
 };
 
 // ── default embed depth per edge type (fraction of parent radius) ──────
@@ -143,6 +147,9 @@ const DEFAULT_EMBED_DEPTH_FRAC: Record<SkeletonEdgeType, number> = {
   peduncle:  0.6,
   rachis:    0.5,
   pedicel:   0.5,
+  // Iter 36 v5 Phase J — SDF skip; values 0.
+  'leaf-rachis': 0,
+  petiolule:    0,
 };
 
 // Iter 18A SSOT #178 — absolute floor (meters) per child type. fraction은
@@ -156,6 +163,9 @@ const DEFAULT_EMBED_DEPTH_FLOOR_M: Record<SkeletonEdgeType, number> = {
   peduncle:  0.0020,  // 2.0mm
   rachis:    0.0010,  // 1.0mm
   pedicel:   0.0010,  // 1.0mm
+  // Iter 36 v5 Phase J — SDF skip; values 0.
+  'leaf-rachis': 0,
+  petiolule:    0,
 };
 
 // Iter 18A SSOT #177 — render-time pixel-visibility radius floor (meters).
@@ -529,6 +539,11 @@ export function buildStemFamilyTubeNetwork(
   }
 
   function emitEdgeRecursive(edge: SkeletonEdge, parentInfo: ParentInfo | null): void {
+    // Iter 36 v5 Phase J — leaf hierarchy edges (leaf-rachis + petiolule)는
+    //   SDF tube mesh _생성 안 함_ (skeleton wireframe overlay만 보임).
+    //   사용자 의도: "마지막은 잎만 렌더링" — stem/petiole tube + 개별 leaflet
+    //   mesh만, rachis/petiolule은 wireframe 시각.
+    if (edge.type === 'leaf-rachis' || edge.type === 'petiolule') return;
     const swollenBones = bonePathByEdge.get(edge.id);
     if (!swollenBones || swollenBones.length === 0) return;
 

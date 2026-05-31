@@ -29,8 +29,13 @@ export type SkeletonEdgeType =
   | 'sideShoot'
   | 'petiole'
   | 'peduncle'
-  | 'rachis'
-  | 'pedicel';
+  | 'rachis'         // truss 엽축 (peduncle 끝 → knuckle chain)
+  | 'pedicel'
+  // Iter 36 v5 Phase J — compound leaf 계층 구조 (★ NEW)
+  //   사용자 botanical 계층: petiole → leaf-rachis → petiolule → leaflet
+  //   "소엽은 다시 짧은 소엽자루로 엽축에 붙고" (사용자 인용).
+  | 'leaf-rachis'    // 잎중앙축 (leaf-blade-root → rachis-tip 가상 노드)
+  | 'petiolule';     // 소엽자루 (rachis 위 점 → 개별 leaflet)
 
 /**
  * Iter 26 PR 1-1 (SSOT #187) — Botanical role of a skeleton node.
@@ -522,7 +527,8 @@ export interface EdgeRenderPolicy {
   };
   /** Material role — drives shader / texture / color selection. */
   material?: {
-    role: 'main-stem' | 'side-shoot' | 'petiole' | 'peduncle' | 'rachis' | 'pedicel';
+    role: 'main-stem' | 'side-shoot' | 'petiole' | 'peduncle' | 'rachis' | 'pedicel'
+      | 'leaf-rachis' | 'petiolule';
   };
   /** Iter 26 PR 1-3 (원칙 2) — overlay self-description for this edge. */
   visualHint?: {

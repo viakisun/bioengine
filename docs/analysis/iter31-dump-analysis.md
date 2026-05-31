@@ -2,7 +2,7 @@
 
 > Source: `docs/iter31-multi-timepoint-leaf-node-data.md` (Phase 1-3 적용 후).
 > Detectors: projection / mature-small / stem-collapse / frame-lock / clamp-saturation.
-> Generated: 2026-05-30T14:04:49.262Z
+> Generated: 2026-05-31T22:04:43.088Z
 
 ---
 

@@ -259,11 +259,13 @@ function addLeavesForAxis(
     });
     attachNode.edgeIds.push(petioleEdgeId);
 
-    // Iter 36 v5 Phase B — 각 leaflet position마다 leaflet-node 생성.
+    // Iter 36 v5 Phase B + J — 각 leaflet position마다 leaflet-node 생성
+    //   + leaf-rachis edge + petiolule edges 신규 (★ Phase J 계층 구조).
     //   terminal (1) + primary pairs (left/right × N) + secondary + intercalary.
-    //   position은 rachis 시작점 (tipPos) 기준 approximation.
+    //   사용자 botanical 계층: petiole-tip → leaf-rachis → petiolule → leaflet.
     addLeafletNodesForLeaf(
-      axisIdx, leaf.nodeIdx, tipNodeId, tipPos, leaf.sizeFactor, leafBladeRef, nodes,
+      axisIdx, leaf.nodeIdx, tipNodeId, tipPos, leaf.sizeFactor, leafBladeRef,
+      petioleEdgeId, nodes, edges,
     );
 
     // Iter 18B PR 8 (SSOT #180) — structured OrganAnchor for leaf blade.
@@ -350,13 +352,20 @@ function computeLeafBladeRef(leaf: LeafBase): LeafBladeRef {
 }
 
 /**
- * leaflet-node 생성 — 4 position types (terminal/primary/secondary/intercalary).
+ * leaflet-node + edge 계층 생성 — Phase B + J 통합.
  *
- * 위치 산출 (Phase B baseline):
- *   - rachisU = 엽축 0-1 (root=0, tip=1)
- *   - 실제 3D position은 tipPos를 _approximation 시작점_으로 사용
- *     (rendering engine이 internal procedural position 산출).
- *   - skeleton overlay marker는 approximation 위치 표시 (시각 검증용).
+ * 사용자 botanical 계층 (skeleton wireframe 시각):
+ *   leaf-blade-root (= petiole-tip)
+ *     ├─ leaf-rachis edge → terminal-leaflet-tip (가상 노드 = terminal leaflet pos)
+ *     └─ petiolule edges (rachis 위 부착점 → 각 leaflet node)
+ *
+ * 산식:
+ *   - rachisU = 0 (root, leaf-blade-root), 1 (tip, terminal leaflet)
+ *   - terminal leaflet: rachisU=1, leaf-rachis edge endNode
+ *   - non-terminal leaflet (primary/secondary/intercalary):
+ *       부착점 = leafBladeRoot + rachisDir × rachisU × rachisLen
+ *       petiolule edge: 부착점 → leaflet pos (좌우 lateral offset)
+ *   - 모든 leaflet-node.edgeIds에 자신 부착 edge ID 추가.
  */
 function addLeafletNodesForLeaf(
   axisIdx: number,
@@ -365,34 +374,112 @@ function addLeafletNodesForLeaf(
   tipPos: V3,
   sizeFactor: number,
   bladeRef: LeafBladeRef,
+  parentEdgeId: string,           // petiole edge (rachis의 부모)
   nodes: Map<string, SkeletonNode>,
+  edges: Map<string, SkeletonEdge>,
 ): void {
   const rachisLen = bladeRef.rachisLengthM;
-  // 단순 approximation: rachis는 tip에서 위쪽 (+y)으로 펼쳐짐.
-  // 실제 방향은 rendering engine이 정확 산출.
-  const rachisDir: V3 = { x: 0, y: 0.7, z: 0.7 };  // diagonal up-forward
-  const lateralDir: V3 = { x: 1, y: 0, z: 0 };     // sideways
+  // rachis 방향: petiole-tip 부근에서 위쪽 + 앞쪽으로 펼쳐짐 (diagonal).
+  const rachisDir: V3 = { x: 0, y: 0.7, z: 0.7 };
+  const lateralDir: V3 = { x: 1, y: 0, z: 0 };
 
-  let leafletCounter = 0;
-  const addLeaflet = (
+  // rachis 위 부착점 산출.
+  const rachisPointAt = (u: number): V3 => ({
+    x: tipPos.x + rachisDir.x * u * rachisLen,
+    y: tipPos.y + rachisDir.y * u * rachisLen,
+    z: tipPos.z + rachisDir.z * u * rachisLen,
+  });
+
+  // ── 1. Terminal leaflet (rachisU=1.0) ──
+  const terminalU = 1.0;
+  const terminalSf = 1.15;
+  const terminalPos = rachisPointAt(terminalU);
+  const terminalLid = `n:leaflet:axis${axisIdx}:n${leafNodeIdx}:terminal:0`;
+  const terminalTargetSize = rachisLen * terminalSf * 0.4;
+
+  // leaf-rachis edge: leaf-blade-root (parentLeafNodeId) → terminal leaflet
+  const leafRachisEdgeId = `e:leaf-rachis:axis${axisIdx}:n${leafNodeIdx}`;
+  edges.set(leafRachisEdgeId, {
+    id: leafRachisEdgeId,
+    type: 'leaf-rachis',
+    startNodeId: parentLeafNodeId,
+    endNodeId: terminalLid,
+    bonePath: [{
+      p0: { ...tipPos },
+      p1: { ...terminalPos },
+      r0: 0.0010,    // 1mm rachis base
+      r1: 0.0006,    // 0.6mm rachis tip
+    }],
+    parentEdgeId,
+    cuttable: true,
+    semanticLabel: `leaf ${leafNodeIdx} rachis`,
+    attachedOrganIds: [],
+  });
+
+  // Terminal leaflet node (endNode of leaf-rachis).
+  nodes.set(terminalLid, {
+    id: terminalLid,
+    pos: terminalPos,
+    radius: 0.0006,
+    edgeIds: [leafRachisEdgeId],
+    leafletRef: {
+      parentLeafNodeId,
+      position: 'terminal',
+      rachisU: terminalU,
+      sizeFactor: terminalSf,
+      targetSizeM: terminalTargetSize,
+    } satisfies LeafletNodeRef,
+  });
+
+  // leaf-blade-root (parentLeafNodeId)에도 leaf-rachis edge 등록.
+  const parentNode = nodes.get(parentLeafNodeId);
+  if (parentNode) parentNode.edgeIds.push(leafRachisEdgeId);
+
+  let leafletCounter = 1;
+  // ── 비-terminal leaflet 추가: petiolule edge로 rachis에 부착 ──
+  const addNonTerminal = (
     position: LeafletPosition,
     rachisU: number,
     sf: number,
     lateralOffsetSign: number,
   ): void => {
     const lid = `n:leaflet:axis${axisIdx}:n${leafNodeIdx}:${position}:${leafletCounter++}`;
+    const rachisPos = rachisPointAt(rachisU);
     const lateralAmount = lateralOffsetSign * sf * rachisLen * 0.35;
-    const pos: V3 = {
-      x: tipPos.x + rachisDir.x * rachisU * rachisLen + lateralDir.x * lateralAmount,
-      y: tipPos.y + rachisDir.y * rachisU * rachisLen + lateralDir.y * lateralAmount,
-      z: tipPos.z + rachisDir.z * rachisU * rachisLen + lateralDir.z * lateralAmount,
+    const leafletPos: V3 = {
+      x: rachisPos.x + lateralDir.x * lateralAmount,
+      y: rachisPos.y + lateralDir.y * lateralAmount,
+      z: rachisPos.z + lateralDir.z * lateralAmount,
     };
     const targetSizeM = rachisLen * sf * 0.4;
+
+    // petiolule edge: rachis 위 점 (rachisPos) → leaflet (leafletPos).
+    // 부모 = leaf-rachis edge (cuttable 시 petiolule + leaflet 함께 떨어짐).
+    const petioluleEdgeId =
+      `e:petiolule:axis${axisIdx}:n${leafNodeIdx}:${position}:${leafletCounter}`;
+    edges.set(petioluleEdgeId, {
+      id: petioluleEdgeId,
+      type: 'petiolule',
+      startNodeId: terminalLid, // approximation — rachis edge에 mid attach.
+                                 // 실용상 leaf-rachis end로 link해 cut hierarchy 유지.
+      endNodeId: lid,
+      bonePath: [{
+        p0: { ...rachisPos },
+        p1: { ...leafletPos },
+        r0: 0.0005,
+        r1: 0.0003,
+      }],
+      parentEdgeId: leafRachisEdgeId,
+      cuttable: true,
+      semanticLabel: `leaflet ${position} petiolule`,
+      attachedOrganIds: [],
+    });
+
     nodes.set(lid, {
       id: lid,
-      pos,
-      radius: 0.0008,
-      edgeIds: [],
+      pos: leafletPos,
+      radius: 0.0005,
+      edgeIds: [petioluleEdgeId],
       leafletRef: {
         parentLeafNodeId,
         position,
@@ -403,32 +490,28 @@ function addLeafletNodesForLeaf(
     });
   };
 
-  // 1. Terminal (1, rachisU=1.0, sizeFactor 1.0-1.35).
-  addLeaflet('terminal', 1.0, 1.15, 0);
-
-  // 2. Primary pairs (left/right, rachisU 0.18~0.75 jitter).
+  // 2. Primary pairs (left/right, rachisU 0.18~0.75).
   const primaryUs = [0.18, 0.35, 0.55, 0.75].slice(0, bladeRef.primaryPairs);
   for (let i = 0; i < primaryUs.length; i++) {
-    // sizeFactor: 위쪽 0.85→0.55 아래쪽 (사용자 §3 표).
     const sf = 0.85 - i * 0.10;
-    addLeaflet('primary', primaryUs[i], sf, -1);  // left
-    addLeaflet('primary', primaryUs[i] + 0.02, sf, +1); // right (2% jitter)
+    addNonTerminal('primary', primaryUs[i], sf, -1);
+    addNonTerminal('primary', primaryUs[i] + 0.02, sf, +1);
   }
 
   // 3. Intercalary (큰 소엽 사이 작은 소엽).
   for (let i = 0; i < bladeRef.intercalaryCount; i++) {
     const u = 0.25 + (i / Math.max(1, bladeRef.intercalaryCount)) * 0.5;
-    const sf = 0.10 + (i % 3) * 0.08;  // 0.10-0.34 작음
+    const sf = 0.10 + (i % 3) * 0.08;
     const sign = i % 2 === 0 ? -1 : +1;
-    addLeaflet('intercalary', u, sf, sign);
+    addNonTerminal('intercalary', u, sf, sign);
   }
 
   // 4. Secondary (primary 근처 작은 소엽).
   for (let i = 0; i < bladeRef.secondaryCount; i++) {
     const u = primaryUs[i % primaryUs.length] + 0.04;
-    const sf = 0.30 + (i % 2) * 0.10;  // 0.30-0.40
+    const sf = 0.30 + (i % 2) * 0.10;
     const sign = i % 2 === 0 ? +1 : -1;
-    addLeaflet('secondary', u, sf, sign);
+    addNonTerminal('secondary', u, sf, sign);
   }
 }
 

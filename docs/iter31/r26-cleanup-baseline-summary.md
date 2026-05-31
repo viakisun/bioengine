@@ -1,13 +1,6 @@
-# Iter 31 R26 Cleanup — Baseline Summary (v0.18 — Iter 32 + 33 mesh)
+# Iter 31 R26 Cleanup — Baseline Summary
 
-★ Iter 32 (area-based mesh gravity droop) + Iter 33 V3 (petioleLengthM cultivar
-fix) 이후 mesh vertex 산출 _변경됨_ — 의도된 baseline 재생성.
-
-anchor.position / anchor.rotation _불변_ (R26 contract 보존, petioleCurve 변경은
-mesh-local vertex만 영향, anchor 위치/회전은 stem attach point + bonePath tangent로
-변화 0).
-
-Captured: 2026-05-31 — Iter 32+33 동작 검증 후 재생성
+Captured: 2026-05-31T21:47:57.233Z
 Source spec: tests/architecture/iter31-r26-numeric-baseline.spec.ts
 
 ## Per-day counts
