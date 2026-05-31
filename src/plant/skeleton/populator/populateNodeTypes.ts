@@ -28,6 +28,9 @@ function nodeTypeFromId(id: string): SkeletonNodeType {
   // `n:axis0:*` — main stem segment.
   // `n:axis{N}:*` (N>=1) — side shoot segment.
   // `n:petiole_tip:*`, `n:peduncle_end:*`, `n:knuckle:*`, `n:pedicel_tip:*` — typed leaves.
+  // Iter 36 v5: `n:leaflet:*`, `n:bud:*` — new compound leaf + axillary bud nodes.
+  if (id.startsWith('n:leaflet:')) return 'leaflet-node';
+  if (id.startsWith('n:bud:')) return 'bud-node';
   if (id.startsWith('n:petiole_tip:')) return 'petiole-tip';
   if (id.startsWith('n:peduncle_end:')) return 'peduncle-node';
   if (id.startsWith('n:knuckle:')) return 'rachis-node';

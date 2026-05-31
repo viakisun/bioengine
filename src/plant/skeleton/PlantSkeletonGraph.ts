@@ -57,7 +57,92 @@ export type SkeletonNodeType =
   | 'pedicel-tip'
   | 'fruit-root'
   | 'flower-root'
-  | 'calyx-root';
+  | 'calyx-root'
+  // Iter 36 v5 Phase B (★ NEW) — compound leaf morphology + axillary bud.
+  | 'leaflet-node'           // per-leaflet position (terminal/primary/secondary/intercalary)
+  | 'bud-node';              // axillary bud (dormant/activated/growing)
+
+/**
+ * Iter 36 v5 Phase B — Compound leaf leaflet position type.
+ *
+ * Botanical reference (사용자 제공):
+ *   - terminal: 잎 끝 큰 소엽 (1개)
+ *   - primary: 좌우 큰 소엽 (1-4 pairs)
+ *   - secondary: primary 근처 작은 소엽 (0-8)
+ *   - intercalary: 큰 소엽 사이 작은 소엽 (0-10)
+ */
+export type LeafletPosition = 'terminal' | 'primary' | 'secondary' | 'intercalary';
+
+/**
+ * Iter 36 v5 Phase B — Per-leaflet node data (skeleton).
+ *
+ * Conservative 분리 (사용자 결정): _구조 데이터만_. shapeProfile / serration /
+ * lobeNoise / asymmetry / wrinkle / poseVariation은 _rendering engine 내부_
+ * procedural (src/scene/leaf-engine/).
+ */
+export interface LeafletNodeRef {
+  /** parent leaf-blade-root node ID (skeleton 자기 참조). */
+  parentLeafNodeId: string;
+  /** 4 botanical position types. */
+  position: LeafletPosition;
+  /** 엽축(rachis)상 0-1 normalized 위치 (root=0, tip=1). */
+  rachisU: number;
+  /** terminal 대비 크기 비율 (botanical 표 §3). */
+  sizeFactor: number;
+  /** resolved target size (m). */
+  targetSizeM: number;
+}
+
+/**
+ * Iter 36 v5 Phase B — Leaf blade metadata (skeleton leaf-blade-root에 부착).
+ *
+ * 잎 전체 procedural variation의 baseline. Rendering engine이 이 값들을 read
+ * 하고 internally procedural noise를 적용해 mesh variation 생성.
+ *
+ * 사용자 botanical reference §7 (age presets) + §8 (correlation rules).
+ */
+export interface LeafBladeRef {
+  /** 잎 전체 길이 (m). 0.02-0.30 range (young 2cm → complex 30cm). */
+  leafLengthM: number;
+  /** petiole 길이 비율 (0.20-0.38). */
+  petioleRatioM: number;
+  /** rachis 길이 (m). = leafLength × 0.60-0.80. */
+  rachisLengthM: number;
+  /** 큰 좌우 소엽 pairs (1-4). */
+  primaryPairs: number;
+  /** 큰 소엽 사이 작은 소엽 수 (0-10). */
+  intercalaryCount: number;
+  /** primary 근처 작은 소엽 수 (0-8). */
+  secondaryCount: number;
+  /** rachis bend 진폭 (leafLength 대비 0-0.12). */
+  rachisBendAmp: number;
+  /** Age preset — 5종 (사용자 botanical §7). */
+  agePreset: 'young' | 'mature' | 'old' | 'complex' | 'potato-leaf';
+  /** 0-1 correlation seed (사용자 §8). leafletCount + serration + asymmetry 묶음 산식. */
+  complexity: number;
+  /** 잎 전체 droop 각도 (deg). 어린 잎 음수 (위로), 오래된 잎 양수 (아래로). */
+  droopDeg: number;
+  /** 엽축 전체 비틀림 각도 (deg, -15~15). */
+  twistDeg: number;
+}
+
+/**
+ * Iter 36 v5 Phase B — Axillary bud node data (skeleton).
+ *
+ * 곁순 = 잎겨드랑이에서 나오는 새 순. activated 시 side-shoot edge로 _link_
+ * (bud node _유지_ — lineage 추적, 사용자 v4 결정).
+ *
+ * dormant + activated 모두 skeleton overlay에 visible (작은 marker).
+ * 실제 mesh는 side-shoot axis만 (현재 동작 보존).
+ */
+export interface BudNodeRef {
+  /** parent main-stem-node ID. */
+  parentNodeId: string;
+  /** Botanical state (BudState from @farmsim/tomato-engine — string union). */
+  state: string;
+  /** activated 시 side-shoot edge ID로 link. dormant 시 undefined. */
+  activatedAxisId?: string;
+}
 
 /**
  * Iter 26 PR 1-1 — Local orthonormal frame at a node (plant-local coords).
@@ -121,6 +206,25 @@ export interface SkeletonNode {
    * spatial-transform only.
    */
   phytomer?: PhytomerNodeRef;
+  /**
+   * Iter 36 v5 Phase B (★ NEW) — per-leaflet data for leaflet-node type.
+   * Populator fills for each leaflet position (terminal/primary/secondary/intercalary)
+   * around each leaf-blade-root. Rendering engine (LeafGenerator + leaf-engine)
+   * reads these to position individual leaflet meshes.
+   */
+  leafletRef?: LeafletNodeRef;
+  /**
+   * Iter 36 v5 Phase B (★ NEW) — leaf blade metadata for leaf-blade-root type.
+   * Populator computes from age + cultivar preset distribution; rendering
+   * engine uses for procedural variation (5 age presets + correlation rules).
+   */
+  leafBladeRef?: LeafBladeRef;
+  /**
+   * Iter 36 v5 Phase B (★ NEW) — axillary bud data for bud-node type.
+   * dormant/activated 모두 skeleton에 존재 — activated 시 sideShoot edge ID
+   * 로 link (lineage 추적, 사용자 v4 결정).
+   */
+  budRef?: BudNodeRef;
 }
 
 /**
@@ -517,6 +621,27 @@ export function edgeSubtree(graph: PlantSkeletonGraph, edgeId: string): string[]
     out.push(cur);
     const kids = children.get(cur);
     if (kids) queue.push(...kids);
+  }
+  return out;
+}
+
+/**
+ * Iter 36 v5 Phase B — Collect all leaflet-node references for a given
+ * leaf-blade-root parent node.
+ *
+ * Rendering engine (LeafGenerator) calls this to get the per-leaflet position
+ * data (terminal/primary/secondary/intercalary) for procedural mesh build.
+ * Returns empty array if no leaflet nodes exist (e.g. legacy populator).
+ */
+export function getLeafletNodesByParentLeaf(
+  graph: PlantSkeletonGraph,
+  parentLeafNodeId: string,
+): LeafletNodeRef[] {
+  const out: LeafletNodeRef[] = [];
+  for (const node of graph.nodes.values()) {
+    if (node.type !== 'leaflet-node') continue;
+    if (node.leafletRef?.parentLeafNodeId !== parentLeafNodeId) continue;
+    out.push(node.leafletRef);
   }
   return out;
 }

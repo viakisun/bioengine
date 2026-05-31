@@ -78,6 +78,20 @@ export const NODE_VISUAL_HINT_DEFAULTS: Record<SkeletonNodeType, NodeVisualHint>
     markerShape: 'ring',
     markerSizeM: 0.0030,
   },
+  // Iter 36 v5 Phase B — compound leaf leaflet positions + axillary bud.
+  // 사용자 결정: 4 position types별 색 구분 (skeleton overlay 시각 검증용).
+  //   terminal=red / primary=green / secondary=blue / intercalary=yellow
+  //   bud=orange (dormant) / 동일색 (rendering engine이 state별 변경)
+  'leaflet-node': {
+    markerColor: '#FF4500',     // orange-red (terminal 기본 — leafletRef.position에 따라 overlay에서 변경)
+    markerShape: 'disk',
+    markerSizeM: 0.0020,
+  },
+  'bud-node': {
+    markerColor: '#FF8C00',     // dark orange (axillary bud)
+    markerShape: 'sphere',
+    markerSizeM: 0.0018,
+  },
 };
 
 /** Returns a fresh visualHint clone for the given type (label injected by caller). */

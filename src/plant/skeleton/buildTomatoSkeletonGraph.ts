@@ -51,6 +51,10 @@ import type {
   SkeletonEdge,
   SkeletonBone,
   SkeletonEdgeType,
+  LeafBladeRef,
+  LeafletNodeRef,
+  LeafletPosition,
+  BudNodeRef,
 } from './PlantSkeletonGraph';
 import { populateNodeTypes } from './populator/populateNodeTypes';
 import { populateAnchorMorphology } from './populator/populateAnchorMorphology';
@@ -100,6 +104,8 @@ export function buildTomatoSkeletonGraph(
     addStemAxis(axis, axisIdx, stemEdgeId, stemType, nodes, edges);
     addLeavesForAxis(axis, axisIdx, stemEdgeId, divisions, nodes, edges);
     addTrussesForAxis(axis, axisIdx, stemEdgeId, divisions, anatomy, nodes, edges);
+    // Iter 36 v5 Phase B — axillary buds (dormant + activated 모두).
+    addBudsForAxis(axis, axisIdx, nodes);
   }
 
   const graph: PlantSkeletonGraph = { nodes, edges, rootEdgeId };
@@ -241,13 +247,24 @@ function addLeavesForAxis(
     const bones = bonesFromCurve(leaf.petioleCurve, baseR, tipR, divisions);
     const tipPos = bones[bones.length - 1].p1;
 
+    // Iter 36 v5 Phase B — tipNode가 leaf-blade-root 역할. leafBladeRef로
+    // 잎 전체 metadata 부착 (rendering engine이 procedural variation 생성).
+    const leafBladeRef = computeLeafBladeRef(leaf);
     nodes.set(tipNodeId, {
       id: tipNodeId,
       pos: { ...tipPos },
       radius: tipR,
       edgeIds: [petioleEdgeId],
+      leafBladeRef,
     });
     attachNode.edgeIds.push(petioleEdgeId);
+
+    // Iter 36 v5 Phase B — 각 leaflet position마다 leaflet-node 생성.
+    //   terminal (1) + primary pairs (left/right × N) + secondary + intercalary.
+    //   position은 rachis 시작점 (tipPos) 기준 approximation.
+    addLeafletNodesForLeaf(
+      axisIdx, leaf.nodeIdx, tipNodeId, tipPos, leaf.sizeFactor, leafBladeRef, nodes,
+    );
 
     // Iter 18B PR 8 (SSOT #180) — structured OrganAnchor for leaf blade.
     // Iter 27 — anchor 의미 재정의:
@@ -271,6 +288,183 @@ function addLeavesForAxis(
         anchorNodeId: attachNodeId,       // joint
         meshAnchorNodeId: tipNodeId,      // mesh
       }],
+    });
+  }
+}
+
+// ── Iter 36 v5 Phase B — LeafBladeRef + leaflet-node 산출 ─────────────
+
+/**
+ * 잎 전체 metadata 산출 (deterministic baseline).
+ *
+ * Phase B 시점: agePreset = 'mature' 기본 (Phase F에서 cultivar별 distribution
+ * sampling 도입). complexity는 sizeFactor 기반 (큰 잎 = 높은 complexity).
+ *
+ * Botanical reference (사용자 §7):
+ *   - young: leafLength 2-8cm, primary 1-2, intercalary 0-2
+ *   - mature: leafLength 10-25cm, primary 2-4, intercalary 2-6
+ *   - old: leafLength 14-28cm, primary 3-4, intercalary 3-8
+ */
+function computeLeafBladeRef(leaf: LeafBase): LeafBladeRef {
+  // sizeFactor → agePreset 단순 매핑 (Phase F에서 cultivar 분포 도입).
+  const sf = leaf.sizeFactor;
+  let agePreset: LeafBladeRef['agePreset'];
+  if (sf < 0.35) agePreset = 'young';
+  else if (sf < 0.7) agePreset = 'mature';
+  else agePreset = sf > 0.9 ? 'complex' : 'mature';
+
+  // 잎 길이: cultivar reference 0.12m × sizeFactor (Iter 36 v5 Phase A 산식).
+  const leafLengthM = 0.12 * Math.max(0.05, sf);
+  // petiole : rachis 비율 — mature 0.3 : 0.7.
+  const petioleRatioM = 0.30;
+  const rachisLengthM = leafLengthM * 0.70;
+
+  // primary pairs: young 1-2, mature 2-3, complex 3-4.
+  let primaryPairs: number;
+  if (agePreset === 'young') primaryPairs = sf < 0.2 ? 1 : 2;
+  else if (agePreset === 'mature') primaryPairs = 3;
+  else primaryPairs = 4;
+
+  // intercalary: young 0-2, mature 2-5, complex 5-8.
+  let intercalaryCount: number;
+  if (agePreset === 'young') intercalaryCount = Math.floor(sf * 4);
+  else if (agePreset === 'mature') intercalaryCount = 3;
+  else intercalaryCount = 6;
+
+  // secondary: 거의 없음~소수 (Phase E에서 자세 처리).
+  const secondaryCount = agePreset === 'complex' ? 4 : 0;
+
+  return {
+    leafLengthM,
+    petioleRatioM,
+    rachisLengthM,
+    primaryPairs,
+    intercalaryCount,
+    secondaryCount,
+    rachisBendAmp: 0.05,           // 5% leafLength S-curve
+    agePreset,
+    complexity: sf,                 // 0-1 correlation seed
+    droopDeg: sf > 0.7 ? 15 : -5,  // young 위로, mature 수평, old 처짐
+    twistDeg: 0,
+  };
+}
+
+/**
+ * leaflet-node 생성 — 4 position types (terminal/primary/secondary/intercalary).
+ *
+ * 위치 산출 (Phase B baseline):
+ *   - rachisU = 엽축 0-1 (root=0, tip=1)
+ *   - 실제 3D position은 tipPos를 _approximation 시작점_으로 사용
+ *     (rendering engine이 internal procedural position 산출).
+ *   - skeleton overlay marker는 approximation 위치 표시 (시각 검증용).
+ */
+function addLeafletNodesForLeaf(
+  axisIdx: number,
+  leafNodeIdx: number,
+  parentLeafNodeId: string,
+  tipPos: V3,
+  sizeFactor: number,
+  bladeRef: LeafBladeRef,
+  nodes: Map<string, SkeletonNode>,
+): void {
+  const rachisLen = bladeRef.rachisLengthM;
+  // 단순 approximation: rachis는 tip에서 위쪽 (+y)으로 펼쳐짐.
+  // 실제 방향은 rendering engine이 정확 산출.
+  const rachisDir: V3 = { x: 0, y: 0.7, z: 0.7 };  // diagonal up-forward
+  const lateralDir: V3 = { x: 1, y: 0, z: 0 };     // sideways
+
+  let leafletCounter = 0;
+  const addLeaflet = (
+    position: LeafletPosition,
+    rachisU: number,
+    sf: number,
+    lateralOffsetSign: number,
+  ): void => {
+    const lid = `n:leaflet:axis${axisIdx}:n${leafNodeIdx}:${position}:${leafletCounter++}`;
+    const lateralAmount = lateralOffsetSign * sf * rachisLen * 0.35;
+    const pos: V3 = {
+      x: tipPos.x + rachisDir.x * rachisU * rachisLen + lateralDir.x * lateralAmount,
+      y: tipPos.y + rachisDir.y * rachisU * rachisLen + lateralDir.y * lateralAmount,
+      z: tipPos.z + rachisDir.z * rachisU * rachisLen + lateralDir.z * lateralAmount,
+    };
+    const targetSizeM = rachisLen * sf * 0.4;
+    nodes.set(lid, {
+      id: lid,
+      pos,
+      radius: 0.0008,
+      edgeIds: [],
+      leafletRef: {
+        parentLeafNodeId,
+        position,
+        rachisU,
+        sizeFactor: sf,
+        targetSizeM,
+      } satisfies LeafletNodeRef,
+    });
+  };
+
+  // 1. Terminal (1, rachisU=1.0, sizeFactor 1.0-1.35).
+  addLeaflet('terminal', 1.0, 1.15, 0);
+
+  // 2. Primary pairs (left/right, rachisU 0.18~0.75 jitter).
+  const primaryUs = [0.18, 0.35, 0.55, 0.75].slice(0, bladeRef.primaryPairs);
+  for (let i = 0; i < primaryUs.length; i++) {
+    // sizeFactor: 위쪽 0.85→0.55 아래쪽 (사용자 §3 표).
+    const sf = 0.85 - i * 0.10;
+    addLeaflet('primary', primaryUs[i], sf, -1);  // left
+    addLeaflet('primary', primaryUs[i] + 0.02, sf, +1); // right (2% jitter)
+  }
+
+  // 3. Intercalary (큰 소엽 사이 작은 소엽).
+  for (let i = 0; i < bladeRef.intercalaryCount; i++) {
+    const u = 0.25 + (i / Math.max(1, bladeRef.intercalaryCount)) * 0.5;
+    const sf = 0.10 + (i % 3) * 0.08;  // 0.10-0.34 작음
+    const sign = i % 2 === 0 ? -1 : +1;
+    addLeaflet('intercalary', u, sf, sign);
+  }
+
+  // 4. Secondary (primary 근처 작은 소엽).
+  for (let i = 0; i < bladeRef.secondaryCount; i++) {
+    const u = primaryUs[i % primaryUs.length] + 0.04;
+    const sf = 0.30 + (i % 2) * 0.10;  // 0.30-0.40
+    const sign = i % 2 === 0 ? +1 : -1;
+    addLeaflet('secondary', u, sf, sign);
+  }
+}
+
+/**
+ * Iter 36 v5 Phase B — axillary bud node 생성.
+ *
+ * axis.buds (BudMarker[])를 순회 — dormant + activated 모두 skeleton에 표현.
+ * activated 시 activatedAxisId로 sideShoot edge link (lineage 추적).
+ */
+function addBudsForAxis(
+  axis: AxisBase,
+  axisIdx: number,
+  nodes: Map<string, SkeletonNode>,
+): void {
+  const buds = (axis as AxisBase & { buds?: Array<{ nodeIdx: number; state: string; position: V3 }> }).buds;
+  if (!buds || buds.length === 0) return;
+  for (let i = 0; i < buds.length; i++) {
+    const bud = buds[i];
+    const bid = `n:bud:axis${axisIdx}:n${bud.nodeIdx}:${i}`;
+    const parentNodeId = stemNodeId(axisIdx, bud.nodeIdx);
+    // activated (sideShoot 생성됨) → growing 으로 BudState 정의됨.
+    // dormant 시 undefined. (BudState: 'dormant' | 'growing' | 'pruned')
+    const activatedAxisId =
+      bud.state === 'growing'
+        ? `e:sideShoot:${i + 1}`  // approximation — Phase G에서 정확 link 검증
+        : undefined;
+    nodes.set(bid, {
+      id: bid,
+      pos: { ...bud.position },
+      radius: 0.0015,
+      edgeIds: [],
+      budRef: {
+        parentNodeId,
+        state: bud.state,
+        activatedAxisId,
+      } satisfies BudNodeRef,
     });
   }
 }
