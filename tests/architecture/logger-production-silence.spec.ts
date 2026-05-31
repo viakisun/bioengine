@@ -2,7 +2,8 @@
 //
 // Boot 출력이 _기본_ silent (1~3 lines)임을 page.on('console')로 자동 검증.
 //
-// Plan SSOT: `.claude/plans/sleepy-growing-pretzel.md` §8.2
+// Iter 35: ProgressiveLoad 제거 — [progressive] complete 1줄 expectation 삭제.
+//   single-plant 즉시 진입 + quality 즉시 적용. boot console 0~3줄 (warn만).
 
 import { test, expect, type Page, type ConsoleMessage } from '@playwright/test';
 
@@ -43,31 +44,22 @@ async function captureBootConsole(page: Page): Promise<ConsoleLine[]> {
   page.on('console', (msg: ConsoleMessage) => {
     lines.push({ type: msg.type(), text: msg.text() });
   });
-  // quality=2 — progressive complete까지 ~6s + buffer
+  // Iter 35: single-plant 자동 진입 (URL hash 무관). quality 즉시 적용.
   await page.goto('/?quality=2', { waitUntil: 'networkidle' });
   await page.waitForTimeout(3000);
-  // single-plant 진입 (progressive complete까지)
-  await page.evaluate(() => {
-    const w = window as unknown as {
-      __twinStore?: { getState(): { setMode(m: string): void; setUseImplicitMesh(v: boolean): void } };
-    };
-    w.__twinStore?.getState().setMode('single-plant');
-    w.__twinStore?.getState().setUseImplicitMesh(false);
-  });
-  await page.waitForTimeout(1500);
+  // SkinMesh toggle on (Iter 35 baseline 시각 동일)
   await page.evaluate(() => {
     const w = window as unknown as {
       __twinStore?: { getState(): { setUseImplicitMesh(v: boolean): void } };
     };
     w.__twinStore?.getState().setUseImplicitMesh(true);
   });
-  // progressive complete까지 (quality=2 → env-only/skeleton-on/lush + quality-2 = 4 stages × 2s + buffer)
-  await page.waitForTimeout(12_000);
+  await page.waitForTimeout(3000);
   return lines;
 }
 
-test.describe('Phase L6 — Production silence', () => {
-  test('PRODUCTION-LOG-COUNT-01: boot console output ≤ 5 lines (default opt-in off)', async ({ page }) => {
+test.describe('Phase L6 — Production silence (Iter 35 갱신)', () => {
+  test('PRODUCTION-LOG-COUNT-01: boot console output ≤ 3 lines (Iter 35 — ProgressiveLoad 제거)', async ({ page }) => {
     test.setTimeout(60_000);
 
     const all = await captureBootConsole(page);
@@ -82,13 +74,13 @@ test.describe('Phase L6 — Production silence', () => {
       console.log(`  ${t.slice(0, 120)}`);
     }
 
-    // 기대: [progressive] complete 1줄 + (warn 있을 시 1~3건)
-    // threshold: 5 lines 이하 (flaky 방지 — Babylon 메시지가 가끔 잡힘)
-    expect(productionLines.length, `boot console lines should be ≤ 5, got:\n${productionLines.join('\n')}`)
-      .toBeLessThanOrEqual(5);
+    // Iter 35: ProgressiveLoad 제거 → [progressive] complete 라인 부재.
+    // threshold: 3 lines 이하 (warn/error만 — Babylon 부수 메시지 buffer 1~2건 허용).
+    expect(productionLines.length, `boot console lines should be ≤ 3, got:\n${productionLines.join('\n')}`)
+      .toBeLessThanOrEqual(3);
   });
 
-  test('PRODUCTION-PROGRESSIVE-COMPLETE-01: [progressive] complete 1줄 출력 확인', async ({ page }) => {
+  test('PRODUCTION-PROGRESSIVE-REMOVED-01: [progressive] complete 라인 0건 (Iter 35 — 제거됨)', async ({ page }) => {
     test.setTimeout(60_000);
 
     const all = await captureBootConsole(page);
@@ -96,7 +88,7 @@ test.describe('Phase L6 — Production silence', () => {
       l.text.includes('[progressive]') && l.text.includes('complete')
     );
 
-    expect(progressiveComplete.length, '[progressive] complete 라인 정확히 1개')
-      .toBe(1);
+    expect(progressiveComplete.length, '[progressive] complete 라인 0건 (ProgressiveLoad archived)')
+      .toBe(0);
   });
 });

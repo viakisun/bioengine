@@ -8,8 +8,8 @@ import { setupScene, type SceneSetupHandle } from './SceneSetup';
 import { applyRenderQuality } from './RenderQuality';
 import { setupCamera, type CameraRig } from './CameraRig';
 import { buildGreenhouseScene, type GreenhouseSceneHandle } from './GreenhouseScene';
-import { buildGreenhouseContent, type GreenhouseContentHandle } from './GreenhouseContent';
-import { createProgressiveLoad, type ProgressiveLoadHandle } from './ProgressiveLoad';
+// Iter 35: GreenhouseContent (zones/heatmap/robot/path/supporting) + ProgressiveLoad
+//   제거 — single-plant only (Phase B+C, 사용자 결정).
 import { createQualityProbe, type QualityProbeHandle } from './QualityProbe';
 import { useTwinStore, type LightingState } from '../store/twinStore';
 import { SCENARIO } from '../data/mockScenario';
@@ -215,7 +215,7 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
           scene,
           engine,
           sceneSetup,
-          progressiveIsRunning: () => progressive?.isRunning() ?? false,
+          progressiveIsRunning: () => false, // Iter 35: ProgressiveLoad 제거
         });
       }
       return qualityProbe.start();
@@ -254,9 +254,6 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
 
   setBootStage('greenhouse', '온실 인프라 빌드 시작', 0);
   let greenhouse: GreenhouseSceneHandle | null = null;
-  // greenhouseContent — mode === 'greenhouse' 일 때만 build 되어 있음.
-  // mode === 'single-plant' 진입 시 dispose, null 로 set.
-  let greenhouseContent: GreenhouseContentHandle | null = null;
   try {
     greenhouse = await buildGreenhouseScene(scene);
     setSinglePlantEngineRef(greenhouse.growthEngine);
@@ -267,100 +264,10 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
     notify.error('온실 빌드 실패', err instanceof Error ? err : String(err));
   }
 
-  // ---------- applyMode — mode 진입 시 greenhouseContent build/dispose ----------
-  // 'greenhouse' 진입 시 build (cost: 수 초, BootOverlay 'plants' stage 표시).
-  // 'single-plant' 진입 시 dispose (cost: <500ms, 메모리 cleanup).
-  function sceneStats() {
-    return {
-      meshes: scene.meshes.length,
-      materials: scene.materials.length,
-      textures: scene.textures.length,
-      engineEntries: greenhouse?.growthEngine.plantCount ?? 0,
-    };
-  }
-  function diff(before: ReturnType<typeof sceneStats>): ReturnType<typeof sceneStats> {
-    const after = sceneStats();
-    return {
-      meshes: after.meshes - before.meshes,
-      materials: after.materials - before.materials,
-      textures: after.textures - before.textures,
-      engineEntries: after.engineEntries - before.engineEntries,
-    };
-  }
-  function logModeChange(label: string, signed: 'before-build' | 'before-dispose', before: ReturnType<typeof sceneStats>): void {
-    const d = diff(before);
-    const sign = signed === 'before-build' ? '+' : '';
-    log.debug(
-      `${label}  meshes ${sign}${d.meshes}  materials ${sign}${d.materials}  textures ${sign}${d.textures}  engineEntries ${sign}${d.engineEntries}`
-    );
-  }
-
-  // Progressive load orchestrator — single-plant 모드 진입 시 환경 → skeleton →
-  // lush → quality 점진 표시 + console.log 측정 출력. lazy 생성.
-  // progressive.isRunning() === true 인 동안 발생하는 renderQuality 변경은
-  // orchestrator 자체의 setRenderQuality 호출로 간주 (user manual change 아님).
-  let progressive: ProgressiveLoadHandle | null = null;
-  // Single-plant 진입 시점에 저장한 사용자 quality. 복귀 시 복원.
-  let savedRenderQuality: number | null = null;
-
-  async function applyMode(mode: string): Promise<void> {
-    if (!greenhouse) return;
-    if (mode === 'greenhouse') {
-      if (!greenhouseContent) {
-        const before = sceneStats();
-        setBootStage('plants', 'Greenhouse content build', 0);
-        greenhouseContent = await buildGreenhouseContent(greenhouse.sharedEnv);
-        logModeChange('single-plant → greenhouse  build', 'before-build', before);
-        setBootStage('ready', undefined, 1);
-        // Wire zone picking → store (heatmap 이 이제 막 생성됨)
-        greenhouseContent.onZoneHover((zoneId) => {
-          useTwinStore.getState().hoverZone(zoneId);
-          greenhouseContent?.heatmap.setHoveredZone(zoneId);
-        });
-        greenhouseContent.onZoneClick((zoneId) => {
-          if (zoneId !== null) {
-            useTwinStore.getState().selectZone(zoneId);
-            greenhouseContent?.heatmap.setSelectedZone(zoneId);
-          }
-        });
-        // 현재 store flag 들 즉시 반영
-        const cur = useTwinStore.getState();
-        greenhouseContent.heatmap.setVisible(cur.heatmapVisible);
-        greenhouseContent.robot.setFovVisible(cur.fovVisible);
-        greenhouseContent.pathTrail.setVisible(cur.pathTrailVisible);
-      }
-      cameraRig.setPreset('overview');
-      // Progressive load 가 도는 중이면 abort + quality 복원.
-      // (abort 후 setRenderQuality 는 isRunning=false 이므로 subscribe 핸들러는
-      // 이를 user manual change 로 보지만, savedRenderQuality 가 null 이 되므로
-      // 안전 — 다시 single-plant 진입 시 다시 캡처.)
-      progressive?.abort('mode→greenhouse');
-      if (savedRenderQuality !== null) {
-        useTwinStore.getState().setRenderQuality(savedRenderQuality);
-        savedRenderQuality = null;
-      }
-    } else if (mode === 'single-plant') {
-      if (greenhouseContent) {
-        const before = sceneStats();
-        greenhouseContent.dispose();
-        greenhouseContent = null;
-        logModeChange('greenhouse → single-plant  dispose', 'before-dispose', before);
-      }
-      cameraRig.setPreset('single-plant');
-      // Progressive load 시작 — 사용자가 보고 있는 quality 를 saved 로 캡처 후
-      // q1 부터 점진 적용. orchestrator 가 setRenderQuality 를 자체 호출.
-      const cur = useTwinStore.getState();
-      savedRenderQuality = cur.renderQuality;
-      if (!progressive && engine) {
-        progressive = createProgressiveLoad({
-          scene,
-          engine,
-          showcase: greenhouse.showcasePlant,
-        });
-      }
-      if (!progressive) return;
-      progressive.start({ savedQuality: cur.renderQuality, currentDay: cur.currentDay });
-    }
+  // Iter 35: ProgressiveLoad + applyMode + greenhouseContent 제거 — single-plant only.
+  //   환경/quality 즉시 적용 (사용자 결정). greenhouseContent는 mount 안 함.
+  function applyInitialMode(): void {
+    cameraRig.setPreset('single-plant');
   }
 
   // Apply the quality preset AFTER greenhouse is built so the shadow
@@ -378,25 +285,8 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
   }
 
   // Store subscription — react to changes
+  // Iter 35: greenhouseContent 분기 (zone/heatmap/fov/pathTrail) 모두 제거 — single-plant only.
   const unsubStore = useTwinStore.subscribe((s, prev) => {
-    if (s.selectedZoneId !== prev.selectedZoneId && greenhouseContent) {
-      greenhouseContent.heatmap.setSelectedZone(s.selectedZoneId);
-      // Pan the camera to the selected zone's center so clicking a
-      // zone card / chip in the UI immediately frames it in 3D.
-      if (s.selectedZoneId !== null) {
-        const zone = SCENARIO.zones[s.selectedZoneId];
-        if (zone) cameraRig.focusZone((zone.startX + zone.endX) / 2);
-      }
-    }
-    if (s.heatmapVisible !== prev.heatmapVisible && greenhouseContent) {
-      greenhouseContent.heatmap.setVisible(s.heatmapVisible);
-    }
-    if (s.fovVisible !== prev.fovVisible && greenhouseContent) {
-      greenhouseContent.robot.setFovVisible(s.fovVisible);
-    }
-    if (s.pathTrailVisible !== prev.pathTrailVisible && greenhouseContent) {
-      greenhouseContent.pathTrail.setVisible(s.pathTrailVisible);
-    }
     if (s.cameraPreset !== prev.cameraPreset) {
       cameraRig.setPreset(s.cameraPreset);
     }
@@ -444,30 +334,13 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
         log.error('applyRenderQuality failed:', err);
       }
     }
-    // 사용자가 직접 quality 슬라이더 만지면 progressive abort.
-    // progressive 가 도는 동안의 setRenderQuality 는 orchestrator 자체 호출
-    // (progressive.isRunning === true) 이므로 user manual change 와 구분.
-    if (
-      s.renderQuality !== prev.renderQuality &&
-      progressive &&
-      !progressive.isRunning()
-    ) {
-      // progressive 가 이미 끝났거나 시작 전 — 진짜 user manual change.
-      // 사용자가 새 quality 선택했으니 saved 도 그 값으로 갱신 (복귀 시 그대로 유지).
-      if (savedRenderQuality !== null) savedRenderQuality = s.renderQuality;
-    }
-
-    // App-mode handler — greenhouse content build/dispose orchestration.
-    if (s.mode !== prev.mode && greenhouse) {
-      void applyMode(s.mode);
-    }
+    // Iter 35: ProgressiveLoad 제거 — mode 단일이므로 mode-change 분기도 제거.
   });
 
-  // Direct URL entry (`#single-plant`, `#greenhouse`) — store.subscribe 는
-  // *변경* 만 감지하므로 initial mode 핸들러를 따로 발화시킴.
+  // Initial single-plant setup — camera preset + skeleton config.
   if (greenhouse) {
     const initialState = useTwinStore.getState();
-    await applyMode(initialState.mode);
+    applyInitialMode();
     greenhouse.showcasePlant.setSkeletonConfig(initialState.skeleton);
     if (initialState.showSkeleton) {
       greenhouse.showcasePlant.setSkeletonMode(true);
@@ -498,7 +371,7 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
   let lastPlayTime = performance.now();
   const hudFps = document.getElementById('hud-fps');
   const hudDay = document.getElementById('hud-day');
-  const hudRobot = document.getElementById('hud-robot');
+  // Iter 35: hudRobot 제거 — single-plant only.
 
   // Resolve cached leaf material once for per-frame wind uniform update
   let cachedLeafMatRef: Material | null = null;
@@ -550,29 +423,9 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
       }
     }
 
-    // Robot contributes a continuous interaction while capturing —
-    // the camera head's world position pushes leaves immediately
-    // around it. While idle/returning the robot doesn't disturb plants.
-    if (greenhouseContent) {
-      const task = greenhouseContent.robot.currentTask();
-      if (task === 'capturing') {
-        const rp = greenhouseContent.robot.currentPosition();
-        useTwinStore.getState().addInteraction({
-          position: [rp.x, rp.y + 0.6, rp.z],
-          radius: 0.55,
-          strength: 0.8,
-          lifetime: 1.2,
-        });
-      }
-    }
+    // Iter 35: robot interaction + plantLOD 제거 — single-plant only (greenhouseContent 부재).
     // Drain stale interactions (age beyond lifetime drops them).
     useTwinStore.getState().tickInteractions(dtInter);
-
-    // Phase D — LOD distance check (10Hz throttled internally).
-    // greenhouseContent === null 면 (single-plant 모드) skip — supporting 없음.
-    if (greenhouseContent) {
-      greenhouseContent.plantLOD.update(cameraRig.camera.globalPosition);
-    }
 
     // Push wind + interaction uniforms each frame — WebGL2 only.
     // On WebGPU we use the CPU sine fallback further down.
@@ -618,15 +471,7 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
       const showcaseSway = Math.sin(t * baseFreq + showcase.position.x * 0.3) * baseAmp;
       showcase.rotation.z = showcaseSway;
       showcase.rotation.x = Math.sin(t * baseFreq * 1.3 + showcase.position.z * 0.4) * baseAmp * 0.5;
-      // single-plant 모드에서는 greenhouseContent === null 이라 supporting loop 자동 skip.
-      if (greenhouseContent) {
-        for (const sp of greenhouseContent.supportingPlants) {
-          const r = sp.root;
-          const phase = r.position.x * 0.25 + r.position.z * 0.4;
-          r.rotation.z = Math.sin(t * baseFreq + phase) * baseAmp;
-          r.rotation.x = Math.sin(t * baseFreq * 1.3 + phase * 1.7) * baseAmp * 0.5;
-        }
-      }
+      // Iter 35: supporting plants loop 제거 — single-plant only.
     }
 
     if (state.playing) {
@@ -652,9 +497,7 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
       if (useTwinStore.getState().useImplicitMesh || dockingOn) {
         greenhouse.skinMeshPlant.update(state.currentDay);
       }
-      // Greenhouse-only content (heatmap/robot/pathTrail + supporting plants) 는
-      // greenhouseContent 가 있을 때만 update.
-      greenhouseContent?.update(state.currentDay);
+      // Iter 35: greenhouseContent.update (heatmap/robot/pathTrail/supporting) 제거.
 
       // Publish current label set (showcase plant + 선택적으로 robot)
       const labelHandleSet = getLabelOverlayHandle();
@@ -672,22 +515,7 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
             color: '#6ee7b7',
           });
         }
-        if (greenhouseContent) {
-          const robotPos = greenhouseContent.robot.currentPosition();
-          const robotTask = greenhouseContent.robot.currentTask();
-          labels.push({
-            id: 'robot',
-            worldX: robotPos.x,
-            worldY: 1.7,
-            worldZ: robotPos.z,
-            text: robotTask === 'capturing' ? '🎯 촬영 중'
-              : robotTask === 'returning' ? '↩ 복귀'
-                : '○ 대기',
-            color: robotTask === 'capturing' ? '#fbbf24'
-              : robotTask === 'returning' ? '#60a5fa'
-                : '#6ee7b7',
-          });
-        }
+        // Iter 35: robot label 제거 — single-plant only.
         labelHandleSet.setLabels(labels);
       }
 
@@ -703,18 +531,10 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
       const fps = engine!.getFps();
       const store = useTwinStore.getState();
       store.publishFps(fps);
-      if (greenhouseContent) {
-        const p = greenhouseContent.robot.currentPosition();
-        const task = greenhouseContent.robot.currentTask();
-        store.publishRobotState(p.x, p.z, task);
-      }
+      // Iter 35: robot publishRobotState + hudRobot 제거 — single-plant only.
       // Legacy hud spans — kept for old verify scripts. Cheap text writes.
       if (hudFps) hudFps.textContent = `${fps.toFixed(0)} fps`;
       if (hudDay) hudDay.textContent = `Day ${state.currentDay.toFixed(0)}`;
-      if (hudRobot && greenhouseContent) {
-        const p = greenhouseContent.robot.currentPosition();
-        hudRobot.textContent = `UWB x:${p.x.toFixed(2)}m z:${p.z.toFixed(2)}m`;
-      }
       lastFpsUpdate = now;
     }
 

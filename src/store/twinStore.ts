@@ -566,9 +566,7 @@ interface TwinState {
   // -- Boot progress + notifications + live log + env --
   boot: BootSnapshot;
   notifications: Notification[];
-  /** 우하단 corner spinner — 300ms+ 걸리는 작업 (시뮬 점프 등) 표시 */
-  busy: { active: boolean; message?: string };
-  setBusy: (active: boolean, message?: string) => void;
+  // Iter 35: busy 필드 + BusyIndicator UI 제거 (사용자 결정).
   /** 단계 진입. 이전 단계는 자동으로 completedAt 채움. */
   setBootStage: (stage: BootStage, detail?: string, progress?: number) => void;
   /** 현재 단계의 detail / progress / subCounters 갱신 (단계 변경 없음). */
@@ -865,8 +863,6 @@ export const useTwinStore = create<TwinState>((set) => ({
     hasEverReached: false,
   },
   notifications: [],
-  busy: { active: false },
-  setBusy: (active, message) => set({ busy: { active, message } }),
 
   setBootStage: (stage, detail = '', progress = 0) =>
     set((s) => {

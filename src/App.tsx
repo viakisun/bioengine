@@ -9,7 +9,6 @@
 import { GreenhouseLayout } from './components/GreenhouseLayout';
 import { SinglePlantOverlay } from './components/SinglePlantOverlay';
 import { BootOverlay } from './ui/BootOverlay';
-import { BusyIndicator } from './ui/BusyIndicator';
 import { NotificationCenter } from './ui/NotificationCenter';
 import { ErrorModal } from './ui/ErrorModal';
 import { ErrorBoundary } from './ui/ErrorBoundary';
@@ -21,7 +20,6 @@ export function App() {
       <BootOverlay />
       <NotificationCenter />
       <ErrorModal />
-      <BusyIndicator />
 
       {/* GreenhouseLayout — single-plant scene host (단일 mode이므로 항상 mount). */}
       <GreenhouseLayout />
