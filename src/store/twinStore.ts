@@ -100,8 +100,9 @@ export interface LightingState {
 // Skeleton overlay 설정 (Plan 3a Phase ζ)
 // ──────────────────────────────────────────────────────────────────
 
-// Iter 35 PR 2 Phase J: inspector 제거. Phase M에서 wind + settings 추가 예정.
-export type DrawerKind = 'lighting' | 'skeleton';
+// Iter 35 PR 2 Phase M: 4 drawers (lighting + skeleton + wind + settings).
+//   사용자 결정 "각각 별도로 분리". Settings popover 4-menu가 각 drawer 진입.
+export type DrawerKind = 'lighting' | 'skeleton' | 'wind' | 'settings';
 
 export interface SkeletonConfig {
   // 두께 (월드 단위, m). 0.001 m = 1mm.
@@ -773,7 +774,8 @@ export const useTwinStore = create<TwinState>((set) => ({
   // -- Single-Plant mode --
   // Default scrub: day 45 noon — mid-growth, multiple trusses active,
   // good showcase for the timeline / inspector.
-  singlePlantMinute: 45 * 24 * 60 + 12 * 60,
+  // Iter 35 PR 2 Phase M: D=100 (mature plant — 사용자 결정).
+  singlePlantMinute: 100 * 24 * 60 + 12 * 60,
   singlePlantPlaying: false,
   singlePlantSpeed: 4,
   // Iter 35 PR 2 Phase J: chart/metrics/inspector defaults 제거.

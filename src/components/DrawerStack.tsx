@@ -1,12 +1,15 @@
 // DrawerStack — unified right-side drawer system for single-plant mode.
-// Iter 35 PR 2 Phase J: inspector 제거. Phase M에서 wind + settings 추가 예정.
-// 현재 2 drawers: 조명 / 스켈레톤.
+// Iter 35 PR 2 Phase M: 4 drawers (lighting + skeleton + wind + settings).
+//   각 drawer _완전 분리_ (사용자 명시). Settings popover (RightBottomToggles)
+//   가 4 menu items로 각 drawer 진입.
 
 import { useEffect, type ReactNode } from 'react';
 import { useTwinStore } from '../store/twinStore';
 import type { DrawerKind } from '../store/twinStore';
 import { LightingTab } from './LightingTab';
 import { SkeletonTab } from './SkeletonTab';
+import { WindTab } from './WindTab';
+import { SettingsTab } from './SettingsTab';
 
 interface DrawerSpec {
   id: DrawerKind;
@@ -16,8 +19,10 @@ interface DrawerSpec {
 }
 
 const DRAWERS: DrawerSpec[] = [
-  { id: 'lighting',  label: '조명',     title: '조명 / 포스트FX 튜닝',  content: () => <LightingTab /> },
-  { id: 'skeleton',  label: '스켈레톤', title: 'Skeleton 표시 설정',    content: () => <SkeletonTab /> },
+  { id: 'lighting',  label: '조명',     title: '조명 / 렌더링 설정',  content: () => <LightingTab /> },
+  { id: 'skeleton',  label: '스켈레톤', title: 'Skeleton 표시 설정',  content: () => <SkeletonTab /> },
+  { id: 'wind',      label: '바람',     title: '바람 설정',           content: () => <WindTab /> },
+  { id: 'settings',  label: '기타',     title: '기타 설정',           content: () => <SettingsTab /> },
 ];
 
 export function DrawerStack() {

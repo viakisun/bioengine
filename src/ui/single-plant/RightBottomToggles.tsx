@@ -1,21 +1,32 @@
-// RightBottomToggles — Iter 35 PR 2 Phase J: 2 pills only (Skeleton + Settings).
+// RightBottomToggles — Iter 35 PR 2 v6 final: 2 pills (Skeleton + Settings).
 //
-// Phase J: Layer/Skin/Heatmap/Metrics/Camera 5 pills 제거.
-//   PillWithPopover + Section + CheckRow + RadioRow + Popover은 _보존_
-//   (Phase M Settings popover에서 재사용).
-//
-// Phase M (예정): Skeleton dbl-click → drawer 폐기 (단순 toggle).
-//   Settings = PillWithPopover (4 menu items → lighting/skeleton/wind/settings drawer).
+// Phase M (v6): Skeleton _단순 toggle_ (dbl-click 패턴 폐기).
+//   Settings = PillWithPopover with 4 menu items → 각 drawer 진입.
+//   사용자 명시 "각각 별도로 분리" 직접 충족 (옵션 A: Settings popover + 4 drawers).
 
-import { type CSSProperties, type ReactNode } from 'react';
+import { useState, type CSSProperties, type ReactNode } from 'react';
 import { useTwinStore } from '../../store/twinStore';
+import type { DrawerKind } from '../../store/twinStore';
 import { Popover } from './Popover';
 import { FONT_MONO, C_FG, C_FG_MUTE, C_BORDER, C_ACCENT } from './styles';
+
+interface MenuItem {
+  drawer: DrawerKind;
+  label: string;
+}
+
+const SETTINGS_MENU: MenuItem[] = [
+  { drawer: 'lighting', label: '조명 / 렌더링' },
+  { drawer: 'skeleton', label: '스켈레톤' },
+  { drawer: 'wind',     label: '바람' },
+  { drawer: 'settings', label: '기타' },
+];
 
 export function RightBottomToggles() {
   const showSkeleton = useTwinStore((s) => s.showSkeleton);
   const setShowSkeleton = useTwinStore((s) => s.setShowSkeleton);
   const setOpenDrawer = useTwinStore((s) => s.setOpenDrawer);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
     <div
@@ -29,7 +40,7 @@ export function RightBottomToggles() {
         alignItems: 'flex-end',
       }}
     >
-      {/* Skeleton — direct toggle */}
+      {/* Skeleton — direct toggle (단순 click) */}
       <Pill
         label="Skeleton"
         active={showSkeleton}
@@ -37,14 +48,79 @@ export function RightBottomToggles() {
         title="Skeleton 표시 (lush mesh hide, wireframe + 노드 markers)"
       />
 
-      {/* Settings — Phase M: PillWithPopover (4-menu) 변환 예정. 현재는 lighting drawer 직접. */}
-      <Pill
-        label="Settings"
-        active={false}
-        onClick={() => setOpenDrawer('lighting')}
-        title="조명 · 환경 · 렌더 설정 (Phase M에서 4-menu popover로 확장)"
-      />
+      {/* Settings — popover with 4 menu items */}
+      <PillWithPopover
+        label="Settings ▾"
+        open={settingsOpen}
+        onOpen={() => setSettingsOpen((v) => !v)}
+        onClose={() => setSettingsOpen(false)}
+      >
+        <SettingsMenu
+          items={SETTINGS_MENU}
+          onSelect={(drawer) => {
+            setOpenDrawer(drawer);
+            setSettingsOpen(false);
+          }}
+        />
+      </PillWithPopover>
     </div>
+  );
+}
+
+// ── Settings popover menu ────────────────────────────────────────────
+
+function SettingsMenu({
+  items, onSelect,
+}: { items: MenuItem[]; onSelect: (d: DrawerKind) => void }) {
+  return (
+    <div style={{ padding: '6px 4px', minWidth: 160 }}>
+      <div style={{
+        fontSize: 10,
+        color: C_FG_MUTE,
+        marginBottom: 6,
+        padding: '0 8px',
+        letterSpacing: '0.08em',
+        textTransform: 'uppercase',
+      }}>
+        Settings
+      </div>
+      {items.map((item) => (
+        <MenuRow key={item.drawer} label={item.label} onClick={() => onSelect(item.drawer)} />
+      ))}
+    </div>
+  );
+}
+
+function MenuRow({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      style={{
+        display: 'block',
+        width: '100%',
+        padding: '8px 12px',
+        background: 'transparent',
+        border: 'none',
+        borderRadius: 6,
+        cursor: 'pointer',
+        fontFamily: FONT_MONO,
+        fontSize: 12,
+        color: C_FG,
+        textAlign: 'left',
+        transition: 'background 80ms',
+      }}
+      onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(0,0,0,0.06)')}
+      onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+    >
+      ▸ {label}
+    </button>
   );
 }
 
@@ -65,8 +141,7 @@ function Pill({
   );
 }
 
-/** Phase M 사용 예정 — Settings popover에서 4-menu 표시. */
-export function PillWithPopover({
+function PillWithPopover({
   label, open, onOpen, onClose, children,
 }: {
   label: string;
@@ -107,18 +182,4 @@ function pillStyle(active: boolean, disabled: boolean): CSSProperties {
     height: 28,
     whiteSpace: 'nowrap',
   };
-}
-
-// ── Popover content rows (Phase M 재사용) ────────────────────────────────
-
-/** Section header for popover groups. */
-export function Section({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div style={{ padding: '4px 8px', minWidth: 140 }}>
-      <div style={{ fontSize: 10, color: C_FG_MUTE, marginBottom: 4, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-        {label}
-      </div>
-      {children}
-    </div>
-  );
 }
