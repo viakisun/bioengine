@@ -90,7 +90,7 @@ export interface LeafBuildParams {
   gravityDroopDeg?: number;
 }
 
-export function buildLeafChunk(paramsArg: LeafBuildParams, rng: SeededRandom): GeoChunk {
+export function buildLeafChunkLegacy(paramsArg: LeafBuildParams, rng: SeededRandom): GeoChunk {
   const params = paramsArg.shape ?? DEFAULT_LEAF_PARAMS;
   const stageInfo = paramsArg.stageInfo;
   const af = paramsArg.ageFrac;
@@ -253,7 +253,7 @@ export function buildLeafChunk(paramsArg: LeafBuildParams, rng: SeededRandom): G
  * `omitPetiolules: true` so the leaf mesh contains LEAFLETS ONLY (no internal
  * cylinders). Use this from SkinMeshPlant via createLeafBladeOnlyMesh.
  *
- * `buildLeafChunk` (with embedded petiole + rachis + petiolules) is unchanged
+ * `buildLeafChunkLegacy` (with embedded petiole + rachis + petiolules) is unchanged
  * and continues to power ShowcasePlant for backward compatibility — its mesh
  * count and vertex count are byte-perfect identical to before.
  *
@@ -264,14 +264,14 @@ export function buildLeafChunk(paramsArg: LeafBuildParams, rng: SeededRandom): G
  * Used by SkinMeshPlant (SSOT Phase 4) where the petiole proper is part
  * of the continuous PlantSkinMesh (SDF). Callers attach this mesh at
  * the leaf's stem-side attach point (LeafBase.attachPosition) and apply
- * azimuth+droop rotation, exactly as for buildLeafChunk — the rachis
+ * azimuth+droop rotation, exactly as for buildLeafChunkLegacy — the rachis
  * then starts at (petioleLen, 0, 0) which lies along the same axis as
  * the SDF petiole tip, so the two surfaces meet naturally.
  *
- * Body of this function is intentionally a near-copy of `buildLeafChunk`
+ * Body of this function is intentionally a near-copy of `buildLeafChunkLegacy`
  * with only the `chunks.push(petiole)` line removed (rachis + petiolule
  * cylinders are still pushed). Per plan SSOT Phase 4 "완전한 분기" —
- * `buildLeafChunk` itself is untouched; SkinMeshPlant calls this
+ * `buildLeafChunkLegacy` itself is untouched; SkinMeshPlant calls this
  * dedicated function.
  */
 /**
@@ -283,7 +283,7 @@ export function buildLeafChunk(paramsArg: LeafBuildParams, rng: SeededRandom): G
  * mesh-local).
  *
  * Use this from SkinMeshPlant via createLeafBladeOnlyMesh. ShowcasePlant keeps
- * buildLeafChunk for backward-compat (byte-perfect mesh count).
+ * buildLeafChunkLegacy for backward-compat (byte-perfect mesh count).
  */
 export function buildLeafChunkSkin(paramsArg: LeafBuildParams, rng: SeededRandom): GeoChunk {
   return buildLeafBladeOnly({ ...paramsArg, omitRachis: true, omitPetiolules: true }, rng);
@@ -372,7 +372,7 @@ function buildLeafBladeOnly(paramsArg: LeafBuildParams, rng: SeededRandom): GeoC
     chunks.push(rachis);
   }
 
-  // Leaflets along rachis — same positions as buildLeafChunk.
+  // Leaflets along rachis — same positions as buildLeafChunkLegacy.
   for (let i = 0; i <= pairs; i++) {
     const t = pairs === 0 ? 0.7 : 0.15 + 0.75 * (i / pairs);
     const posAlongRachis = petioleLen + rachisLen * t;

@@ -20,7 +20,7 @@ import {
   type LeafStageInfo,
 } from '@farmsim/tomato-engine';
 import {
-  buildLeafChunk,        // Legacy ShowcasePlant path.
+  buildLeafChunkLegacy,        // Legacy ShowcasePlant path.
   buildLeafChunkSkin,    // Iter 18B PR 7 Skin preset (omit-all leaflets-only).
   type GeoChunk,
   type LeafShapeParams,
@@ -95,7 +95,7 @@ export function createLeafMesh(
   shapeParams?: LeafShapeParams,
   ageFrac?: number
 ): Mesh {
-  const chunk = buildLeafChunk(
+  const chunk = buildLeafChunkLegacy(
     {
       leafletCount,
       sizeFactor,
@@ -146,7 +146,7 @@ export function createLeafMeshFromNode(
 
   const curl = 0.12 + node.yellowing * 0.15;
 
-  const chunk = buildLeafChunk(
+  const chunk = buildLeafChunkLegacy(
     {
       stageInfo,
       leafletCount: node.leafletCount,
@@ -172,16 +172,9 @@ export function createLeafMeshFromNode(
   return mesh;
 }
 
-/**
- * Iter 18B PR 4 (Critical) — Skin-only variant of `createLeafMeshFromNode`.
- *
- * Identical signature but routes through `buildLeafBladeOnly` instead of
- * `buildLeafChunk`. The blade-only path OMITS the internal petiole cylinder
- * because the SkeletonGraph's `petiole` edge already supplies that geometry
- * via the unified stem skin mesh. ShowcasePlant continues to use
 // ★ Iter 34 C1 — `createLeafBladeOnlyMesh` (NodeState 기반 dead fallback) 제거.
 // LEAF-LIVE-FALLBACK-NEVER-01 (Iter 33 V1)가 _0% 진입_ 검증 — populator가 100%
-// phytomer-bind 보장. canonical entry = `buildLeafMeshFromPhytomer` (line 269).
+// phytomer-bind 보장. canonical entry = `buildLeafMeshFromPhytomer` (line 213).
 
 // ---------------------------------------------------------------------------
 // Iter 29 Phase 4 — canonical Skin builder: data-driven from LeafOrganState.

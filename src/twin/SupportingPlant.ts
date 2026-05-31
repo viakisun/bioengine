@@ -35,7 +35,7 @@ import {
 import { computePlantGeometry, type PlantBase } from '../plant/PlantBase';
 import type { HealthLabel } from '../data/mockScenario';
 import {
-  buildLeafChunk,
+  buildLeafChunkLegacy,
   buildCotyledonChunk,
 } from '@farmsim/tomato-geometry';
 import { getLeafMaterial, getYellowLeafMaterial, getDiseasedLeafMaterial } from '../plant/LeafGenerator';
@@ -227,7 +227,7 @@ export function createSupportingPlant(
       const stageInfo = getLeafStage(node, state.day);
 
       const rng = new SeededRandom(seed * 1000 + i * 13 + 7);
-      const chunk = buildLeafChunk(
+      const chunk = buildLeafChunkLegacy(
         {
           stageInfo,
           // Half leaflet count for background plants (rounds to nearest odd)

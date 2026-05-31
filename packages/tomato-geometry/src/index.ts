@@ -16,7 +16,7 @@ export {
 } from './types';
 
 export {
-  buildLeafChunk,        // Legacy — used by ShowcasePlant. embeds petiole + rachis + petiolules.
+  buildLeafChunkLegacy,        // Legacy — used by ShowcasePlant. embeds petiole + rachis + petiolules.
   buildLeafChunkSkin,    // ★ Canonical Skin entry: leaflets only (omit petiole + rachis + petiolules).
   DEFAULT_LEAF_PARAMS,
 } from './leafChunk';
