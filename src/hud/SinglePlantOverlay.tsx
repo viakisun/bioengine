@@ -21,7 +21,7 @@ import { BottomPlaybackBar } from '../hud/single-plant/BottomPlaybackBar';
 import { RightBottomToggles } from '../hud/single-plant/RightBottomToggles';
 import { DrawerStack } from './DrawerStack';
 import { C_FG } from '../hud/single-plant/styles';
-import { SHOWCASE_SEED, SUBSTRATE_TOP_Y } from '../scene/SceneInfrastructure';
+import { SHOWCASE_SEED } from '../scene/SceneInfrastructure';
 import {
   getSinglePlantEngine,
   getSinglePlantSkinMesh,
@@ -61,13 +61,7 @@ export function SinglePlantOverlay() {
     const physiology = engine.simulatePlantToMinute(SHOWCASE_SEED, minute);
     const day = Math.floor(minute / 1440);
     const skin = getSinglePlantSkinMesh();
-    if (skin) {
-      skin.update(day, physiology);
-      // 적엽 — plant root Y를 defoliationHeightCm만큼 낮춰 _땅 속으로_ 내려보냄.
-      //   결과: 시각상 하부 30cm 가려짐 (줄기 + 잎 통째로).
-      //   default (0cm): SUBSTRATE_TOP_Y 원래 위치.
-      skin.root.position.y = SUBSTRATE_TOP_Y - defoliationHeightCm / 100;
-    }
+    if (skin) skin.update(day, physiology);
   }, [minute, refsReady, defoliationHeightCm]);
 
   // Playback loop — rAF, scales minute by speed × elapsed.
