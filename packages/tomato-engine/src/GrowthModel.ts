@@ -811,7 +811,8 @@ function populateSideShootChain(
     const sideBaseMorphology: LeafMorphologyState = {
       serrationDepth: genome.leafSerrationDepth ?? 0.12,
       lobeDepth: genome.leafLobeDepth ?? 0.05,
-      petioleLengthM: 0.22,
+      // ★ Iter 33 V3 — cultivar reference (이전 0.22 hardcoded).
+      petioleLengthM: cultivar.growthProfile.referencePetioleLengthM ?? 0.22,
       variationSeed: ((genome.seed >>> 0) ^ (k * 2654435761 >>> 0)) >>> 0,
     };
     const sideMorphology: LeafMorphologyState = applyMorphologyVariance(sideBaseMorphology, 0.15);
@@ -1446,7 +1447,8 @@ export function computePlantState(
     const baseMorphology: LeafMorphologyState = {
       serrationDepth: genome.leafSerrationDepth ?? 0.12,
       lobeDepth: genome.leafLobeDepth ?? 0.05,
-      petioleLengthM: 0.30,
+      // ★ Iter 33 V3 — cultivar reference (이전 0.30 hardcoded).
+      petioleLengthM: cultivar.growthProfile.referencePetioleLengthM ?? 0.30,
       variationSeed: ((genome.seed >>> 0) ^ (i * 2654435761 >>> 0)) >>> 0,
     };
     const morphology: LeafMorphologyState = applyMorphologyVariance(baseMorphology, 0.15);
