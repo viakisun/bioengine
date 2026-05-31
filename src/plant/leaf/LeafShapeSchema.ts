@@ -13,6 +13,9 @@ import type {
   SurfaceProfileSpec,
 } from './LeafOrganGraph';
 import { DEFAULT_TOMATO_LEAF_SHAPE } from './defaults';
+import { createLogger } from '../../utils/logger';
+
+const log = createLogger('leaf');
 
 // ── Provenance ────────────────────────────────────────────────────────
 
@@ -116,17 +119,15 @@ export function resolveLeafShape(
   }
 
   if (!override.provenance) {
-    // eslint-disable-next-line no-console
-    console.warn(
-      "[leafShape] cultivar override missing 'provenance' — inheriting default provenance. Authors should declare sourceLevel + confidence.",
+    log.warn(
+      "cultivar override missing 'provenance' — inheriting default provenance. Authors should declare sourceLevel + confidence.",
     );
   } else if (override.provenance.confidence) {
     const overrideRank = CONFIDENCE_RANK[override.provenance.confidence];
     const defaultRank = CONFIDENCE_RANK[DEFAULT_TOMATO_LEAF_SHAPE.provenance.confidence];
     if (overrideRank < defaultRank) {
-      // eslint-disable-next-line no-console
-      console.warn(
-        `[leafShape] override confidence '${override.provenance.confidence}' is below default '${DEFAULT_TOMATO_LEAF_SHAPE.provenance.confidence}'. This is unusual — verify cultivar JSONC.`,
+      log.warn(
+        `override confidence '${override.provenance.confidence}' is below default '${DEFAULT_TOMATO_LEAF_SHAPE.provenance.confidence}'. This is unusual — verify cultivar JSONC.`,
       );
     }
   }

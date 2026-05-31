@@ -1,3 +1,7 @@
+import { createLogger } from '../../utils/logger';
+
+const log = createLogger('leaf');
+
 // widthProfile — beta evaluator + bezier/sampled stubs.
 //
 // v0.1: 'beta' mode only.
@@ -43,8 +47,7 @@ export function evaluateWidthProfileT(profile: WidthProfileSpec, t: number): num
     case 'bezier':
     case 'sampled':
       // v0.1 stub — fall back to beta. v2 implements proper evaluators.
-      // eslint-disable-next-line no-console
-      console.warn(`[widthProfile] mode='${profile.mode}' not implemented in v0.1, falling back to 'beta'.`);
+      log.warn(`mode='${profile.mode}' not implemented in v0.1, falling back to 'beta'.`);
       return evaluateWidthProfileT({ ...profile, mode: 'beta' }, t);
   }
 }

@@ -6,6 +6,9 @@ import { PBRMaterial } from '@babylonjs/core/Materials/PBR/pbrMaterial';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { Vector3, Quaternion } from '@babylonjs/core/Maths/math.vector';
 import { SeededRandom } from '@farmsim/tomato-engine';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('plant');
 import { createFruitNode } from './FruitGenerator';
 import { computeTrussDroop } from '@farmsim/tomato-engine';
 import { ACTIVE_MODEL } from '@farmsim/tomato-engine/ModelRegistry';
@@ -467,8 +470,8 @@ export function createTrussNodeFromBase(
             probe.applyRotationQuaternionInPlace(fruitNode.rotationQuaternion);
             const dot = Vector3.Dot(probe.normalize(), targetUp);
             if (dot < 0.999) {
-              console.warn(
-                `[fruit rotation] local +Y not aligned with -fruitAxisDir `
+              log.warn(
+                `fruit rotation: local +Y not aligned with -fruitAxisDir `
                 + `(dot=${dot.toFixed(4)}). Try azimuth.multiply(tilt).`,
               );
             }
