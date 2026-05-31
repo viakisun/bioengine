@@ -1,10 +1,14 @@
-# Leaf Mesh Build Flow (★ Iter 33 verified live)
+# Leaf Mesh Build Flow (★ Master Reference)
 
+> ★ **Leaf mesh rendering 시작점 — 본 문서가 canonical reference.**
+> 호출 흐름 / 데이터 source / 9 live spec 모두 포함.
+> 다른 historic docs는 git history (Iter 18~31) 참조.
+>
 > 사용자 비판 "이미 있다 ≠ 잘 동작한다" — 본 docs는 _코드_와 _live 측정 spec_을
 > 모두 인용해 실제 동작 보장.
 >
 > Iter 32 (area-based mesh gravity droop) + Iter 33 V1 (live spec) + V3 (cultivar
-> petioleLengthM) 이후 단일 source pipeline 완성.
+> petioleLengthM) + Iter 34 (잡코드 정리) 이후 단일 source pipeline 완성.
 
 ---
 
