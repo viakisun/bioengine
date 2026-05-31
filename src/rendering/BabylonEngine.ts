@@ -10,7 +10,7 @@ import { setupCamera, type CameraRig } from './CameraRig';
 import { buildSceneInfrastructure, type SceneInfrastructureHandle } from './SceneInfrastructure';
 // Iter 35: GreenhouseContent (zones/heatmap/robot/path/supporting) + ProgressiveLoad
 //   제거 — single-plant only (Phase B+C, 사용자 결정).
-import { createQualityProbe, type QualityProbeHandle } from './QualityProbe';
+// Iter 35 PR 2 Phase O: QualityProbe archived (Skin 무관 general FX 측정).
 import { useTwinStore, type LightingState } from '../store/twinStore';
 import { SCENARIO } from '../data/mockScenario';
 import { getSunState } from '@farmsim/tomato-engine';
@@ -198,30 +198,10 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
   scene.ambientColor = new Color3(0.22, 0.22, 0.22);
 
   // dev 진단 편의 — playwright / DevTools 에서 scene/engine/store 접근 가능.
-  // + qualityProbe() — q7↔q8 fps 폭락 원인 분석 (single-plant 모드 진입 후
-  //   DevTools 에서 `__farmsim.qualityProbe()` 한 줄로 트리거).
-  let qualityProbe: QualityProbeHandle | null = null;
+  // Iter 35 PR 2 Phase O: qualityProbe() + isProbeRunning() 제거 (QualityProbe archived).
   (globalThis as { __farmsim?: unknown; __twinStore?: unknown }).__farmsim = {
     engine,
     scene,
-    qualityProbe(): Promise<void> {
-      if (!qualityProbe) {
-        if (!sceneSetup) {
-          log.warn('sceneSetup 미완료 — 부팅 후 다시 시도');
-          return Promise.resolve();
-        }
-        qualityProbe = createQualityProbe({
-          scene,
-          engine,
-          sceneSetup,
-          progressiveIsRunning: () => false, // Iter 35: ProgressiveLoad 제거
-        });
-      }
-      return qualityProbe.start();
-    },
-    isProbeRunning(): boolean {
-      return qualityProbe?.isRunning() ?? false;
-    },
   };
   (globalThis as { __twinStore?: unknown }).__twinStore = useTwinStore;
 
