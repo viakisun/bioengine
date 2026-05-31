@@ -913,7 +913,7 @@ export function createSkinMeshPlant(
         physiologyState: physiology,
       });
       buildFromState(state, plantBase, cultivarName);
-      skeleton.update(plantBase);
+      skeleton.update(plantBase, lastGraph ?? undefined);
       // Iter 35 PR 2 Phase O: semantic.update(lastGraph) 제거 — SemanticOverlay archived.
     },
     setVisible(v) {
@@ -954,7 +954,7 @@ export function createSkinMeshPlant(
           cultivar: getCultivar(cultivarName),
           physiologyState: physiology,
         });
-        skeleton.update(plantBase);
+        skeleton.update(plantBase, lastGraph ?? undefined);
         // Iter 35 PR 2 Phase O: semantic.update 제거.
       }
       skeleton.setVisible(v);

@@ -40,9 +40,16 @@ import type { SkeletonConfig } from '../state/twinStore';
 // Iter 20 — docking overlay (shared with SkinMeshPlant via window.__dockingJunctionPairs).
 import { createPetioleJunctionOverlay } from './dockingOverlay/PetioleJunctionOverlay';
 import type { PetioleJunctionPair } from './dockingOverlay/dockingPairs';
+// Iter 36 v5 Phase P — graph 기반 leaf hierarchy 시각화.
+import type { PlantSkeletonGraph } from '../plant/skeleton/PlantSkeletonGraph';
 
 export interface SkeletonOverlayHandle {
-  update: (plantBase: PlantBase) => void;
+  // Iter 36 v5 Phase P — graph 인자 추가 (back-compat: optional).
+  //   SkinMeshPlant이 빌드한 PlantSkeletonGraph 전달 → leaf hierarchy
+  //   (leaf-rachis sub-edges + rachis-attach-nodes + lateral-vein + petiolule
+  //   + sub-vein + leaflet-node) wireframe 시각화.
+  //   graph 없으면 legacy PlantBase 기반 wireframe만 (이전 동작).
+  update: (plantBase: PlantBase, graph?: PlantSkeletonGraph) => void;
   setVisible: (v: boolean) => void;
   setConfig: (config: SkeletonConfig) => void;
   dispose: () => void;
@@ -115,6 +122,8 @@ export function createSkeletonOverlay(
   let visible = false;
   let cfg: SkeletonConfig = { ...DEFAULT_CONFIG };
   let lastPlantBase: PlantBase | null = null;
+  // Iter 36 v5 Phase P — graph 기반 leaf hierarchy 시각화 (legacy PlantBase 위에 overlay).
+  let lastGraph: PlantSkeletonGraph | null = null;
   // Iter 20 — petiole-stem junction overlay (Skeleton mode instance, separate
   // from the Skin mode instance owned by SkinMeshPlant; they share the
   // published __dockingJunctionPairs data).
@@ -535,6 +544,81 @@ export function createSkeletonOverlay(
     for (const truss of axis.trusses) drawTruss(axis, axisIdx, truss);
   }
 
+  /**
+   * Iter 36 v5 Phase P — graph 기반 leaf hierarchy 시각화.
+   *
+   * graph.edges 순회 — leaf hierarchy edge types (leaf-rachis / lateral-vein /
+   * sub-vein / petiolule)의 bonePath를 thickLine으로 그림.
+   * graph.nodes 순회 — leaf hierarchy node types (leaflet-node / rachis-attach-
+   * node / bud-node / cotyledon-node / apex-node)을 visualHint sphere로 그림.
+   *
+   * SkeletonOverlay legacy (PlantBase 직접) 위에 _덧붙임_ — petiole, stem, truss
+   * 등은 legacy가 그대로 그림.
+   */
+  function drawLeafHierarchyFromGraph(graph: PlantSkeletonGraph): void {
+    if (!root || !mats) return;
+
+    // Edge types to draw (legacy not covered).
+    const LEAF_EDGE_TYPES = new Set([
+      'leaf-rachis', 'lateral-vein', 'sub-vein', 'petiolule',
+    ]);
+    // Edge color per type (visualHint은 EdgeRenderPolicy.visualHint.color에 저장됨).
+    const EDGE_COLOR_FALLBACK: Record<string, string> = {
+      'leaf-rachis':  '#6B8E23',  // olive drab
+      petiolule:      '#9ACD32',  // yellow green
+      'lateral-vein': '#7DBC32',  // medium green
+      'sub-vein':     '#AADD66',  // light green
+    };
+
+    // 1. Draw edges (vein hierarchy lines).
+    for (const edge of graph.edges.values()) {
+      if (!LEAF_EDGE_TYPES.has(edge.type)) continue;
+      if (edge.bonePath.length === 0) continue;
+      const points: Vector3[] = [];
+      points.push(new Vector3(edge.bonePath[0].p0.x, edge.bonePath[0].p0.y, edge.bonePath[0].p0.z));
+      for (const bone of edge.bonePath) {
+        points.push(new Vector3(bone.p1.x, bone.p1.y, bone.p1.z));
+      }
+      const colorHex = edge.renderPolicy?.visualHint?.color ?? EDGE_COLOR_FALLBACK[edge.type];
+      const width = edge.type === 'leaf-rachis' ? 0.0015
+                  : edge.type === 'lateral-vein' ? 0.0010
+                  : edge.type === 'sub-vein' ? 0.0006
+                  : 0.0008;  // petiolule
+      meshes.push(thickLine(
+        `skel_graph_${edge.id}`, points, Color3.FromHexString(colorHex), width,
+      ));
+    }
+
+    // 2. Draw nodes (markers) — visualHint 사용.
+    //    Iter 36 v5 신규 node types만 (legacy phytomer/petiole-tip 등은 PlantBase 경로가 처리).
+    const NEW_NODE_TYPES = new Set([
+      'leaflet-node', 'rachis-attach-node', 'bud-node', 'cotyledon-node', 'apex-node',
+    ]);
+    for (const node of graph.nodes.values()) {
+      if (!node.type || !NEW_NODE_TYPES.has(node.type)) continue;
+      const hint = node.visualHint;
+      if (!hint) continue;
+      const colorHex = hint.markerColor;
+      const sizeM = hint.markerSizeM ?? 0.0015;
+      // 시각상 너무 작으면 안 보임 — minimum size enforce (skeleton overlay 검증용).
+      const visibleSizeM = Math.max(sizeM, 0.003);
+
+      const dot = MeshBuilder.CreateSphere(
+        `skel_graph_node_${node.id}`,
+        { diameter: visibleSizeM * 2, segments: 6 },
+        scene,
+      );
+      dot.position = new Vector3(node.pos.x, node.pos.y, node.pos.z);
+      // material 새로 생성 (color hex 적용).
+      const mat = new StandardMaterial(`skel_graph_mat_${node.id}`, scene);
+      mat.emissiveColor = Color3.FromHexString(colorHex);
+      mat.disableLighting = true;
+      dot.material = mat;
+      dot.parent = root;
+      meshes.push(dot);
+    }
+  }
+
   function rebuild() {
     if (!visible) {
       if (meshes.length > 0) clearMeshes();
@@ -553,6 +637,8 @@ export function createSkeletonOverlay(
       for (let i = 0; i < pb.sideShoots.length; i++) {
         drawAxisAll(pb.sideShoots[i], i + 1);
       }
+      // Iter 36 v5 Phase P — graph 기반 leaf hierarchy (legacy 위에 덧붙임).
+      if (lastGraph) drawLeafHierarchyFromGraph(lastGraph);
     } catch (err) {
       log.error('draw failed:', err);
       clearMeshes();
@@ -561,8 +647,10 @@ export function createSkeletonOverlay(
   }
 
   return {
-    update(plantBase: PlantBase) {
+    update(plantBase: PlantBase, graph?: PlantSkeletonGraph) {
       lastPlantBase = plantBase;
+      // Iter 36 v5 Phase P — graph 인자 (optional). 미전달 시 이전 graph 유지.
+      if (graph) lastGraph = graph;
       rebuild();
     },
     setVisible(v: boolean) {
