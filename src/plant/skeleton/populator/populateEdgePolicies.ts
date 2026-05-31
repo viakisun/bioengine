@@ -31,6 +31,9 @@ const MATERIAL_ROLE: Record<SkeletonEdgeType, NonNullable<EdgeRenderPolicy['mate
   // Iter 36 v5 Phase J — compound leaf 계층 (사용자 botanical model).
   'leaf-rachis': 'leaf-rachis',
   petiolule: 'petiolule',
+  // Iter 36 v5 Phase N — bipinnate vein.
+  'lateral-vein': 'lateral-vein',
+  'sub-vein': 'sub-vein',
 };
 
 const EDGE_COLOR: Record<SkeletonEdgeType, string> = {
@@ -43,6 +46,9 @@ const EDGE_COLOR: Record<SkeletonEdgeType, string> = {
   // Iter 36 v5 Phase J — leaf hierarchy wireframe 색 (skeleton overlay 식별용).
   'leaf-rachis': '#6B8E23',   // olive drab (petiole-tip 톤)
   petiolule: '#9ACD32',        // yellow green (leaflet 부착)
+  // Iter 36 v5 Phase N — vein hierarchy (단계별 옅음).
+  'lateral-vein': '#7DBC32',   // medium green (옆맥)
+  'sub-vein':     '#AADD66',   // light green (잔맥)
 };
 
 const ZERO_DIR: PlantLocalV3 = { x: 0, y: 0, z: 0 } as PlantLocalV3;

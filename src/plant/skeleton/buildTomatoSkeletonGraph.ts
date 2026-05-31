@@ -340,8 +340,12 @@ function computeLeafBladeRef(leaf: LeafBase): LeafBladeRef {
   else if (agePreset === 'mature') intercalaryCount = 3;
   else intercalaryCount = 6;
 
-  // secondary: 거의 없음~소수 (Phase E에서 자세 처리).
-  const secondaryCount = agePreset === 'complex' ? 4 : 0;
+  // secondary: bipinnate sub-leaflet (사용자 §3 보통잎 0-3, 복잡한 잎 3-8).
+  //   ★ Phase N: mature에도 일부 secondary — primary 자식으로 sub-vein 분기 시각 가시.
+  let secondaryCount: number;
+  if (agePreset === 'complex') secondaryCount = 6;
+  else if (agePreset === 'mature') secondaryCount = 2;
+  else secondaryCount = 0;
 
   return {
     leafLengthM,
@@ -462,13 +466,16 @@ function addLeafletNodesForLeaf(
   if (parentNode) parentNode.edgeIds.push(leafRachisEdgeId);
 
   let leafletCounter = 1;
-  // ── 비-terminal leaflet 추가: petiolule edge로 rachis에 부착 ──
-  const addNonTerminal = (
+  // ── primary / intercalary 추가 (rachis 위 직접 부착) ──
+  //   Phase N: edgeType은 'lateral-vein' (primary용) 또는 'petiolule' (intercalary용).
+  //   primary는 자기 자신이 _sub-leaflet의 부모_가 되므로 ID 보관 필요.
+  const addRachisChild = (
     position: LeafletPosition,
     rachisU: number,
     sf: number,
     lateralOffsetSign: number,
-  ): void => {
+    edgeType: 'lateral-vein' | 'petiolule',
+  ): { lid: string; pos: V3 } => {
     const lid = `n:leaflet:axis${axisIdx}:n${leafNodeIdx}:${position}:${leafletCounter++}`;
     const rachisPos = rachisPointAt(rachisU);
     const lateralAmount = lateralOffsetSign * sf * rachisLen * 0.35;
@@ -479,15 +486,12 @@ function addLeafletNodesForLeaf(
     };
     const targetSizeM = rachisLen * sf * 0.4;
 
-    // petiolule edge: rachis 위 점 (rachisPos) → leaflet (leafletPos).
-    // 부모 = leaf-rachis edge (cuttable 시 petiolule + leaflet 함께 떨어짐).
-    const petioluleEdgeId =
-      `e:petiolule:axis${axisIdx}:n${leafNodeIdx}:${position}:${leafletCounter}`;
-    edges.set(petioluleEdgeId, {
-      id: petioluleEdgeId,
-      type: 'petiolule',
-      startNodeId: terminalLid, // approximation — rachis edge에 mid attach.
-                                 // 실용상 leaf-rachis end로 link해 cut hierarchy 유지.
+    const edgeId =
+      `e:${edgeType}:axis${axisIdx}:n${leafNodeIdx}:${position}:${leafletCounter}`;
+    edges.set(edgeId, {
+      id: edgeId,
+      type: edgeType,
+      startNodeId: terminalLid,  // rachis end (mid-attach approximation, cut hierarchy 보존)
       endNodeId: lid,
       bonePath: [{
         p0: { ...rachisPos },
@@ -497,7 +501,7 @@ function addLeafletNodesForLeaf(
       }],
       parentEdgeId: leafRachisEdgeId,
       cuttable: true,
-      semanticLabel: `leaflet ${position} petiolule`,
+      semanticLabel: `${position} ${edgeType}`,
       attachedOrganIds: [],
     });
 
@@ -505,7 +509,7 @@ function addLeafletNodesForLeaf(
       id: lid,
       pos: leafletPos,
       radius: 0.0005,
-      edgeIds: [petioluleEdgeId],
+      edgeIds: [edgeId],
       leafletRef: {
         parentLeafNodeId,
         position,
@@ -514,30 +518,93 @@ function addLeafletNodesForLeaf(
         targetSizeM,
       } satisfies LeafletNodeRef,
     });
+    return { lid, pos: leafletPos };
   };
 
-  // 2. Primary pairs (left/right, rachisU 0.18~0.75).
+  // ── secondary leaflet (소엽2) — primary의 _자식_으로 부착 ──
+  //   Phase N: secondary는 _primary leaflet에서_ sub-vein으로 분기 (bipinnate).
+  //   사용자 ASCII "소엽 → 소엽2" 직접 매핑.
+  const addSubLeaflet = (
+    parentPrimary: { lid: string; pos: V3 },
+    rachisU: number,
+    sf: number,
+    lateralOffsetSign: number,
+  ): void => {
+    const lid =
+      `n:leaflet:axis${axisIdx}:n${leafNodeIdx}:secondary:${leafletCounter++}`;
+    // sub-leaflet 위치: primary leaflet에서 _outward_ 방향으로 추가 offset.
+    const subSpacing = parentPrimary.pos.x - tipPos.x;  // primary가 얼마나 옆으로 나갔는지
+    const outwardSign = subSpacing >= 0 ? +1 : -1;
+    const extraOut = outwardSign * sf * rachisLen * 0.20;
+    const subPos: V3 = {
+      x: parentPrimary.pos.x + lateralDir.x * extraOut,
+      y: parentPrimary.pos.y + lateralDir.y * extraOut * 0.5,
+      z: parentPrimary.pos.z + lateralDir.z * extraOut,
+    };
+    void lateralOffsetSign;
+
+    const subVeinEdgeId =
+      `e:sub-vein:axis${axisIdx}:n${leafNodeIdx}:sec:${leafletCounter}`;
+    edges.set(subVeinEdgeId, {
+      id: subVeinEdgeId,
+      type: 'sub-vein',
+      startNodeId: parentPrimary.lid,  // ★ primary leaflet이 부모
+      endNodeId: lid,
+      bonePath: [{
+        p0: { ...parentPrimary.pos },
+        p1: { ...subPos },
+        r0: 0.0003,
+        r1: 0.0002,
+      }],
+      parentEdgeId: leafRachisEdgeId,  // primary 부착 edge의 child로 cut hierarchy 유지
+      cuttable: true,
+      semanticLabel: `sub-leaflet of primary ${parentPrimary.lid}`,
+      attachedOrganIds: [],
+    });
+    nodes.set(lid, {
+      id: lid,
+      pos: subPos,
+      radius: 0.0003,
+      edgeIds: [subVeinEdgeId],
+      leafletRef: {
+        parentLeafNodeId,
+        position: 'secondary',
+        rachisU,
+        sizeFactor: sf,
+        targetSizeM: rachisLen * sf * 0.4,
+      } satisfies LeafletNodeRef,
+    });
+    // parent primary node에 sub-vein edge 등록.
+    const parentNodeRef = nodes.get(parentPrimary.lid);
+    if (parentNodeRef) parentNodeRef.edgeIds.push(subVeinEdgeId);
+  };
+
+  // 2. Primary pairs (left/right, rachisU 0.18~0.75) — lateral-vein 사용.
+  //    각 primary는 _sub-leaflet의 부모_가 될 수 있음.
+  const primaries: { lid: string; pos: V3 }[] = [];
   const primaryUs = [0.18, 0.35, 0.55, 0.75].slice(0, bladeRef.primaryPairs);
   for (let i = 0; i < primaryUs.length; i++) {
     const sf = 0.85 - i * 0.10;
-    addNonTerminal('primary', primaryUs[i], sf, -1);
-    addNonTerminal('primary', primaryUs[i] + 0.02, sf, +1);
+    primaries.push(addRachisChild('primary', primaryUs[i], sf, -1, 'lateral-vein'));
+    primaries.push(addRachisChild('primary', primaryUs[i] + 0.02, sf, +1, 'lateral-vein'));
   }
 
-  // 3. Intercalary (큰 소엽 사이 작은 소엽).
+  // 3. Intercalary — rachis 직접 부착 (petiolule edge).
   for (let i = 0; i < bladeRef.intercalaryCount; i++) {
     const u = 0.25 + (i / Math.max(1, bladeRef.intercalaryCount)) * 0.5;
     const sf = 0.10 + (i % 3) * 0.08;
     const sign = i % 2 === 0 ? -1 : +1;
-    addNonTerminal('intercalary', u, sf, sign);
+    addRachisChild('intercalary', u, sf, sign, 'petiolule');
   }
 
-  // 4. Secondary (primary 근처 작은 소엽).
-  for (let i = 0; i < bladeRef.secondaryCount; i++) {
-    const u = primaryUs[i % primaryUs.length] + 0.04;
+  // 4. ★ Phase N — secondary (sub-leaflet) = primary leaflet의 _자식_.
+  //    사용자 ASCII "소엽 → 소엽2" 명확 표현. sub-vein으로 분기.
+  for (let i = 0; i < bladeRef.secondaryCount && i < primaries.length; i++) {
+    const parent = primaries[i];
     const sf = 0.30 + (i % 2) * 0.10;
+    const u = primaryUs[Math.floor(i / 2) % primaryUs.length] + 0.04;
     const sign = i % 2 === 0 ? +1 : -1;
-    addNonTerminal('secondary', u, sf, sign);
+    addSubLeaflet(parent, u, sf, sign);
   }
 }
 

@@ -31,11 +31,16 @@ export type SkeletonEdgeType =
   | 'peduncle'
   | 'rachis'         // truss 엽축 (peduncle 끝 → knuckle chain)
   | 'pedicel'
-  // Iter 36 v5 Phase J — compound leaf 계층 구조 (★ NEW)
+  // Iter 36 v5 Phase J — compound leaf 계층 구조.
   //   사용자 botanical 계층: petiole → leaf-rachis → petiolule → leaflet
   //   "소엽은 다시 짧은 소엽자루로 엽축에 붙고" (사용자 인용).
   | 'leaf-rachis'    // 잎중앙축 (leaf-blade-root → rachis-tip 가상 노드)
-  | 'petiolule';     // 소엽자루 (rachis 위 점 → 개별 leaflet)
+  | 'petiolule'      // 소엽자루 (rachis 위 점 → primary leaflet)
+  // Iter 36 v5 Phase N (★ NEW) — Bipinnate vein hierarchy (Option D).
+  //   사용자 ASCII: "소엽 → 소엽2" — primary leaflet 안에 secondary leaflet 분기.
+  //   토마토 잎은 일부 bipinnate (이중복엽) — 큰 소엽이 다시 작은 소엽으로 분기.
+  | 'lateral-vein'   // 옆맥 — primary leaflet의 stalk (rachis 위 → primary)
+  | 'sub-vein';      // 잔맥 — primary leaflet → secondary leaflet (NEW)
 
 /**
  * Iter 26 PR 1-1 (SSOT #187) — Botanical role of a skeleton node.
@@ -531,7 +536,9 @@ export interface EdgeRenderPolicy {
   /** Material role — drives shader / texture / color selection. */
   material?: {
     role: 'main-stem' | 'side-shoot' | 'petiole' | 'peduncle' | 'rachis' | 'pedicel'
-      | 'leaf-rachis' | 'petiolule';
+      | 'leaf-rachis' | 'petiolule'
+      // Iter 36 v5 Phase N — bipinnate vein hierarchy.
+      | 'lateral-vein' | 'sub-vein';
   };
   /** Iter 26 PR 1-3 (원칙 2) — overlay self-description for this edge. */
   visualHint?: {
