@@ -2,27 +2,23 @@ import { createLogger } from '../utils/logger';
 const log = createLogger('overlay');
 // SinglePlantOverlay — HUD-first analysis UI for the single-plant mode.
 //
-// Mounts on top of GreenhouseLayout. The container is pointer-events:
-// none so the canvas underneath receives camera-control clicks; each
-// floating HUD child sets pointer-events: auto in its own root.
+// Iter 35 PR 2 (Phase J + K): minimal HUD — Skeleton/Settings pills + 2 drawers.
 //
 // Layout (no grid — every child is absolutely positioned):
-//   - FloatingTopBar       top center  (Day/phase + filter pills + back nav)
-//   - PARGauge             top right   (existing gauge, unchanged)
-//   - SelectedObjectLabel  under top bar right
-//   - MetricsTray          bottom mid  (collapsible TimelineChart)
+//   - FloatingTopBar       top center  (Day/phase — filter pills archived in K)
 //   - BottomPlaybackBar    bottom      (slider + speeds + StatusBar fusion)
-//   - RightBottomToggles   bottom right (Layer / Skeleton / Heatmap / Camera / Settings)
-//   - DrawerStack          right edge  (Lighting / Inspector / Skeleton)
+//   - RightBottomToggles   bottom right (Skeleton + Settings pills only)
+//   - DrawerStack          right edge  (Lighting + Skeleton drawers)
+//
+// Archived in PR 2:
+//   - PARGauge / SelectedObjectLabel (Phase K)
+//   - MetricsTray + TimelineChart + InspectorPanel (Phase J)
 
 import { useEffect } from 'react';
 import { useTwinStore } from '../store/twinStore';
-import { PARGauge } from '../ui/single-plant/PARGauge';
 import { FloatingTopBar } from '../ui/single-plant/FloatingTopBar';
 import { BottomPlaybackBar } from '../ui/single-plant/BottomPlaybackBar';
 import { RightBottomToggles } from '../ui/single-plant/RightBottomToggles';
-// Iter 35 PR 2 Phase J: MetricsTray archived.
-import { SelectedObjectLabel } from '../ui/single-plant/SelectedObjectLabel';
 import { DrawerStack } from './DrawerStack';
 import { C_FG } from '../ui/single-plant/styles';
 import { SHOWCASE_SEED } from '../rendering/SceneInfrastructure';
@@ -86,9 +82,6 @@ export function SinglePlantOverlay() {
       }}
     >
       <FloatingTopBar />
-      <SelectedObjectLabel />
-      <PARGauge />
-      {/* Iter 35 PR 2 Phase J: MetricsTray archived. */}
       <BottomPlaybackBar />
       <RightBottomToggles />
       <DrawerStack />

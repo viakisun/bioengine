@@ -495,10 +495,9 @@ interface TwinState {
   singlePlantSpeed: 1 | 4 | 24;
   // Iter 35 PR 2 Phase J: chart/metrics/inspector fields 제거
   //   (TimelineChart + MetricsTray + InspectorPanel archived).
-  /** Camera preset in the single-plant viewport. (Phase K에서 정리 검토) */
+  /** Camera preset in the single-plant viewport. */
   singlePlantCamera: 'free' | 'truss' | 'fruit' | 'top';
-  /** HUD-refactor: top-bar filter pill (Phase K에서 정리 검토). */
-  singlePlantTopFilter: 'all' | 'leaf' | 'truss' | 'fruit' | 'work' | 'env';
+  // Iter 35 PR 2 Phase K: singlePlantTopFilter 제거 (FloatingTopBar filter pills archived).
   /** Plan 3a — toggle skeleton-only view. While true the lush mesh hides
    *  and a wireframe + node-marker overlay shows. Used to verify biology
    *  (apex, node bulge, side shoots, pruning) without visual clutter. */
@@ -531,8 +530,8 @@ interface TwinState {
   setSinglePlantPlaying: (p: boolean) => void;
   setSinglePlantSpeed: (s: 1 | 4 | 24) => void;
   setSinglePlantCamera: (c: 'free' | 'truss' | 'fruit' | 'top') => void;
-  setSinglePlantTopFilter: (f: 'all' | 'leaf' | 'truss' | 'fruit' | 'work' | 'env') => void;
   // Iter 35 PR 2 Phase J: chart/metrics/inspector setters 제거.
+  // Iter 35 PR 2 Phase K: setSinglePlantTopFilter 제거.
 
   // -- Boot progress + notifications + live log + env --
   boot: BootSnapshot;
@@ -779,7 +778,6 @@ export const useTwinStore = create<TwinState>((set) => ({
   singlePlantSpeed: 4,
   // Iter 35 PR 2 Phase J: chart/metrics/inspector defaults 제거.
   singlePlantCamera: 'free',
-  singlePlantTopFilter: 'all',
   showSkeleton: false,
   setShowSkeleton: (v) => set({ showSkeleton: v }),
   debugDiagnostics: false,
@@ -802,8 +800,7 @@ export const useTwinStore = create<TwinState>((set) => ({
   setSinglePlantPlaying: (p) => set({ singlePlantPlaying: p }),
   setSinglePlantSpeed: (s) => set({ singlePlantSpeed: s }),
   setSinglePlantCamera: (c) => set({ singlePlantCamera: c }),
-  setSinglePlantTopFilter: (f) => set({ singlePlantTopFilter: f }),
-  // Iter 35 PR 2 Phase J: chart/metrics/inspector setters 제거.
+  // Iter 35 PR 2 Phase J + K: chart/metrics/inspector/topFilter setters 제거.
 
   // -- Boot progress + notifications + live log + env --
   boot: {
