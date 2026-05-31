@@ -7,7 +7,7 @@
 // scene is 'ready'. Once ready, this center takes over.
 
 import { useEffect, type CSSProperties } from 'react';
-import { useTwinStore, type Notification } from '../store/twinStore';
+import { useTwinStore, type Notification } from '../state/twinStore';
 
 const INFO_AUTO_DISMISS_MS = 4000;
 

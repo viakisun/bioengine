@@ -10,7 +10,7 @@ import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { GrowthEngine } from '@farmsim/tomato-engine';
 import { SCENARIO } from '../data/mockScenario';
-import { logBoot, updateStageDetail } from '../store/notify';
+import { logBoot, updateStageDetail } from '../state/notify';
 import { createSkinMeshPlant, type SkinMeshPlantHandle } from './SkinMeshPlant';
 
 /** Showcase seed — Iter 33 V1 baseline tomato plant. */

@@ -6,7 +6,7 @@
 // if the failing component is in src/ui/, the fallback still renders.
 
 import { Component, type ErrorInfo, type ReactNode } from 'react';
-import { notify } from '../store/notify';
+import { notify } from '../state/notify';
 import { createLogger } from '../utils/logger';
 
 const log = createLogger('ui');

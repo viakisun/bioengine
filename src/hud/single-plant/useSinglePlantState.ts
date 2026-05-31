@@ -8,10 +8,10 @@
 //   API 모두 제거. 사용자가 import한 곳은 SkinMesh 경로로 갱신.
 
 import { useEffect, useState } from 'react';
-import { useTwinStore } from '../../store/twinStore';
+import { useTwinStore } from '../../state/twinStore';
 import type { GrowthEngine, PlantPhysiologyState, PlantState } from '@farmsim/tomato-engine';
-import type { SkinMeshPlantHandle } from '../../rendering/SkinMeshPlant';
-import { SHOWCASE_SEED } from '../../rendering/SceneInfrastructure';
+import type { SkinMeshPlantHandle } from '../../scene/SkinMeshPlant';
+import { SHOWCASE_SEED } from '../../scene/SceneInfrastructure';
 
 // Iter 35 Phase F — Multi-plant 확장 API (배열, length=1 currently).
 //   Iter 36에서 slider/loop로 1~N 확장. default index=0.

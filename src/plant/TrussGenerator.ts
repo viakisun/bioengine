@@ -9,12 +9,12 @@ import { SeededRandom } from '@farmsim/tomato-engine';
 import { createLogger } from '../utils/logger';
 
 const log = createLogger('plant');
-import { createFruitNode } from '../rendering/fruit/FruitGenerator';
+import { createFruitNode } from '../scene/fruit/FruitGenerator';
 import { computeTrussDroop } from '@farmsim/tomato-engine';
 import { ACTIVE_MODEL } from '@farmsim/tomato-engine/ModelRegistry';
 import type { TrussState } from '@farmsim/tomato-engine';
 import type { PlantGenome } from '@farmsim/tomato-engine';
-import { createCurvedTube } from '../rendering/stem/StemGenerator';
+import { createCurvedTube } from '../scene/stem/StemGenerator';
 
 let cachedPeduncleMat: WeakMap<Scene, PBRMaterial> = new WeakMap();
 let cachedPedicelMat: WeakMap<Scene, PBRMaterial> = new WeakMap();

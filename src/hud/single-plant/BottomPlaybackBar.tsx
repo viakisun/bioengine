@@ -2,7 +2,7 @@
 // the viewport. Combines the old TimelineSlider controls with the
 // StatusBar summary line and the TimelineEventMarkers overlay.
 
-import { useTwinStore } from '../../store/twinStore';
+import { useTwinStore } from '../../state/twinStore';
 import { useSinglePlantState } from './useSinglePlantState';
 import { TimelineEventMarkers } from './TimelineEventMarkers';
 import { FONT_MONO, C_BORDER, C_FG, C_FG_MUTE, C_FG_DIM, C_ACCENT } from './styles';

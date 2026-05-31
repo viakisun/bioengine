@@ -49,7 +49,7 @@ import { ACTIVE_BOTANICAL } from '@farmsim/tomato-engine/ModelRegistry';
 import { DEFAULT_COTYLEDON_SPEC } from '@farmsim/tomato-engine/BotanicalSpec';
 import { createSkeletonOverlay, type SkeletonOverlayHandle } from './SkeletonOverlay';
 // Iter 35 PR 2 Phase O: SemanticOverlay archived — dev-only debug, graph-only.
-import { useTwinStore } from '../store/twinStore';
+import { useTwinStore } from '../state/twinStore';
 // Iter 20 — petiole-stem junction debug overlay.
 import { createPetioleJunctionOverlay, type OverlayOptions } from './dockingOverlay/PetioleJunctionOverlay';
 import { buildPetioleJunctionPairs } from './dockingOverlay/dockingPairs';
@@ -106,7 +106,7 @@ export interface SkinMeshPlantHandle {
   /** ProgressiveLoad 용 — skeleton overlay visibility 만 독립 토글. */
   setSkeletonEnabled: (v: boolean) => void;
   /** Plan 3a Phase ζ — push new SkeletonConfig (thickness/color/toggles). */
-  setSkeletonConfig: (cfg: import('../store/twinStore').SkeletonConfig) => void;
+  setSkeletonConfig: (cfg: import('../state/twinStore').SkeletonConfig) => void;
   currentState: () => import('@farmsim/tomato-engine').PlantState | null;
 }
 

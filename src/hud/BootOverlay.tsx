@@ -10,7 +10,7 @@
 // a-drifting-wigderson.md.
 
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import { useTwinStore, BOOT_STAGES, type BootStage, type StageInfo } from '../store/twinStore';
+import { useTwinStore, BOOT_STAGES, type BootStage, type StageInfo } from '../state/twinStore';
 
 const STAGE_LABELS: Record<BootStage, string> = {
   init: '초기화',

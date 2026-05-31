@@ -7,7 +7,7 @@
 //   - id 자동 생성 (title 해시) — 같은 경고가 반복 발생해도 중복 알림 안 쌓임.
 //
 // Usage:
-//   import { notify, logBoot, setBootStage, updateStageDetail } from '@/store/notify';
+//   import { notify, logBoot, setBootStage, updateStageDetail } from '@/state/notify';
 //   notify.info('WebGPU 미지원', 'WebGL2 로 시작합니다');
 //   logBoot('log', 'engine: WebGPU 시도');
 //   setBootStage('plants', '식물 등록 시작', 0);

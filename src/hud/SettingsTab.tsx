@@ -3,9 +3,9 @@
 // 사용자 결정: "그 밖의 설정은 또 설정 버튼 안에". Lighting/Skeleton/Wind 외
 // 잡다 설정 (debug toggles + 환경 override).
 
-import { useTwinStore } from '../store/twinStore';
-import { Eyebrow } from '../ui/Eyebrow';
-import { ToggleBtn } from '../ui/Controls';
+import { useTwinStore } from '../state/twinStore';
+import { Eyebrow } from '../hud/controls/Eyebrow';
+import { ToggleBtn } from '../hud/controls/Controls';
 
 export function SettingsTab() {
   const debugDiagnostics = useTwinStore((s) => s.debugDiagnostics);

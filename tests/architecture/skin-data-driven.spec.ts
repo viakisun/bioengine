@@ -27,7 +27,7 @@ const SPEC_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(SPEC_DIR, '../..');
 
 const SKIN_FILES = [
-  'src/rendering/SkinMeshPlant.ts',
+  'src/scene/SkinMeshPlant.ts',
   'src/plant/LeafGenerator.ts',
 ];
 
@@ -67,7 +67,7 @@ test.describe('Skin Data-Driven Refactor (Iter 29 Phase 4)', () => {
   });
 
   test('SKIN-DATA-DRIVEN-03: canonical Skin path 0 LeafBase.azimuthRad/droopRad reads; legacy fallback ≤ 1 each', async () => {
-    const text = await readSource('src/rendering/SkinMeshPlant.ts');
+    const text = await readSource('src/scene/SkinMeshPlant.ts');
     const azimuthHits = (text.match(/leafBase\.azimuthRad/g) ?? []).length;
     const droopHits = (text.match(/leafBase\.droopRad/g) ?? []).length;
     // Phase 4: legacy fallback retained in the `else` branch — 1 hit each.
@@ -90,7 +90,7 @@ test.describe('Skin Data-Driven Refactor (Iter 29 Phase 4)', () => {
     // Inspect canonical Skin path:
     //   - SkinMeshPlant.ts MUST NOT call any of these
     //   - LeafGenerator.buildLeafMeshFromPhytomer body MUST NOT call any of these
-    const skin = await readSource('src/rendering/SkinMeshPlant.ts');
+    const skin = await readSource('src/scene/SkinMeshPlant.ts');
     for (const fn of FORBIDDEN) {
       expect(skin, `SkinMeshPlant MUST NOT call ${fn}`)
         .not.toMatch(new RegExp(`\\b${fn}\\s*\\(`));
@@ -127,7 +127,7 @@ test.describe('Skin Data-Driven Refactor (Iter 29 Phase 4)', () => {
 
   test('SKIN-LEGACY-REMOVED-01: ShowcasePlant + createLeafMeshFromNode archived (Iter 35 PR 2 Phase I+L)', async () => {
     // Iter 35 PR 2: ShowcasePlant 완전 제거 → legacy createLeafMeshFromNode 사용처 0.
-    // src/rendering/ShowcasePlant.ts 부재 + LeafGenerator.ts에 createLeafMeshFromNode export 부재.
+    // src/scene/ShowcasePlant.ts 부재 + LeafGenerator.ts에 createLeafMeshFromNode export 부재.
     const lg = await readSource('src/plant/LeafGenerator.ts');
     expect(lg, 'createLeafMeshFromNode export 0 (Phase L archived)')
       .not.toMatch(/export function createLeafMeshFromNode/);
@@ -135,18 +135,18 @@ test.describe('Skin Data-Driven Refactor (Iter 29 Phase 4)', () => {
     // ShowcasePlant.ts는 active 경로에서 archive됨
     let showcaseExists = false;
     try {
-      await readSource('src/rendering/ShowcasePlant.ts');
+      await readSource('src/scene/ShowcasePlant.ts');
       showcaseExists = true;
     } catch {
       // expected — file archived
     }
-    expect(showcaseExists, 'src/rendering/ShowcasePlant.ts archived (Phase I)').toBe(false);
+    expect(showcaseExists, 'src/scene/ShowcasePlant.ts archived (Phase I)').toBe(false);
   });
 
   test('SKIN-SENESCENCE-APPLY-01: Skin applies PlantBase senescence values; doesn\'t reinterpret progress', async () => {
     // Skin reads phytomer.leaf.senescence.colorDullness — PlantBase computed.
     // No formula like `progress * 25` or `yellowing * <number>` in Skin path.
-    const skin = await readSource('src/rendering/SkinMeshPlant.ts');
+    const skin = await readSource('src/scene/SkinMeshPlant.ts');
     expect(skin, 'SkinMeshPlant reads phytomer.leaf.senescence')
       .toMatch(/phytomer\.\w+\.leaf\??\.\s*senescence|phytomer\?\.\w*\.\s*senescence|phytomerLeaf\??\.senescence/);
     // No senescenceProgress recomputation in Skin (no `progress * 0.X` patterns)

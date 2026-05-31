@@ -1,13 +1,12 @@
-// GreenhouseLayout — single-plant scene host.
+// SinglePlantApp — single-plant scene host (Phase Q3에서 GreenhouseLayout → rename).
 //
 // Iter 35: AppMode 'single-plant' 단일이므로 mode 분기 모두 제거.
 //   기존 greenhouse-only UI (TopBar/LabelOverlay/LayerDock/AnalysisPanel/
-//   TimelinePanel/AppBrand) 는 src/_archive/components/로 이동.
-//   Phase G에서 본 파일을 SinglePlantApp.tsx로 rename 예정.
+//   TimelinePanel/AppBrand) 는 src/_archive/components/로 이동 (PR 1).
 
 import { SceneCanvas } from './SceneCanvas';
 
-export function GreenhouseLayout() {
+export function SinglePlantApp() {
   return (
     <div
       className="app-grid"
@@ -22,12 +21,11 @@ export function GreenhouseLayout() {
 
         {/* Dev-mode FPS / backend HUD — hidden visually but the id-bearing
             spans must stay so BabylonEngine.runRenderLoop's
-            document.getElementById('hud-fps' / 'hud-day' / 'hud-backend')
-            updates keep flowing. (hud-robot Iter 35에 제거됨.) */}
+            document.getElementById('hud-fps' / 'hud-backend') updates keep flowing.
+            Iter 35 PR 4 Phase Q2: hud-day 제거 (currentDay store field 부재). */}
         <div className="offscreen">
           <span id="hud-fps">-- fps</span>
           <span id="hud-backend">--</span>
-          <span id="hud-day">Day --</span>
         </div>
       </div>
     </div>

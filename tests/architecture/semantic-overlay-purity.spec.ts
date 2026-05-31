@@ -12,7 +12,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 
 const REPO_ROOT = process.cwd();
-const OVERLAY_PATH = join(REPO_ROOT, 'src/rendering/SemanticOverlay.ts');
+const OVERLAY_PATH = join(REPO_ROOT, 'src/scene/SemanticOverlay.ts');
 
 const HEX_LITERAL = /#[0-9a-fA-F]{6}\b/;
 

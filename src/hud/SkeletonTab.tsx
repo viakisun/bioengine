@@ -5,10 +5,10 @@
 // 같은 UI 패턴 (Eyebrow + SliderRow + ColorRow + ToggleBtn) 을 LightingTab
 // 에서 빌려 일관성 유지.
 
-import { useTwinStore } from '../store/twinStore';
-import type { SkeletonConfig } from '../store/twinStore';
-import { Eyebrow } from '../ui/Eyebrow';
-import { SliderRow, ColorRow, ToggleBtn } from '../ui/Controls';
+import { useTwinStore } from '../state/twinStore';
+import type { SkeletonConfig } from '../state/twinStore';
+import { Eyebrow } from '../hud/controls/Eyebrow';
+import { SliderRow, ColorRow, ToggleBtn } from '../hud/controls/Controls';
 
 type WidthKey =
   | 'axisMainWidth' | 'axisOrder1Width' | 'axisOrder2Width'

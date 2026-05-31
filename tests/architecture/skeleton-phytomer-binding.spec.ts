@@ -215,7 +215,7 @@ test.describe('Skeleton Phytomer Binding + Anchor Purity (Iter 29 Phase 3)', () 
     // Fallback path (legacy callers) may still read LeafBase — Phase 4
     // tightens to strict 0.
     const skinSrc = await fs.readFile(
-      path.join(REPO_ROOT, 'src/rendering/SkinMeshPlant.ts'),
+      path.join(REPO_ROOT, 'src/scene/SkinMeshPlant.ts'),
       'utf-8',
     );
     // Verify anchor.rotation usage exists (canonical Phase 3 path)

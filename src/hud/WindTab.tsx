@@ -3,9 +3,9 @@
 // 사용자 결정: "바람도 설정". 기존 wind store fields (windStrength /
 // flutterStrength / windDirection) UI 노출 — 이전에는 dev only.
 
-import { useTwinStore } from '../store/twinStore';
-import { Eyebrow } from '../ui/Eyebrow';
-import { SliderRow, ToggleBtn } from '../ui/Controls';
+import { useTwinStore } from '../state/twinStore';
+import { Eyebrow } from '../hud/controls/Eyebrow';
+import { SliderRow, ToggleBtn } from '../hud/controls/Controls';
 
 export function WindTab() {
   const windStrength = useTwinStore((s) => s.windStrength);

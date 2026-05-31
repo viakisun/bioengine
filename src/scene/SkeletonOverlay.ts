@@ -36,7 +36,7 @@ import type {
   StemSegment,
   FloralSiteBase,
 } from '../plant/PlantBase';
-import type { SkeletonConfig } from '../store/twinStore';
+import type { SkeletonConfig } from '../state/twinStore';
 // Iter 20 — docking overlay (shared with SkinMeshPlant via window.__dockingJunctionPairs).
 import { createPetioleJunctionOverlay } from './dockingOverlay/PetioleJunctionOverlay';
 import type { PetioleJunctionPair } from './dockingOverlay/dockingPairs';

@@ -91,7 +91,7 @@ test.describe('Iter 35 Phase H — Layer Boundary Enforcement', () => {
       newViolators,
       `C layer (plant base) — 신규 Babylon import 금지.\n` +
         `Iter 35 시점 기존 violators ${KNOWN_C_VIOLATORS.size}건은 Iter 36+ migration 후보 (LAYER_STRUCTURE.md).\n` +
-        `해결: (1) Babylon import 제거 OR (2) src/rendering/으로 이동 OR (3) KNOWN_C_VIOLATORS에 추가 (이유 docs 필요).`,
+        `해결: (1) Babylon import 제거 OR (2) src/scene/으로 이동 OR (3) KNOWN_C_VIOLATORS에 추가 (이유 docs 필요).`,
     ).toEqual([]);
   });
 
@@ -109,8 +109,8 @@ test.describe('Iter 35 Phase H — Layer Boundary Enforcement', () => {
     ).toEqual([]);
   });
 
-  test('LAYER-D-RENDERING-HAS-BABYLON-01: src/rendering/BabylonEngine.ts Babylon import 존재', async () => {
-    const text = await fs.readFile(path.join(REPO_ROOT, 'src/rendering/BabylonEngine.ts'), 'utf-8');
+  test('LAYER-D-RENDERING-HAS-BABYLON-01: src/scene/BabylonEngine.ts Babylon import 존재', async () => {
+    const text = await fs.readFile(path.join(REPO_ROOT, 'src/scene/BabylonEngine.ts'), 'utf-8');
     expect(BABYLON_IMPORT_RE.test(text), 'D layer entry point — Babylon import 의무').toBe(true);
   });
 

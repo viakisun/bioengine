@@ -4,8 +4,8 @@
 //   가 4 menu items로 각 drawer 진입.
 
 import { useEffect, type ReactNode } from 'react';
-import { useTwinStore } from '../store/twinStore';
-import type { DrawerKind } from '../store/twinStore';
+import { useTwinStore } from '../state/twinStore';
+import type { DrawerKind } from '../state/twinStore';
 import { LightingTab } from './LightingTab';
 import { SkeletonTab } from './SkeletonTab';
 import { WindTab } from './WindTab';

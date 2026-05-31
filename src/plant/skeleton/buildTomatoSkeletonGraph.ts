@@ -44,7 +44,7 @@ import { ACTIVE_MODEL } from '@farmsim/tomato-engine/ModelRegistry';
 import type { PlantBase, AxisBase, TrussBase, LeafBase } from '../PlantBase';
 import type { PlantState } from '@farmsim/tomato-engine/GrowthModel';
 import type { PlantGenome } from '@farmsim/tomato-engine/PlantGenome';
-import { catmullRomPath } from '../../rendering/stem/StemGenerator';
+import { catmullRomPath } from '../../scene/stem/StemGenerator';
 import type {
   PlantSkeletonGraph,
   SkeletonNode,

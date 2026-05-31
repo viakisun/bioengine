@@ -11,7 +11,7 @@ import { buildSceneInfrastructure, type SceneInfrastructureHandle } from './Scen
 // Iter 35: GreenhouseContent (zones/heatmap/robot/path/supporting) + ProgressiveLoad
 //   제거 — single-plant only (Phase B+C, 사용자 결정).
 // Iter 35 PR 2 Phase O: QualityProbe archived (Skin 무관 general FX 측정).
-import { useTwinStore, type LightingState } from '../store/twinStore';
+import { useTwinStore, type LightingState } from '../state/twinStore';
 import { SCENARIO } from '../data/mockScenario';
 import { getSunState } from '@farmsim/tomato-engine';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
@@ -19,8 +19,8 @@ import { setShaderWindEnabled, isShaderWindEnabled } from '../plant/LeafGenerato
 // Iter 35: LabelOverlay archived — single-plant only.
 // Iter 20 — hotkey for petiole-stem junction overlay ('d'/'D'/'ㅇ').
 import { installDockingOverlayHotkey } from './dockingOverlay/hotkeyToggle';
-import { setBootStage, logBoot, setEnvInfo, setEnvCounters, notify } from '../store/notify';
-import { setSinglePlantEngineRef, setSinglePlantSkinMeshRef } from '../ui/single-plant/useSinglePlantState';
+import { setBootStage, logBoot, setEnvInfo, setEnvCounters, notify } from '../state/notify';
+import { setSinglePlantEngineRef, setSinglePlantSkinMeshRef } from '../hud/single-plant/useSinglePlantState';
 import { createLogger } from '../utils/logger';
 const log = createLogger('engine');
 

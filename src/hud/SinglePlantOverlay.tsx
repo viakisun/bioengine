@@ -15,14 +15,14 @@ const log = createLogger('overlay');
 //   - MetricsTray + TimelineChart + InspectorPanel (Phase J)
 
 import { useEffect } from 'react';
-import { useTwinStore } from '../store/twinStore';
-import { FloatingTopBar } from '../ui/single-plant/FloatingTopBar';
-import { BottomPlaybackBar } from '../ui/single-plant/BottomPlaybackBar';
-import { RightBottomToggles } from '../ui/single-plant/RightBottomToggles';
+import { useTwinStore } from '../state/twinStore';
+import { FloatingTopBar } from '../hud/single-plant/FloatingTopBar';
+import { BottomPlaybackBar } from '../hud/single-plant/BottomPlaybackBar';
+import { RightBottomToggles } from '../hud/single-plant/RightBottomToggles';
 import { DrawerStack } from './DrawerStack';
-import { C_FG } from '../ui/single-plant/styles';
-import { SHOWCASE_SEED } from '../rendering/SceneInfrastructure';
-import { getSinglePlantEngine, getSinglePlantSkinMesh } from '../ui/single-plant/useSinglePlantState';
+import { C_FG } from '../hud/single-plant/styles';
+import { SHOWCASE_SEED } from '../scene/SceneInfrastructure';
+import { getSinglePlantEngine, getSinglePlantSkinMesh } from '../hud/single-plant/useSinglePlantState';
 
 // Dev-only: expose store on window for headless capture inspection.
 if (typeof window !== 'undefined' && import.meta.env?.DEV) {

@@ -13,7 +13,7 @@ import { ImageProcessingConfiguration } from '@babylonjs/core/Materials/imagePro
 import { Camera } from '@babylonjs/core/Cameras/camera';
 import { GradientMaterial } from '@babylonjs/materials/gradient/gradientMaterial';
 import { CubeTexture } from '@babylonjs/core/Materials/Textures/cubeTexture';
-import { notify, logBoot, updateStageDetail } from '../store/notify';
+import { notify, logBoot, updateStageDetail } from '../state/notify';
 
 import '@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent';
 import '@babylonjs/core/Rendering/geometryBufferRendererSceneComponent';

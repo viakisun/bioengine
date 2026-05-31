@@ -37,9 +37,9 @@ import { LensFlareSystem } from '@babylonjs/core/LensFlares/lensFlareSystem';
 import { LensFlare } from '@babylonjs/core/LensFlares/lensFlare';
 import type { Mesh } from '@babylonjs/core/Meshes/mesh';
 import type { SceneSetupHandle } from './SceneSetup';
-import type { LightingState, RenderFXState, ShadowFilterKind } from '../store/twinStore';
-import { notify, logBoot, updateStageDetail } from '../store/notify';
-import { useTwinStore } from '../store/twinStore';
+import type { LightingState, RenderFXState, ShadowFilterKind } from '../state/twinStore';
+import { notify, logBoot, updateStageDetail } from '../state/notify';
+import { useTwinStore } from '../state/twinStore';
 
 // ===========================================================================
 // Defaults + preset table

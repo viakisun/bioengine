@@ -1,9 +1,9 @@
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
-import { useTwinStore } from './store/twinStore';
-import { notify } from './store/notify';
-import { createLogger, installDebugHelper } from './utils/logger';
-import './ui/ui-kit.css';
+import { useTwinStore } from '../state/twinStore';
+import { notify } from '../state/notify';
+import { createLogger, installDebugHelper } from '../utils/logger';
+import '../hud/controls/ui-kit.css';
 
 const log = createLogger('ui');
 
@@ -17,7 +17,7 @@ declare global {
   interface Window {
     __twinStore?: typeof useTwinStore;
     __debugScene?: import('@babylonjs/core/scene').Scene;
-    __debugEngine?: import('./rendering/BabylonEngine').BabylonEngineHandle;
+    __debugEngine?: import('../scene/BabylonEngine').BabylonEngineHandle;
   }
 }
 

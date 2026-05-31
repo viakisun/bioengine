@@ -4,7 +4,7 @@
 // to safely re-enter the Babylon boot sequence after a crash.
 
 import { useState, type CSSProperties } from 'react';
-import { useTwinStore } from '../store/twinStore';
+import { useTwinStore } from '../state/twinStore';
 
 export function ErrorModal() {
   const notifications = useTwinStore((s) => s.notifications);

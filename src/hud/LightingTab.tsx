@@ -8,11 +8,11 @@
  *   프리셋 / 시간대 / 태양 / 환경광 / 그림자 / 톤매핑 / 블룸 / 비네팅 / 샤프닝 / SSAO
  */
 
-import { useTwinStore } from '../store/twinStore';
-import type { LightingPresetName, ToneMappingMode } from '../store/twinStore';
-import { Eyebrow } from '../ui';
-import { TabStrip, type TabItem } from '../ui/TabStrip';
-import { SliderRow, ToggleBtn, ColorRow } from '../ui/Controls';
+import { useTwinStore } from '../state/twinStore';
+import type { LightingPresetName, ToneMappingMode } from '../state/twinStore';
+import { Eyebrow } from './controls';
+import { TabStrip, type TabItem } from './controls/TabStrip';
+import { SliderRow, ToggleBtn, ColorRow } from './controls/Controls';
 
 const PRESET_TABS: ReadonlyArray<TabItem<LightingPresetName>> = [
   { id: 'default', label: '기본' },

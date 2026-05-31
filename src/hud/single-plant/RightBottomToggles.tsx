@@ -5,8 +5,8 @@
 //   사용자 명시 "각각 별도로 분리" 직접 충족 (옵션 A: Settings popover + 4 drawers).
 
 import { useState, type CSSProperties, type ReactNode } from 'react';
-import { useTwinStore } from '../../store/twinStore';
-import type { DrawerKind } from '../../store/twinStore';
+import { useTwinStore } from '../../state/twinStore';
+import type { DrawerKind } from '../../state/twinStore';
 import { Popover } from './Popover';
 import { FONT_MONO, C_FG, C_FG_MUTE, C_BORDER, C_ACCENT } from './styles';
 

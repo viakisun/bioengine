@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { QUALITY_PRESETS } from '../rendering/RenderQuality';
+import { QUALITY_PRESETS } from '../scene/RenderQuality';
 
 // Iter 35 PR 4 Phase Q2: AppMode + CompareMode + readModeFromHash + PresetView/SCENARIO
 //   import 제거 (호출처 0). Single-plant 단일이므로 mode 분기 자체 부재.
