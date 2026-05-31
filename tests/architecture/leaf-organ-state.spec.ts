@@ -50,7 +50,7 @@ const REPO_ROOT = path.resolve(SPEC_DIR, '../..');
 function buildLeaf(overrides: Partial<Parameters<typeof makeLeafOrganStateFromFlat>[0]>): LeafOrganState {
   const senescence = overrides.senescence ?? makeSenescenceState(0);
   const posture: LeafPostureState = overrides.posture ?? {
-    azimuthDeg: 0, petioleElevationDeg: 30, droopDeg: 10, twistDeg: 0, curl: 0.1,
+    curl: 0.1,
   };
   const morphology: LeafMorphologyState = overrides.morphology ?? {
     serrationDepth: 0.12, lobeDepth: 0.05, petioleLengthM: 0.3, variationSeed: 1,
@@ -151,25 +151,20 @@ test.describe('LeafOrganState (Iter 29 Phase 2A)', () => {
     expect(leafletCountFromMaturity(1.0, 0, 11)).toBeCloseTo(11, 1);
   });
 
-  test('LEAF-POSTURE-01: PlantBase가 posture (azimuth/droop/twist/elevation) 계산 — Skin은 anchor만', async () => {
-    // LeafPostureState interface fields present
+  test('LEAF-POSTURE-01: PlantBase가 posture (curl + 9 분해 필드) 계산 — Skin은 anchor + curl만', async () => {
+    // ★ Iter 34 C3 — azimuthDeg/petioleElevationDeg/droopDeg/twistDeg 제거 후 검증.
+    //   curl만 남음 (mesh deformation), 9 분해 필드 (gravityDroop 등)는 별도.
     const leaf = buildLeaf({});
-    expect(typeof leaf.posture.azimuthDeg).toBe('number');
-    expect(typeof leaf.posture.petioleElevationDeg).toBe('number');
-    expect(typeof leaf.posture.droopDeg).toBe('number');
-    expect(typeof leaf.posture.twistDeg).toBe('number');
     expect(typeof leaf.posture.curl).toBe('number');
 
     // PlantBase populates posture inside computePlantState (GrowthModel.ts)
-    // — search for the canonical population pattern.
     const text = await fs.readFile(
       path.join(REPO_ROOT, 'packages/tomato-engine/src/GrowthModel.ts'),
       'utf-8',
     );
     expect(text, 'posture LeafPostureState constructed').toMatch(/posture:\s*LeafPostureState/);
-    expect(text, 'azimuthDeg populated').toMatch(/azimuthDeg:/);
-    expect(text, 'GOLDEN_ANGLE used for phyllotaxis azimuth')
-      .toMatch(/GOLDEN_ANGLE/);
+    expect(text, 'gravityDroopDeg populated (Iter 32)').toMatch(/gravityDroopDeg:/);
+    expect(text, 'composePosture 호출').toMatch(/composePosture\(/);
   });
 
   test('LEAF-SENESCENCE-TT-01: senescenceProgress = sigmoid(ageTT - senescenceStartTT)', () => {

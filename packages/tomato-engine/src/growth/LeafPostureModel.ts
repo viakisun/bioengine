@@ -90,13 +90,10 @@ export function computeWaterStressDroopDeg(waterStress: number): number {
  *   finalBladePlaneTiltDeg = lightSeekingBladePlaneTiltDeg + finalDroopDeg
  *     상부광 lightSeeking=0° → blade plane이 처짐만큼 +로 tilt
  *
- * Backward compat:
- *   기존 posture.droopDeg (legacy 단일 스칼라) = finalDroopDeg로 alias.
- *   Phase 6 alias removal 후보.
+ * ★ Iter 34 C3 — input azimuthDeg/twistDeg + output 4 deprecated 필드
+ *   (azimuthDeg/petioleElevationDeg/droopDeg/twistDeg) 제거. R26 이후 미사용.
  */
 export function composePosture(input: {
-  azimuthDeg: number;
-  twistDeg: number;
   lightSeekingBladePlaneTiltDeg?: number;  // 상부광 default 0°
   petioleBaseElevationDeg: number;
   gravityDroopDeg: number;
@@ -110,15 +107,7 @@ export function composePosture(input: {
     input.senescenceDroopDeg +
     input.waterStressDroopDeg;
   const finalBladePlaneTiltDeg = lightTilt + finalDroopDeg;
-  // Legacy alias — posture.droopDeg = finalDroopDeg (Iter 29 Phase 2A field)
-  // Skin (Iter 29 Phase 4)는 droopDeg를 사용해 mesh rotation 적용.
-  // Phase 0.D composeLeafRotationLocal은 finalBladePlaneTiltDeg를 droop 인자로 사용
-  // (사용자 권장 — blade plane 자세 직접 적용).
   return {
-    azimuthDeg: input.azimuthDeg,
-    petioleElevationDeg: input.petioleBaseElevationDeg - finalDroopDeg * 0.5,  // legacy compat
-    droopDeg: finalDroopDeg,  // legacy alias — Phase 6 deprecation 후보
-    twistDeg: input.twistDeg,
     curl: input.curl,
     // ── Iter 30 Phase 5 — 9-필드 분해 (LeafPostureState 확장) ──
     lightSeekingBladePlaneTiltDeg: lightTilt,

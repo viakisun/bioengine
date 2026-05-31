@@ -153,38 +153,14 @@ export function assertAllocationConsistent(
  * 5/6에서 LeafDeformationState 분리 가능성 docs.
  */
 export interface LeafPostureState {
-  /**
-   * Phyllotaxis azimuth (degrees) — baseAxis + index × 137.5 + node variation.
-   *
-   * @deprecated Iter 31 R26 (commit 4029b6b) 이후 leaf rotation은 PlantBase
-   *   petioleCurve 마지막 segment tangent 그대로 사용 (populateAnchorMorphology
-   *   fillLeafAnchor). azimuth 회전은 parallel-transport frame이 _이미_ 표현.
-   *   Iter 32 POSTURE-FIELD-CLEANUP-01에서 제거 검토.
-   */
-  azimuthDeg: number;
-  /**
-   * Petiole elevation (degrees) — 0° = horizontal up. (Legacy alias).
-   *
-   * @deprecated Iter 31 R26 이후 leaf rotation 무관. Iter 32 cleanup 후보.
-   */
-  petioleElevationDeg: number;
-  /**
-   * Leaf blade droop (degrees) — mature droop + senescence sag.
-   *
-   * @deprecated Iter 31 R26 이후 leaf rotation 무관. droop은 _petiole curve 자체_가
-   *   표현 (PlantBase가 control point에 droop 반영). Iter 32 cleanup 후보.
-   */
-  droopDeg: number;
-  /**
-   * Leaf twist (degrees) around the petiole axis.
-   *
-   * @deprecated Iter 31 R26 이후 leaf rotation 무관. Iter 32 cleanup 후보.
-   */
-  twistDeg: number;
+  // ★ Iter 34 C3 — 4 deprecated rotation 필드 제거 (azimuthDeg / petioleElevationDeg /
+  //   droopDeg / twistDeg). R26 이후 leaf rotation은 petioleCurve tangent에서 옴 —
+  //   posture 필드 의존 0. cascade audit (Iter 34) production read 0 검증.
+
   /**
    * Curl (0..1) — Phase 2A: posture field; future: deformation.
    *
-   * ★ 유지 — leafChunk.ts mesh deformation (transverseCup + z-twist)이 사용.
+   * ★ leafChunk.ts mesh deformation (transverseCup + z-twist)이 사용.
    *   R26 이후에도 _mesh 변형_은 anchor rotation과 별개 layer.
    */
   curl: number;

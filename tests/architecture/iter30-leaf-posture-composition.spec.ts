@@ -31,9 +31,7 @@ const REPO_ROOT = path.resolve(SPEC_DIR, '../..');
 test.describe('Iter 30 Phase 5 — Leaf Posture Composition (9-필드)', () => {
   test('LEAF-LIGHT-ORIENTATION-01: 상부광 + 0 droop mature leaf → finalBladePlaneTiltDeg ≈ 0°', () => {
     const posture = composePosture({
-      azimuthDeg: 0,
-      twistDeg: 0,
-      lightSeekingBladePlaneTiltDeg: 0,  // 상부광
+                  lightSeekingBladePlaneTiltDeg: 0,  // 상부광
       petioleBaseElevationDeg: 12,
       gravityDroopDeg: 0,
       senescenceDroopDeg: 0,
@@ -81,9 +79,7 @@ test.describe('Iter 30 Phase 5 — Leaf Posture Composition (9-필드)', () => {
     ];
     for (const { g, s, w } of samples) {
       const p = composePosture({
-        azimuthDeg: 60,
-        twistDeg: 5,
-        lightSeekingBladePlaneTiltDeg: 0,
+                        lightSeekingBladePlaneTiltDeg: 0,
         petioleBaseElevationDeg: 20,
         gravityDroopDeg: g,
         senescenceDroopDeg: s,
@@ -102,14 +98,12 @@ test.describe('Iter 30 Phase 5 — Leaf Posture Composition (9-필드)', () => {
 
   test('LEAF-POSTURE-9-FIELDS-01: 9 필드 모두 정의', () => {
     const p = composePosture({
-      azimuthDeg: 90, twistDeg: 0,
-      lightSeekingBladePlaneTiltDeg: 0,
+            lightSeekingBladePlaneTiltDeg: 0,
       petioleBaseElevationDeg: 20,
       gravityDroopDeg: 10, senescenceDroopDeg: 5, waterStressDroopDeg: 2,
       curl: 0.15,
     });
     // 9 필드 (optional이지만 composePosture는 모두 populate)
-    expect(p.azimuthDeg).toBeDefined();
     expect(p.lightSeekingBladePlaneTiltDeg).toBeDefined();
     expect(p.lightSeekingNormal).toBeDefined();
     expect(p.petioleBaseElevationDeg).toBeDefined();
@@ -118,7 +112,6 @@ test.describe('Iter 30 Phase 5 — Leaf Posture Composition (9-필드)', () => {
     expect(p.waterStressDroopDeg).toBeDefined();
     expect(p.finalBladePlaneTiltDeg).toBeDefined();
     expect(p.finalDroopDeg).toBeDefined();
-    expect(p.twistDeg).toBeDefined();
     expect(p.curl).toBeDefined();
 
     // LeafPostureState 인터페이스 schema check (source)
@@ -137,18 +130,8 @@ test.describe('Iter 30 Phase 5 — Leaf Posture Composition (9-필드)', () => {
     });
   });
 
-  test('LEAF-LEGACY-DROOPEXTRA-01: legacy droopDeg = finalDroopDeg (alias)', () => {
-    const p = composePosture({
-      azimuthDeg: 0, twistDeg: 0,
-      lightSeekingBladePlaneTiltDeg: 0,
-      petioleBaseElevationDeg: 12,
-      gravityDroopDeg: 10, senescenceDroopDeg: 8, waterStressDroopDeg: 5,
-      curl: 0,
-    });
-    // Legacy alias: droopDeg = finalDroopDeg = 23
-    expect(p.droopDeg).toBe(p.finalDroopDeg);
-    expect(p.droopDeg).toBe(23);
-  });
+  // ★ Iter 34 C3 — LEAF-LEGACY-DROOPEXTRA-01 제거 (legacy alias `droopDeg` 자체 제거됨).
+  //   finalDroopDeg는 LEAF-POSTURE-COMPOSITION-01에서 검증됨.
 
   test('LEAF-POSTURE-SIGN-CONVENTION-01: droop 양수 누적 시 finalBladePlaneTiltDeg 단조 증가', () => {
     // 부호 일관성: droop이 증가하면 finalBladePlaneTiltDeg도 증가
@@ -161,8 +144,7 @@ test.describe('Iter 30 Phase 5 — Leaf Posture Composition (9-필드)', () => {
     ];
     for (const { g, expected } of samples) {
       const p = composePosture({
-        azimuthDeg: 0, twistDeg: 0,
-        lightSeekingBladePlaneTiltDeg: 0,
+                lightSeekingBladePlaneTiltDeg: 0,
         petioleBaseElevationDeg: 12,
         gravityDroopDeg: g, senescenceDroopDeg: 0, waterStressDroopDeg: 0,
         curl: 0,
@@ -173,8 +155,7 @@ test.describe('Iter 30 Phase 5 — Leaf Posture Composition (9-필드)', () => {
     let prev = -1;
     for (const { g } of samples) {
       const p = composePosture({
-        azimuthDeg: 0, twistDeg: 0,
-        lightSeekingBladePlaneTiltDeg: 0,
+                lightSeekingBladePlaneTiltDeg: 0,
         petioleBaseElevationDeg: 12,
         gravityDroopDeg: g, senescenceDroopDeg: 0, waterStressDroopDeg: 0,
         curl: 0,

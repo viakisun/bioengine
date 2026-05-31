@@ -794,8 +794,6 @@ function populateSideShootChain(
     });
     const sideWaterStressDroop = computeWaterStressDroopDeg(stress.waterStress);
     const sidePosture: LeafPostureState = composePosture({
-      azimuthDeg: sideAzimuth,
-      twistDeg: 0,
       lightSeekingBladePlaneTiltDeg: 0,
       petioleBaseElevationDeg: sidePetioleBase,
       gravityDroopDeg: sideGravityDroop,
@@ -1425,8 +1423,6 @@ export function computePlantState(
     });
     const waterStressDroopPhase5 = computeWaterStressDroopDeg(waterStress);
     const posture: LeafPostureState = composePosture({
-      azimuthDeg,
-      twistDeg: 0,
       lightSeekingBladePlaneTiltDeg: 0,  // 상부광 default
       petioleBaseElevationDeg: petioleBaseElevation,
       gravityDroopDeg: gravityDroop,

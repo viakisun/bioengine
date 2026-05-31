@@ -51,7 +51,7 @@ test.describe('Iter 29 D=15/30/45 per-node diagnostic (post-Quality-Gate-D visua
             expansionProgress: number;
             leafletCount: number;
             stage: string;
-            posture: { droopDeg: number; azimuthDeg: number; petioleElevationDeg: number };
+            posture: { finalDroopDeg?: number; curl: number };  // ★ Iter 34 C3
             senescence: { progress: number; colorDullness: number; visibleAreaFactor: number };
           };
         };
@@ -127,7 +127,7 @@ test.describe('Iter 29 D=15/30/45 per-node diagnostic (post-Quality-Gate-D visua
           leaf_exp: Number(p.leaf.expansionProgress.toFixed(2)),
           leaflets: p.leaf.leafletCount,
           stage: p.leaf.stage,
-          droop: Number(p.leaf.posture.droopDeg.toFixed(0)),
+          droop: Number((p.leaf.posture.finalDroopDeg ?? 0).toFixed(0)),
           senP: Number(p.leaf.senescence.progress.toFixed(2)),
           visArea: Number(p.leaf.senescence.visibleAreaFactor.toFixed(2)),
         }));

@@ -62,9 +62,7 @@ async function dumpAtDay(page: Page) {
       limitationReason: string;
     };
     type Posture = {
-      azimuthDeg: number;
-      twistDeg: number;
-      droopDeg?: number;
+      // ★ Iter 34 C3 — azimuthDeg/twistDeg/droopDeg/petioleElevationDeg 제거. 9 분해 필드만.
       lightSeekingBladePlaneTiltDeg?: number;
       petioleBaseElevationDeg?: number;
       gravityDroopDeg?: number;
@@ -256,8 +254,7 @@ async function dumpAtDay(page: Page) {
         alloc_final: phyto.leaf.allocation?.finalAllocationFactor !== undefined
           ? Number(phyto.leaf.allocation.finalAllocationFactor.toFixed(2)) : null,
         alloc_reason: phyto.leaf.allocation?.limitationReason ?? null,
-        // Posture 9-필드
-        azimuthDeg: Number(phyto.leaf.posture.azimuthDeg.toFixed(0)),
+        // Posture 7 분해 필드 (★ Iter 34 C3 — azimuth/twist/droop/petioleElev 제거)
         lightSeekTilt: phyto.leaf.posture.lightSeekingBladePlaneTiltDeg !== undefined
           ? Number(phyto.leaf.posture.lightSeekingBladePlaneTiltDeg.toFixed(1)) : null,
         petioleBaseElev: phyto.leaf.posture.petioleBaseElevationDeg !== undefined
@@ -268,12 +265,9 @@ async function dumpAtDay(page: Page) {
           ? Number(phyto.leaf.posture.senescenceDroopDeg.toFixed(1)) : null,
         waterDroop: phyto.leaf.posture.waterStressDroopDeg !== undefined
           ? Number(phyto.leaf.posture.waterStressDroopDeg.toFixed(1)) : null,
-        finalDroop: phyto.leaf.posture.finalDroopDeg !== undefined
-          ? Number(phyto.leaf.posture.finalDroopDeg.toFixed(1))
-          : Number((phyto.leaf.posture.droopDeg ?? 0).toFixed(1)),
+        finalDroop: Number((phyto.leaf.posture.finalDroopDeg ?? 0).toFixed(1)),
         finalTilt: phyto.leaf.posture.finalBladePlaneTiltDeg !== undefined
           ? Number(phyto.leaf.posture.finalBladePlaneTiltDeg.toFixed(1)) : null,
-        twist: Number(phyto.leaf.posture.twistDeg.toFixed(1)),
         // Senescence
         senP: Number(phyto.leaf.senescence.progress.toFixed(2)),
         visArea: Number(phyto.leaf.senescence.visibleAreaFactor.toFixed(2)),
@@ -358,7 +352,7 @@ function renderMd(day: number, data: ReturnType<typeof dumpAtDay> extends Promis
     out += `| idx | azimuth° | lightSeek° | petioleBase° | gravity° | sen° | water° | finalDroop° | finalTilt° | twist° |\n`;
     out += `|----|----------|------------|--------------|----------|------|--------|-------------|------------|--------|\n`;
     for (const r of rows) {
-      out += `| ${r.idx} | ${r.azimuthDeg} | ${r.lightSeekTilt ?? '-'} | ${r.petioleBaseElev ?? '-'} | ${r.gravityDroop ?? '-'} | ${r.senDroop ?? '-'} | ${r.waterDroop ?? '-'} | ${r.finalDroop} | ${r.finalTilt ?? '-'} | ${r.twist} |\n`;
+      out += `| ${r.idx} | ${r.lightSeekTilt ?? '-'} | ${r.petioleBaseElev ?? '-'} | ${r.gravityDroop ?? '-'} | ${r.senDroop ?? '-'} | ${r.waterDroop ?? '-'} | ${r.finalDroop} | ${r.finalTilt ?? '-'} |\n`;
     }
 
     out += `\n#### Mesh bbox + sizeFactor + Quat\n\n`;
