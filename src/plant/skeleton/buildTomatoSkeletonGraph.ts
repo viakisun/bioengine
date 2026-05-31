@@ -259,13 +259,15 @@ function addLeavesForAxis(
     });
     attachNode.edgeIds.push(petioleEdgeId);
 
-    // Iter 36 v5 Phase B + J — 각 leaflet position마다 leaflet-node 생성
+    // Iter 36 v5 Phase B + J + L — 각 leaflet position마다 leaflet-node 생성
     //   + leaf-rachis edge + petiolule edges 신규 (★ Phase J 계층 구조).
+    //   ★ Phase L: bones (petiole bonePath) 추가 — leaflet 방향을 petiole tangent
+    //   기반으로 산출 (잎별 phyllotaxis 자동 반영, 이전 하드코딩 fix).
     //   terminal (1) + primary pairs (left/right × N) + secondary + intercalary.
     //   사용자 botanical 계층: petiole-tip → leaf-rachis → petiolule → leaflet.
     addLeafletNodesForLeaf(
       axisIdx, leaf.nodeIdx, tipNodeId, tipPos, leaf.sizeFactor, leafBladeRef,
-      petioleEdgeId, nodes, edges,
+      petioleEdgeId, bones, nodes, edges,
     );
 
     // Iter 18B PR 8 (SSOT #180) — structured OrganAnchor for leaf blade.
@@ -375,13 +377,32 @@ function addLeafletNodesForLeaf(
   sizeFactor: number,
   bladeRef: LeafBladeRef,
   parentEdgeId: string,           // petiole edge (rachis의 부모)
+  bones: SkeletonBone[],          // ★ Phase L — petiole bonePath
   nodes: Map<string, SkeletonNode>,
   edges: Map<string, SkeletonEdge>,
 ): void {
   const rachisLen = bladeRef.rachisLengthM;
-  // rachis 방향: petiole-tip 부근에서 위쪽 + 앞쪽으로 펼쳐짐 (diagonal).
-  const rachisDir: V3 = { x: 0, y: 0.7, z: 0.7 };
-  const lateralDir: V3 = { x: 1, y: 0, z: 0 };
+  // ★ Phase L — petiole edge bones[last] tangent 기반 rachisDir/lateralDir.
+  //   각 잎의 phyllotaxis (azimuth 137.5°)가 petiole curve에 이미 반영되어
+  //   있으므로, tangent를 그대로 rachis 방향으로 사용. world-up cross로 lateral
+  //   normal 산출 → 수평 좌우 분기 (자연스러운 fishbone).
+  //   이전 (Phase J): rachisDir(0,0.7,0.7) + lateralDir(1,0,0) 모든 잎 동일 — 뭉침.
+  const lastBone = bones[bones.length - 1];
+  const tx = lastBone.p1.x - lastBone.p0.x;
+  const ty = lastBone.p1.y - lastBone.p0.y;
+  const tz = lastBone.p1.z - lastBone.p0.z;
+  const tLen = Math.sqrt(tx * tx + ty * ty + tz * tz);
+  const rachisDir: V3 = tLen > 1e-6
+    ? { x: tx / tLen, y: ty / tLen, z: tz / tLen }
+    : { x: 0, y: 0.7, z: 0.7 };  // degenerate fallback
+  // lateral = world-up × tangent (Gram-Schmidt 패턴).
+  const lx = 1 * rachisDir.z - 0 * rachisDir.y;  // WORLD_UP=(0,1,0): cross y-component cancels
+  const ly = 0;
+  const lz = -1 * rachisDir.x;                    //   (0,1,0) × (rx,ry,rz) = (rz, 0, -rx)
+  const lLen = Math.sqrt(lx * lx + ly * ly + lz * lz);
+  const lateralDir: V3 = lLen > 1e-6
+    ? { x: lx / lLen, y: ly / lLen, z: lz / lLen }
+    : { x: 1, y: 0, z: 0 };  // vertical petiole fallback
 
   // rachis 위 부착점 산출.
   const rachisPointAt = (u: number): V3 => ({
