@@ -41,6 +41,24 @@
      → 의미 점은 `getVerticesData('position')` 직접 query
    - 회전 origin = mesh-local `(0, 0, 0)` — vertex shift 의무
 
+## 로깅
+
+production source에서 `console.{log,info,debug,warn,error}` _직접 호출 금지_.
+`createLogger('namespace')` 사용 — gist: [`docs/architecture/LOGGING.md`](docs/architecture/LOGGING.md).
+
+```ts
+import { createLogger } from '../utils/logger';
+const log = createLogger('engine');  // 10 namespace 중 선택
+
+log.debug('detail trace');         // opt-in only (?debug=engine)
+log.warn('init failed', err);       // 항상 출력
+```
+
+Whitelist 예외: `src/utils/logger.ts`, `**/diagnostics/**`, `growth-calibration/scripts/**`, `packages/*/test-*.ts`, `tests/**`.
+
+enforcement: `tests/architecture/logger-system.spec.ts` (12 invariants) +
+Phase L6 `LOGGER-NO-DIRECT-CONSOLE-01`.
+
 ## 재발 방지
 
 Iter 18~24에 "잎이 줄기에 안 붙어보임" 단일 버그를 **7번 잘못된 fix 후에야
