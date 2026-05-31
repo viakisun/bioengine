@@ -32,6 +32,18 @@ import {
 } from './LeafTexture';
 // SSOT #186 — Iter 24 acfad71 vertex shift logic을 anchors/ utility로 분리.
 import { normalizeLeafMeshVertices } from './anchors';
+// Iter 36 v5 Phase E — leaf-engine procedural variation (Conservative 분리).
+import { buildCompoundLeaf as leafEngineBuildCompoundLeaf } from '../scene/leaf-engine';
+import type { LeafBladeRef, LeafletNodeRef } from './skeleton/PlantSkeletonGraph';
+
+/** Simple djb2 string hash → deterministic numeric seed (per leaf instance). */
+function hashStr(s: string): number {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) {
+    h = ((h << 5) + h) ^ s.charCodeAt(i);
+  }
+  return Math.abs(h);
+}
 
 function applyChunkToMesh(chunk: GeoChunk, mesh: Mesh, vertexColors?: number[]) {
   const vd = new VertexData();
@@ -169,26 +181,30 @@ export function buildLeafMeshFromPhytomer(
   rng: SeededRandom,
   // Iter 36 v5 Phase C — skeleton 3-tier separation.
   //   Skeleton (LeafBladeRef + LeafletNodeRef[]) → Rendering engine read.
-  //   Phase C 시점: optional, fallback은 _기존 leafOrganState_ 사용 (back-compat).
-  //   Phase D-E에서 leaf-engine 모듈이 이 데이터를 procedural variation에 사용.
-  bladeRef?: {
-    leafLengthM: number;
-    primaryPairs: number;
-    intercalaryCount: number;
-    secondaryCount: number;
-    agePreset: 'young' | 'mature' | 'old' | 'complex' | 'potato-leaf';
-    complexity: number;
-  },
-  leafletNodes?: ReadonlyArray<{
-    position: 'terminal' | 'primary' | 'secondary' | 'intercalary';
-    rachisU: number;
-    sizeFactor: number;
-  }>,
+  //   Phase E에서 leaf-engine buildCompoundLeaf 통합 (procedural variation).
+  bladeRef?: LeafBladeRef,
+  leafletNodes?: ReadonlyArray<LeafletNodeRef>,
 ): Mesh {
-  // Iter 36 v5 Phase C — bladeRef/leafletNodes 사용은 Phase D-E에서 본격화.
-  //   현재는 _데이터 흐름_만 연결 (back-compat — legacy leafletCount path).
-  void bladeRef;
-  void leafletNodes;
+  // Iter 36 v5 Phase E — leaf-engine 통합. bladeRef + leafletNodes 있을 때
+  //   buildCompoundLeaf 호출 → CompoundLeafDescriptor.
+  //   descriptor.resolved 의 serrationAmp/lobeDepth/serrationFreq 등을 shape에
+  //   전달 → mesh vertex variation 결과 반영.
+  //   leafletCount는 leaflet skeleton nodes 길이 사용 (4 position types 합).
+  //
+  //   ★ buildLeafChunkSkin은 외부 패키지 (변경 X). 산출값만 leaf-engine 경유.
+  //   ★ Phase E 시점에 intercalary/secondary 별도 mesh 생성은 추후 (skeleton
+  //     marker로 _기본_ 시각화 — buildLeafChunkSkin이 leafletCount 기반).
+  let leafEngineLeafletCount = leafOrganState.leafletCount;
+  let leafEngineSerrationDepth = leafOrganState.morphology.serrationDepth;
+  let leafEngineLobeDepth = leafOrganState.morphology.lobeDepth;
+  if (bladeRef && leafletNodes && leafletNodes.length > 0) {
+    const seed = hashStr(name);
+    const descriptor = leafEngineBuildCompoundLeaf(bladeRef, leafletNodes, seed);
+    // primary + intercalary + secondary leaflet 수의 합 (4 types).
+    leafEngineLeafletCount = leafletNodes.length;
+    leafEngineSerrationDepth = descriptor.resolved.serrationAmp;
+    leafEngineLobeDepth = descriptor.resolved.lobeDepth;
+  }
   if (leafOrganState.expansionProgress < 0.01 && leafOrganState.currentAreaCm2 < 0.5) {
     return new Mesh(name, scene);
   }
@@ -199,10 +215,11 @@ export function buildLeafMeshFromPhytomer(
   // Shape: morphology values come from PlantBase (Phase 2A computed); visual
   // detail params (waviness, serrationFreq, petioleLength texture) still
   // flow via genome until Phase 5 visualProfile.
+  // Iter 36 v5 Phase E — leaf-engine 산출값 (serration/lobe)이 있으면 우선 사용.
   const shape: LeafShapeParams = {
-    serrationDepth: leafOrganState.morphology.serrationDepth,
+    serrationDepth: leafEngineSerrationDepth,
     serrationFreq: visualGenome.leafSerrationFreq,
-    lobeDepth: leafOrganState.morphology.lobeDepth,
+    lobeDepth: leafEngineLobeDepth,
     waviness: visualGenome.leafWaviness,
     petioleLength: visualGenome.leafPetioleLength,
   };
@@ -230,7 +247,8 @@ export function buildLeafMeshFromPhytomer(
   const chunk = buildLeafChunkSkin(
     {
       stageInfo,
-      leafletCount: leafOrganState.leafletCount,
+      // Iter 36 v5 Phase E — leaf-engine 통합 시 leaflet skeleton nodes 길이 사용 (4 types 합).
+      leafletCount: leafEngineLeafletCount,
       // sizeFactor — legacy fallback (canonical path는 leafAxisLengthScale + leafletBladeScale 사용)
       sizeFactor: legacySizeFactor,
       maturity: leafOrganState.expansionProgress,
