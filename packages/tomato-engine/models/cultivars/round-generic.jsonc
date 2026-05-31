@@ -117,7 +117,8 @@
     "firstTrussNodeIndex": 9,
     "trussIntervalNodes": 3,
     "baseStemRadiusMm": 8,
-    "sourceSinkSensitivity": 0.35
+    "sourceSinkSensitivity": 0.35,
+    "droopSensitivity": 1.0                  // round medium default
   },
 
   // Iter 29 Phase 5 — growthProfile provenance metadata (PROVENANCE-01).

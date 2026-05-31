@@ -780,12 +780,15 @@ function populateSideShootChain(
     const SIDE_GOLDEN_DEG = 137.508;
     const sideAzimuth = (k * SIDE_GOLDEN_DEG) % 360;
     const sideAgeFactor = Math.max(1.0, Math.min(1.5, 1 + sideAgeTT / 1000));
-    const sideGravityDroop = computeGravityDroopDeg({
+    const sideRawGravityDroop = computeGravityDroopDeg({
       currentAreaCm2: sideCurrentAreaCm2_linear,
       referenceAreaCm2: cultivar.growthProfile.maxLeafAreaCm2,
       ageFactor: sideAgeFactor,
-      droopSensitivity: 1.0,
+      // Iter 32 — cultivar droopSensitivity
+      droopSensitivity: cultivar.growthProfile.droopSensitivity ?? 1.0,
     });
+    // ★ Iter 32 (사용자 통찰) — petiole이 _이미 처진 만큼_ 차감 (main과 동일).
+    const sideGravityDroop = Math.max(0, sideRawGravityDroop - droopExtra);
     const sidePetioleBase = computePetioleBaseElevationDeg({
       expansionProgress: leafMaturity,
     });
@@ -1403,12 +1406,19 @@ export function computePlantState(
     const GOLDEN_ANGLE_DEG = 137.508;
     const azimuthDeg = (i * GOLDEN_ANGLE_DEG + genome.phyllotaxisJitter * i * 0.3) % 360;
     const ageFactor = Math.max(1.0, Math.min(1.5, 1 + ageTT / 1000));
-    const gravityDroop = computeGravityDroopDeg({
+    const rawGravityDroop = computeGravityDroopDeg({
       currentAreaCm2: currentAreaCm2_linear,
       referenceAreaCm2: cultivar.growthProfile.maxLeafAreaCm2,
       ageFactor,
-      droopSensitivity: 1.0,  // Phase 6 calibration pack에서 cultivar별 정밀화
+      // Iter 32 — cultivar droopSensitivity (cherry 0.7 / round 1.0 / beefsteak 1.4).
+      droopSensitivity: cultivar.growthProfile.droopSensitivity ?? 1.0,
     });
+    // ★ Iter 32 (사용자 통찰) — petiole이 _이미 처진 만큼_ 차감.
+    //   petioleCurve의 마지막 tangent가 지면 향하면 (droopExtra °) leaf 본체는
+    //   이미 그만큼 down. mesh additional droop은 _순_ 추가량만.
+    //   double droop 방지 — mature large leaf (petiole 30° + mesh 20°)가
+    //   _총 50° down_ 부자연 시각 방지.
+    const gravityDroop = Math.max(0, rawGravityDroop - droopExtra);
     const petioleBaseElevation = computePetioleBaseElevationDeg({
       expansionProgress: leafMaturity,
     });

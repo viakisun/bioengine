@@ -143,6 +143,20 @@ export interface CultivarGrowthProfile {
    * Default: leafExpansionDurationTT × 0.5. cultivar override 가능.
    */
   leafLengthExpansionDurationTT?: number;
+
+  /**
+   * Iter 32 — Leaf mesh gravity droop sensitivity multiplier.
+   *
+   * `computeGravityDroopDeg(LeafPostureModel)`의 sensitivity input. _mesh
+   * deformation 강도_만 영향 — anchor.rotation / petioleCurve 무변경.
+   *
+   * Cherry (rigid petiole): 0.7
+   * Round (default): 1.0
+   * Beefsteak (heavy blade): 1.4
+   *
+   * Default: 1.0 (backward compat).
+   */
+  droopSensitivity?: number;
 }
 
 /**
@@ -166,6 +180,7 @@ export const DEFAULT_CULTIVAR_GROWTH_PROFILE: CultivarGrowthProfile = {
   referenceRachisLengthM: 0.30,               // medium
   referencePetioleLengthM: 0.10,              // medium
   leafLengthExpansionDurationTT: 200,         // = areaDuration × 0.5
+  droopSensitivity: 1.0,                       // Iter 32 — medium default
   sideShootPotential: 0.4,         // Iter 30 Phase 4 — medium suppression
 };
 
@@ -222,6 +237,9 @@ export function resolveCultivarGrowthProfile(
     leafLengthExpansionDurationTT:
       p.leafLengthExpansionDurationTT
       ?? DEFAULT_CULTIVAR_GROWTH_PROFILE.leafLengthExpansionDurationTT,
+    // Iter 32 — mesh gravity droop sensitivity.
+    droopSensitivity:
+      p.droopSensitivity ?? DEFAULT_CULTIVAR_GROWTH_PROFILE.droopSensitivity,
   };
 }
 

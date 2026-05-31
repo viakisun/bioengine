@@ -221,6 +221,8 @@ export function createLeafBladeOnlyMesh(
       curl,
       ageFrac,
       shape,
+      // ★ Iter 32 — area-based gravity droop (mesh deformation only).
+      gravityDroopDeg: node.leaf?.posture?.gravityDroopDeg ?? 0,
     },
     rng,
   );
@@ -273,7 +275,7 @@ export function buildLeafMeshFromPhytomer(
     currentAreaCm2: number;
     targetAreaCm2: number;
     stage: string;
-    posture: { droopDeg: number; curl: number };
+    posture: { droopDeg: number; curl: number; gravityDroopDeg?: number };
     senescence: { progress: number; colorDullness: number; curl: number };
     morphology: { serrationDepth: number; lobeDepth: number; petioleLengthM: number };
     // Iter 31 Phase 2 (R5 fix) — optional canonical geometry projection.
@@ -345,6 +347,11 @@ export function buildLeafMeshFromPhytomer(
       leafletBladeScale: projection?.leafAxisLengthScale,
       referenceRachisLengthM: projection?.referenceRachisLengthM,
       referencePetioleLengthM: projection?.referencePetioleLengthM,
+      // ★ Iter 32 — area-based gravity droop (mesh deformation only).
+      //   PlantBase가 leaf.posture.gravityDroopDeg에 미리 저장 (G1 main+side
+      //   computeGravityDroopDeg 호출). Skin은 _읽고 그대로 전달_ — 산수 0.
+      //   leafChunk.ts의 longitudinalDroop 산식에 sin(deg) × size × t² 적용.
+      gravityDroopDeg: leafOrganState.posture.gravityDroopDeg ?? 0,
     },
     rng,
   );

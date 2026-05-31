@@ -76,6 +76,18 @@ export interface LeafBuildParams {
   referenceRachisLengthM?: number;
   /** Cultivar reference petiole length (m). Replaces visualGenome.leafPetioleLength fallback. */
   referencePetioleLengthM?: number;
+
+  // ─── Iter 32 — area-based gravity droop (mesh deformation only) ───
+
+  /**
+   * Leaf blade gravity droop (degrees, 0~45) — cantilever y변위.
+   * `computeGravityDroopDeg`(LeafPostureModel)의 출력 — area sqrt × rachisRatio
+   * × sensitivity × 20°, clamp [0, 45]. mesh vertex deformation _강도_에만 적용 —
+   * petioleCurve / anchor.rotation 무변경 (R26 contract 보존).
+   *
+   * Backward compat: optional, default 0 (이전 동작).
+   */
+  gravityDroopDeg?: number;
 }
 
 export function buildLeafChunk(paramsArg: LeafBuildParams, rng: SeededRandom): GeoChunk {
@@ -172,7 +184,7 @@ export function buildLeafChunk(paramsArg: LeafBuildParams, rng: SeededRandom): G
     const leafletTwistRange = 0.08 + af * 0.28;
 
     if (isTerminal) {
-      const leaflet = createOvateLeaflet(leafletSize, curl * rng.range(0.7, 1.3), af, rng, effShape, true);
+      const leaflet = createOvateLeaflet(leafletSize, curl * rng.range(0.7, 1.3), af, rng, effShape, true, paramsArg.gravityDroopDeg ?? 0);
       rotateChunkZ(leaflet, rng.range(-leafletDroopRange * 0.5, leafletDroopRange * 0.3));
       rotateChunkX(leaflet, rng.range(-leafletTwistRange, leafletTwistRange));
       translateChunk(leaflet, posAlongRachis, yOff, 0);
@@ -185,7 +197,8 @@ export function buildLeafChunk(paramsArg: LeafBuildParams, rng: SeededRandom): G
           af,
           rng,
           effShape,
-          false
+          false,
+          paramsArg.gravityDroopDeg ?? 0,  // Iter 32 mesh droop
         );
         // ±0.25 rad (≈14°) — between guideline's 8° and our previous 37°
         rotateChunkY(leaflet, side * rng.range(0.20, 0.30));
@@ -220,7 +233,7 @@ export function buildLeafChunk(paramsArg: LeafBuildParams, rng: SeededRandom): G
         const interSize = leafletSize * 0.35 * rng.range(0.7, 1.3);
         for (const side of [-1, 1]) {
           if (rng.next() > 0.4) {
-            const small = createOvateLeaflet(interSize, curl * rng.range(0.3, 1.0), af, rng, effShape, false);
+            const small = createOvateLeaflet(interSize, curl * rng.range(0.3, 1.0), af, rng, effShape, false, paramsArg.gravityDroopDeg ?? 0);
             rotateChunkY(small, side * rng.range(0.4, 0.8));
             rotateChunkZ(small, -Math.abs(rng.gaussian(0, leafletDroopRange * 0.7)));
             translateChunk(small, interPos, interYOff, side * interSize * 0.2);  // R23 fix: leafletSize 비례
@@ -377,7 +390,7 @@ export function buildLeafBladeOnly(paramsArg: LeafBuildParams, rng: SeededRandom
     const leafletTwistRange = 0.08 + af * 0.28;
 
     if (isTerminal) {
-      const leaflet = createOvateLeaflet(leafletSize, curl * rng.range(0.7, 1.3), af, rng, effShape, true);
+      const leaflet = createOvateLeaflet(leafletSize, curl * rng.range(0.7, 1.3), af, rng, effShape, true, paramsArg.gravityDroopDeg ?? 0);
       rotateChunkZ(leaflet, rng.range(-leafletDroopRange * 0.5, leafletDroopRange * 0.3));
       rotateChunkX(leaflet, rng.range(-leafletTwistRange, leafletTwistRange));
       translateChunk(leaflet, posAlongRachis, yOff, 0);
@@ -424,7 +437,7 @@ export function buildLeafBladeOnly(paramsArg: LeafBuildParams, rng: SeededRandom
         const interSize = leafletSize * 0.35 * rng.range(0.7, 1.3);
         for (const side of [-1, 1]) {
           if (rng.next() > 0.4) {
-            const small = createOvateLeaflet(interSize, curl * rng.range(0.3, 1.0), af, rng, effShape, false);
+            const small = createOvateLeaflet(interSize, curl * rng.range(0.3, 1.0), af, rng, effShape, false, paramsArg.gravityDroopDeg ?? 0);
             rotateChunkY(small, side * rng.range(0.4, 0.8));
             rotateChunkZ(small, -Math.abs(rng.gaussian(0, leafletDroopRange * 0.7)));
             translateChunk(small, interPos, interYOff, side * interSize * 0.2);  // R23 fix: leafletSize 비례
@@ -444,7 +457,9 @@ function createOvateLeaflet(
   ageFrac: number,
   rng: SeededRandom,
   params: LeafShapeParams,
-  isTerminal: boolean
+  isTerminal: boolean,
+  // Iter 32 — area-based gravity droop (mesh y변위, mesh deformation only).
+  gravityDroopDeg = 0,
 ): GeoChunk {
   const length = size;
   const maxWidth = size * 0.55;
@@ -505,13 +520,18 @@ function createOvateLeaflet(
         * Math.pow(absCol, 2)
         * Math.max(0, 1 - ageFrac * 0.5)   // cup flattens with senescence
         * size * 0.9;
-      // Iter 31 Phase 9.4 (R17 fix) — base droop 0.10 → 0.30.
-      // 사용자 결함: "중력이 전혀 고려가 안되어 있다, 메시가 빳빳하다".
-      // 0.10 base = 9mm tip droop for 9cm leaflet (10% — 시각상 안 보임).
-      // 0.30 base = 27% tip droop (정상 토마토 mature leaf cantilever 시각).
-      // ageFrac progression 0.30 → 0.40 (senescence drop intensifies).
-      const longitudinalDroop = (0.30 + ageFrac * 0.40)
-        * Math.pow(t, 2) * size;            // tip down; cantilever physics qL⁴/(EI)
+      // Iter 32 — area-based gravity droop (mesh deformation only).
+      //   기존 Iter 31 R17 fix (base 0.30 + ageFrac × 0.40)는 _area 무관_으로
+      //   small leaf도 mature와 동일 droop. Iter 32에선:
+      //     - ageFrac component _약화_ (0.10 + ageFrac × 0.30) — base droop 절반
+      //     - gravity component _추가_ — sin(gravityDroopDeg) × size × t²
+      //   `gravityDroopDeg` = computeGravityDroopDeg(currentAreaCm2, ...) 결과
+      //   (PlantBase가 계산, LeafGenerator가 전달). area↑ → droop deg↑ →
+      //   cantilever y변위↑. R26 contract 보존: petioleCurve / anchor.rotation 무변경.
+      const gravityRad = gravityDroopDeg * Math.PI / 180;
+      const gravityComponent = Math.sin(gravityRad) * size * Math.pow(t, 2);
+      const ageComponent = (0.10 + ageFrac * 0.30) * Math.pow(t, 2) * size;
+      const longitudinalDroop = ageComponent + gravityComponent;
       let y = transverseCup - longitudinalDroop;
 
       if (params.waviness > 0) {

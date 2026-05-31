@@ -118,6 +118,7 @@
     "firstTrussNodeIndex": 10,
     "trussIntervalNodes": 3,
     "baseStemRadiusMm": 10,
-    "sourceSinkSensitivity": 0.40          // larger fruit → higher sink draw
+    "sourceSinkSensitivity": 0.40,         // larger fruit → higher sink draw
+    "droopSensitivity": 1.4                // heavy blade, strong droop
   }
 }

@@ -129,6 +129,7 @@
     "firstTrussNodeIndex": 8,
     "trussIntervalNodes": 3,
     "baseStemRadiusMm": 6,
-    "sourceSinkSensitivity": 0.35
+    "sourceSinkSensitivity": 0.35,
+    "droopSensitivity": 0.7                  // cherry rigid petiole, mild droop
   }
 }
