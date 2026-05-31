@@ -14,9 +14,13 @@ import type { GrowthEngine, PlantPhysiologyState, PlantState } from '@farmsim/to
 import type { ShowcasePlantHandle } from '../../rendering/ShowcasePlant';
 import { SHOWCASE_SEED } from '../../rendering/SceneInfrastructure';
 
+// Iter 35 Phase F — Multi-plant 확장 API (배열).
+//   현재 length=1 (single-plant baseline). Iter 36에서 slider/loop로 1~N 확장.
+//   default index=0 → 기존 호출처 변경 없음.
+
 let engineRef: GrowthEngine | null = null;
-let showcaseRef: ShowcasePlantHandle | null = null;
-let skinMeshRef: ShowcasePlantHandle | null = null;
+let showcasePlants: ShowcasePlantHandle[] = [];
+let skinMeshPlants: ShowcasePlantHandle[] = [];
 const listeners = new Set<() => void>();
 
 export function setSinglePlantEngineRef(engine: GrowthEngine | null): void {
@@ -24,13 +28,38 @@ export function setSinglePlantEngineRef(engine: GrowthEngine | null): void {
   listeners.forEach((l) => l());
 }
 
-export function setSinglePlantShowcaseRef(showcase: ShowcasePlantHandle | null): void {
-  showcaseRef = showcase;
+/** Iter 35: index 기반 set. null 인자 (dispose) 시 해당 인덱스 비움.
+ *  default index=0 (single-plant). */
+export function setSinglePlantShowcaseRef(
+  showcase: ShowcasePlantHandle | null,
+  index: number = 0,
+): void {
+  if (showcase === null) {
+    if (index === 0 && showcasePlants.length <= 1) {
+      showcasePlants = [];
+    } else {
+      showcasePlants.splice(index, 1);
+    }
+  } else {
+    showcasePlants[index] = showcase;
+  }
 }
 
-/** SSOT Phase 4 — SkinMeshPlant sibling. Same ShowcasePlantHandle shape. */
-export function setSinglePlantSkinMeshRef(skin: ShowcasePlantHandle | null): void {
-  skinMeshRef = skin;
+/** SSOT Phase 4 — SkinMeshPlant sibling. Same ShowcasePlantHandle shape.
+ *  Iter 35: index 기반 (default 0). */
+export function setSinglePlantSkinMeshRef(
+  skin: ShowcasePlantHandle | null,
+  index: number = 0,
+): void {
+  if (skin === null) {
+    if (index === 0 && skinMeshPlants.length <= 1) {
+      skinMeshPlants = [];
+    } else {
+      skinMeshPlants.splice(index, 1);
+    }
+  } else {
+    skinMeshPlants[index] = skin;
+  }
 }
 
 /** Module-level access to the live GrowthEngine for non-React callers
@@ -39,12 +68,18 @@ export function getSinglePlantEngine(): GrowthEngine | null {
   return engineRef;
 }
 
-export function getSinglePlantShowcase(): ShowcasePlantHandle | null {
-  return showcaseRef;
+/** Iter 35: default index=0. Iter 36에서 caller가 명시적 index 전달. */
+export function getSinglePlantShowcase(index: number = 0): ShowcasePlantHandle | null {
+  return showcasePlants[index] ?? null;
 }
 
-export function getSinglePlantSkinMesh(): ShowcasePlantHandle | null {
-  return skinMeshRef;
+export function getSinglePlantSkinMesh(index: number = 0): ShowcasePlantHandle | null {
+  return skinMeshPlants[index] ?? null;
+}
+
+/** Iter 35 Phase F — 현재 등록된 plant 수. Iter 36 slider UI 용. */
+export function getSinglePlantCount(): number {
+  return showcasePlants.length;
 }
 
 const PLANT_SEED = SHOWCASE_SEED;
@@ -91,18 +126,18 @@ export function useSinglePlantState(): PlantPhysiologyState | null {
 export function useSinglePlantSkeleton(): PlantState | null {
   const minute = useTwinStore((s) => s.singlePlantMinute);
   const [snap, setSnap] = useState<PlantState | null>(
-    () => showcaseRef?.currentState() ?? null,
+    () => (showcasePlants[0]?.currentState() ?? null),
   );
 
   useEffect(() => {
     const raf = requestAnimationFrame(() => {
-      setSnap(showcaseRef?.currentState() ?? null);
+      setSnap((showcasePlants[0]?.currentState() ?? null));
     });
     return () => cancelAnimationFrame(raf);
   }, [minute]);
 
   useEffect(() => {
-    const cb = () => setSnap(showcaseRef?.currentState() ?? null);
+    const cb = () => setSnap((showcasePlants[0]?.currentState() ?? null));
     listeners.add(cb);
     cb();
     return () => { listeners.delete(cb); };

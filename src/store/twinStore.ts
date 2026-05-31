@@ -553,6 +553,12 @@ interface TwinState {
   /** 우측 드로어 — 'lighting' | 'inspector' | 'skeleton' | null. 동시 하나만. */
   openDrawer: DrawerKind | null;
   setOpenDrawer: (d: DrawerKind | null) => void;
+
+  /** Iter 35 Phase F — single-plant 인스턴스 수 (multi-plant 확장 준비).
+   *  현재 1 고정. Iter 36에서 slider UI (1~N) 추가 + SinglePlantApp 다중 mount. */
+  singlePlantCount: number;
+  setSinglePlantCount: (n: number) => void;
+
   setSinglePlantMinute: (m: number) => void;
   setSinglePlantPlaying: (p: boolean) => void;
   setSinglePlantSpeed: (s: 1 | 4 | 24) => void;
@@ -825,6 +831,12 @@ export const useTwinStore = create<TwinState>((set) => ({
 
   openDrawer: null,
   setOpenDrawer: (d) => set({ openDrawer: d }),
+
+  // Iter 35 Phase F — multi-plant 확장 API (현재 1, Iter 36 slider 1~N).
+  singlePlantCount: 1,
+  setSinglePlantCount: (n) =>
+    set({ singlePlantCount: Math.max(1, Math.min(64, Math.round(n))) }),
+
   setSinglePlantMinute: (m) =>
     set({ singlePlantMinute: Math.max(0, Math.min(120 * 24 * 60 - 1, Math.round(m))) }),
   setSinglePlantPlaying: (p) => set({ singlePlantPlaying: p }),
