@@ -470,7 +470,12 @@ function buildLeafBase(
   // (SkeletonOverlay:271): 0.12 × max(0.3, leafSizeFactor) — bare
   // leafSizeFactor, NOT effective (genome multiplier already implicit
   // in the engine-side leafSizeFactor).
-  const petioleLengthM = 0.12 * Math.max(0.3, node.leafSizeFactor);
+  //
+  // Iter 36 v5 Phase A — 사용자 botanical 6단계 model + linear gradient.
+  //   v1: clamp floor 0.3 → 상부 young petiole이 _고정 3.6cm_ floor에 갇힘 (단계 1-2 차이 손실)
+  //   v5: clamp floor 0.05 → young (sizeFactor ~0.1)이 0.6cm — apex 명확히 작음
+  //   효과: top → bottom linear gradient 자연 emerge (잎 ageTT 분포 따라).
+  const petioleLengthM = 0.12 * Math.max(0.05, node.leafSizeFactor);
 
   // Petiole 4-cp Catmull-Rom centerline. attach → arched tip with
   // weight-based cantilever sag. droopRad 가 노드 mass × 80 (+age/stress)

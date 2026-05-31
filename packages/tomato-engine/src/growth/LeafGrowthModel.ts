@@ -326,7 +326,11 @@ export interface LeafGeometryProjectionState {
   leafletBladeScale: number;
 }
 
-const YOUNG_LEAF_FULL_LENGTH_TT = 80;  // ~6 day @ ~13 GDD/day
+// Iter 36 v5 Phase A — 사용자 botanical 6단계 model + linear gradient.
+//   v1: 80 TT (~6 day) — apex leaf가 6일 만에 full scale (단계 1→5 jump, 너무 빠름)
+//   v5: 250 TT (~19 day) — apex 5 nodes (recent ~250 TT 누적) linear ramp 0.05→1.0
+//   효과: top young leaves가 _명확히_ 작음 (apicalYouthFactor linear distribution).
+const YOUNG_LEAF_FULL_LENGTH_TT = 250;
 
 /**
  * Iter 31 Phase 2.A — PlantBase canonical projection 산식.
