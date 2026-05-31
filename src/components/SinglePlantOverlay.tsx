@@ -25,7 +25,7 @@ import { MetricsTray } from '../ui/single-plant/MetricsTray';
 import { SelectedObjectLabel } from '../ui/single-plant/SelectedObjectLabel';
 import { DrawerStack } from './DrawerStack';
 import { C_FG } from '../ui/single-plant/styles';
-import { SHOWCASE_SEED } from '../twin/GreenhouseScene';
+import { SHOWCASE_SEED } from '../twin/SceneInfrastructure';
 import { getSinglePlantEngine, getSinglePlantShowcase, getSinglePlantSkinMesh } from '../ui/single-plant/useSinglePlantState';
 
 // Dev-only: expose store on window for headless capture inspection.

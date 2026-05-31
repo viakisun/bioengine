@@ -12,7 +12,7 @@ import { useEffect, useState } from 'react';
 import { useTwinStore } from '../../store/twinStore';
 import type { GrowthEngine, PlantPhysiologyState, PlantState } from '@farmsim/tomato-engine';
 import type { ShowcasePlantHandle } from '../../twin/ShowcasePlant';
-import { SHOWCASE_SEED } from '../../twin/GreenhouseScene';
+import { SHOWCASE_SEED } from '../../twin/SceneInfrastructure';
 
 let engineRef: GrowthEngine | null = null;
 let showcaseRef: ShowcasePlantHandle | null = null;

@@ -7,7 +7,7 @@ import type { Material } from '@babylonjs/core/Materials/material';
 import { setupScene, type SceneSetupHandle } from './SceneSetup';
 import { applyRenderQuality } from './RenderQuality';
 import { setupCamera, type CameraRig } from './CameraRig';
-import { buildGreenhouseScene, type GreenhouseSceneHandle } from './GreenhouseScene';
+import { buildSceneInfrastructure, type SceneInfrastructureHandle } from './SceneInfrastructure';
 // Iter 35: GreenhouseContent (zones/heatmap/robot/path/supporting) + ProgressiveLoad
 //   제거 — single-plant only (Phase B+C, 사용자 결정).
 import { createQualityProbe, type QualityProbeHandle } from './QualityProbe';
@@ -15,9 +15,8 @@ import { useTwinStore, type LightingState } from '../store/twinStore';
 import { SCENARIO } from '../data/mockScenario';
 import { getSunState } from '@farmsim/tomato-engine';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
-import { Matrix } from '@babylonjs/core/Maths/math.vector';
 import { setShaderWindEnabled, isShaderWindEnabled } from '../plant/LeafGenerator';
-import { getLabelOverlayHandle } from '../components/LabelOverlay';
+// Iter 35: LabelOverlay archived — single-plant only.
 // Iter 20 — hotkey for petiole-stem junction overlay ('d'/'D'/'ㅇ').
 import { installDockingOverlayHotkey } from './dockingOverlay/hotkeyToggle';
 import { setBootStage, logBoot, setEnvInfo, setEnvCounters, notify } from '../store/notify';
@@ -32,7 +31,7 @@ export interface BabylonEngineHandle {
   scene: Scene;
   engine: Engine | WebGPUEngine;
   cameraRig: CameraRig;
-  greenhouse: GreenhouseSceneHandle;
+  greenhouse: SceneInfrastructureHandle;
   backend: 'webgpu' | 'webgl2';
   dispose: () => void;
 }
@@ -253,15 +252,15 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
   }
 
   setBootStage('greenhouse', '온실 인프라 빌드 시작', 0);
-  let greenhouse: GreenhouseSceneHandle | null = null;
+  let greenhouse: SceneInfrastructureHandle | null = null;
   try {
-    greenhouse = await buildGreenhouseScene(scene);
+    greenhouse = await buildSceneInfrastructure(scene);
     setSinglePlantEngineRef(greenhouse.growthEngine);
     setSinglePlantShowcaseRef(greenhouse.showcasePlant);
     setSinglePlantSkinMeshRef(greenhouse.skinMeshPlant);
   } catch (err) {
-    log.error('buildGreenhouseScene failed:', err);
-    notify.error('온실 빌드 실패', err instanceof Error ? err : String(err));
+    log.error('buildSceneInfrastructure failed:', err);
+    notify.error('Scene 빌드 실패', err instanceof Error ? err : String(err));
   }
 
   // Iter 35: ProgressiveLoad + applyMode + greenhouseContent 제거 — single-plant only.
@@ -497,27 +496,7 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
       if (useTwinStore.getState().useImplicitMesh || dockingOn) {
         greenhouse.skinMeshPlant.update(state.currentDay);
       }
-      // Iter 35: greenhouseContent.update (heatmap/robot/pathTrail/supporting) 제거.
-
-      // Publish current label set (showcase plant + 선택적으로 robot)
-      const labelHandleSet = getLabelOverlayHandle();
-      if (labelHandleSet) {
-        const showcaseState = greenhouse.showcasePlant.currentState();
-        const showcasePos = greenhouse.showcasePlant.root.position;
-        const labels: Parameters<typeof labelHandleSet.setLabels>[0] = [];
-        if (showcaseState) {
-          labels.push({
-            id: 'showcase',
-            worldX: showcasePos.x,
-            worldY: showcaseState.heightCm / 100 + 0.25,
-            worldZ: showcasePos.z,
-            text: `식물 #${showcaseState.seed.toString().slice(-4)} · ${showcaseState.currentStage.name} · ${showcaseState.heightCm.toFixed(0)}cm`,
-            color: '#6ee7b7',
-          });
-        }
-        // Iter 35: robot label 제거 — single-plant only.
-        labelHandleSet.setLabels(labels);
-      }
+      // Iter 35: LabelOverlay + greenhouseContent.update 제거 — single-plant only.
 
       // Sun + ambient are driven by store.lighting (see applyLightingToScene
       // in the subscribe handler) — they no longer follow currentDay here.
@@ -538,28 +517,7 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
       lastFpsUpdate = now;
     }
 
-    // Project 3D label positions to 2D screen
-    const labelHandle = getLabelOverlayHandle();
-    if (labelHandle && greenhouse) {
-      const canvasW = engine!.getRenderWidth();
-      const canvasH = engine!.getRenderHeight();
-      const dpr = engine!.getHardwareScalingLevel();
-      const cssW = canvasW * dpr;
-      const cssH = canvasH * dpr;
-      const transform = scene.getTransformMatrix();
-      const viewport = cameraRig.camera.viewport.toGlobal(canvasW, canvasH);
-      labelHandle.project((x, y, z) => {
-        const projected = Vector3.Project(
-          new Vector3(x, y, z),
-          Matrix.Identity(),
-          transform,
-          viewport
-        );
-        // projected.x/y are in render-target pixels; convert to CSS pixels
-        return { x: projected.x / dpr, y: projected.y / dpr, depth: projected.z };
-      });
-      void cssW; void cssH;
-    }
+    // Iter 35: LabelOverlay project 3D→2D 제거 — single-plant only.
   });
 
   const onResize = () => engine!.resize();
