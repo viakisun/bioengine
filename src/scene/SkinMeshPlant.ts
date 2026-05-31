@@ -318,6 +318,44 @@ export function createSkinMeshPlant(
       genome: skeletonGenome,
     });
     lastGraph = graph;
+
+    // 적엽 (defoliation) — petiole edges 제거 (SkinSDF가 petiole tube 안 그림).
+    //   사용자 요청: "잎줄기까지 잘라줘. main stem 자르지 말고"
+    //   relative threshold: minLeafY + defolHeightCm 이하의 petiole edges _delete_.
+    //   leaf mesh hide는 build loop 후 별도 적용 (이중 보장).
+    const defolHeightCm = useTwinStore.getState().defoliationHeightCm;
+    let defolThresholdY = -Infinity;
+    if (defolHeightCm > 0) {
+      // 1) 살아있는 petiole tips의 minY 계산
+      let minTipY = Number.POSITIVE_INFINITY;
+      for (const [eid, e] of graph.edges) {
+        if (e.type !== 'petiole') continue;
+        const tipNode = graph.nodes.get(e.endNodeId);
+        if (!tipNode) continue;
+        if (tipNode.pos.y < minTipY) minTipY = tipNode.pos.y;
+        void eid;
+      }
+      if (minTipY < Number.POSITIVE_INFINITY) {
+        defolThresholdY = minTipY + defolHeightCm / 100;
+        // 2) 하부 petiole edges 제거 (tip node도 함께)
+        const toDelete: string[] = [];
+        for (const [eid, e] of graph.edges) {
+          if (e.type !== 'petiole') continue;
+          const tipNode = graph.nodes.get(e.endNodeId);
+          if (tipNode && tipNode.pos.y < defolThresholdY) {
+            toDelete.push(eid);
+          }
+        }
+        for (const eid of toDelete) {
+          const e = graph.edges.get(eid);
+          if (e) {
+            graph.nodes.delete(e.endNodeId);  // petiole tip node 삭제
+            graph.edges.delete(eid);
+          }
+        }
+        log.debug(`[defol] petiole edges removed=${toDelete.length} minTipY=${(minTipY * 100).toFixed(1)}cm threshold=${(defolThresholdY * 100).toFixed(1)}cm`);
+      }
+    }
     // Iter 18B PR 13 — stem family mesh via SkinEngine façade.
     // Iter 26 PR 5-1 (SSOT #187 원칙 4) — SkinEngine은 graph + scene + parent만
     // 받음. PlantBase/PlantState/cultivar는 모두 populator에서만 사용되어
@@ -737,25 +775,18 @@ export function createSkinMeshPlant(
     log.debug(`per-leaf meshes=${leafMeshCount} (PR 3-1 graph-anchor entry)`);
     void cultivarKey;
 
-    // 적엽 (defoliation) — 사용자 결정 store 값 (cm).
-    //   D=100 plant은 자연 abscission으로 _가장 낮은 살아있는 잎_이 root 위 ~37cm.
-    //   → relative 적엽: minLeafY ≤ Y < minLeafY + defolHeightCm 인 leaves hide.
-    //   결과: 살아있는 잎의 _하부 30cm_가 사라짐 (농가 작업 결과와 일치).
-    const defolHeightCm = useTwinStore.getState().defoliationHeightCm;
-    if (defolHeightCm > 0 && currentParts.leaves.length > 0) {
-      let minY = Number.POSITIVE_INFINITY;
-      for (const m of currentParts.leaves) {
-        if (m.position.y < minY) minY = m.position.y;
-      }
-      const thresholdY = minY + defolHeightCm / 100;
+    // 적엽 (defoliation) — leaf blade mesh hide (graph petiole edges는 위에서 이미 제거).
+    //   threshold는 graph build 시점에 이미 계산됨 (defolThresholdY).
+    //   → leaf mesh.position.y < threshold 인 leaves _hide_ (이중 보장).
+    if (defolThresholdY > -Infinity && currentParts.leaves.length > 0) {
       let hiddenCount = 0;
       for (const m of currentParts.leaves) {
-        if (m.position.y < thresholdY) {
+        if (m.position.y < defolThresholdY) {
           m.setEnabled(false);
           hiddenCount++;
         }
       }
-      log.debug(`[defol] hidden=${hiddenCount}/${currentParts.leaves.length} minY=${(minY * 100).toFixed(1)}cm threshold=${(thresholdY * 100).toFixed(1)}cm`);
+      log.debug(`[defol] leaves hidden=${hiddenCount}/${currentParts.leaves.length} threshold=${(defolThresholdY * 100).toFixed(1)}cm`);
     }
 
     // === Truss organs — Iter 26 PR 3-2 (SSOT #187 원칙 4 partial) ===
