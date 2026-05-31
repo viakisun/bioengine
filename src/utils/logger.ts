@@ -1,7 +1,7 @@
 // Namespace logger — _기본 silent_ + opt-in (URL/localStorage).
 //
 // Plan SSOT: `.claude/plans/sleepy-growing-pretzel.md` §1
-// Docs:      `docs/architecture/LOGGING.md` (Phase L5)
+// Docs:      `docs/architecture/LOGGING.md`
 //
 // API:
 //   const log = createLogger('engine');
@@ -15,6 +15,13 @@
 //   URL `?silence=growth`        (warn mute, error는 출력)
 //   localStorage `debug`         (URL 미설정 시 fallback)
 //   localStorage `silence`       (동일)
+//
+// DevTools helper (DEV only):
+//   __farmsim.debug.enable('engine,growth')   — set localStorage + reload
+//   __farmsim.debug.enableAll()                — = enable('*')
+//   __farmsim.debug.disable()                  — clear + reload
+//   __farmsim.debug.silence('growth')          — set silence + reload
+//   __farmsim.debug.current()                  — print current state
 //
 // 모듈 로드 시점 1회 평가 — 이후 immutable. 변경하려면 location.reload().
 //
@@ -33,11 +40,11 @@ export type LogNamespace =
   | 'growth'        // tomato-engine/growth/* (host 측 alias)
   | 'leaf'          // LeafShapeSchema, widthProfile (식물 mesh 검증)
   | 'plant'         // 기타 plant
-  | 'app';          // main.tsx, ErrorBoundary, legacy log.* wrapper
+  | 'ui';           // main.tsx global handler, ErrorBoundary
 
 export const ALL_NAMESPACES: readonly LogNamespace[] = [
   'engine', 'scene', 'quality', 'progressive', 'skinplant',
-  'overlay', 'growth', 'leaf', 'plant', 'app',
+  'overlay', 'growth', 'leaf', 'plant', 'ui',
 ] as const;
 
 const NS_DEFAULTS: Record<LogNamespace, Level> = {
@@ -50,7 +57,7 @@ const NS_DEFAULTS: Record<LogNamespace, Level> = {
   growth:      'warn',   // validation warn 보존
   leaf:        'warn',
   plant:       'warn',
-  app:         'error',  // legacy log.* wrapper → silent
+  ui:          'error',  // global error handler만 출력 (warn/info silent)
 };
 
 const RANK: Record<Level, number> = { debug: 0, info: 1, warn: 2, error: 3 };
@@ -148,29 +155,87 @@ export function createLogger(ns: LogNamespace): NamespaceLogger {
   return logger;
 }
 
-// ── Phase H 호환 wrapper — _legacy_, 점진 migrate (Iter 32 후보) ──
-//
-// Phase H에서 만든 log.dev/info/warn/error 그대로 호환.
-// `log.dev` = `log.debug` alias. backing namespace = 'app' (default error)
-// → log.dev/info 모두 silent (자동). warn/error는 출력.
-// 빠르게 namespace logger로 migrate 권장 — 마이그레이션 후 wrapper Iter 32 제거.
-interface LegacyLogger extends NamespaceLogger {
-  /** @deprecated Phase L1+ — use createLogger(ns).debug instead. */
-  readonly dev: LogFn;
+// ── DevTools helper — DEV-only, manual install via installDebugHelper() ──
+
+export interface DebugHelper {
+  enable(csv: string): void;
+  enableAll(): void;
+  disable(): void;
+  silence(csv: string): void;
+  current(): void;
 }
 
-function makeLegacyLog(): LegacyLogger {
-  const nsLogger = createLogger('app');
-  return {
-    debug: nsLogger.debug,
-    info:  nsLogger.info,
-    warn:  nsLogger.warn,
-    error: nsLogger.error,
-    dev:   nsLogger.debug,  // legacy alias
+/**
+ * Attach `window.__farmsim.debug` helper. Call from DEV entry point only
+ * (`if (import.meta.env.DEV) installDebugHelper()`). Production no-op.
+ */
+export function installDebugHelper(): void {
+  if (typeof window === 'undefined') return;
+  const w = window as unknown as { __farmsim?: { debug?: DebugHelper } };
+  w.__farmsim = w.__farmsim ?? {};
+  const sink = console.log.bind(console);
+  w.__farmsim.debug = {
+    enable(csv: string): void {
+      try {
+        localStorage.setItem('debug', csv);
+        sink(`[debug] enabled: ${csv} (reloading...)`);
+        location.reload();
+      } catch (err) {
+        sink(`[debug] enable failed: ${String(err)}`);
+      }
+    },
+    enableAll(): void {
+      this.enable('*');
+    },
+    disable(): void {
+      try {
+        localStorage.removeItem('debug');
+        localStorage.removeItem('silence');
+        sink('[debug] disabled (reloading...)');
+        location.reload();
+      } catch (err) {
+        sink(`[debug] disable failed: ${String(err)}`);
+      }
+    },
+    silence(csv: string): void {
+      try {
+        localStorage.setItem('silence', csv);
+        sink(`[debug] silenced: ${csv} (reloading...)`);
+        location.reload();
+      } catch (err) {
+        sink(`[debug] silence failed: ${String(err)}`);
+      }
+    },
+    current(): void {
+      let urlDebug: string | null = null;
+      let urlSilence: string | null = null;
+      let lsDebug: string | null = null;
+      let lsSilence: string | null = null;
+      try {
+        const params = new URLSearchParams(location.search);
+        urlDebug = params.get('debug');
+        urlSilence = params.get('silence');
+      } catch {
+        // ignore
+      }
+      try {
+        lsDebug = localStorage.getItem('debug');
+        lsSilence = localStorage.getItem('silence');
+      } catch {
+        // ignore
+      }
+      sink(`[debug] URL ?debug    = ${urlDebug ?? '(none)'}`);
+      sink(`[debug] URL ?silence  = ${urlSilence ?? '(none)'}`);
+      sink(`[debug] localStorage.debug    = ${lsDebug ?? '(none)'}`);
+      sink(`[debug] localStorage.silence  = ${lsSilence ?? '(none)'}`);
+      sink('[debug] NS_DEFAULTS  =', NS_DEFAULTS);
+      sink('[debug] effective per namespace:');
+      for (const ns of ALL_NAMESPACES) {
+        sink(`  [${ns.padEnd(11)}] ${effective(ns)}`);
+      }
+    },
   };
 }
-
-export const log: LegacyLogger = makeLegacyLog();
 
 // ── Test-only helper (spec에서 effective() 검증용) ──
 // @internal — production에서 호출 금지.

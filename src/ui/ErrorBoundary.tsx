@@ -9,7 +9,7 @@ import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { notify } from '../store/notify';
 import { createLogger } from '../utils/logger';
 
-const log = createLogger('app');
+const log = createLogger('ui');
 
 interface Props {
   children: ReactNode;

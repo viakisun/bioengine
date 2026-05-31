@@ -2,10 +2,15 @@ import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { useTwinStore } from './store/twinStore';
 import { notify } from './store/notify';
-import { createLogger } from './utils/logger';
+import { createLogger, installDebugHelper } from './utils/logger';
 import './ui/ui-kit.css';
 
-const log = createLogger('app');
+const log = createLogger('ui');
+
+// DevTools helper — DEV-only (window.__farmsim.debug)
+if (import.meta.env.DEV) {
+  installDebugHelper();
+}
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/consistent-type-definitions

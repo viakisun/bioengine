@@ -105,7 +105,7 @@ test.describe('Phase L6 — Logger enforcement', () => {
     // createLogger('X') 호출의 X가 다음 union member인지 검증
     const HOST_NS = new Set([
       'engine', 'scene', 'quality', 'progressive', 'skinplant',
-      'overlay', 'growth', 'leaf', 'plant', 'app',
+      'overlay', 'growth', 'leaf', 'plant', 'ui',
     ]);
     const ENGINE_NS = new Set(['growth']);  // tomato-engine subset
 

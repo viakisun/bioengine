@@ -5,7 +5,7 @@
 import { test, expect } from '@playwright/test';
 import {
   createLogger,
-  log,
+  installDebugHelper,
   ALL_NAMESPACES,
   _getEffectiveLevelForTest,
   _getNsDefaultsForTest,
@@ -37,7 +37,7 @@ test.describe('Phase L0 — Logger system', () => {
     expect(defaults.engine).toBe('warn');
     expect(defaults.progressive).toBe('info');
     expect(defaults.overlay).toBe('info');
-    expect(defaults.app).toBe('error');
+    expect(defaults.ui).toBe('error');
   });
 
   test('LOGGER-EFFECTIVE-LEVEL-01: NS_DEFAULTS 적용 (opt-in 없는 환경)', () => {
@@ -45,22 +45,17 @@ test.describe('Phase L0 — Logger system', () => {
     // effective은 NS_DEFAULTS 그대로
     expect(_getEffectiveLevelForTest('engine')).toBe('warn');
     expect(_getEffectiveLevelForTest('progressive')).toBe('info');
-    expect(_getEffectiveLevelForTest('app')).toBe('error');
+    expect(_getEffectiveLevelForTest('ui')).toBe('error');
   });
 
-  test('LOGGER-ALL-NAMESPACES-01: ALL_NAMESPACES가 10개 멤버 모두 포함', () => {
+  test('LOGGER-ALL-NAMESPACES-01: ALL_NAMESPACES가 10개 멤버 모두 포함 (ui 포함)', () => {
     expect(ALL_NAMESPACES.length).toBe(10);
     const set = new Set(ALL_NAMESPACES);
     expect(set.has('engine')).toBe(true);
     expect(set.has('progressive')).toBe(true);
-    expect(set.has('app')).toBe(true);
-  });
-
-  test('LOGGER-LEGACY-WRAPPER-01: log = createLogger("app") alias + log.dev = log.debug', () => {
-    // log는 LegacyLogger (NamespaceLogger + .dev alias)
-    expect(typeof log.dev).toBe('function');
-    expect(typeof log.debug).toBe('function');
-    expect(log.dev).toBe(log.debug);  // 동일 함수 reference
+    expect(set.has('ui')).toBe(true);
+    // legacy 'app' 제거됨 (M1 commit)
+    expect(set.has('app' as LogNamespace)).toBe(false);
   });
 
   test('LOGGER-AUTO-PREFIX-01: warn 호출 시 [ns] prefix 자동 부착 (간접 검증)', () => {
@@ -89,17 +84,25 @@ test.describe('Phase L0 — Logger system', () => {
     expect(_getEffectiveLevelForTest('overlay')).toBe('info');
   });
 
-  test('LOGGER-APP-ERROR-DEFAULT-01: app (legacy) namespace는 error default (silent dev/info)', () => {
-    expect(_getEffectiveLevelForTest('app')).toBe('error');
+  test('LOGGER-UI-ERROR-DEFAULT-01: ui namespace는 error default (warn/info silent)', () => {
+    // ui namespace는 main.tsx global handler + ErrorBoundary 전용.
+    // log.error만 출력, log.warn/info/debug silent.
+    expect(_getEffectiveLevelForTest('ui')).toBe('error');
   });
 
   test('LOGGER-NAMESPACE-WHITELIST-01: createLogger 인자는 LogNamespace literal만 (TS type 검증)', () => {
     // TypeScript compile에서 강제 — runtime 검증은 namespace 멤버 확인
     const validNs: LogNamespace[] = ['engine', 'scene', 'quality', 'progressive',
-      'skinplant', 'overlay', 'growth', 'leaf', 'plant', 'app'];
+      'skinplant', 'overlay', 'growth', 'leaf', 'plant', 'ui'];
     for (const ns of validNs) {
       const l: NamespaceLogger = createLogger(ns);
       expect(l).toBeTruthy();
     }
+  });
+
+  test('LOGGER-DEBUG-HELPER-API-01: installDebugHelper export + DebugHelper interface', () => {
+    expect(typeof installDebugHelper).toBe('function');
+    // 실제 window.__farmsim.debug install은 browser-only — main.tsx에서만 호출.
+    // 본 spec은 _export 존재_만 검증. 실제 동작은 manual smoke (Phase L7).
   });
 });
