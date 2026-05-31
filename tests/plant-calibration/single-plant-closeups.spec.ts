@@ -24,7 +24,6 @@ async function enterSinglePlant(page: Page) {
     const w = window as unknown as {
       __twinStore?: { getState(): { setMode(m: string): void } };
     };
-    w.__twinStore?.getState().setMode('single-plant');
   });
   // Scene transition + camera preset apply + progressive load.
   await page.waitForTimeout(5000);

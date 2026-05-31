@@ -14,7 +14,6 @@ async function enterSkinSinglePlant(page: Page) {
         setUseImplicitMesh(v: boolean): void;
       } };
     };
-    w.__twinStore?.getState().setMode('single-plant');
   });
   await page.waitForTimeout(5000);
   await page.evaluate((d) => {

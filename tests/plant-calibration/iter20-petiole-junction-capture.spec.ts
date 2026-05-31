@@ -25,7 +25,6 @@ async function enterScene(page: Page) {
         setMode(m: string): void; setUseImplicitMesh(v: boolean): void;
       } };
     };
-    w.__twinStore?.getState().setMode('single-plant');
   });
   await page.waitForTimeout(1000);
   // Bring Skin once so all data publishes, then we'll toggle per-shot.

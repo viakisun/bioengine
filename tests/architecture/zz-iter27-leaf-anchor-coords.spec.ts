@@ -10,7 +10,6 @@ async function enter(page: Page, day: number) {
   await page.waitForTimeout(8000);
   await page.evaluate(() => {
     const w = window as unknown as { __twinStore?: { getState(): { setMode(m: string): void; setUseImplicitMesh(v: boolean): void } } };
-    w.__twinStore?.getState().setMode('single-plant');
   });
   await page.waitForTimeout(1000);
   await page.evaluate(() => {

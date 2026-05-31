@@ -29,7 +29,6 @@ async function enterSinglePlant(page: Page) {
         setUseImplicitMesh(v: boolean): void;
       } };
     };
-    w.__twinStore?.getState().setMode('single-plant');
     // Iter 17: enable SkinMeshPlant (skin mode) since user's complaint is
     // specifically about the skin renderer, not the default ShowcasePlant.
   });
