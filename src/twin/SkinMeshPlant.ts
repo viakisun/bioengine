@@ -327,7 +327,7 @@ export function createSkinMeshPlant(
     };
 
     log.debug(
-      `[skinplant] graph: nodes=${graph.nodes.size} edges=${graph.edges.size} | ` +
+      `graph: nodes=${graph.nodes.size} edges=${graph.edges.size} | ` +
       `tube: edges=${skin.stats.edgeCount} branches=${skin.stats.branchCount} ` +
       `verts=${skin.stats.vertexCount} tris=${skin.stats.triangleCount} ` +
       `buildMs=${skin.stats.buildMs.toFixed(1)}`,
@@ -626,7 +626,7 @@ export function createSkinMeshPlant(
           (d.tipDelta_mm ?? 0) > 1 ? C_WARN : C_YELLOW);
         // Console label
         log.debug(
-          `[dock ${d.edgeId.replace('e:petiole:', '')}] `
+          ``
           + `pb→gr=${d.plantBaseGraphDelta_mm.toFixed(2)}mm  `
           + `gr→rd=${(d.graphRenderedDelta_mm ?? -1).toFixed(2)}mm  `
           + `tip→leaf=${(d.tipDelta_mm ?? -1).toFixed(2)}mm  `
@@ -635,7 +635,7 @@ export function createSkinMeshPlant(
         );
       }
       log.debug(
-        `[skinplant.petioleDock] ON — ${subset.length}/${diag.length} petioles. `
+        `ON — ${subset.length}/${diag.length} petioles. `
         + `worstPB→GR=${summary.worstPlantBaseGraphDelta_mm.toFixed(2)}mm  `
         + `worstGR→RD=${summary.worstGraphRenderedDelta_mm.toFixed(2)}mm  `
         + `worstTip→Leaf=${summary.worstTipDelta_mm.toFixed(2)}mm  `
@@ -831,7 +831,7 @@ export function createSkinMeshPlant(
     update(day, physiology) {
       if (diag()) {
         log.debug(
-          `[diag:1] skinplant.update(day=${day.toFixed(2)}, physiology=${physiology ? 'yes' : 'no'})`,
+          `skinplant.update(day=${day.toFixed(2)}, physiology=${physiology ? 'yes' : 'no'})`,
         );
       }
       if (!physiology && Math.abs(day - lastBuildDay) < REBUILD_THRESHOLD_DAYS) return;

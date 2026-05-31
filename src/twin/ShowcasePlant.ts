@@ -165,7 +165,7 @@ export function createShowcasePlant(
     }
     if (n === 0) { log.debug(`${label}: 0 meshes`); return; }
     log.debug(
-      `[diag:4]   ${label}: n=${n} world-bbox min=(${minX.toFixed(3)}, ${minY.toFixed(3)}, ${minZ.toFixed(3)}) ` +
+      `${label}: n=${n} world-bbox min=(${minX.toFixed(3)}, ${minY.toFixed(3)}, ${minZ.toFixed(3)}) ` +
       `max=(${maxX.toFixed(3)}, ${maxY.toFixed(3)}, ${maxZ.toFixed(3)})`,
     );
   }

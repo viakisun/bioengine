@@ -127,7 +127,7 @@ export function createQualityProbe(deps: {
     }
 
     log.debug(
-      `[QualityProbe] start (q7 baseline, stepMs=${stepMs}, restoreQuality=${restoreQuality})`,
+      `start (q7 baseline, stepMs=${stepMs}, restoreQuality=${restoreQuality})`,
     );
     const startedAt = performance.now();
 
@@ -177,11 +177,11 @@ export function createQualityProbe(deps: {
       .map((d) => `${d.key}:-${d.dfps.toFixed(1)}`)
       .join('  ');
     log.debug(
-      `[QualityProbe] complete  total=${total}ms  restoredQuality=${restoreQuality}`,
+      `complete  total=${total}ms  restoredQuality=${restoreQuality}`,
     );
     log.debug(`ranking: ${rankStr}`);
     log.debug(
-      `[QualityProbe] q8 sanity: fps=${r5.fps.toFixed(1)} (single-toggle sum ≈ ${deltas
+      `q8 sanity: fps=${r5.fps.toFixed(1)} (single-toggle sum ≈ ${deltas
         .reduce((s, d) => s + d.dfps, 0)
         .toFixed(1)} fps drop)`,
     );

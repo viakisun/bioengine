@@ -62,7 +62,7 @@ export function createProgressiveLoad(deps: {
     const t = Math.round(performance.now() - startedAt);
     const padded = stageLabel.padEnd(14, ' ');
     log.debug(
-      `[ProgressiveLoad] ${padded}  fps=${fps}  mem=${heapMB}MB  meshes=${meshes}  materials=${materials}  t=${t}ms`,
+      `${padded}  fps=${fps}  mem=${heapMB}MB  meshes=${meshes}  materials=${materials}  t=${t}ms`,
     );
   }
 
@@ -129,7 +129,7 @@ export function createProgressiveLoad(deps: {
                 (performance as unknown as MemoryWindow).memory;
     const heapMB = mem ? Math.round(mem.usedJSHeapSize / 1048576) : -1;
     log.info(
-      `[ProgressiveLoad] complete  total=${total}ms  finalFps=${fps}  finalMem=${heapMB}MB`,
+      `complete  total=${total}ms  finalFps=${fps}  finalMem=${heapMB}MB`,
     );
     running = false;
   }

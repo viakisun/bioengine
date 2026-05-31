@@ -291,7 +291,7 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
     const d = diff(before);
     const sign = signed === 'before-build' ? '+' : '';
     log.debug(
-      `[Mode] ${label}  meshes ${sign}${d.meshes}  materials ${sign}${d.materials}  textures ${sign}${d.textures}  engineEntries ${sign}${d.engineEntries}`
+      `${label}  meshes ${sign}${d.meshes}  materials ${sign}${d.materials}  textures ${sign}${d.textures}  engineEntries ${sign}${d.engineEntries}`
     );
   }
 
