@@ -64,9 +64,9 @@ const KNOWN_C_VIOLATORS = new Set([
   'src/plant/anchors/leafAnchor.ts',
   'src/plant/coordinates/transforms.ts',
   'src/plant/coordinates/types.ts',
-  'src/plant/leaf/buildLeafBladeMesh.ts',
-  'src/plant/leaf/devHook.ts',
-  'src/plant/leaf/material/getLeafBladeMaterial.ts',
+  // Iter 36 v5 Phase C — src/plant/leaf/ 전체 archive (외부 호출처 0 audit 후).
+  //   SkinMesh path는 LeafGenerator + buildLeafChunkSkin (@farmsim/tomato-geometry)으로 단일화.
+  //   기존 violators (buildLeafBladeMesh, devHook, material/) → src/_archive/plant/leaf/
   'src/plant/skeleton/buildTomatoSkeletonGraph.ts',
   'src/plant/skin/SkinEngine.ts',
   'src/plant/skin/StemFamilyTubeNetworkBuilder.ts',

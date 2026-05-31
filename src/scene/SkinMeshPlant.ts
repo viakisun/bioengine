@@ -83,6 +83,8 @@ import { defaultSkinEngine } from '../plant/skin/defaultSkinEngine';
 // skeleton mesh가 petiole tube를 그리므로 leaf mesh 안의 중복 petiole
 // cylinder는 불필요.
 import { buildLeafMeshFromPhytomer, getLeafMaterial, getYellowLeafMaterial } from '../plant/LeafGenerator';
+// Iter 36 v5 Phase C — skeleton 3-tier: get leaflet nodes for compound leaf rendering.
+import { getLeafletNodesByParentLeaf } from '../plant/skeleton/PlantSkeletonGraph';
 
 // Iter 35 PR 2 Phase I — ShowcasePlant archived. SkinMeshPlantHandle interface는
 //   원래 ShowcasePlant에서 import하던 type을 _자체 정의_로 inline (1:1 동일).
@@ -757,9 +759,13 @@ export function createSkinMeshPlant(
         //     leafOrganState 부재 시 safe skip (populator 위반 catch).
         const leafOrganState = meshAnchorNode.phytomer?.leaf;
         if (!leafOrganState) continue;
+        // Iter 36 v5 Phase C — skeleton 3-tier: bladeRef + leafletNodes read.
+        const bladeRef = meshAnchorNode.leafBladeRef;
+        const leafletNodes = getLeafletNodesByParentLeaf(graph, meshAnchorNode.id);
         const leafMesh = buildLeafMeshFromPhytomer(
           `skinplant_leaf_${seed}_a${axisIdx}_n${nodeIdx}`,
           scene, leafOrganState, genome, leafRng,
+          bladeRef, leafletNodes,
         );
         leafMesh.parent = lushGroup;
         leafMesh.position = new Vector3(tipPlantPos.x, tipPlantPos.y, tipPlantPos.z);

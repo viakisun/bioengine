@@ -167,7 +167,28 @@ export function buildLeafMeshFromPhytomer(
   },
   visualGenome: PlantGenome,
   rng: SeededRandom,
+  // Iter 36 v5 Phase C — skeleton 3-tier separation.
+  //   Skeleton (LeafBladeRef + LeafletNodeRef[]) → Rendering engine read.
+  //   Phase C 시점: optional, fallback은 _기존 leafOrganState_ 사용 (back-compat).
+  //   Phase D-E에서 leaf-engine 모듈이 이 데이터를 procedural variation에 사용.
+  bladeRef?: {
+    leafLengthM: number;
+    primaryPairs: number;
+    intercalaryCount: number;
+    secondaryCount: number;
+    agePreset: 'young' | 'mature' | 'old' | 'complex' | 'potato-leaf';
+    complexity: number;
+  },
+  leafletNodes?: ReadonlyArray<{
+    position: 'terminal' | 'primary' | 'secondary' | 'intercalary';
+    rachisU: number;
+    sizeFactor: number;
+  }>,
 ): Mesh {
+  // Iter 36 v5 Phase C — bladeRef/leafletNodes 사용은 Phase D-E에서 본격화.
+  //   현재는 _데이터 흐름_만 연결 (back-compat — legacy leafletCount path).
+  void bladeRef;
+  void leafletNodes;
   if (leafOrganState.expansionProgress < 0.01 && leafOrganState.currentAreaCm2 < 0.5) {
     return new Mesh(name, scene);
   }

@@ -212,11 +212,9 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
   if (import.meta.env?.DEV) {
     (globalThis as { __scene?: unknown }).__scene = scene;
     (globalThis as { __camera?: unknown }).__camera = cameraRig.camera;
-    // Plant Morphology Engine — Leaf Module v0.1 dev hook.
-    // Playwright + DevTools entry point for V9-V12 verification.
-    void import('../plant/leaf/devHook').then((m) => {
-      (globalThis as { __leafModule?: unknown }).__leafModule = m.makeLeafModuleDevHook(scene);
-    });
+    // Iter 36 v5 Phase C — Plant Morphology Engine Leaf Module v0.1 dev hook
+    // (src/plant/leaf/devHook) archived. Skin path는 LeafGenerator + skeleton
+    // 3-tier로 단일화 — 외부 dev hook 부재.
   }
   log.debug('camera ready');
   logBoot('log', 'engine: 카메라 준비 완료');
