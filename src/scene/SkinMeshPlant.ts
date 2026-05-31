@@ -759,13 +759,29 @@ export function createSkinMeshPlant(
         //     leafOrganState 부재 시 safe skip (populator 위반 catch).
         const leafOrganState = meshAnchorNode.phytomer?.leaf;
         if (!leafOrganState) continue;
-        // Iter 36 v5 Phase C — skeleton 3-tier: bladeRef + leafletNodes read.
+        // Iter 36 v5 Phase C+K — skeleton 3-tier: bladeRef + leafletNodes + positions.
+        //   leafletNodes (refs) + leafletPositions (배열 동순서) — buildCompoundLeafMesh가
+        //   descriptor.leaflets[i] ↔ positions[i] index 매칭.
         const bladeRef = meshAnchorNode.leafBladeRef;
-        const leafletNodes = getLeafletNodesByParentLeaf(graph, meshAnchorNode.id);
+        const leafletRefs: typeof meshAnchorNode.leafletRef[] = [];
+        const leafletPositionList: { x: number; y: number; z: number }[] = [];
+        for (const node of graph.nodes.values()) {
+          if (node.type !== 'leaflet-node') continue;
+          if (node.leafletRef?.parentLeafNodeId !== meshAnchorNode.id) continue;
+          leafletRefs.push(node.leafletRef);
+          leafletPositionList.push(node.pos);
+        }
+        const leafletNodes = leafletRefs.filter((r): r is NonNullable<typeof r> => r != null);
+        // Phase K — index-based position Map (key = `${i}` array index).
+        const leafletPositions = new Map<string, { x: number; y: number; z: number }>();
+        for (let i = 0; i < leafletPositionList.length; i++) {
+          leafletPositions.set(`${i}`, leafletPositionList[i]);
+        }
+        const leafBladeRootPos = meshAnchorNode.pos;
         const leafMesh = buildLeafMeshFromPhytomer(
           `skinplant_leaf_${seed}_a${axisIdx}_n${nodeIdx}`,
           scene, leafOrganState, genome, leafRng,
-          bladeRef, leafletNodes,
+          bladeRef, leafletNodes, leafletPositions, leafBladeRootPos,
         );
         leafMesh.parent = lushGroup;
         leafMesh.position = new Vector3(tipPlantPos.x, tipPlantPos.y, tipPlantPos.z);
