@@ -44,7 +44,7 @@ export function installDockingOverlayHotkey(): void {
       }
       dockingEnabled = !dockingEnabled;
       api({ enable: dockingEnabled });
-      log.info(`'${e.key}' → dockingOverlay ${dockingEnabled ? 'ON' : 'OFF'}`);
+      log.info(`dockingOverlay: ${dockingEnabled ? 'ON' : 'OFF'} ('${e.key}')`);
       return;
     }
 
@@ -56,7 +56,7 @@ export function installDockingOverlayHotkey(): void {
       }
       leafWireEnabled = !leafWireEnabled;
       api(leafWireEnabled);
-      log.info(`'${e.key}' → leafWireframe ${leafWireEnabled ? 'ON' : 'OFF'}`);
+      log.info(`leafWireframe: ${leafWireEnabled ? 'ON' : 'OFF'} ('${e.key}')`);
       return;
     }
   });
