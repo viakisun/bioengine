@@ -206,7 +206,8 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
   (globalThis as { __twinStore?: unknown }).__twinStore = useTwinStore;
 
   const cameraRig = setupCamera(scene, canvas);
-  cameraRig.setPreset(useTwinStore.getState().cameraPreset);
+  // Iter 35 PR 4 Phase Q2: cameraPreset store field 제거 — 기본 'single-plant' preset.
+  cameraRig.setPreset('single-plant');
   // Dev-only: expose scene + camera for headless capture / debugging.
   if (import.meta.env?.DEV) {
     (globalThis as { __scene?: unknown }).__scene = scene;
@@ -265,12 +266,7 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
   // Store subscription — react to changes
   // Iter 35: greenhouseContent 분기 (zone/heatmap/fov/pathTrail) 모두 제거 — single-plant only.
   const unsubStore = useTwinStore.subscribe((s, prev) => {
-    if (s.cameraPreset !== prev.cameraPreset) {
-      cameraRig.setPreset(s.cameraPreset);
-    }
-    if (s.analysisMode !== prev.analysisMode && greenhouse) {
-      greenhouse.skinMeshPlant.setSegmentationMode(s.analysisMode);
-    }
+    // Iter 35 PR 4 Phase Q2: cameraPreset + analysisMode subscribe 제거 (store fields 부재).
     if (s.showSkeleton !== prev.showSkeleton && greenhouse) {
       greenhouse.skinMeshPlant.setSkeletonMode(s.showSkeleton);
     }
@@ -325,7 +321,7 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
   //   유일 skin.update path (TOMGRO 일관성).
   let lastPlayTime = performance.now();
   const hudFps = document.getElementById('hud-fps');
-  const hudDay = document.getElementById('hud-day');
+  // Iter 35 PR 4 Phase Q2: hudDay 제거 — singlePlantMinute 표시는 BottomPlaybackBar 담당.
   // Iter 35: hudRobot 제거 — single-plant only.
 
   // Resolve cached leaf material once for per-frame wind uniform update
@@ -378,11 +374,9 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
       }
     }
 
-    // Iter 35: robot interaction + plantLOD 제거 — single-plant only (greenhouseContent 부재).
-    // Drain stale interactions (age beyond lifetime drops them).
-    useTwinStore.getState().tickInteractions(dtInter);
+    // Iter 35 PR 4 Phase Q2: interactions/robot/plantLOD 모두 제거 (store fields 부재).
 
-    // Push wind + interaction uniforms each frame — WebGL2 only.
+    // Push wind uniforms each frame — WebGL2 only.
     // On WebGPU we use the CPU sine fallback further down.
     if (isShaderWindEnabled()) {
       const lm = getLeafMatForUniform();
@@ -396,23 +390,8 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
             'windDir',
             new Vector3(state.windDirection[0], state.windDirection[1], state.windDirection[2])
           );
-
-          // Pack at most INTERACTION_MAX interaction vec4s.
-          // w = exp-decayed strength so the shader doesn't need timing.
-          const active = state.interactions.slice(0, INTERACTION_MAX);
-          for (let i = 0; i < active.length; i++) {
-            const p = active[i];
-            const decay = Math.exp(-p.age * 2);
-            const o = i * 4;
-            interactionFloats[o] = p.position[0];
-            interactionFloats[o + 1] = p.position[1];
-            interactionFloats[o + 2] = p.position[2];
-            interactionFloats[o + 3] = p.strength * decay;
-          }
-          eff.setInt('interactionCount', active.length);
-          if (active.length > 0) {
-            eff.setArray4('interactionData', interactionFloats);
-          }
+          // Iter 35 PR 4 Phase Q2: interaction uniforms 제거 (interactions field 부재).
+          eff.setInt('interactionCount', 0);
         }
       }
     } else if (greenhouse) {
@@ -429,17 +408,8 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
       plant.rotation.x = Math.sin(t * baseFreq * 1.3 + plant.position.z * 0.4) * baseAmp * 0.5;
     }
 
-    if (state.playing) {
-      const dtSec = (now - lastPlayTime) / 1000;
-      const newDay = state.currentDay + dtSec * state.playSpeed * 2;
-      if (newDay >= SCENARIO.durationDays) {
-        useTwinStore.getState().setDay(SCENARIO.durationDays);
-        useTwinStore.getState().togglePlay();
-      } else {
-        useTwinStore.getState().setDay(newDay);
-      }
-    }
-    lastPlayTime = now;
+    // Iter 35 PR 4 Phase Q2: playback (state.playing/currentDay/playSpeed/setDay/togglePlay)
+    //   제거 — SinglePlantOverlay의 playback loop (singlePlantMinute 기반)이 대체.
 
     // Iter 35 PR 4 Phase P: BabylonEngine의 skin.update 호출 _제거_.
     //   기존 호출 (physiology 없음) → Sigmoid path (낙과 필터 없음) → 부정확한
@@ -455,10 +425,9 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
       const fps = engine!.getFps();
       const store = useTwinStore.getState();
       store.publishFps(fps);
-      // Iter 35: robot publishRobotState + hudRobot 제거 — single-plant only.
+      // Iter 35 PR 4 Phase Q2: hudDay (currentDay 표시) 제거 — singlePlantMinute로 대체.
       // Legacy hud spans — kept for old verify scripts. Cheap text writes.
       if (hudFps) hudFps.textContent = `${fps.toFixed(0)} fps`;
-      if (hudDay) hudDay.textContent = `Day ${state.currentDay.toFixed(0)}`;
       lastFpsUpdate = now;
     }
 

@@ -1,22 +1,11 @@
 import { create } from 'zustand';
-import type { PresetView } from '../rendering/CameraRig';
-import { SCENARIO } from '../data/mockScenario';
-import { QUALITY_PRESETS, RENDER_FX_DEFAULTS } from '../rendering/RenderQuality';
+import { QUALITY_PRESETS } from '../rendering/RenderQuality';
 
-export type CompareMode = 'off' | 'yesterday' | '7days';
-
-/** Top-level app mode — drives which scene/layout is mounted.
- *  Iter 35: single-plant only (lobby/greenhouse/robot/sandbox archived). */
-export type AppMode = 'single-plant';
+// Iter 35 PR 4 Phase Q2: AppMode + CompareMode + readModeFromHash + PresetView/SCENARIO
+//   import 제거 (호출처 0). Single-plant 단일이므로 mode 분기 자체 부재.
 
 // Iter 35 PR 2 Phase J: SinglePlantChartVar + SINGLE_PLANT_CHART_VARS 제거
 //   (TimelineChart archived, 사용처 0).
-
-// Iter 35: AppMode 단일 — URL hash와 무관하게 항상 'single-plant'.
-//   #lobby / #greenhouse 등 legacy hash가 와도 single-plant fallback.
-function readModeFromHash(): AppMode {
-  return 'single-plant';
-}
 
 export type ToneMappingMode = 'aces' | 'standard' | 'none';
 export type LightingPresetName = 'default' | 'golden' | 'overcast' | 'noon-bright' | 'grow-light';
@@ -275,13 +264,7 @@ const LIGHTING_PRESETS: Record<LightingPresetName, Partial<LightingState>> = {
   },
 };
 
-export interface InteractionPoint {
-  position: [number, number, number];
-  radius: number;
-  strength: number;
-  age: number;       // seconds since spawn; expires when age > lifetime
-  lifetime: number;  // seconds
-}
+// Iter 35 PR 4 Phase Q2: InteractionPoint 제거 (interactions field 부재).
 
 // -----------------------------------------------------------------------
 // Boot progress + alerts + live log + env (plan a-drifting-wigderson.md)
@@ -383,24 +366,18 @@ function emptyBootStages(): Record<BootStage, StageInfo> {
 }
 
 interface TwinState {
-  currentDay: number;
-  playing: boolean;
-  playSpeed: number;
+  // Iter 35 PR 4 Phase Q2: greenhouse/robot/legacy 잔존 모두 제거 (audit 호출처 0).
+  //   제거: currentDay, playing, playSpeed, setDay, togglePlay, setPlaySpeed,
+  //         selectedZoneId, selectedPlantId, hoveredZoneId, selectZone, selectPlant, hoverZone,
+  //         analysisMode, compareMode, heatmapVisible, pathTrailVisible, fovVisible,
+  //         toggleAnalysisMode, setCompareMode, toggleHeatmap, togglePathTrail, toggleFov,
+  //         cameraPreset, setCameraPreset, robotX/Z/Task, publishRobotState,
+  //         interactions, addInteraction, tickInteractions,
+  //         waterStressOverride, setWaterStressOverride,
+  //         consoleExpanded, toggleConsole,
+  //         AppMode, mode, setMode.
 
-  selectedZoneId: number | null;
-  selectedPlantId: number | null;
-  hoveredZoneId: number | null;
-
-  analysisMode: boolean;
-  compareMode: CompareMode;
-  heatmapVisible: boolean;
-  pathTrailVisible: boolean;
-  fovVisible: boolean;
-
-  cameraPreset: PresetView;
-
-  // Wind — values pushed into leaf shader uniforms each frame (WebGL2)
-  // or into a CPU sine fallback on root TransformNodes (WebGPU).
+  // Wind — values pushed into leaf shader uniforms each frame (WindTab UI).
   windStrength: number;     // 0–1
   flutterStrength: number;  // 0–1
   windDirection: [number, number, number]; // unit-ish vector
@@ -408,19 +385,7 @@ interface TwinState {
   setFlutterStrength: (v: number) => void;
   setWindDirection: (dir: [number, number, number]) => void;
 
-  // Interaction — robot/operator points that push nearby leaves.
-  // Lives in store so multiple producers (robot + future workers) can
-  // contribute; BabylonEngine drains them into uniform arrays per frame.
-  interactions: InteractionPoint[];
-  addInteraction: (p: Omit<InteractionPoint, 'age'>) => void;
-  tickInteractions: (dtSec: number) => void;
-
-  // Operator-visible water-stress override (0 = follow scenario).
-  // Plants pick this up to add extra droopExtra in showcase/supporting.
-  waterStressOverride: number;
-  setWaterStressOverride: (v: number) => void;
-
-  // Dev/debug toggles (only mounted in dev panel)
+  // Dev/debug toggles (SettingsTab UI 노출)
   debugShowWindWeight: boolean;
   debugShowLodColors: boolean;
   debugShowInteractionRadius: boolean;
@@ -428,64 +393,23 @@ interface TwinState {
   toggleDebugLodColors: () => void;
   toggleDebugInteractionRadius: () => void;
 
-  // Robot position + task — published by BabylonEngine each frame so
-  // React components (TopBar pill, PatrolMap live dot) can subscribe
-  // without a getElementById polling hack.
-  robotX: number;
-  robotZ: number;
-  robotTask: 'idle' | 'patrolling' | 'capturing' | 'returning';
-  publishRobotState: (x: number, z: number, task: 'idle' | 'patrolling' | 'capturing' | 'returning') => void;
-
-  // Live fps + backend label — also published by BabylonEngine; the
-  // DOM hud-* spans stay around for legacy verify scripts but the
-  // pill reads from the store now.
+  // Live fps + backend label — published by BabylonEngine each frame.
   fps: number;
   backend: 'webgpu' | 'webgl2' | null;
   publishFps: (fps: number) => void;
   publishBackend: (b: 'webgpu' | 'webgl2') => void;
 
-  // v3 UI — collapsible bottom console (timeline panel). Default
-  // collapsed so the 3D scene fills the viewport; user clicks the
-  // expand-btn at the top of the console to reveal full sparkline +
-  // stage bands.
-  consoleExpanded: boolean;
-  toggleConsole: () => void;
-
-  // Lighting — every value above the "current scene's" hardcoded default
-  // is exposed for the 조명 sidebar tab. BabylonEngine.subscribe applies
-  // changes immediately on each frame's render setup.
+  // Lighting — LightingTab UI exposed.
   lighting: LightingState;
   setLighting: (patch: Partial<LightingState>) => void;
   resetLighting: () => void;
   applyLightingPreset: (name: LightingPresetName) => void;
 
-  // Render-quality slider. 1..10 — 10 is the Babylon-web ceiling
-  // (every post-FX on, 8192 PCSS shadows, 1.5× SSAA, full 13-bed
-  // plant fill). See RenderQuality.ts for the preset table.
+  // Render-quality slider. 1..10 — LightingTab UI.
   renderQuality: number;
   renderFX: RenderFXState;
   setRenderQuality: (level: number) => void;
   setRenderFX: (patch: Partial<RenderFXState>) => void;
-
-  setDay: (day: number) => void;
-  togglePlay: () => void;
-  setPlaySpeed: (speed: number) => void;
-
-  selectZone: (zoneId: number | null) => void;
-  selectPlant: (plantId: number | null) => void;
-  hoverZone: (zoneId: number | null) => void;
-
-  toggleAnalysisMode: () => void;
-  setCompareMode: (mode: CompareMode) => void;
-  toggleHeatmap: () => void;
-  togglePathTrail: () => void;
-  toggleFov: () => void;
-
-  setCameraPreset: (preset: PresetView) => void;
-
-  // -- App mode (top-level routing) --
-  mode: AppMode;
-  setMode: (mode: AppMode) => void;
 
   // -- Single-Plant Analysis mode state --
   /** Current scrub position in minutes since transplant (0 .. 120*24*60). */
@@ -643,21 +567,7 @@ const PERSISTED_SKELETON = loadPersistedSkeleton();
 const EFFECTIVE_QUALITY = PERSISTED.renderQuality ?? BOOT_QUALITY;
 
 export const useTwinStore = create<TwinState>((set) => ({
-  currentDay: 100,
-  playing: false,
-  playSpeed: 1,
-
-  selectedZoneId: null,
-  selectedPlantId: null,
-  hoveredZoneId: null,
-
-  analysisMode: false,
-  compareMode: 'off',
-  heatmapVisible: true,
-  pathTrailVisible: true,
-  fovVisible: true,
-
-  cameraPreset: 'overview',
+  // Iter 35 PR 4 Phase Q2: 26+ legacy fields 제거 (호출처 0 audit 후).
 
   windStrength: 0.5,
   flutterStrength: 0.6,
@@ -665,28 +575,6 @@ export const useTwinStore = create<TwinState>((set) => ({
   setWindStrength: (v) => set({ windStrength: Math.max(0, Math.min(1, v)) }),
   setFlutterStrength: (v) => set({ flutterStrength: Math.max(0, Math.min(1, v)) }),
   setWindDirection: (dir) => set({ windDirection: dir }),
-
-  interactions: [],
-  addInteraction: (p) =>
-    set((s) => ({
-      interactions: [
-        ...s.interactions.filter((q) => q.age < q.lifetime).slice(-15),
-        { ...p, age: 0 },
-      ],
-    })),
-  tickInteractions: (dtSec) =>
-    set((s) => {
-      const next: InteractionPoint[] = [];
-      for (const p of s.interactions) {
-        const age = p.age + dtSec;
-        if (age < p.lifetime) next.push({ ...p, age });
-      }
-      return { interactions: next };
-    }),
-
-  waterStressOverride: 0,
-  setWaterStressOverride: (v) =>
-    set({ waterStressOverride: Math.max(0, Math.min(1, v)) }),
 
   debugShowWindWeight: false,
   debugShowLodColors: false,
@@ -698,18 +586,10 @@ export const useTwinStore = create<TwinState>((set) => ({
   toggleDebugInteractionRadius: () =>
     set((s) => ({ debugShowInteractionRadius: !s.debugShowInteractionRadius })),
 
-  robotX: 0,
-  robotZ: 0,
-  robotTask: 'idle',
-  publishRobotState: (x, z, task) => set({ robotX: x, robotZ: z, robotTask: task }),
-
   fps: 0,
   backend: null,
   publishFps: (fps) => set({ fps }),
   publishBackend: (backend) => set({ backend }),
-
-  consoleExpanded: false,
-  toggleConsole: () => set((s) => ({ consoleExpanded: !s.consoleExpanded })),
 
   // 우선순위: defaults < 현재 quality preset < persisted lighting overrides.
   // (persisted lighting 이 마지막에 와서 사용자의 미세조정이 quality
@@ -740,36 +620,8 @@ export const useTwinStore = create<TwinState>((set) => ({
   setRenderFX: (patch) =>
     set((s) => ({ renderFX: { ...s.renderFX, ...patch } })),
 
-  setDay: (day) =>
-    set({
-      currentDay: Math.max(0, Math.min(SCENARIO.durationDays, day)),
-    }),
-  togglePlay: () => set((s) => ({ playing: !s.playing })),
-  setPlaySpeed: (speed) => set({ playSpeed: speed }),
-
-  selectZone: (zoneId) => set({ selectedZoneId: zoneId }),
-  selectPlant: (plantId) => set({ selectedPlantId: plantId }),
-  hoverZone: (zoneId) => set({ hoveredZoneId: zoneId }),
-
-  toggleAnalysisMode: () => set((s) => ({ analysisMode: !s.analysisMode })),
-  setCompareMode: (mode) => set({ compareMode: mode }),
-  toggleHeatmap: () => set((s) => ({ heatmapVisible: !s.heatmapVisible })),
-  togglePathTrail: () => set((s) => ({ pathTrailVisible: !s.pathTrailVisible })),
-  toggleFov: () => set((s) => ({ fovVisible: !s.fovVisible })),
-
-  setCameraPreset: (preset) => set({ cameraPreset: preset }),
-
-  // -- App mode --
-  mode: readModeFromHash(),
-  setMode: (mode) => {
-    set({ mode });
-    if (typeof window !== 'undefined') {
-      const newHash = `#${mode}`;
-      if (window.location.hash !== newHash) {
-        window.location.hash = newHash;
-      }
-    }
-  },
+  // Iter 35 PR 4 Phase Q2: setDay/togglePlay/setPlaySpeed + select* + toggle* +
+  //   setCameraPreset + mode/setMode 모두 제거 (호출처 0).
 
   // -- Single-Plant mode --
   // Default scrub: day 45 noon — mid-growth, multiple trusses active,

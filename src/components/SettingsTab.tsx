@@ -5,7 +5,7 @@
 
 import { useTwinStore } from '../store/twinStore';
 import { Eyebrow } from '../ui/Eyebrow';
-import { SliderRow, ToggleBtn } from '../ui/Controls';
+import { ToggleBtn } from '../ui/Controls';
 
 export function SettingsTab() {
   const debugDiagnostics = useTwinStore((s) => s.debugDiagnostics);
@@ -14,8 +14,6 @@ export function SettingsTab() {
   const toggleDebugLodColors = useTwinStore((s) => s.toggleDebugLodColors);
   const debugShowInteractionRadius = useTwinStore((s) => s.debugShowInteractionRadius);
   const toggleDebugInteractionRadius = useTwinStore((s) => s.toggleDebugInteractionRadius);
-  const waterStressOverride = useTwinStore((s) => s.waterStressOverride);
-  const setWaterStressOverride = useTwinStore((s) => s.setWaterStressOverride);
 
   return (
     <>
@@ -29,19 +27,7 @@ export function SettingsTab() {
       <ToggleBtn on={debugShowInteractionRadius} onClick={toggleDebugInteractionRadius}>
         상호작용 반경 표시
       </ToggleBtn>
-
-      <Eyebrow>환경</Eyebrow>
-      <SliderRow
-        label="수분 스트레스 override"
-        value={waterStressOverride}
-        onChange={setWaterStressOverride}
-        min={0}
-        max={1}
-        step={0.05}
-      />
-      <div style={{ fontSize: 10, color: '#888', padding: '4px 0' }}>
-        0 = scenario 그대로
-      </div>
+      {/* Iter 35 PR 4 Phase Q2: waterStressOverride 제거 (store field 부재). */}
     </>
   );
 }
