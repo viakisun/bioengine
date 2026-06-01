@@ -501,7 +501,12 @@ function addLeafletNodesForLeaf(
   const primaryUs = [0.18, 0.35, 0.55, 0.75].slice(0, bladeRef.primaryPairs);
   const intercalaryUs: number[] = [];
   for (let i = 0; i < bladeRef.intercalaryCount; i++) {
-    intercalaryUs.push(0.25 + (i / Math.max(1, bladeRef.intercalaryCount)) * 0.5);
+    // ★ Iter 37 Q6.2 — intercalary 위치 jitter (이전: 균등 분포).
+    //   deterministic seed 기반 ±5% 변동.
+    const baseU = 0.25 + (i / Math.max(1, bladeRef.intercalaryCount)) * 0.5;
+    const interSeed = leafNodeIdx * 0.7919 + i * 31;
+    const jitter = (((interSeed * 9301) % 100) - 50) / 1000;  // ±0.05
+    intercalaryUs.push(Math.max(0.1, Math.min(0.95, baseU + jitter)));
   }
   // attach points: primary + intercalary + terminal(1.0). 중복 제거 + 정렬.
   const attachUsSet = new Set<number>();
@@ -790,7 +795,10 @@ function addLeafletNodesForLeaf(
   //    사용자 ASCII "소엽 → 소엽2" 명확 표현. sub-vein으로 분기.
   for (let i = 0; i < bladeRef.secondaryCount && i < primaries.length; i++) {
     const parent = primaries[i];
-    const sf = 0.30 + (i % 2) * 0.10;
+    // ★ Iter 37 Q6.3 — secondary sf 다양화 (이전: 0.30/0.40 두 값만).
+    //   사용자 §3 표: secondary 0.20-0.55.
+    const secSeed = leafNodeIdx * 0.7919 + i * 17;
+    const sf = 0.15 + (((secSeed * 31) % 30) / 100);  // 0.15-0.45
     const u = primaryUs[Math.floor(i / 2) % primaryUs.length] + 0.04;
     const sign = i % 2 === 0 ? +1 : -1;
     addSubLeaflet(parent, u, sf, sign);
