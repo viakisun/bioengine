@@ -135,3 +135,7 @@ export { AGE_PRESETS } from './agePresets';
 // Iter 39 Phase A — per-leaflet plane mesh entry (Skin path).
 export { buildLeafletMeshes } from './buildLeafletMeshes';
 export type { LeafletMeshBuildContext } from './buildLeafletMeshes';
+
+// Iter 39 Phase F4 — LeafInstanceProfile (per-compound-leaf macro variation).
+export { computeLeafInstanceProfile } from './leafInstanceProfile';
+export type { LeafInstanceProfile } from './leafInstanceProfile';

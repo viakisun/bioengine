@@ -59,6 +59,8 @@ import type {
 import { populateNodeTypes } from './populator/populateNodeTypes';
 import { populateAnchorMorphology } from './populator/populateAnchorMorphology';
 import { populateEdgePolicies } from './populator/populateEdgePolicies';
+// ★ Iter 39 Phase F4 — LeafInstanceProfile (leaf-level macro variation).
+import { computeLeafInstanceProfile } from '../../scene/leaf-engine/leafInstanceProfile';
 
 type V3 = { x: number; y: number; z: number };
 
@@ -272,10 +274,17 @@ function addLeavesForAxis(
     // ★ Iter 39 Phase F3 — cultivar reference + node-position gradient 전달.
     //   nodePositionScale: 잎이 줄기 어디에 붙어있는지 (botanical: middle 큼,
     //   apex/base 작음). axis.stemCurve.length는 _현재 segment 수_.
+    const nodePositionT = leaf.nodeIdx / Math.max(1, axis.stemCurve.length - 1);
     const nodePositionScale = nodePositionGradient(
       leaf.nodeIdx, axis.stemCurve.length,
     );
     const leafBladeRef = computeLeafBladeRef(leaf, cultivar, nodePositionScale);
+    // ★ Iter 39 Phase F4 — LeafInstanceProfile (leaf-level macro variation).
+    //   sf를 maturity proxy로 사용 (PlantBase가 expansion 반영). plant seed는
+    //   axisIdx/leafIdx 기반 deterministic.
+    const leafProfile = computeLeafInstanceProfile(
+      leaf.nodeIdx, leaf.sizeFactor, nodePositionT, axisIdx * 1009,
+    );
     nodes.set(tipNodeId, {
       id: tipNodeId,
       pos: { ...tipPos },
@@ -294,6 +303,8 @@ function addLeavesForAxis(
     addLeafletNodesForLeaf(
       axisIdx, leaf.nodeIdx, tipNodeId, tipPos, leaf.sizeFactor, leafBladeRef,
       petioleEdgeId, bones, axis.leaves.length, nodes, edges,
+      // ★ Iter 39 Phase F4 — leaf-level macro profile (asymmetry, spacing).
+      { leftRightImbalance: leafProfile.leftRightImbalance, spacingBias: leafProfile.spacingBias },
     );
 
     // Iter 18B PR 8 (SSOT #180) — structured OrganAnchor for leaf blade.
@@ -516,7 +527,11 @@ function addLeafletNodesForLeaf(
   totalLeafCount: number,         // ★ Iter 37 Q2.2 — axis 전체 잎 수 (leafPos 산출용)
   nodes: Map<string, SkeletonNode>,
   edges: Map<string, SkeletonEdge>,
+  /** ★ Iter 39 Phase F4 — leaf-level macro variation. 기본값 (no variation)로
+   *  back-compat. */
+  leafProfile?: { leftRightImbalance: number; spacingBias: number },
 ): void {
+  const profile = leafProfile ?? { leftRightImbalance: 0, spacingBias: 0 };
   const rachisLen = bladeRef.rachisLengthM;
   // ★ Phase L — petiole edge bones[last] tangent 기반 rachisDir/lateralDir.
   //   각 잎의 phyllotaxis (azimuth 137.5°)가 petiole curve에 이미 반영되어
@@ -854,11 +869,22 @@ function addLeafletNodesForLeaf(
   };
 
   // 2. Primary pairs (left/right) — 위에서 산출한 primaryUs 사용.
+  //   ★ Iter 39 Phase F4 — ladder mirror 제거. 좌우가 _다른_ rachisU + _다른_
+  //   sf (LeafInstanceProfile.leftRightImbalance). per-pair deterministic jitter.
+  //   plan v1 비판 #4: leaf-level imbalance + leaflet-level jitter _분리_.
   const primaries: { lid: string; pos: V3 }[] = [];
   for (let i = 0; i < primaryUs.length; i++) {
-    const sf = 0.85 - i * 0.10;
-    primaries.push(addRachisChild('primary', primaryUs[i], sf, -1, 'lateral-vein'));
-    primaries.push(addRachisChild('primary', primaryUs[i] + 0.02, sf, +1, 'lateral-vein'));
+    const baseSf = 0.85 - i * 0.10;
+    const sfL = baseSf * (1 - profile.leftRightImbalance * 0.5);
+    const sfR = baseSf * (1 + profile.leftRightImbalance * 0.5);
+    const seedL = leafNodeIdx * 0.7919 + i * 41;
+    const seedR = leafNodeIdx * 0.7919 + i * 43;
+    const jitterL = (((seedL * 13) % 50 - 25) / 1000);  // ±0.025
+    const jitterR = (((seedR * 17) % 50 - 25) / 1000);
+    const uL = primaryUs[i]        + profile.spacingBias + jitterL;
+    const uR = primaryUs[i] + 0.04 + profile.spacingBias + jitterR;
+    primaries.push(addRachisChild('primary', uL, sfL, -1, 'lateral-vein'));
+    primaries.push(addRachisChild('primary', uR, sfR, +1, 'lateral-vein'));
   }
 
   // 3. Intercalary — rachis 직접 부착 (petiolule edge).
