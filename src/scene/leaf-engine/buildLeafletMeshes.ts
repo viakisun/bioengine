@@ -114,15 +114,12 @@ export function buildLeafletMeshes(ctx: LeafletMeshBuildContext): Mesh[] {
     }
   }
 
-  // Phase A: 모든 leaflet 동일 rotation (rachis-outward = petiole tangent).
-  // ★ Iter 39 Phase F5 — per-leaflet maturity-dependent pose composition:
-  //   - openness = smoothstep(0.2, 0.8, maturity): young 접힘 (0.2) → mature 펼침 (1.0)
-  //   - foldDroop = lerp(-0.30, 0.45, maturity): young 위로(-0.3) → mature 처짐(+0.45)
-  //   - pose pitch/roll/twist는 openness 비례 — young 잎은 거의 접힘 상태.
-  //   plan v1 비판 #5: "leaflet pose 가 maturity 의존이어야 — young upright/folded,
-  //   mature open/drooped". random fan-out 0.
-  const q = makeLeafQuaternion(ctx.petioleTipTangent, WORLD_UP);
-  const rotationQ = new Quaternion(q.x, q.y, q.z, q.w);
+  // ★ Iter 39 Phase G2 (C3) — _per-leaflet_ rotation은 skeleton의 leafletRef.bladeDir
+  //   사용. SSOT 원칙: skin은 read만. base rotation 없음 (이전 모든 leaflet 동일
+  //   petioleTipTangent → leaflet 장축이 rachis 방향). 이제 각 leaflet의 bladeDir
+  //   이 _장축_ — terminal은 distal pure, lateral은 lateral×0.75 + distal×0.25.
+  //
+  //   Phase F5 maturity pose는 _per-leaflet base rotation_ 위에 곱셈 적용 (유지).
 
   const ageFrac = Math.min(1, ctx.leafOrganState.senescence.progress);
   const curl = ctx.leafOrganState.posture.curl + ctx.leafOrganState.senescence.curl * 0.5;
@@ -200,12 +197,12 @@ export function buildLeafletMeshes(ctx: LeafletMeshBuildContext): Mesh[] {
     // ★ graph SSOT — mesh.position = leafletSkeletonNode.pos (plant-local).
     mesh.position = new Vector3(node.pos.x, node.pos.y, node.pos.z);
     // ★ Iter 39 Phase F5 — maturity-dependent pose composition.
-    //   1) base rotation (rachis-outward, all leaflets 동일)
-    //   2) per-leaflet pitch (foldDroop + per-leaflet noise, scaled by openness)
-    //   3) per-leaflet roll (lateral curl, scaled by openness)
-    //   4) per-leaflet twist (per-leaflet noise, scaled by openness × ageFrac)
-    //   openness=0.2 (young): 거의 모든 회전 ×0.2 (접힘 상태). openness=1.0
-    //   (mature): 자연 회전 진폭. young upright (negative pitch) + mature drooped.
+    //   1) base rotation = makeLeafQuaternion(bladeDir, WORLD_UP)
+    //      ★ G2 (C3): skin은 skeleton의 leafletRef.bladeDir _그대로 read_.
+    //   2-4) per-leaflet pitch/roll/twist는 F5 maturity envelope에 따라 합성.
+    const bd = node.leafletRef.bladeDir;
+    const baseQ = makeLeafQuaternion(bd, WORLD_UP);
+    const baseRotQ = new Quaternion(baseQ.x, baseQ.y, baseQ.z, baseQ.w);
     const pitchNoise = (((idSeed * 17) % 200 - 100) / 1000);  // ±0.1 rad
     const rollNoise  = (((idSeed * 19) % 400 - 200) / 1000);  // ±0.2 rad
     const twistNoise = (((idSeed * 13) % 300 - 150) / 1000);  // ±0.15 rad
@@ -213,7 +210,7 @@ export function buildLeafletMeshes(ctx: LeafletMeshBuildContext): Mesh[] {
     const rollRad  = rollNoise  * opennessFactor;
     const twistRad = twistNoise * opennessFactor;
     const localQ = Quaternion.RotationYawPitchRoll(twistRad, pitchRad, rollRad);
-    mesh.rotationQuaternion = rotationQ.multiply(localQ);
+    mesh.rotationQuaternion = baseRotQ.multiply(localQ);
     // SSOT #185 — leafMesh stale worldMatrix trap (Iter 28 fix).
     mesh.computeWorldMatrix(true);
 

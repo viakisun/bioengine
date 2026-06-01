@@ -635,6 +635,17 @@ function addLeafletNodesForLeaf(
       // ★ Iter 39 Phase F3+F4 — terminalSf는 _상대 baseline_ (1.0). 좌우 size
       //   차이는 primary의 sfL/sfR에서 시각화 (terminal은 항상 1개라 imbalance 무관).
       const terminalSf = 1.0;
+      // ★ Iter 39 Phase G2 — terminal bladeDir = rachis distal tangent (pure).
+      //   사용자 botanical B2: "terminal은 rachis 직접 연속, lateral petiolule X".
+      //   tangent = (terminal attach pos - previous attach pos) normalized.
+      const tdx = attachPos.x - prevPos.x;
+      const tdy = attachPos.y - prevPos.y;
+      const tdz = attachPos.z - prevPos.z;
+      const tLen2 = Math.sqrt(tdx * tdx + tdy * tdy + tdz * tdz);
+      const terminalBladeDir: V3 = tLen2 > 1e-6
+        ? { x: tdx / tLen2, y: tdy / tLen2, z: tdz / tLen2 }
+        : { x: rachisDir.x, y: rachisDir.y, z: rachisDir.z };
+      // ★ G2 attachNodeId = parentLeafNodeId (petiole tip, terminal은 rachis 연속).
       nodes.set(attachNodeId, {
         id: attachNodeId,
         pos: attachPos,
@@ -646,6 +657,10 @@ function addLeafletNodesForLeaf(
           rachisU: 1.0,
           sizeFactor: terminalSf,
           targetSizeM: rachisLen * POSITION_SIZE_MULT.terminal * terminalSf,
+          // ★ G2 (C2): terminal attachNode = parentLeafNodeId (petiole tip).
+          attachNodeId: parentLeafNodeId,
+          // ★ G2 (C3): bladeDir = pure distal (rachis 연속).
+          bladeDir: terminalBladeDir,
         } satisfies LeafletNodeRef,
       });
     } else {
@@ -719,7 +734,10 @@ function addLeafletNodesForLeaf(
       y: lateralDir.y * sinA + rachisDir.y * cosA,
       z: lateralDir.z * sinA + rachisDir.z * cosA,
     };
-    const outAmount = lateralOffsetSign * sf * rachisLen * 0.35;
+    // ★ Iter 39 Phase G2 — outAmount × 0.35 → × 0.25.
+    //   connector(petiolule) 강화로 거리 감소 → leaflet이 rachis에 _밀착_.
+    //   사용자 botanical: "leaflet base가 rachis에 밀착되어야 — 떠 있는 카드 회피".
+    const outAmount = lateralOffsetSign * sf * rachisLen * 0.25;
 
     // ★ Iter 37 Q2.3 — 3D pose roll/twist (사용자 §6 roll±20° / twist±15°).
     //   leaflet position을 _같은 평면_에 두지 않도록 small y/z offset.
@@ -753,22 +771,35 @@ function addLeafletNodesForLeaf(
     //   이전: bonePath = [{p0, p1}] single straight bone (직선).
     //   현재: 3-point catmull-rom with mid arch.
     //
-    // ★ Iter 39 Phase F2 — petiolule bonePath 80% 단축 (사용자 botanical
-    //   feedback: "petiolule은 짧고 얇은 connector로 유지 — 공중 카드 인상 회피").
-    //   lateral-vein/sub-vein은 SDF skip (StemFamilyTubeNetworkBuilder.ts),
-    //   petiolule은 attach point 쪽 20%만 SDF tube로 그림. leaflet plane이
-    //   나머지 영역을 시각적으로 _덮음_. leafletNode.pos (endNode) 위치는 _그대로_
-    //   — graph contract + ANCHOR-05 보존.
-    const PETIOLULE_VISIBLE_RATIO = 0.20;
-    const truncateBones = edgeType === 'petiolule';
+    // ★ Iter 39 Phase G2 (B3) — petiolule visible ratio position별 + 1.2cm cap.
+    //   사용자 botanical 비판: "고정 40%면 큰 primary에서는 길어 보임. 작은
+    //   intercalary에선 더 필요. position별 분리 + 절대 cap이 안전".
+    //   primary: subtle (22%), secondary: 28%, intercalary: 35% (가장 visible).
+    //   terminal은 별도 처리 — rachis 연속, petiolule 없음.
+    const PETIOLULE_VISIBLE_RATIO_BY_POSITION: Record<LeafletPosition, number> = {
+      terminal: 0.0,
+      primary: 0.22,
+      secondary: 0.28,
+      intercalary: 0.35,
+    };
+    const PETIOLULE_MAX_VISIBLE_LEN_M = 0.012;  // 절대 1.2cm cap
+    const ratio = PETIOLULE_VISIBLE_RATIO_BY_POSITION[position] ?? 0.25;
+    const fullPetioluleLen = Math.sqrt(
+      (leafletPos.x - attachPos.x) ** 2
+      + (leafletPos.y - attachPos.y) ** 2
+      + (leafletPos.z - attachPos.z) ** 2,
+    );
+    const visibleLen = Math.min(fullPetioluleLen * ratio, PETIOLULE_MAX_VISIBLE_LEN_M);
+    const visibleFrac = fullPetioluleLen > 1e-6 ? visibleLen / fullPetioluleLen : 0;
+    const truncateBones = edgeType === 'petiolule' || edgeType === 'lateral-vein';
     const visibleEnd: V3 = truncateBones
       ? {
-          x: attachPos.x + (leafletPos.x - attachPos.x) * PETIOLULE_VISIBLE_RATIO,
-          y: attachPos.y + (leafletPos.y - attachPos.y) * PETIOLULE_VISIBLE_RATIO,
-          z: attachPos.z + (leafletPos.z - attachPos.z) * PETIOLULE_VISIBLE_RATIO,
+          x: attachPos.x + (leafletPos.x - attachPos.x) * visibleFrac,
+          y: attachPos.y + (leafletPos.y - attachPos.y) * visibleFrac,
+          z: attachPos.z + (leafletPos.z - attachPos.z) * visibleFrac,
         }
       : leafletPos;
-    const archHeight = rachisLen * 0.02 * (truncateBones ? PETIOLULE_VISIBLE_RATIO : 1.0);
+    const archHeight = rachisLen * 0.02 * (truncateBones ? visibleFrac : 1.0);
     const archMid: V3 = {
       x: (attachPos.x + visibleEnd.x) / 2,
       y: (attachPos.y + visibleEnd.y) / 2 + archHeight,
@@ -793,6 +824,25 @@ function addLeafletNodesForLeaf(
     });
     if (attachNode) attachNode.edgeIds.push(edgeId);
 
+    // ★ Iter 39 Phase G2 (C3) — bladeDir 산출 (B1: lateral × 0.75 + distal × 0.25).
+    //   사용자 botanical: "leaflet 장축은 pure outward가 아니라 rachis 진행 방향
+    //   으로 약간 앞쪽. 75% lateral + 25% distal blend".
+    //   lateral = (leafletPos - attachPos) 정규화. distal = rachisDir.
+    const ldx = leafletPos.x - attachPos.x;
+    const ldy = leafletPos.y - attachPos.y;
+    const ldz = leafletPos.z - attachPos.z;
+    const lLenAttach = Math.sqrt(ldx * ldx + ldy * ldy + ldz * ldz);
+    const lateralBladeDir: V3 = lLenAttach > 1e-6
+      ? { x: ldx / lLenAttach, y: ldy / lLenAttach, z: ldz / lLenAttach }
+      : { x: lateralDir.x, y: lateralDir.y, z: lateralDir.z };
+    const bdx = lateralBladeDir.x * 0.75 + rachisDir.x * 0.25;
+    const bdy = lateralBladeDir.y * 0.75 + rachisDir.y * 0.25;
+    const bdz = lateralBladeDir.z * 0.75 + rachisDir.z * 0.25;
+    const bdLen = Math.sqrt(bdx * bdx + bdy * bdy + bdz * bdz);
+    const bladeDir: V3 = bdLen > 1e-6
+      ? { x: bdx / bdLen, y: bdy / bdLen, z: bdz / bdLen }
+      : { x: lateralBladeDir.x, y: lateralBladeDir.y, z: lateralBladeDir.z };
+
     nodes.set(lid, {
       id: lid,
       pos: leafletPos,
@@ -804,6 +854,10 @@ function addLeafletNodesForLeaf(
         rachisU,
         sizeFactor: sf,
         targetSizeM,
+        // ★ G2 (C2) — attachNodeId 명시 저장.
+        attachNodeId,
+        // ★ G2 (C3) — bladeDir = lateral×0.75 + distal×0.25 blend.
+        bladeDir,
       } satisfies LeafletNodeRef,
     });
     return { lid, pos: leafletPos };
@@ -849,6 +903,22 @@ function addLeafletNodesForLeaf(
       semanticLabel: `sub-leaflet of primary ${parentPrimary.lid}`,
       attachedOrganIds: [],
     });
+    // ★ Iter 39 Phase G2 — secondary bladeDir = lateral × 0.75 + distal × 0.25
+    //   (lateral은 parent primary에서 sub로 향하는 방향).
+    const secLdx = subPos.x - parentPrimary.pos.x;
+    const secLdy = subPos.y - parentPrimary.pos.y;
+    const secLdz = subPos.z - parentPrimary.pos.z;
+    const secLLen = Math.sqrt(secLdx * secLdx + secLdy * secLdy + secLdz * secLdz);
+    const secLateral: V3 = secLLen > 1e-6
+      ? { x: secLdx / secLLen, y: secLdy / secLLen, z: secLdz / secLLen }
+      : { x: lateralDir.x, y: lateralDir.y, z: lateralDir.z };
+    const secBdx = secLateral.x * 0.75 + rachisDir.x * 0.25;
+    const secBdy = secLateral.y * 0.75 + rachisDir.y * 0.25;
+    const secBdz = secLateral.z * 0.75 + rachisDir.z * 0.25;
+    const secBdLen = Math.sqrt(secBdx * secBdx + secBdy * secBdy + secBdz * secBdz);
+    const secBladeDir: V3 = secBdLen > 1e-6
+      ? { x: secBdx / secBdLen, y: secBdy / secBdLen, z: secBdz / secBdLen }
+      : secLateral;
     nodes.set(lid, {
       id: lid,
       pos: subPos,
@@ -861,6 +931,10 @@ function addLeafletNodesForLeaf(
         sizeFactor: sf,
         // ★ Iter 39 Phase F3+F4 — position multiplier × sf (per-leaflet variation).
         targetSizeM: rachisLen * POSITION_SIZE_MULT.secondary * sf,
+        // ★ G2 (C2): secondary attachNode = parent primary leaflet.
+        attachNodeId: parentPrimary.lid,
+        // ★ G2 (C3): bladeDir = lateral × 0.75 + distal × 0.25.
+        bladeDir: secBladeDir,
       } satisfies LeafletNodeRef,
     });
     // parent primary node에 sub-vein edge 등록.

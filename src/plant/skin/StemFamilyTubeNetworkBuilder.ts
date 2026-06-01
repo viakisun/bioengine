@@ -193,7 +193,8 @@ const RENDER_RADIUS_FLOOR_M_BY_TYPE: Record<SkeletonEdgeType, number> = {
   mainStem: 0.0008, sideShoot: 0.0008,
   petiole: 0.0008, peduncle: 0.0008, rachis: 0.0008, pedicel: 0.0008,
   'leaf-rachis':  0.0003,  // 0.3mm — biological floor (main leaf midrib)
-  petiolule:      0.0001,  // 0.1mm — visible connector (F2 connector-only)
+  petiolule:      0.0003,  // ★ G2 (B3): 0.1mm → 0.3mm. visible attachment connector
+                           //   (사용자: "공중 카드 인상 회피 — petiolule이 보여야 부착감")
   'lateral-vein': 0.0,     // F2에서 SDF skip — vein은 surface로 (F2.5)
   'sub-vein':     0.0,     // F2에서 SDF skip
 };

@@ -111,6 +111,22 @@ export interface LeafletNodeRef {
   sizeFactor: number;
   /** resolved target size (m). */
   targetSizeM: number;
+  /**
+   * ★ Iter 39 Phase G2 (C2) — leaflet 부착 node ID. Skeleton SSOT 명시 저장.
+   *   - terminal: parentLeafNodeId (= petiole tip).
+   *   - primary/intercalary: rachis-attach node.
+   *   - secondary: parent primary leaflet node.
+   *   helper로 역추적하지 _않고_ 명시 저장 — edge structure 변경 시 안전.
+   */
+  attachNodeId: string;
+  /**
+   * ★ Iter 39 Phase G2 (C3) — leaflet plane의 _장축_ 방향 (mesh +X 방향).
+   *   - terminal: rachis distal tangent (pure).
+   *   - lateral (primary/intercalary/secondary):
+   *       `lateral × 0.75 + distal × 0.25` blend (사용자 botanical B1).
+   *   plant-local 단위벡터. Skin은 _read만_ — rotation 산식은 skeleton 결정.
+   */
+  bladeDir: { x: number; y: number; z: number };
 }
 
 /**
