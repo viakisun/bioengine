@@ -115,13 +115,25 @@ export function buildLeafletMeshes(ctx: LeafletMeshBuildContext): Mesh[] {
   }
 
   // Phase A: 모든 leaflet 동일 rotation (rachis-outward = petiole tangent).
-  // Phase C에서 per-leaflet pose composition (pitch/roll/twist) 추가.
+  // ★ Iter 39 Phase F5 — per-leaflet maturity-dependent pose composition:
+  //   - openness = smoothstep(0.2, 0.8, maturity): young 접힘 (0.2) → mature 펼침 (1.0)
+  //   - foldDroop = lerp(-0.30, 0.45, maturity): young 위로(-0.3) → mature 처짐(+0.45)
+  //   - pose pitch/roll/twist는 openness 비례 — young 잎은 거의 접힘 상태.
+  //   plan v1 비판 #5: "leaflet pose 가 maturity 의존이어야 — young upright/folded,
+  //   mature open/drooped". random fan-out 0.
   const q = makeLeafQuaternion(ctx.petioleTipTangent, WORLD_UP);
   const rotationQ = new Quaternion(q.x, q.y, q.z, q.w);
 
   const ageFrac = Math.min(1, ctx.leafOrganState.senescence.progress);
   const curl = ctx.leafOrganState.posture.curl + ctx.leafOrganState.senescence.curl * 0.5;
   const gravityDroopDeg = ctx.leafOrganState.posture.gravityDroopDeg ?? 0;
+  // ★ Iter 39 Phase F5 — maturity-driven pose envelope.
+  const maturity = Math.max(0, Math.min(1, ctx.leafOrganState.expansionProgress));
+  const opennessFactor = (() => {
+    const t = Math.max(0, Math.min(1, (maturity - 0.2) / (0.8 - 0.2)));
+    return 0.2 + (1.0 - 0.2) * (t * t * (3 - 2 * t));   // smoothstep 0.2 → 1.0
+  })();
+  const foldDroopDeg = -10 + (30 - (-10)) * maturity;    // -10° ~ +30°
 
   const meshes: Mesh[] = [];
 
@@ -187,7 +199,21 @@ export function buildLeafletMeshes(ctx: LeafletMeshBuildContext): Mesh[] {
 
     // ★ graph SSOT — mesh.position = leafletSkeletonNode.pos (plant-local).
     mesh.position = new Vector3(node.pos.x, node.pos.y, node.pos.z);
-    mesh.rotationQuaternion = rotationQ.clone();
+    // ★ Iter 39 Phase F5 — maturity-dependent pose composition.
+    //   1) base rotation (rachis-outward, all leaflets 동일)
+    //   2) per-leaflet pitch (foldDroop + per-leaflet noise, scaled by openness)
+    //   3) per-leaflet roll (lateral curl, scaled by openness)
+    //   4) per-leaflet twist (per-leaflet noise, scaled by openness × ageFrac)
+    //   openness=0.2 (young): 거의 모든 회전 ×0.2 (접힘 상태). openness=1.0
+    //   (mature): 자연 회전 진폭. young upright (negative pitch) + mature drooped.
+    const pitchNoise = (((idSeed * 17) % 200 - 100) / 1000);  // ±0.1 rad
+    const rollNoise  = (((idSeed * 19) % 400 - 200) / 1000);  // ±0.2 rad
+    const twistNoise = (((idSeed * 13) % 300 - 150) / 1000);  // ±0.15 rad
+    const pitchRad = (foldDroopDeg * Math.PI / 180 + pitchNoise) * opennessFactor;
+    const rollRad  = rollNoise  * opennessFactor;
+    const twistRad = twistNoise * opennessFactor;
+    const localQ = Quaternion.RotationYawPitchRoll(twistRad, pitchRad, rollRad);
+    mesh.rotationQuaternion = rotationQ.multiply(localQ);
     // SSOT #185 — leafMesh stale worldMatrix trap (Iter 28 fix).
     mesh.computeWorldMatrix(true);
 
