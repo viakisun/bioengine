@@ -272,7 +272,7 @@ function addLeavesForAxis(
     //   사용자 botanical 계층: petiole-tip → leaf-rachis → petiolule → leaflet.
     addLeafletNodesForLeaf(
       axisIdx, leaf.nodeIdx, tipNodeId, tipPos, leaf.sizeFactor, leafBladeRef,
-      petioleEdgeId, bones, nodes, edges,
+      petioleEdgeId, bones, axis.leaves.length, nodes, edges,
     );
 
     // Iter 18B PR 8 (SSOT #180) — structured OrganAnchor for leaf blade.
@@ -387,6 +387,7 @@ function addLeafletNodesForLeaf(
   bladeRef: LeafBladeRef,
   parentEdgeId: string,           // petiole edge (rachis의 부모)
   bones: SkeletonBone[],          // ★ Phase L — petiole bonePath
+  totalLeafCount: number,         // ★ Iter 37 Q2.2 — axis 전체 잎 수 (leafPos 산출용)
   nodes: Map<string, SkeletonNode>,
   edges: Map<string, SkeletonEdge>,
 ): void {
@@ -455,19 +456,27 @@ function addLeafletNodesForLeaf(
 
     // sub-rachis edge.
     const subEdgeId = `e:leaf-rachis:axis${axisIdx}:n${leafNodeIdx}:seg${i}`;
-    const r0 = 0.0010 - 0.0004 * (i / Math.max(1, attachUs.length));  // 점차 가늘어짐
-    const r1 = 0.0010 - 0.0004 * ((i + 1) / Math.max(1, attachUs.length));
+    // ★ Iter 37 Q6.1 — rachis taper 강화 (base 1.4mm → tip 0.4mm).
+    const r0 = 0.0014 - 0.0010 * (i / Math.max(1, attachUs.length));
+    const r1 = 0.0014 - 0.0010 * ((i + 1) / Math.max(1, attachUs.length));
+
+    // ★ Iter 37 Q2.1 — Catmull-Rom curve with droop sag (이전: single line).
+    //   droopBias = -rachisLen × 0.10 × u (사용자 §1 rachisBend 0-12%).
+    //   mid-point에 y bias 적용 → 자연스러운 S/U 곡선.
+    const droopBias = -rachisLen * 0.10 * u;
+    const sagPos: V3 = {
+      x: (prevPos.x + attachPos.x) / 2,
+      y: (prevPos.y + attachPos.y) / 2 + droopBias,
+      z: (prevPos.z + attachPos.z) / 2,
+    };
+    const subBones = bonesFromCurve([prevPos, sagPos, attachPos], r0, r1, 3);
+
     edges.set(subEdgeId, {
       id: subEdgeId,
       type: 'leaf-rachis',
       startNodeId: prevNodeId,
       endNodeId: attachNodeId,
-      bonePath: [{
-        p0: { ...prevPos },
-        p1: { ...attachPos },
-        r0,
-        r1,
-      }],
+      bonePath: subBones,
       parentEdgeId: i === 0 ? parentEdgeId : subRachisEdgeIdByU.get(attachUs[i - 1])!,
       cuttable: true,
       semanticLabel: `leaf ${leafNodeIdx} rachis seg ${i}`,
@@ -540,11 +549,43 @@ function addLeafletNodesForLeaf(
   ): { lid: string; pos: V3 } => {
     const lid = `n:leaflet:axis${axisIdx}:n${leafNodeIdx}:${position}:${leafletCounter++}`;
     const rachisPos = rachisPointAt(rachisU);
-    const lateralAmount = lateralOffsetSign * sf * rachisLen * 0.35;
+
+    // ★ Iter 37 Q2.2 — 부착 각도 leafPos별 분기 (사용자 §6).
+    //   이전: 90° lateral 완벽 수평 (고사리 fern shape).
+    //   현재: stem 위치(top/mid/bottom)에 따라 20-85° 범위 분산 + jitter.
+    const leafPos = leafNodeIdx / Math.max(1, totalLeafCount);
+    let baseAngleDeg: number;
+    if (leafPos < 0.33) baseAngleDeg = 20 + leafPos * 105;             // 위쪽 잎: 20-55°
+    else if (leafPos < 0.66) baseAngleDeg = 35 + (leafPos - 0.33) * 105; // 중간: 35-70°
+    else baseAngleDeg = 45 + (leafPos - 0.66) * 120;                   // 아래쪽: 45-85°
+    baseAngleDeg += (1 - rachisU) * 15;  // terminal에 가까울수록 0-15° 추가 spread
+    const seed = leafNodeIdx * 0.7919 + leafletCounter * 31;
+    const angleJitter = ((seed * 13) % 200 - 100) / 10;  // ±10°
+    const attachRad = (baseAngleDeg + angleJitter) * Math.PI / 180;
+
+    // 부착 방향 — rachis vs lateral 사이의 _각도_ 가 attachRad.
+    const sinA = Math.sin(attachRad);
+    const cosA = Math.cos(attachRad);
+    const dirOut: V3 = {
+      x: lateralDir.x * sinA + rachisDir.x * cosA,
+      y: lateralDir.y * sinA + rachisDir.y * cosA,
+      z: lateralDir.z * sinA + rachisDir.z * cosA,
+    };
+    const outAmount = lateralOffsetSign * sf * rachisLen * 0.35;
+
+    // ★ Iter 37 Q2.3 — 3D pose roll/twist (사용자 §6 roll±20° / twist±15°).
+    //   leaflet position을 _같은 평면_에 두지 않도록 small y/z offset.
+    const rollSeed = leafNodeIdx * 0.7919 + leafletCounter * 19;
+    const twistSeed = leafNodeIdx * 0.7919 + leafletCounter * 23;
+    const rollDeg = ((rollSeed * 17) % 400 - 200) / 10;    // ±20°
+    const twistDeg = ((twistSeed * 19) % 300 - 150) / 10;  // ±15°
+    const rollOffset = Math.sin(rollDeg * Math.PI / 180) * sf * 0.005;   // ~±1mm
+    const twistOffset = Math.sin(twistDeg * Math.PI / 180) * sf * 0.003;
+
     const leafletPos: V3 = {
-      x: rachisPos.x + lateralDir.x * lateralAmount,
-      y: rachisPos.y + lateralDir.y * lateralAmount,
-      z: rachisPos.z + lateralDir.z * lateralAmount,
+      x: rachisPos.x + dirOut.x * outAmount,
+      y: rachisPos.y + dirOut.y * outAmount + rollOffset,
+      z: rachisPos.z + dirOut.z * outAmount + twistOffset,
     };
     const targetSizeM = rachisLen * sf * 0.4;
 
@@ -556,25 +597,32 @@ function addLeafletNodesForLeaf(
       subRachisEdgeIdByU.get(Math.round(rachisU * 100) / 100)
       ?? leafRachisEdgeId;
 
+    // ★ Iter 37 Q2.4 — Petiolule arch (rachisLen × 0.02 비례).
+    //   이전: bonePath = [{p0, p1}] single straight bone (직선).
+    //   현재: 3-point catmull-rom with mid arch.
+    const archHeight = rachisLen * 0.02;
+    const archMid: V3 = {
+      x: (attachPos.x + leafletPos.x) / 2,
+      y: (attachPos.y + leafletPos.y) / 2 + archHeight,
+      z: (attachPos.z + leafletPos.z) / 2,
+    };
+    const petioluleBones = bonesFromCurve(
+      [attachPos, archMid, leafletPos], 0.0005, 0.0003, 3,
+    );
+
     const edgeId =
       `e:${edgeType}:axis${axisIdx}:n${leafNodeIdx}:${position}:${leafletCounter}`;
     edges.set(edgeId, {
       id: edgeId,
       type: edgeType,
-      startNodeId: attachNodeId,  // ★ rachis attach node (마디)
+      startNodeId: attachNodeId,
       endNodeId: lid,
-      bonePath: [{
-        p0: { ...attachPos },
-        p1: { ...leafletPos },
-        r0: 0.0005,
-        r1: 0.0003,
-      }],
+      bonePath: petioluleBones,
       parentEdgeId: parentSubRachisEdgeId,
       cuttable: true,
       semanticLabel: `${position} ${edgeType}`,
       attachedOrganIds: [],
     });
-    // attach node의 edgeIds에 이 분기 등록.
     if (attachNode) attachNode.edgeIds.push(edgeId);
 
     nodes.set(lid, {
