@@ -632,7 +632,9 @@ function addLeafletNodesForLeaf(
 
     // attach node 생성 (terminal은 leafletRef 포함).
     if (isTerminal) {
-      const terminalSf = 1.15;
+      // ★ Iter 39 Phase F3+F4 — terminalSf는 _상대 baseline_ (1.0). 좌우 size
+      //   차이는 primary의 sfL/sfR에서 시각화 (terminal은 항상 1개라 imbalance 무관).
+      const terminalSf = 1.0;
       nodes.set(attachNodeId, {
         id: attachNodeId,
         pos: attachPos,
@@ -643,9 +645,7 @@ function addLeafletNodesForLeaf(
           position: 'terminal',
           rachisU: 1.0,
           sizeFactor: terminalSf,
-          // ★ Iter 39 Phase F3 — sf 중복 제거. rachisLen이 이미 sf×nodePositionScale
-          //   반영 (computeLeafBladeRef) → terminalSf × POSITION_SIZE_MULT.terminal만.
-          targetSizeM: rachisLen * POSITION_SIZE_MULT.terminal,
+          targetSizeM: rachisLen * POSITION_SIZE_MULT.terminal * terminalSf,
         } satisfies LeafletNodeRef,
       });
     } else {
@@ -735,11 +735,11 @@ function addLeafletNodesForLeaf(
       y: rachisPos.y + dirOut.y * outAmount + rollOffset,
       z: rachisPos.z + dirOut.z * outAmount + twistOffset,
     };
-    // ★ Iter 39 Phase F3 — sf 중복 제거 + position별 분기. rachisLen이 이미 sf
-    //   반영 (computeLeafBladeRef). POSITION_SIZE_MULT는 sf 곱하지 않음.
-    //   leaflet position에 따라 size 차등 (terminal 1.15, primary 0.85,
-    //   intercalary 0.30, secondary 0.40).
-    const targetSizeM = rachisLen * (POSITION_SIZE_MULT[position] ?? 0.4);
+    // ★ Iter 39 Phase F3 + F4 — position별 분기 + sf는 _per-leaflet 상대 크기_.
+    //   rachisLen이 이미 leaf-level sf×nodePositionScale 반영 (computeLeafBladeRef).
+    //   sf 인자는 _이 leaflet의 _상대 multiplier_ (LeafInstanceProfile.leftRightImbalance
+    //   로부터 좌우 sfL/sfR가 다르므로 — 좌우 size 차이 시각화).
+    const targetSizeM = rachisLen * (POSITION_SIZE_MULT[position] ?? 0.4) * sf;
 
     // ★ Phase O — attach node에서 분기 (이전: terminalLid에서 모두 시작).
     const attachNodeId = findAttachNodeForU(rachisU);
@@ -859,8 +859,8 @@ function addLeafletNodesForLeaf(
         position: 'secondary',
         rachisU,
         sizeFactor: sf,
-        // ★ Iter 39 Phase F3 — sf 중복 제거 + position별 분기.
-        targetSizeM: rachisLen * POSITION_SIZE_MULT.secondary,
+        // ★ Iter 39 Phase F3+F4 — position multiplier × sf (per-leaflet variation).
+        targetSizeM: rachisLen * POSITION_SIZE_MULT.secondary * sf,
       } satisfies LeafletNodeRef,
     });
     // parent primary node에 sub-vein edge 등록.
