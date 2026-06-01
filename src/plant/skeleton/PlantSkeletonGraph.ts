@@ -77,7 +77,10 @@ export type SkeletonNodeType =
   // Iter 36 v5 Phase O (★ NEW) — rachis 위 leaflet 부착점.
   //   사용자 의도: 잎줄기에 _여러 마디_가 있고 각 마디에서 좌우 소엽 분기.
   //   현재 lateral-vein/petiolule이 _terminal node 하나_에서 시작 (별모양) → 분산.
-  | 'rachis-attach-node';    // rachis 위 부착점 (rachisU 0.18, 0.35, 0.55, ...)
+  | 'rachis-attach-node'    // rachis 위 부착점 (rachisU 0.18, 0.35, 0.55, ...)
+  // Iter 37 Q3.1 (★ NEW) — Stage 1 primordium marker.
+  //   사용자 botanical: "줄기 옆 작은 초록 돌기, 가느다란 순". leafMaturity < 0.05.
+  | 'primordium-node';      // Stage 1 잎 — 작은 light green sphere (잎자루 시작부)
 
 /**
  * Iter 36 v5 Phase B — Compound leaf leaflet position type.

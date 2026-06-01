@@ -109,6 +109,12 @@ export const NODE_VISUAL_HINT_DEFAULTS: Record<SkeletonNodeType, NodeVisualHint>
     markerShape: 'sphere',
     markerSizeM: 0.0012,
   },
+  // Iter 37 Q3.1 — Stage 1 primordium marker.
+  'primordium-node': {
+    markerColor: '#90EE90',     // light green (어린 잎 원기)
+    markerShape: 'sphere',
+    markerSizeM: 0.0018,
+  },
 };
 
 /** Returns a fresh visualHint clone for the given type (label injected by caller). */

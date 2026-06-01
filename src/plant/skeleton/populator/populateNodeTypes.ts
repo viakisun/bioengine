@@ -36,6 +36,8 @@ function nodeTypeFromId(id: string): SkeletonNodeType {
   if (id.startsWith('n:apex:')) return 'apex-node';
   // Iter 36 v5 Phase O: `n:rachis-attach:*` — 잎줄기 부착점 (마디).
   if (id.startsWith('n:rachis-attach:')) return 'rachis-attach-node';
+  // Iter 37 Q3.1: `n:primordium:*` — Stage 1 primordium marker.
+  if (id.startsWith('n:primordium:')) return 'primordium-node';
   if (id.startsWith('n:petiole_tip:')) return 'petiole-tip';
   if (id.startsWith('n:peduncle_end:')) return 'peduncle-node';
   if (id.startsWith('n:knuckle:')) return 'rachis-node';

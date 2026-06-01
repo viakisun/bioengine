@@ -235,7 +235,17 @@ function addLeavesForAxis(
   edges: Map<string, SkeletonEdge>,
 ): void {
   for (const leaf of axis.leaves) {
-    if (!isLeafOrganVisible(leaf)) continue;
+    // ★ Iter 37 Q3.1 — Stage 1 PRIMORDIUM marker (이전: visibility filter로 완전 제외).
+    //   사용자 botanical: "줄기 옆 작은 초록 돌기, 가느다란 순".
+    //   leafMaturity > 0 + visibility=false 인 잎 → 작은 marker만 (no petiole/leaflets).
+    const leafLikeAny = leaf as unknown as { leafMaturity?: number };
+    const lm = typeof leafLikeAny.leafMaturity === 'number' ? leafLikeAny.leafMaturity : 1;
+    if (!isLeafOrganVisible(leaf)) {
+      if (lm > 0 && lm < LEAF_VISIBILITY_THRESHOLD) {
+        addPrimordiumMarker(axisIdx, leaf, nodes);
+      }
+      continue;
+    }
     if (leaf.petioleCurve.length < 2) continue;
 
     const attachNodeId = stemNodeId(axisIdx, leaf.nodeIdx);
@@ -315,37 +325,44 @@ function addLeavesForAxis(
  *   - old: leafLength 14-28cm, primary 3-4, intercalary 3-8
  */
 function computeLeafBladeRef(leaf: LeafBase): LeafBladeRef {
-  // sizeFactor → agePreset 단순 매핑 (Phase F에서 cultivar 분포 도입).
+  // ★ Iter 37 Q3.2 — Stage 세분화 (이전: sf<0.35 young/sf<0.7 mature/else complex).
+  //   사용자 §2: "어린 잎 primary 1-2쌍, 보통 2-3쌍, 복잡 3-4쌍".
   const sf = leaf.sizeFactor;
   let agePreset: LeafBladeRef['agePreset'];
-  if (sf < 0.35) agePreset = 'young';
-  else if (sf < 0.7) agePreset = 'mature';
-  else agePreset = sf > 0.9 ? 'complex' : 'mature';
+  let primaryPairs: number;
+  let intercalaryCount: number;
+  let secondaryCount: number;
+  if (sf < 0.15) {
+    // EARLY_TRUE 초기 — 매우 단순 (terminal + primary 1쌍만).
+    agePreset = 'young';
+    primaryPairs = 1;
+    intercalaryCount = 0;
+    secondaryCount = 0;
+  } else if (sf < 0.35) {
+    // EARLY_TRUE 후기 — primary 2쌍 + 약간 intercalary.
+    agePreset = 'young';
+    primaryPairs = 2;
+    intercalaryCount = 1;
+    secondaryCount = 0;
+  } else if (sf < 0.7) {
+    // COMPOUND_DEVELOPING ~ MATURE.
+    agePreset = 'mature';
+    primaryPairs = 3;
+    intercalaryCount = 3;
+    secondaryCount = 2;
+  } else {
+    // COMPOUND_MATURE / COMPLEX.
+    agePreset = sf > 0.9 ? 'complex' : 'mature';
+    primaryPairs = 4;
+    intercalaryCount = sf > 0.9 ? 6 : 4;
+    secondaryCount = sf > 0.9 ? 6 : 3;
+  }
 
   // 잎 길이: cultivar reference 0.12m × sizeFactor (Iter 36 v5 Phase A 산식).
   const leafLengthM = 0.12 * Math.max(0.05, sf);
   // petiole : rachis 비율 — mature 0.3 : 0.7.
   const petioleRatioM = 0.30;
   const rachisLengthM = leafLengthM * 0.70;
-
-  // primary pairs: young 1-2, mature 2-3, complex 3-4.
-  let primaryPairs: number;
-  if (agePreset === 'young') primaryPairs = sf < 0.2 ? 1 : 2;
-  else if (agePreset === 'mature') primaryPairs = 3;
-  else primaryPairs = 4;
-
-  // intercalary: young 0-2, mature 2-5, complex 5-8.
-  let intercalaryCount: number;
-  if (agePreset === 'young') intercalaryCount = Math.floor(sf * 4);
-  else if (agePreset === 'mature') intercalaryCount = 3;
-  else intercalaryCount = 6;
-
-  // secondary: bipinnate sub-leaflet (사용자 §3 보통잎 0-3, 복잡한 잎 3-8).
-  //   ★ Phase N: mature에도 일부 secondary — primary 자식으로 sub-vein 분기 시각 가시.
-  let secondaryCount: number;
-  if (agePreset === 'complex') secondaryCount = 6;
-  else if (agePreset === 'mature') secondaryCount = 2;
-  else secondaryCount = 0;
 
   return {
     leafLengthM,
@@ -740,6 +757,36 @@ function addLeafletNodesForLeaf(
  *
  * 산식: mainAxis stemCurve 마지막 segment 위쪽 ~5cm offset (visible marker).
  */
+/**
+ * Iter 37 Q3.1 — Primordium marker (Stage 1).
+ *
+ * leafMaturity > 0 && < 0.05 인 잎 — _아주 작은 마커_ 만 표시.
+ * 사용자 botanical: "줄기 옆 작은 초록 돌기, 가느다란 순".
+ * petiole/leaflet 미생성 — primordium은 _개념상 표시_만.
+ */
+function addPrimordiumMarker(
+  axisIdx: number,
+  leaf: LeafBase,
+  nodes: Map<string, SkeletonNode>,
+): void {
+  const attachNodeId = stemNodeId(axisIdx, leaf.nodeIdx);
+  const stemNode = nodes.get(attachNodeId);
+  if (!stemNode) return;
+  const az = (leaf as unknown as { azimuthRad?: number }).azimuthRad ?? 0;
+  // primordium = stem surface에서 약간 옆으로 + 위쪽 (어린 잎 원기).
+  const pid = `n:primordium:axis${axisIdx}:n${leaf.nodeIdx}`;
+  nodes.set(pid, {
+    id: pid,
+    pos: {
+      x: stemNode.pos.x + Math.cos(az) * 0.008,
+      y: stemNode.pos.y + 0.003,
+      z: stemNode.pos.z + Math.sin(az) * 0.008,
+    },
+    radius: 0.0005,
+    edgeIds: [],
+  });
+}
+
 function addApexNode(
   axis: AxisBase,
   axisIdx: number,
