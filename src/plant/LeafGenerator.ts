@@ -197,6 +197,11 @@ export function buildLeafMeshFromPhytomer(
   let leafEngineLeafletCount = leafOrganState.leafletCount;
   let leafEngineSerrationDepth = leafOrganState.morphology.serrationDepth;
   let leafEngineLobeDepth = leafOrganState.morphology.lobeDepth;
+  // ★ Iter 38 S1 — Hybrid 4 신규 shape params (AGE_PRESETS baseline + jitter).
+  let leafEngineAspectRatio: number | undefined;
+  let leafEngineBaseShape: number | undefined;
+  let leafEngineTipSharpness: number | undefined;
+  let leafEngineAsymmetry: number | undefined;
   if (bladeRef && leafletNodes && leafletNodes.length > 0) {
     const seed = hashStr(name);
     const descriptor = leafEngineBuildCompoundLeaf(bladeRef, leafletNodes, seed);
@@ -204,6 +209,16 @@ export function buildLeafMeshFromPhytomer(
     leafEngineLeafletCount = leafletNodes.length;
     leafEngineSerrationDepth = descriptor.resolved.serrationAmp;
     leafEngineLobeDepth = descriptor.resolved.lobeDepth;
+    // ★ Iter 38 S1 — 4 신규 shape params from descriptor.resolved.
+    //   baseShape + tipSharpness는 S3에서 ResolvedLeafParams에 추가 — 우선 type-safe access.
+    const resolved = descriptor.resolved as typeof descriptor.resolved & {
+      baseShape?: number;
+      tipSharpness?: number;
+    };
+    leafEngineAspectRatio = resolved.aspectRatio;
+    leafEngineBaseShape = resolved.baseShape;
+    leafEngineTipSharpness = resolved.tipSharpness;
+    leafEngineAsymmetry = resolved.asymmetry;
   }
   if (leafOrganState.expansionProgress < 0.01 && leafOrganState.currentAreaCm2 < 0.5) {
     return new Mesh(name, scene);
@@ -222,6 +237,11 @@ export function buildLeafMeshFromPhytomer(
     lobeDepth: leafEngineLobeDepth,
     waviness: visualGenome.leafWaviness,
     petioleLength: visualGenome.leafPetioleLength,
+    // ★ Iter 38 S1 — Hybrid 4 신규 shape params (optional, descriptor 있을 때만).
+    aspectRatio: leafEngineAspectRatio,
+    baseShape: leafEngineBaseShape,
+    tipSharpness: leafEngineTipSharpness,
+    asymmetry: leafEngineAsymmetry,
   };
 
   // ageFrac mirrors PlantBase senescence — Skin applies value, doesn't recompute.

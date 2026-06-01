@@ -29,6 +29,16 @@ export interface LeafShapeParams {
   lobeDepth: number;
   waviness: number;
   petioleLength: number;
+  // ★ Iter 38 S1 — 사용자 §4 신규 4 params (optional, back-compat).
+  //   leaf-engine AGE_PRESETS baseline + ±10% jitter 산출값.
+  /** 둥근 vs 길쭉 (cherry 1.5 ↔ beef 3.0). Hybrid baseline + jitter. */
+  aspectRatio?: number;
+  /** 밑부분 모양 (1.0 wedge ↔ 0.7 heart). */
+  baseShape?: number;
+  /** 끝 모양 (1.0 round ↔ 2.0 pointed). sin(πt)^shapePower의 exponent. */
+  tipSharpness?: number;
+  /** 좌우 비대칭 (0 = 대칭, 0.3 = 좌우 30% offset). */
+  asymmetry?: number;
 }
 
 export const DEFAULT_LEAF_PARAMS: LeafShapeParams = {
@@ -37,6 +47,11 @@ export const DEFAULT_LEAF_PARAMS: LeafShapeParams = {
   lobeDepth: 0.08,
   waviness: 0.003,
   petioleLength: 0.08,
+  // ★ Iter 38 S1 — defaults (mature baseline).
+  aspectRatio: 2.4,
+  baseShape: 0.85,
+  tipSharpness: 1.5,
+  asymmetry: 0.05,
 };
 
 export interface LeafBuildParams {
