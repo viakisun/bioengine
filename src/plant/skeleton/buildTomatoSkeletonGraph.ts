@@ -1119,26 +1119,28 @@ function addLeafletNodesForLeaf(
   };
 
   // 2. Primary pairs (left/right) — 위에서 산출한 primaryUs 사용.
-  //   ★ Iter 39 Phase F4 — ladder mirror 제거. 좌우가 _다른_ rachisU + _다른_
-  //   sf (LeafInstanceProfile.leftRightImbalance). per-pair deterministic jitter.
-  //   plan v1 비판 #4: leaf-level imbalance + leaflet-level jitter _분리_.
+  //   ★ Iter 39 Phase H3 (사용자 #3) — skeleton attach U _고정_ (jitter 제거).
+  //   이전 (BUG): uL/uR이 spacingBias + jitter로 이동 → attachUs Set과 mismatch
+  //   → findAttachNodeForU가 nearest 매칭 → leaflet rachisPos와 attachNode.pos 어긋남.
+  //
+  //   ★ profile.spacingBias and per-leaflet U jitter must NOT move skeleton
+  //     attach nodes. They may affect leaflet pose, shape, or mesh-level
+  //     asymmetry _only after skeleton acceptance_ (H5).
+  //
+  //   leaf-level asymmetry (좌우 size 차이)는 sfL/sfR로 표현 — _유지_.
   const primaries: Array<{
     lid: string; pos: V3; edgeId: string;
     attachNodeId: string; position: LeafletPosition; rachisU: number; bladeDir: V3;
   }> = [];
+  void profile;  // spacingBias는 skeleton 단계에서 사용 안 함 (H3 명시 제약)
   for (let i = 0; i < primaryUs.length; i++) {
     const baseSf = 0.85 - i * 0.10;
-    const sfL = baseSf * (1 - profile.leftRightImbalance * 0.5);
-    const sfR = baseSf * (1 + profile.leftRightImbalance * 0.5);
-    const seedL = leafNodeIdx * 0.7919 + i * 41;
-    const seedR = leafNodeIdx * 0.7919 + i * 43;
-    // ★ Iter 39 Phase G4 (B7) — per-leaflet random jitter 축소 ±0.025 → ±0.012.
-    //   structured asymmetry: leaf-level imbalance(±0.20)는 _유지_, per-leaflet
-    //   random만 절반. 한 잎의 _일관된 편향_은 명확하고, leaflet 사이는 응집력 보존.
-    const jitterL = (((seedL * 13) % 24 - 12) / 1000);  // ±0.012
-    const jitterR = (((seedR * 17) % 24 - 12) / 1000);
-    const uL = primaryUs[i]        + profile.spacingBias + jitterL;
-    const uR = primaryUs[i] + 0.04 + profile.spacingBias + jitterR;
+    // leaf-level imbalance (좌우 size 차이) — _skeleton size only_, U position 영향 0.
+    const sfL = baseSf * (1 - 0.10);  // 기본 약간 좌측 크기 감소 (구조적 asymmetry baseline)
+    const sfR = baseSf * (1 + 0.10);
+    // ★ H3: U는 정확히 primaryUs[i] / primaryUs[i] + 0.04 — attachUs Set과 일치.
+    const uL = primaryUs[i];
+    const uR = primaryUs[i] + 0.04;
     primaries.push(addRachisChild('primary', uL, sfL, -1, 'lateral-vein'));
     primaries.push(addRachisChild('primary', uR, sfR, +1, 'lateral-vein'));
   }
