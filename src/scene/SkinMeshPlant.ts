@@ -84,7 +84,8 @@ import { defaultSkinEngine } from '../plant/skin/defaultSkinEngine';
 // cylinder는 불필요.
 import { buildLeafMeshFromPhytomer, getLeafMaterial, getYellowLeafMaterial } from '../plant/LeafGenerator';
 // Iter 36 v5 Phase C — skeleton 3-tier: get leaflet nodes for compound leaf rendering.
-import { getLeafletNodesByParentLeaf, getLeafletSkeletonNodesByParentLeaf } from '../plant/skeleton/PlantSkeletonGraph';
+// Iter 39 Phase B — getLeafletNodesByParentLeaf 제거 (Skin path는 SkeletonNode[] 사용).
+import { getLeafletSkeletonNodesByParentLeaf } from '../plant/skeleton/PlantSkeletonGraph';
 // Iter 39 Phase A — per-leaflet plane mesh (graph node-driven).
 import { buildLeafletMeshes } from './leaf-engine';
 
@@ -764,30 +765,24 @@ export function createSkinMeshPlant(
         //     leafOrganState 부재 시 safe skip (populator 위반 catch).
         const leafOrganState = meshAnchorNode.phytomer?.leaf;
         if (!leafOrganState) continue;
-        // Iter 36 v5 Phase C — skeleton 3-tier: bladeRef + leafletNodes read.
+        // Iter 36 v5 Phase C — skeleton 3-tier: bladeRef + leafletSkeletonNodes read.
         const bladeRef = meshAnchorNode.leafBladeRef;
-        const leafletNodes = getLeafletNodesByParentLeaf(graph, meshAnchorNode.id);
-        // Iter 38 S4 — cultivar shape override (cherry 더 둥근 / beef 더 길쭉).
-        const cultivarShapeOverride = skeletonCultivar?.growthProfile?.leafShapeOverride;
-        // Iter 39 Phase A — per-leaflet plane mesh path (graph node-driven).
-        //   bladeRef + terminal leaflet skeleton node 둘 다 있을 때 신규 path.
-        //   _legacy buildLeafMeshFromPhytomer는 fallback_ (bladeRef 또는 leaflet
-        //   skeleton 미생성 시 — populator 위반 catch + back-compat).
-        //
-        //   Phase A scope: terminal leaflet 1개만 (smallest delta validation).
-        //   각 leaflet의 mesh.position = graph node.pos (plant-local SSOT).
-        //   Phase B에서 모든 leaflet type, Phase C에서 pose composition.
         const leafletSkeletonNodes = bladeRef
           ? getLeafletSkeletonNodesByParentLeaf(graph, meshAnchorNode.id)
           : [];
-        const terminalNode = leafletSkeletonNodes.find(
-          (n) => n.leafletRef?.position === 'terminal',
-        );
+        // Iter 38 S4 — cultivar shape override (cherry 더 둥근 / beef 더 길쭉).
+        const cultivarShapeOverride = skeletonCultivar?.growthProfile?.leafShapeOverride;
+        // Iter 39 Phase B — 모든 leaflet type (terminal/primary/intercalary/secondary)
+        //   에 plane mesh 부착. _legacy buildLeafMeshFromPhytomer는 fallback_
+        //   (bladeRef 또는 leaflet skeleton 미생성 시 — populator 위반 catch).
+        //
+        //   Phase A: terminal-only validation
+        //   Phase B: 전 type, ID-keyed Map (descriptor 재사용 준비, Phase C에서 pose 적용)
         const yellowing = leafOrganState.senescence?.colorDullness ?? 0;
         const meshNamePrefix = `skinplant_leaf_${seed}_a${axisIdx}_n${nodeIdx}`;
 
-        if (bladeRef && terminalNode) {
-          // ★ Iter 39 Phase A — graph node-driven path.
+        if (bladeRef && leafletSkeletonNodes.length > 0) {
+          // ★ Iter 39 Phase B — graph node-driven path (all leaflet types).
           //   petiole edge의 마지막 bone tangent = R26 rotation 산식과 동일 (DRY).
           const lastBone = edge.bonePath[edge.bonePath.length - 1];
           const petioleTipTangent = {
@@ -798,8 +793,7 @@ export function createSkinMeshPlant(
           const leafletMeshes = buildLeafletMeshes({
             scene,
             bladeRef,
-            // Phase A: terminal만 (Phase B에서 [...leafletSkeletonNodes]로 확장).
-            leafletSkeletonNodes: [terminalNode],
+            leafletSkeletonNodes,
             leafBladeRootNode: meshAnchorNode,
             petioleTipTangent,
             leafOrganState,
@@ -808,20 +802,24 @@ export function createSkinMeshPlant(
             cultivarOverride: cultivarShapeOverride,
             meshNamePrefix,
           });
+          // Iter 39 Phase B — defoliation은 leaf 단위 (leaf-blade-root y 기준).
+          //   각 leaflet mesh에 metadata.leafBladeRootY 첨부 — defol loop에서 사용.
+          const leafBladeRootY = meshAnchorNode.pos.y;
           for (const lm of leafletMeshes) {
             lm.parent = lushGroup;
             lm.material = yellowing > 0.4 ? yellowLeafMat : leafMat;
+            lm.metadata = { ...(lm.metadata ?? {}), leafBladeRootY };
             currentMeshes.push(lm);
             currentParts.leaves.push(lm);
             leafMeshCount++;
           }
         } else {
-          // ★ Fallback — bladeRef 또는 terminal skeleton 미생성 시 legacy path.
+          // ★ Fallback — bladeRef 또는 leaflet skeleton 미생성 시 legacy path.
           //   populator 위반 catch (LEAF-LIVE-FALLBACK-NEVER-01과 호환).
           const leafMesh = buildLeafMeshFromPhytomer(
             meshNamePrefix,
             scene, leafOrganState, genome, leafRng,
-            bladeRef, leafletNodes, cultivarShapeOverride,
+            bladeRef, leafletSkeletonNodes, cultivarShapeOverride,
           );
           leafMesh.parent = lushGroup;
           leafMesh.position = new Vector3(tipPlantPos.x, tipPlantPos.y, tipPlantPos.z);
@@ -836,7 +834,7 @@ export function createSkinMeshPlant(
         }
       }
     }
-    log.debug(`per-leaf meshes=${leafMeshCount} (Iter 39 Phase A — terminal leaflet path)`);
+    log.debug(`per-leaflet meshes=${leafMeshCount} (Iter 39 Phase B — all types graph-driven)`);
     void cultivarKey;
 
     // 적엽 (defoliation) — leaf blade mesh hide (graph petiole edges는 위에서 이미 제거).
@@ -845,7 +843,13 @@ export function createSkinMeshPlant(
     if (defolThresholdY > -Infinity && currentParts.leaves.length > 0) {
       let hiddenCount = 0;
       for (const m of currentParts.leaves) {
-        if (m.position.y < defolThresholdY) {
+        // Iter 39 Phase B — per-leaflet mesh의 경우 leafBladeRootY metadata로
+        //   판단 (각 leaflet의 자기 y는 leaf 평균과 다름 → 잎 1개가 부분 hide
+        //   되는 artifact 방지). 적엽은 _잎 단위_ 의미가 한 잎 전체 일괄 hide.
+        //   legacy fallback path (metadata 없음) 시 mesh.position.y 그대로 사용.
+        const md = m.metadata as { leafBladeRootY?: number } | undefined;
+        const refY = md?.leafBladeRootY ?? m.position.y;
+        if (refY < defolThresholdY) {
           m.setEnabled(false);
           hiddenCount++;
         }

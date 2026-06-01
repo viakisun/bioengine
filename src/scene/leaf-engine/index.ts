@@ -21,7 +21,7 @@
 // Phase D 시점: 인터페이스 + 산식 모듈만. 실제 vertex 생성은 Phase E (LeafGenerator
 // 통합).
 
-import type { LeafBladeRef, LeafletNodeRef } from '../../plant/skeleton/PlantSkeletonGraph';
+import type { LeafBladeRef, SkeletonNode } from '../../plant/skeleton/PlantSkeletonGraph';
 import { AGE_PRESETS } from './agePresets';
 import type { ResolvedLeafParams } from './correlationRules';
 import { applyCorrelation } from './correlationRules';
@@ -33,10 +33,11 @@ import { computeLeafletPose, type LeafletPose } from './poseVariation';
 export interface CompoundLeafDescriptor {
   /** Resolved 잎 전체 파라미터 (correlation 적용 후). */
   resolved: ResolvedLeafParams;
-  /** 각 leaflet의 outline + pose. */
+  /** 각 leaflet의 outline + pose. Iter 39 Phase B: node 타입을 SkeletonNode로
+   *  확장 (node.id 보존) — buildLeafletMeshes가 ID-keyed Map 구성 가능. */
   leaflets: Array<{
-    /** skeleton에서 read한 leaflet node 데이터. */
-    node: LeafletNodeRef;
+    /** skeleton node (id + pos + leafletRef 풀 메타데이터). */
+    node: SkeletonNode;
     /** Shape outline (samples × halfWidth left/right). */
     profile: ShapeProfileSample[];
     /** Procedural pose (attach + pitch + roll + twist). */
@@ -62,7 +63,9 @@ export interface CultivarShapeOverride {
 
 export function buildCompoundLeaf(
   bladeRef: LeafBladeRef,
-  leafletNodes: ReadonlyArray<LeafletNodeRef>,
+  /** Iter 39 Phase B — SkeletonNode[] (LeafletNodeRef[] → 확장). node.id 보존
+   *  으로 buildLeafletMeshes의 ID-keyed Map lookup 가능. */
+  leafletNodes: ReadonlyArray<SkeletonNode>,
   seed: number,
   // ★ Iter 38 S4 — Cultivar shape override (optional, back-compat).
   cultivarOverride?: CultivarShapeOverride,
@@ -90,9 +93,14 @@ export function buildCompoundLeaf(
   }
 
   // 10. 각 leaflet마다 outline + pose 생성.
-  const leaflets = leafletNodes.map((node, i) => {
+  //   leafletRef 부재 시 (defensive — populator 보장하지만 type-safety 위해) skip.
+  const leaflets: CompoundLeafDescriptor['leaflets'] = [];
+  for (let i = 0; i < leafletNodes.length; i++) {
+    const node = leafletNodes[i];
+    const ref = node.leafletRef;
+    if (!ref) continue;
     const leafletSeed = seed * 0.7919 + i * 31.0;
-    const lengthM = node.targetSizeM;
+    const lengthM = ref.targetSizeM;
 
     // ★ Iter 38 S3 — resolved.baseShape + tipSharpness 사용 (이전: hardcoded).
     const profile = buildShapeProfile({
@@ -113,10 +121,10 @@ export function buildCompoundLeaf(
       sample.halfWidthRight += lobe * 0.85 + teeth * 1.1;  // 좌우 약간 다름
     }
 
-    const pose = computeLeafletPose(node.position, node.rachisU, resolved.poseDroopDeg, leafletSeed);
+    const pose = computeLeafletPose(ref.position, ref.rachisU, resolved.poseDroopDeg, leafletSeed);
 
-    return { node, profile, pose };
-  });
+    leaflets.push({ node, profile, pose });
+  }
 
   return { resolved, leaflets };
 }

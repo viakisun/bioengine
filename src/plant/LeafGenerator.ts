@@ -34,7 +34,7 @@ import {
 import { normalizeLeafMeshVertices } from './anchors';
 // Iter 36 v5 Phase E — leaf-engine procedural variation (Conservative 분리).
 import { buildCompoundLeaf as leafEngineBuildCompoundLeaf } from '../scene/leaf-engine';
-import type { LeafBladeRef, LeafletNodeRef } from './skeleton/PlantSkeletonGraph';
+import type { LeafBladeRef, SkeletonNode } from './skeleton/PlantSkeletonGraph';
 
 /** Simple djb2 string hash → deterministic numeric seed (per leaf instance). */
 function hashStr(s: string): number {
@@ -180,10 +180,10 @@ export function buildLeafMeshFromPhytomer(
   visualGenome: PlantGenome,
   rng: SeededRandom,
   // Iter 36 v5 Phase C — skeleton 3-tier separation.
-  //   Skeleton (LeafBladeRef + LeafletNodeRef[]) → Rendering engine read.
-  //   Phase E에서 leaf-engine buildCompoundLeaf 통합 (procedural variation).
+  //   Skeleton (LeafBladeRef + SkeletonNode[]) → Rendering engine read.
+  //   Iter 39 Phase B — leafletNodes 타입을 SkeletonNode[]로 widen (node.id 보존).
   bladeRef?: LeafBladeRef,
-  leafletNodes?: ReadonlyArray<LeafletNodeRef>,
+  leafletNodes?: ReadonlyArray<SkeletonNode>,
   // Iter 38 S4 — Cultivar shape override (cherry 더 둥근 / beef 더 길쭉).
   cultivarShapeOverride?: {
     aspectRatioMultiplier?: number;
