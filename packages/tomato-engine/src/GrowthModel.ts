@@ -799,11 +799,20 @@ function populateSideShootChain(
       gravityDroopDeg: sideGravityDroop,
       senescenceDroopDeg: sideSenescenceState.droopDeg,
       waterStressDroopDeg: sideWaterStressDroop,
-      // Iter 31 Phase 9.4 (R16 fix) — base curl 0.12 → 0.30.
-      // 사용자 결함: "잎의 메시가 빳빳하다, bending이 전혀 구현 안 됨".
-      // 0.12 base는 _9mm cup_ for 4.5cm leaflet (11% — 시각상 거의 안 보임).
-      // 0.30 base = 27% cup (시각상 명확 transverse arc).
-      curl: 0.30 + yellowing * 0.20,
+      // Iter 37 Phase R.1 (v2 — 사용자 정정 "너무 평면적") — Stage-aware curl.
+      //   v1 (curl mature=0.05) → 너무 평면. 자연 turgor cup (~10-15%) 유지 필요.
+      //   v2: botanical turgor cup 보존, 그러나 v0 (0.30) 처럼 _과한 컵_ 아님.
+      //   사용자 §1: "수평 또는 약간 아래" — 약간 cup 자연.
+      //     - young (위쪽): 위로 말림 (강한 cup, 어린 잎 자연) → 0.22
+      //     - developing: 전환 → 0.18
+      //     - mature: 약간 자연 turgor cup → 0.12 (이전 v0: 0.30 과함, v1: 0.05 평면)
+      //     - senescent: yellowing × 0.20 추가 (edge curl 점진)
+      curl: (
+        leafMaturity < 0.15 ? 0.22 :   // 어린 잎 (apex, 위로 말림)
+        leafMaturity < 0.35 ? 0.18 :   // 발달 중
+        leafMaturity < 0.70 ? 0.14 :   // 전환 (약간 cup)
+        0.12                           // mature (자연 turgor cup ~10-12%)
+      ) + yellowing * 0.20,            // senescent edge curl 추가
     });
     // Iter 29 Phase 5 — side-shoot morphology with per-node variance.
     const sideBaseMorphology: LeafMorphologyState = {
@@ -1428,11 +1437,20 @@ export function computePlantState(
       gravityDroopDeg: gravityDroop,
       senescenceDroopDeg: senescenceState.droopDeg,
       waterStressDroopDeg: waterStressDroopPhase5,
-      // Iter 31 Phase 9.4 (R16 fix) — base curl 0.12 → 0.30.
-      // 사용자 결함: "잎의 메시가 빳빳하다, bending이 전혀 구현 안 됨".
-      // 0.12 base는 _9mm cup_ for 4.5cm leaflet (11% — 시각상 거의 안 보임).
-      // 0.30 base = 27% cup (시각상 명확 transverse arc).
-      curl: 0.30 + yellowing * 0.20,
+      // Iter 37 Phase R.1 (v2 — 사용자 정정 "너무 평면적") — Stage-aware curl.
+      //   v1 (curl mature=0.05) → 너무 평면. 자연 turgor cup (~10-15%) 유지 필요.
+      //   v2: botanical turgor cup 보존, 그러나 v0 (0.30) 처럼 _과한 컵_ 아님.
+      //   사용자 §1: "수평 또는 약간 아래" — 약간 cup 자연.
+      //     - young (위쪽): 위로 말림 (강한 cup, 어린 잎 자연) → 0.22
+      //     - developing: 전환 → 0.18
+      //     - mature: 약간 자연 turgor cup → 0.12 (이전 v0: 0.30 과함, v1: 0.05 평면)
+      //     - senescent: yellowing × 0.20 추가 (edge curl 점진)
+      curl: (
+        leafMaturity < 0.15 ? 0.22 :   // 어린 잎 (apex, 위로 말림)
+        leafMaturity < 0.35 ? 0.18 :   // 발달 중
+        leafMaturity < 0.70 ? 0.14 :   // 전환 (약간 cup)
+        0.12                           // mature (자연 turgor cup ~10-12%)
+      ) + yellowing * 0.20,            // senescent edge curl 추가
     });
 
     // Iter 29 Phase 5 — morphology with per-node deterministic variance

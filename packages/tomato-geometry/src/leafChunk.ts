@@ -406,7 +406,8 @@ function buildLeafBladeOnly(paramsArg: LeafBuildParams, rng: SeededRandom): GeoC
           af,
           rng,
           effShape,
-          false
+          false,
+          paramsArg.gravityDroopDeg ?? 0,  // Iter 37 R.2 — 누락 fix (lateral leaflets)
         );
         rotateChunkY(leaflet, side * rng.range(0.20, 0.30));
         rotateChunkZ(leaflet, -Math.abs(rng.gaussian(0, leafletDroopRange)));
