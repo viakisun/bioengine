@@ -78,11 +78,12 @@ export function computeLeafInstanceProfile(
   // spacingBias: primary 간격 bias.
   const spacingBias = signed(4) * 0.05;
 
-  // opennessFactor: 펼쳐짐 정도. young (maturity<0.3) → 0.2, mature → 1.0
+  // opennessFactor: 펼쳐짐 정도. young (maturity<0.3) → 0.25, mature → 1.0
   //   + per-leaf noise ±0.1
-  const opennessBase = lerp(0.2, 1.0, smoothstep(0.15, 0.85, maturity));
+  //   ★ Iter 39 Phase G4 — minimum 0.15 → 0.25 (young leaf 최소 readability).
+  const opennessBase = lerp(0.25, 1.0, smoothstep(0.15, 0.85, maturity));
   const opennessNoise = signed(5) * 0.1;
-  const opennessFactor = Math.max(0.15, Math.min(1.05, opennessBase + opennessNoise));
+  const opennessFactor = Math.max(0.25, Math.min(1.05, opennessBase + opennessNoise));
 
   // overallTwist: 잎 전체 회전 ±0.10 rad
   const overallTwist = signed(6) * 0.10;

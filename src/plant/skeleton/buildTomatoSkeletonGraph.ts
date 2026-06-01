@@ -1014,8 +1014,11 @@ function addLeafletNodesForLeaf(
     const sfR = baseSf * (1 + profile.leftRightImbalance * 0.5);
     const seedL = leafNodeIdx * 0.7919 + i * 41;
     const seedR = leafNodeIdx * 0.7919 + i * 43;
-    const jitterL = (((seedL * 13) % 50 - 25) / 1000);  // ±0.025
-    const jitterR = (((seedR * 17) % 50 - 25) / 1000);
+    // ★ Iter 39 Phase G4 (B7) — per-leaflet random jitter 축소 ±0.025 → ±0.012.
+    //   structured asymmetry: leaf-level imbalance(±0.20)는 _유지_, per-leaflet
+    //   random만 절반. 한 잎의 _일관된 편향_은 명확하고, leaflet 사이는 응집력 보존.
+    const jitterL = (((seedL * 13) % 24 - 12) / 1000);  // ±0.012
+    const jitterR = (((seedR * 17) % 24 - 12) / 1000);
     const uL = primaryUs[i]        + profile.spacingBias + jitterL;
     const uR = primaryUs[i] + 0.04 + profile.spacingBias + jitterR;
     primaries.push(addRachisChild('primary', uL, sfL, -1, 'lateral-vein'));

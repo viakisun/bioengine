@@ -142,12 +142,12 @@ export function buildLeafletMeshes(ctx: LeafletMeshBuildContext): Mesh[] {
     const lengthM = node.leafletRef.targetSizeM;
     if (lengthM <= 0) continue;
 
-    // ★ Iter 39 Phase F4 — per-leaflet shape jitter (LeafInstanceProfile 위에).
-    //   plan v1 비판 #4: leaflet 단위 미세 variation. ±10% aspectRatio/tipSharpness.
-    //   deterministic per-leaflet seed = djb2(node.id) — same plant → same shape.
+    // ★ Iter 39 Phase F4 + G4 (B7) — per-leaflet shape jitter.
+    //   structured asymmetry: leaf-level imbalance가 _주_ variation 소스. per-leaflet
+    //   random shape jitter는 _보완_만. G4에서 ±10% → ±5% (절반).
     const idSeed = djb2(node.id);
-    const aspectJitter    = 1 + (((idSeed * 23) % 200 - 100) / 1000);  // ±10%
-    const sharpnessJitter = 1 + (((idSeed * 29) % 200 - 100) / 1000);
+    const aspectJitter    = 1 + (((idSeed * 23) % 100 - 50) / 1000);  // ±5%
+    const sharpnessJitter = 1 + (((idSeed * 29) % 100 - 50) / 1000);
 
     // Profile (좌우 halfWidth + lobe + serration) — buildCompoundLeaf와 동일 산식.
     const profile = buildShapeProfile({
