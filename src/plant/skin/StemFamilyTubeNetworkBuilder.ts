@@ -564,11 +564,27 @@ export function buildStemFamilyTubeNetwork(
   }
 
   function emitEdgeRecursive(edge: SkeletonEdge, parentInfo: ParentInfo | null): void {
-    // Iter 39 — leaf hierarchy edges (leaf-rachis + petiolule + lateral-vein +
-    //   sub-vein)도 SDF tube skin을 생성. 사용자: "초록색 skeleton에 skin을
-    //   붙이면 그냥 끝나는 일이야 ... 줄기와 같은 방식으로 skin을 붙여주면 된다".
-    //   이전 skip (Iter 36 Phase J/N)이 시각상 분단 원인 — Skin은 별도 LeafGenerator
-    //   가 _다른 좌표계_로 leaf mesh를 만들었음 (mismatch 4-10×).
+    // ★ Iter 39 Phase F2 — lateral-vein/sub-vein은 SDF tube 생성 안 함.
+    //   사용자 botanical feedback: "lateral veins should not be rendered as SDF
+    //   tubes. Instead, represent veins as surface-level features on the leaflet
+    //   blade". F2.5에서 vertex color/normal로 vein 표현 예정.
+    //   petiolule은 _짧은 connector_로 유지 — leaflet이 공중 카드처럼 보이지
+    //   않도록. petiolule edge bonePath는 buildTomatoSkeletonGraph.ts에서 단축
+    //   (F2 second part).
+    //
+    //   원래 Phase S (Iter 39 S1, commit 899261b)에서 모든 leaf hierarchy edges에
+    //   SDF skin 추가했으나, 사용자 비판 (plan v1 review): "lateral-vein/sub-vein
+    //   tube가 leaflet plane 안에 거미줄/사다리꼴 frame처럼 노출" → 부분 revert.
+    if (edge.type === 'lateral-vein' || edge.type === 'sub-vein') {
+      // recurse into children — leaflet plane mesh는 graph node에 부착되므로
+      // edge skip만 하고 자식 traversal은 유지.
+      const childIds = childIndex.get(edge.id) ?? [];
+      for (const cid of childIds) {
+        const cedge = graph.edges.get(cid);
+        if (cedge) emitEdgeRecursive(cedge, parentInfo);
+      }
+      return;
+    }
     const swollenBones = bonePathByEdge.get(edge.id);
     if (!swollenBones || swollenBones.length === 0) return;
 

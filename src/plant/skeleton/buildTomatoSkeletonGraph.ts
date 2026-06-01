@@ -676,14 +676,30 @@ function addLeafletNodesForLeaf(
     // ★ Iter 37 Q2.4 — Petiolule arch (rachisLen × 0.02 비례).
     //   이전: bonePath = [{p0, p1}] single straight bone (직선).
     //   현재: 3-point catmull-rom with mid arch.
-    const archHeight = rachisLen * 0.02;
+    //
+    // ★ Iter 39 Phase F2 — petiolule bonePath 80% 단축 (사용자 botanical
+    //   feedback: "petiolule은 짧고 얇은 connector로 유지 — 공중 카드 인상 회피").
+    //   lateral-vein/sub-vein은 SDF skip (StemFamilyTubeNetworkBuilder.ts),
+    //   petiolule은 attach point 쪽 20%만 SDF tube로 그림. leaflet plane이
+    //   나머지 영역을 시각적으로 _덮음_. leafletNode.pos (endNode) 위치는 _그대로_
+    //   — graph contract + ANCHOR-05 보존.
+    const PETIOLULE_VISIBLE_RATIO = 0.20;
+    const truncateBones = edgeType === 'petiolule';
+    const visibleEnd: V3 = truncateBones
+      ? {
+          x: attachPos.x + (leafletPos.x - attachPos.x) * PETIOLULE_VISIBLE_RATIO,
+          y: attachPos.y + (leafletPos.y - attachPos.y) * PETIOLULE_VISIBLE_RATIO,
+          z: attachPos.z + (leafletPos.z - attachPos.z) * PETIOLULE_VISIBLE_RATIO,
+        }
+      : leafletPos;
+    const archHeight = rachisLen * 0.02 * (truncateBones ? PETIOLULE_VISIBLE_RATIO : 1.0);
     const archMid: V3 = {
-      x: (attachPos.x + leafletPos.x) / 2,
-      y: (attachPos.y + leafletPos.y) / 2 + archHeight,
-      z: (attachPos.z + leafletPos.z) / 2,
+      x: (attachPos.x + visibleEnd.x) / 2,
+      y: (attachPos.y + visibleEnd.y) / 2 + archHeight,
+      z: (attachPos.z + visibleEnd.z) / 2,
     };
     const petioluleBones = bonesFromCurve(
-      [attachPos, archMid, leafletPos], 0.0005, 0.0003, 3,
+      [attachPos, archMid, visibleEnd], 0.0005, 0.0003, 3,
     );
 
     const edgeId =
