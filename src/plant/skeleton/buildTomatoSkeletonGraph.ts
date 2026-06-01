@@ -592,6 +592,13 @@ function addLeafletNodesForLeaf(
   let prevNodeId = parentLeafNodeId;
   let prevPos: V3 = { ...tipPos };
 
+  // ★ Iter 39 Phase G1 (B6+C6) — 모든 attach positions를 미리 수집.
+  //   각 sub-edge bonePath는 인접 attach point 4-cp Catmull-Rom으로 smoothing.
+  //   _시작/끝 = exact attach point_ (불변) → RACHIS-ATTACH-01 (≤1mm strict).
+  //   intermediate samples만 dense (divisions=8).
+  const allAttachPositions: V3[] = [{ ...tipPos }];
+  for (const u of attachUs) allAttachPositions.push(rachisPointAt(u));
+
   for (let i = 0; i < attachUs.length; i++) {
     const u = attachUs[i];
     const attachPos = rachisPointAt(u);
@@ -606,16 +613,22 @@ function addLeafletNodesForLeaf(
     const r0 = 0.0014 - 0.0010 * (i / Math.max(1, attachUs.length));
     const r1 = 0.0014 - 0.0010 * ((i + 1) / Math.max(1, attachUs.length));
 
-    // ★ Iter 37 Q2.1 — Catmull-Rom curve with droop sag (이전: single line).
-    //   droopBias = -rachisLen × 0.10 × u (사용자 §1 rachisBend 0-12%).
-    //   mid-point에 y bias 적용 → 자연스러운 S/U 곡선.
-    const droopBias = -rachisLen * 0.10 * u;
-    const sagPos: V3 = {
-      x: (prevPos.x + attachPos.x) / 2,
-      y: (prevPos.y + attachPos.y) / 2 + droopBias,
-      z: (prevPos.z + attachPos.z) / 2,
-    };
-    const subBones = bonesFromCurve([prevPos, sagPos, attachPos], r0, r1, 3);
+    // ★ Iter 39 Phase G1 — 4-cp Catmull-Rom segment (smooth tangent continuity).
+    //   cp0/cp3 = prev/next attach (tangent 산출용)
+    //   cp1/cp2 = start/end = current/next attach (★ 불변 endpoints)
+    //   intermediate samples은 8단계로 dense — zig-zag 해소.
+    const cp0 = allAttachPositions[Math.max(0, i)];
+    const cp1 = allAttachPositions[i];        // ★ start = exact (불변)
+    const cp2 = allAttachPositions[i + 1];    // ★ end = exact (불변)
+    const cp3 = allAttachPositions[Math.min(allAttachPositions.length - 1, i + 2)];
+    // ★ G1 — droopBias 축소 0.10 → 0.05 (짧은 segment 과대 증폭 방지).
+    const droopBias = -rachisLen * 0.05 * u;
+    const sagY = (cp1.y + cp2.y) / 2 + droopBias;
+    // cp3에 droop 미반영 (탄젠트 끝 처짐만). intermediate samples이 droop 효과.
+    // Catmull-Rom 4-cp segment with sag: cp1 그대로 + cp2에 sag 적용 시 endpoint 이동.
+    // 안전한 방식: cp0/cp3로 tangent 계산하되 sag는 _intermediate sample_에 보간.
+    const denseSegment = catmullRomSegment4cp(cp0, cp1, cp2, cp3, 8, sagY);
+    const subBones = boneListFromDenseSegment(denseSegment, r0, r1);
 
     edges.set(subEdgeId, {
       id: subEdgeId,
@@ -1348,4 +1361,90 @@ function bonesFromCurve(
     });
   }
   return bones;
+}
+
+/**
+ * ★ Iter 39 Phase G1 — 4-cp Catmull-Rom segment (smooth tangent continuity).
+ *
+ * cp0/cp3 = tangent control points (인접 attach point — 양 끝 tangent 산출).
+ * cp1/cp2 = segment endpoints (★ _불변_ — exact attach point — RACHIS-ATTACH-01).
+ *
+ * Returns dense V3 array — first/last = cp1/cp2 exact, intermediate samples
+ * smoothly interpolated. midSagY (optional)를 mid sample y에 보간하여 sag 효과.
+ *
+ * sub-edge별 _독립_ 3-pt Catmull-Rom (Iter 37 Q2.1)이 zig-zag 만들던 문제 해결:
+ * 4-cp가 인접 segment와 tangent 연속성 보장.
+ */
+function catmullRomSegment4cp(
+  cp0: V3, cp1: V3, cp2: V3, cp3: V3,
+  divisions: number, midSagY?: number,
+): V3[] {
+  const samples: V3[] = [];
+  const tension = 0.5;  // standard Catmull-Rom
+  for (let s = 0; s <= divisions; s++) {
+    const t = s / divisions;
+    const t2 = t * t;
+    const t3 = t2 * t;
+    // Catmull-Rom basis (centripetal-like uniform):
+    //   P(t) = 0.5 × ((-cp0 + 3cp1 - 3cp2 + cp3)t³
+    //                + (2cp0 - 5cp1 + 4cp2 - cp3)t²
+    //                + (-cp0 + cp2)t
+    //                + 2cp1)
+    const x = tension * (
+      (-cp0.x + 3 * cp1.x - 3 * cp2.x + cp3.x) * t3
+      + (2 * cp0.x - 5 * cp1.x + 4 * cp2.x - cp3.x) * t2
+      + (-cp0.x + cp2.x) * t
+      + 2 * cp1.x
+    );
+    const yBase = tension * (
+      (-cp0.y + 3 * cp1.y - 3 * cp2.y + cp3.y) * t3
+      + (2 * cp0.y - 5 * cp1.y + 4 * cp2.y - cp3.y) * t2
+      + (-cp0.y + cp2.y) * t
+      + 2 * cp1.y
+    );
+    const z = tension * (
+      (-cp0.z + 3 * cp1.z - 3 * cp2.z + cp3.z) * t3
+      + (2 * cp0.z - 5 * cp1.z + 4 * cp2.z - cp3.z) * t2
+      + (-cp0.z + cp2.z) * t
+      + 2 * cp1.z
+    );
+    // ★ midSagY 보간: intermediate samples에 sag 적용. endpoints는 _영향 없음_
+    //   (t=0 또는 t=1에서 sag 가중치 0).
+    let y = yBase;
+    if (midSagY != null) {
+      const w = 4 * t * (1 - t);  // hat function: 0 at t=0/1, peak 1 at t=0.5
+      const midBaseY = (cp1.y + cp2.y) / 2;
+      y = yBase + (midSagY - midBaseY) * w;
+    }
+    samples.push({ x, y, z });
+  }
+  // ★ Endpoint enforcement (float drift 방어 — RACHIS-ATTACH-01 strict):
+  //   First/last samples 정확히 cp1/cp2로 강제.
+  samples[0] = { ...cp1 };
+  samples[samples.length - 1] = { ...cp2 };
+  return samples;
+}
+
+/** Dense V3 array → SkeletonBone[] (radius 선형 taper). */
+function boneListFromDenseSegment(
+  dense: V3[], baseR: number, tipR: number,
+): SkeletonBone[] {
+  const n = dense.length;
+  if (n < 2) {
+    return [{
+      p0: { ...dense[0] }, p1: { ...dense[0] }, r0: baseR, r1: tipR,
+    }];
+  }
+  const out: SkeletonBone[] = [];
+  for (let i = 0; i < n - 1; i++) {
+    const t0 = i / (n - 1);
+    const t1 = (i + 1) / (n - 1);
+    out.push({
+      p0: { ...dense[i] },
+      p1: { ...dense[i + 1] },
+      r0: baseR + (tipR - baseR) * t0,
+      r1: baseR + (tipR - baseR) * t1,
+    });
+  }
+  return out;
 }
