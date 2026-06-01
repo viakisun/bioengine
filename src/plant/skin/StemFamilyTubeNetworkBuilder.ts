@@ -132,12 +132,12 @@ const COLOR_BY_EDGE_TYPE: Record<SkeletonEdgeType, [number, number, number]> = {
   peduncle:  [0.29, 0.54, 0.19],
   rachis:    [0.35, 0.60, 0.25],
   pedicel:   [0.35, 0.60, 0.25],
-  // Iter 36 v5 Phase J/N — leaf hierarchy edges는 _SDF tube mesh 생성 안 함_
-  //   (skeleton wireframe overlay만 사용). 색은 dummy.
-  'leaf-rachis':  [0, 0, 0],
-  petiolule:      [0, 0, 0],
-  'lateral-vein': [0, 0, 0],
-  'sub-vein':     [0, 0, 0],
+  // Iter 39 — leaf hierarchy edges도 SDF tube skin 생성 (사용자: "줄기와 같은 방식").
+  //   tomato leaf vein/rachis는 잎 색 톤 (밝은 녹색, midrib).
+  'leaf-rachis':  [0.32, 0.55, 0.20],
+  petiolule:      [0.36, 0.58, 0.22],
+  'lateral-vein': [0.36, 0.58, 0.22],
+  'sub-vein':     [0.40, 0.60, 0.26],
 };
 
 // ── default embed depth per edge type (fraction of parent radius) ──────
@@ -149,11 +149,12 @@ const DEFAULT_EMBED_DEPTH_FRAC: Record<SkeletonEdgeType, number> = {
   peduncle:  0.6,
   rachis:    0.5,
   pedicel:   0.5,
-  // Iter 36 v5 Phase J/N — SDF skip; values 0.
-  'leaf-rachis':  0,
-  petiolule:      0,
-  'lateral-vein': 0,
-  'sub-vein':     0,
+  // Iter 39 — leaf hierarchy edges도 SDF skin. parent embed fraction은 줄기
+  //   계열보다 _작게_ — rachis/vein은 얇아서 깊이 박히면 모체에 잠김.
+  'leaf-rachis':  0.4,   // petiole tip에 부착
+  petiolule:      0.3,   // rachis-attach node에 부착 (intercalary)
+  'lateral-vein': 0.3,   // rachis-attach node에 부착 (primary)
+  'sub-vein':     0.25,  // primary leaflet에 부착 (secondary)
 };
 
 // Iter 18A SSOT #178 — absolute floor (meters) per child type. fraction은
@@ -167,11 +168,12 @@ const DEFAULT_EMBED_DEPTH_FLOOR_M: Record<SkeletonEdgeType, number> = {
   peduncle:  0.0020,  // 2.0mm
   rachis:    0.0010,  // 1.0mm
   pedicel:   0.0010,  // 1.0mm
-  // Iter 36 v5 Phase J/N — SDF skip; values 0.
-  'leaf-rachis':  0,
-  petiolule:      0,
-  'lateral-vein': 0,
-  'sub-vein':     0,
+  // Iter 39 — leaf hierarchy edges도 SDF skin. embed floor는 매우 얇음
+  //   (vein은 sub-mm 굵기).
+  'leaf-rachis':  0.0003,  // 0.3mm
+  petiolule:      0.0002,  // 0.2mm
+  'lateral-vein': 0.0002,  // 0.2mm
+  'sub-vein':     0.0002,  // 0.2mm
 };
 
 // Iter 18A SSOT #177 — render-time pixel-visibility radius floor (meters).
@@ -545,10 +547,11 @@ export function buildStemFamilyTubeNetwork(
   }
 
   function emitEdgeRecursive(edge: SkeletonEdge, parentInfo: ParentInfo | null): void {
-    // Iter 36 v5 Phase J/N — leaf hierarchy edges (leaf-rachis + petiolule +
-    //   lateral-vein + sub-vein)는 SDF tube mesh _생성 안 함_ (wireframe만).
-    if (edge.type === 'leaf-rachis' || edge.type === 'petiolule'
-        || edge.type === 'lateral-vein' || edge.type === 'sub-vein') return;
+    // Iter 39 — leaf hierarchy edges (leaf-rachis + petiolule + lateral-vein +
+    //   sub-vein)도 SDF tube skin을 생성. 사용자: "초록색 skeleton에 skin을
+    //   붙이면 그냥 끝나는 일이야 ... 줄기와 같은 방식으로 skin을 붙여주면 된다".
+    //   이전 skip (Iter 36 Phase J/N)이 시각상 분단 원인 — Skin은 별도 LeafGenerator
+    //   가 _다른 좌표계_로 leaf mesh를 만들었음 (mismatch 4-10×).
     const swollenBones = bonePathByEdge.get(edge.id);
     if (!swollenBones || swollenBones.length === 0) return;
 
