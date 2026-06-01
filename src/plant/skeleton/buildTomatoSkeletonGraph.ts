@@ -827,8 +827,10 @@ function addLeafletNodesForLeaf(
           sizeFactor: terminalSf,
           // ★ G3: helper로 minReadable 적용 (maturity-dependent).
           targetSizeM: computeLeafletTargetSize('terminal', rachisLen, terminalSf, maturity),
-          // ★ G2 (C2): terminal attachNode = parentLeafNodeId (petiole tip).
-          attachNodeId: parentLeafNodeId,
+          // ★ Iter 39 Phase H2 (사용자 #7) — terminal attachNode = terminal node 자체
+          //   (rachis tip 위치). 이전: parentLeafNodeId (petiole tip)는 의미 mismatch —
+          //   terminal blade base는 _rachis 끝_이지 _전체 rachis 시작_이 아님.
+          attachNodeId,
           // ★ G2 (C3): bladeDir = pure distal (rachis 연속).
           bladeDir: terminalBladeDir,
         } satisfies LeafletNodeRef,
@@ -879,8 +881,14 @@ function addLeafletNodesForLeaf(
     sf: number,
     lateralOffsetSign: number,
     edgeType: 'lateral-vein' | 'petiolule',
-  ): { lid: string; pos: V3 } => {
-    const lid = `n:leaflet:axis${axisIdx}:n${leafNodeIdx}:${position}:${leafletCounter++}`;
+  ): {
+    lid: string; pos: V3; edgeId: string;
+    attachNodeId: string; position: LeafletPosition; rachisU: number; bladeDir: V3;
+  } => {
+    // ★ Iter 39 Phase H2 (사용자 #8) — counter sync: lid/edgeId가 _같은_ suffix 사용.
+    //   이전 (BUG): lid는 leafletCounter++, edgeId는 다음 leafletCounter → off-by-one.
+    const leafletIndex = leafletCounter++;
+    const lid = `n:leaflet:axis${axisIdx}:n${leafNodeIdx}:${position}:${leafletIndex}`;
     const rachisPos = rachisPointAt(rachisU);
 
     // ★ Iter 37 Q2.2 — 부착 각도 stem 위치별 분기 (사용자 §6).
@@ -958,8 +966,9 @@ function addLeafletNodesForLeaf(
       [attachPos, archMid, leafletPos], 0.0005, 0.0003, 3,
     );
 
+    // ★ Iter 39 Phase H2 (사용자 #8) — counter sync: edgeId가 lid와 _같은_ suffix.
     const edgeId =
-      `e:${edgeType}:axis${axisIdx}:n${leafNodeIdx}:${position}:${leafletCounter}`;
+      `e:${edgeType}:axis${axisIdx}:n${leafNodeIdx}:${position}:${leafletIndex}`;
     edges.set(edgeId, {
       id: edgeId,
       type: edgeType,
@@ -1009,23 +1018,37 @@ function addLeafletNodesForLeaf(
         bladeDir,
       } satisfies LeafletNodeRef,
     });
-    return { lid, pos: leafletPos };
+    // ★ Iter 39 Phase H2 (사용자 #6 보완) — 반환값 확장: position/rachisU/bladeDir 포함.
+    //   secondary가 정확한 primary를 parent로 잡고, debug/invariant 작성이 쉬워짐.
+    return { lid, pos: leafletPos, edgeId, attachNodeId, position, rachisU, bladeDir };
   };
 
   // ── secondary leaflet (소엽2) — primary의 _자식_으로 부착 ──
   //   Phase N: secondary는 _primary leaflet에서_ sub-vein으로 분기 (bipinnate).
   //   사용자 ASCII "소엽 → 소엽2" 직접 매핑.
   const addSubLeaflet = (
-    parentPrimary: { lid: string; pos: V3 },
+    parentPrimary: {
+      lid: string; pos: V3; edgeId: string;
+      attachNodeId: string; position: LeafletPosition; rachisU: number; bladeDir: V3;
+    },
     rachisU: number,
     sf: number,
     lateralOffsetSign: number,
   ): void => {
-    const lid =
-      `n:leaflet:axis${axisIdx}:n${leafNodeIdx}:secondary:${leafletCounter++}`;
-    // sub-leaflet 위치: primary leaflet에서 _outward_ 방향으로 추가 offset.
-    const subSpacing = parentPrimary.pos.x - tipPos.x;  // primary가 얼마나 옆으로 나갔는지
-    const outwardSign = subSpacing >= 0 ? +1 : -1;
+    // ★ Iter 39 Phase H2 (사용자 #8) — counter sync: lid와 edgeId가 같은 suffix.
+    const leafletIndex = leafletCounter++;
+    const lid = `n:leaflet:axis${axisIdx}:n${leafNodeIdx}:secondary:${leafletIndex}`;
+    // ★ Iter 39 Phase H2 (사용자 #5) — sub-leaflet outward 판단을 lateralDir dot
+    //   product로. 이전 (BUG): subSpacing = parentPrimary.pos.x - tipPos.x → world X
+    //   기준이라 잎이 _다른 방향으로 회전하면 좌우가 깨짐_.
+    //   수정: parentVec dot lateralDir 부호로 _잎-local lateral 방향_ 판단.
+    const parentVec: V3 = {
+      x: parentPrimary.pos.x - tipPos.x,
+      y: parentPrimary.pos.y - tipPos.y,
+      z: parentPrimary.pos.z - tipPos.z,
+    };
+    const lateralDot = parentVec.x * lateralDir.x + parentVec.y * lateralDir.y + parentVec.z * lateralDir.z;
+    const outwardSign = lateralDot >= 0 ? +1 : -1;
     const extraOut = outwardSign * sf * rachisLen * 0.20;
     const subPos: V3 = {
       x: parentPrimary.pos.x + lateralDir.x * extraOut,
@@ -1034,8 +1057,9 @@ function addLeafletNodesForLeaf(
     };
     void lateralOffsetSign;
 
+    // ★ Iter 39 Phase H2 (사용자 #8) — sub-vein edgeId가 lid suffix와 동기.
     const subVeinEdgeId =
-      `e:sub-vein:axis${axisIdx}:n${leafNodeIdx}:sec:${leafletCounter}`;
+      `e:sub-vein:axis${axisIdx}:n${leafNodeIdx}:sec:${leafletIndex}`;
     edges.set(subVeinEdgeId, {
       id: subVeinEdgeId,
       type: 'sub-vein',
@@ -1047,7 +1071,10 @@ function addLeafletNodesForLeaf(
         r0: 0.0003,
         r1: 0.0002,
       }],
-      parentEdgeId: leafRachisEdgeId,  // primary 부착 edge의 child로 cut hierarchy 유지
+      // ★ Iter 39 Phase H2 (사용자 #6) — parentEdgeId = parent primary _edge_ id.
+      //   이전 (BUG): leafRachisEdgeId (마지막 rachis sub-edge) — cut hierarchy 부정확.
+      //   수정: parent primary leaflet의 edge → secondary가 primary의 _자식_ chain 보존.
+      parentEdgeId: parentPrimary.edgeId,
       cuttable: true,
       semanticLabel: `sub-leaflet of primary ${parentPrimary.lid}`,
       attachedOrganIds: [],
@@ -1095,7 +1122,10 @@ function addLeafletNodesForLeaf(
   //   ★ Iter 39 Phase F4 — ladder mirror 제거. 좌우가 _다른_ rachisU + _다른_
   //   sf (LeafInstanceProfile.leftRightImbalance). per-pair deterministic jitter.
   //   plan v1 비판 #4: leaf-level imbalance + leaflet-level jitter _분리_.
-  const primaries: { lid: string; pos: V3 }[] = [];
+  const primaries: Array<{
+    lid: string; pos: V3; edgeId: string;
+    attachNodeId: string; position: LeafletPosition; rachisU: number; bladeDir: V3;
+  }> = [];
   for (let i = 0; i < primaryUs.length; i++) {
     const baseSf = 0.85 - i * 0.10;
     const sfL = baseSf * (1 - profile.leftRightImbalance * 0.5);
