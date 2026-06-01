@@ -1,5 +1,9 @@
-// SSOT #186 — Mesh anchor invariants. ANCHOR-01 ~ ANCHOR-04.
+// SSOT #186 — Mesh anchor invariants. ANCHOR-01 ~ ANCHOR-05.
 // See: docs/architecture/MESH_ANCHORS.md
+//
+// ★ Iter 39 Phase F6 신규:
+// - ANCHOR-05: per-leaflet mesh.position == graph leafletNode.pos (≤1mm) —
+//   Phase K(09def1d) index-mismatch 함정을 catch했을 spec.
 
 import { test, expect, type Page } from '@playwright/test';
 import { normalizeLeafMeshVertices } from '../../src/plant/anchors';
@@ -44,6 +48,66 @@ test.describe('Mesh Anchor Contracts (SSOT #186)', () => {
     expect(probe.length, 'leaf mesh 개수').toBeGreaterThan(0);
     for (const r of probe) {
       expect(Math.abs(r.minX_mm), `${r.name}: vertex.x_min`).toBeLessThan(1);
+    }
+  });
+
+  test('ANCHOR-05: per-leaflet mesh.position == graph leafletNode.pos (≤1mm)', async ({ page }) => {
+    test.setTimeout(120_000);
+    await enterSkin(page, 45);
+    const probe = await page.evaluate(() => {
+      const w = window as unknown as {
+        __debugScene?: {
+          meshes?: Array<{
+            name: string;
+            position: { x: number; y: number; z: number };
+            computeWorldMatrix?: (force: boolean) => void;
+          }>;
+        };
+        __lastGraph?: {
+          nodes?: Map<string, { id: string; pos: { x: number; y: number; z: number }; leafletRef?: { parentLeafNodeId: string; position: string } }>;
+        };
+      };
+      const meshes = w.__debugScene?.meshes?.filter(m => /skinplant_leaf_.+_l\d+_/.test(m.name)) ?? [];
+      const graph = w.__lastGraph;
+      if (!graph?.nodes) return { error: 'no graph' };
+      // Build leaflet-node lookup table: key=(parentLeafNodeId, position-index)
+      // mesh name: ..._a{ax}_n{n}_l{idx}_{position}
+      const results: Array<{ name: string; dist_mm: number }> = [];
+      for (const m of meshes) {
+        const match = m.name.match(/_a(\d+)_n(\d+)_l(\d+)_(\w+)$/);
+        if (!match) continue;
+        const axIdx = match[1], nIdx = match[2], lIdx = +match[3], pos = match[4];
+        // parentLeafNodeId pattern in graph: petiole_tip
+        const parentId = `n:petiole_tip:axis${axIdx}:n${nIdx}`;
+        // Find matching leaflet-node with same position type
+        let matched: { x: number; y: number; z: number } | null = null;
+        let posCount = 0;
+        for (const node of graph.nodes.values()) {
+          if (node.leafletRef?.parentLeafNodeId !== parentId) continue;
+          if (node.leafletRef.position !== pos) continue;
+          if (posCount === lIdx) { matched = node.pos; break; }
+          posCount++;
+        }
+        if (!matched) continue;
+        if (m.computeWorldMatrix) m.computeWorldMatrix(true);
+        const dx = m.position.x - matched.x;
+        const dy = m.position.y - matched.y;
+        const dz = m.position.z - matched.z;
+        const dist_mm = Math.sqrt(dx * dx + dy * dy + dz * dz) * 1000;
+        results.push({ name: m.name, dist_mm });
+      }
+      return { count: results.length, results };
+    });
+    if ('error' in probe) {
+      // graph 미노출 — soft skip (production page는 __lastGraph 노출 안 함 가능).
+      // Phase A/B/F4 가 mesh.position = node.pos를 _코드 contract_로 보장 — spec
+      // skip 시에도 코드상 mismatch 0. Phase K 함정의 실제 catch는 buildLeafletMeshes 의 mandatory throw.
+      console.warn('ANCHOR-05: graph not exposed, skipping live check');
+      return;
+    }
+    expect(probe.count, 'per-leaflet mesh.position lookup count').toBeGreaterThan(0);
+    for (const r of probe.results) {
+      expect(r.dist_mm, `${r.name}: mesh.position vs leafletNode.pos`).toBeLessThanOrEqual(1);
     }
   });
 

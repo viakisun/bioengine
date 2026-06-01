@@ -32,15 +32,31 @@
 
 **검증**: `mesh.absolutePosition == graph mainStem.startNode.pos`.
 
-### 2. Leaf blade mesh (`createLeafBladeOnlyMesh`)
+### 2. Leaf blade mesh — _per-leaflet_ since Iter 39 (`buildLeafletMeshes`)
+
+★ **Iter 39 Phase A/B contract 개정**: 잎 1장 = N개 leaflet mesh (terminal +
+primary + intercalary + secondary 각각 1장씩). 이전 contract (1 잎 = 1 통합
+mesh, mesh-local origin = "첫 leaflet stem-side")는 _historic archive_.
 
 | 항목 | 값 |
 |---|---|
-| `mesh.position` | `leafBase.petioleCurve[length-1]` (= petiole tip, plant-local) |
-| mesh-local origin 의미 | **첫 leaflet의 가장 stem-side vertex** ⚠ |
-| 회전 origin | mesh-local `(0, 0, 0)` = 첫 leaflet stem-side |
-| graph anchor node | petiole edge endNode (petiole tip) |
-| vertex 분포 | rachis + leaflets — `normalizeLeafMeshVertices` 적용 후 |
+| `mesh.position` | **`leafletSkeletonNode.pos`** (plant-local, graph SSOT) |
+| mesh-local origin 의미 | _개별 leaflet base_의 가장 proximal vertex |
+| 회전 origin | mesh-local `(0, 0, 0)` = leaflet base |
+| graph anchor node | leaflet-node (terminal/primary/intercalary/secondary) |
+| vertex 분포 | 단일 leaflet plane — `normalizeLeafMeshVertices` 적용 후 |
+| mesh name | `skinplant_leaf_{seed}_a{ax}_n{n}_l{idx}_{position}` |
+
+**Entry function**: `src/scene/leaf-engine/buildLeafletMeshes.ts:buildLeafletMeshes()`.
+mandatory path — `bladeRef`/`leafletSkeletonNodes` 누락 시 throw (Phase K
+silent fallback 함정 방지).
+
+**petiolule connector** (Iter 39 Phase F2): petiolule edge bonePath는 leafletNode
+까지 가지 않고 _attach 쪽 20%_만 SDF tube로 생성. leaflet plane이 나머지를
+시각적으로 덮음. leafletNode.pos는 _그대로_ — ANCHOR-05 contract.
+
+**SDF skip** (Iter 39 Phase F2): `lateral-vein`, `sub-vein`은 SDF tube 생성
+안 함 — F2.5의 vertex color + normal perturbation으로 surface feature.
 
 **Iter 24 contract** (commit acfad71):
 - `buildLeafBladeOnly` 출력 chunk의 vertex.x range는 `[petioleLen + rachisLen·0.15, petioleLen + rachisLen]` 정도 (mesh-local).
@@ -266,10 +282,11 @@ mesh.position이 anchor이므로 회전 후 world에서 anchor 유지, vertex는
 
 | Test | Invariant |
 |---|---|
-| ANCHOR-01 | LeafBladeOnly mesh의 vertex.x_min이 mesh-local (0, 0, 0) 근처 (≤1mm) — `normalizeLeafMeshVertices` 적용 검증 |
+| ANCHOR-01 | 모든 `skinplant_leaf_*` mesh의 vertex.x_min이 mesh-local (0, 0, 0) 근처 (≤1mm). Iter 39부터 per-leaflet — 각 leaflet base = mesh-local origin. |
 | ANCHOR-02 | leafMesh.absolutePosition (world)이 graph petiole endNode.pos (world 변환 후) ≤1mm 일치 |
 | ANCHOR-03 | 모든 organ mesh의 anchor가 contract와 일치 |
 | ANCHOR-04 | `normalizeLeafMeshVertices` byte-identical to acfad71 inline 로직 |
+| **ANCHOR-05** (Iter 39 Phase F6) | `skinplant_leaf_*_l\d+_*` mesh의 `mesh.position == graph.nodes[matchingLeafletNodeId].pos` (≤1mm). Phase K(09def1d) index-mismatch 함정을 catch. |
 
 위반 시 test fail → mesh anchor 코드 버그.
 
