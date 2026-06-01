@@ -54,10 +54,18 @@ export interface CompoundLeafDescriptor {
  * @param leafletNodes Skeleton에서 read한 leaflet nodes (4 position types).
  * @param seed deterministic seed (per leaf instance, 보통 leaf node ID hash).
  */
+export interface CultivarShapeOverride {
+  aspectRatioMultiplier?: number;
+  baseShapeBias?: number;
+  tipSharpnessMultiplier?: number;
+}
+
 export function buildCompoundLeaf(
   bladeRef: LeafBladeRef,
   leafletNodes: ReadonlyArray<LeafletNodeRef>,
   seed: number,
+  // ★ Iter 38 S4 — Cultivar shape override (optional, back-compat).
+  cultivarOverride?: CultivarShapeOverride,
 ): CompoundLeafDescriptor {
   // 1. Preset lookup.
   const preset = AGE_PRESETS[bladeRef.agePreset];
@@ -65,6 +73,21 @@ export function buildCompoundLeaf(
   // 2-9. Correlation rules apply → resolved params.
   //   ★ Iter 38 S3 — Hybrid sampling: seed 전달 (AGE_PRESETS baseline + jitter).
   const resolved = applyCorrelation(bladeRef.complexity, preset, seed);
+
+  // ★ Iter 38 S4 — Cultivar override apply (cherry 0.85 / beef 1.15 등).
+  if (cultivarOverride) {
+    if (cultivarOverride.aspectRatioMultiplier != null) {
+      resolved.aspectRatio *= cultivarOverride.aspectRatioMultiplier;
+    }
+    if (cultivarOverride.baseShapeBias != null) {
+      resolved.baseShape = Math.max(0.7, Math.min(1.0,
+        resolved.baseShape + cultivarOverride.baseShapeBias));
+    }
+    if (cultivarOverride.tipSharpnessMultiplier != null) {
+      resolved.tipSharpness = Math.max(1.0, Math.min(2.0,
+        resolved.tipSharpness * cultivarOverride.tipSharpnessMultiplier));
+    }
+  }
 
   // 10. 각 leaflet마다 outline + pose 생성.
   const leaflets = leafletNodes.map((node, i) => {

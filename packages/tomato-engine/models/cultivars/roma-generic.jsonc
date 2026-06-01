@@ -125,6 +125,12 @@
       "old":          0.10,
       "complex":      0.05,
       "potato-leaf":  0
+    },
+    // Iter 38 S4 — roma (paste type): 가장 길쭉 (plum-shaped fruit과 매칭).
+    "leafShapeOverride": {
+      "aspectRatioMultiplier": 1.25,    // 가장 길쭉
+      "baseShapeBias":         -0.03,
+      "tipSharpnessMultiplier": 1.05
     }
   }
 }

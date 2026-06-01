@@ -185,6 +185,30 @@ export interface CultivarGrowthProfile {
     complex: number;
     'potato-leaf': number;
   };
+
+  /**
+   * Iter 38 S4 — Cultivar shape multiplier (★ 사용자 cultivar 시각 차이 강화).
+   *
+   * leafPresetDistribution _위에_ multiplier를 적용해 _same preset_도
+   * cultivar별로 차이 — cherry _더 둥글고 작음_, beef _더 길쭉_.
+   *
+   * Cultivar별 예시:
+   *   - cherry-generic: aspectRatioMultiplier 0.85 (둥근), baseShapeBias +0.05 (wedge ↑)
+   *   - beefsteak-generic: aspectRatioMultiplier 1.15 (길쭉), baseShapeBias -0.05 (heart ↑)
+   *   - roma-generic: aspectRatioMultiplier 1.25 (가장 길쭉)
+   *   - round/tomimaru: 기본 (override 없음)
+   *
+   * 효과: aspectRatioBaseline × multiplier → cultivar 시각 명확 차이.
+   * Optional ?:. 부재 시 multiplier=1.0 (변화 없음).
+   */
+  leafShapeOverride?: {
+    /** aspectRatio multiplier — 1.0 baseline / cherry 0.85 / beef 1.15. */
+    aspectRatioMultiplier?: number;
+    /** baseShape bias (덧셈) — cherry +0.05 (wedge ↑) / beef -0.05 (heart ↑). */
+    baseShapeBias?: number;
+    /** tipSharpness multiplier — beef 1.1 (더 뾰족) / cherry 0.95 (더 둥근). */
+    tipSharpnessMultiplier?: number;
+  };
 }
 
 /**

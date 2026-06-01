@@ -765,10 +765,12 @@ export function createSkinMeshPlant(
         // Iter 36 v5 Phase C — skeleton 3-tier: bladeRef + leafletNodes read.
         const bladeRef = meshAnchorNode.leafBladeRef;
         const leafletNodes = getLeafletNodesByParentLeaf(graph, meshAnchorNode.id);
+        // Iter 38 S4 — cultivar shape override (cherry 더 둥근 / beef 더 길쭉).
+        const cultivarShapeOverride = skeletonCultivar?.growthProfile?.leafShapeOverride;
         const leafMesh = buildLeafMeshFromPhytomer(
           `skinplant_leaf_${seed}_a${axisIdx}_n${nodeIdx}`,
           scene, leafOrganState, genome, leafRng,
-          bladeRef, leafletNodes,
+          bladeRef, leafletNodes, cultivarShapeOverride,
         );
         leafMesh.parent = lushGroup;
         leafMesh.position = new Vector3(tipPlantPos.x, tipPlantPos.y, tipPlantPos.z);

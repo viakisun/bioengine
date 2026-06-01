@@ -127,6 +127,12 @@
       "old":          0.20,
       "complex":      0.15,
       "potato-leaf":  0
+    },
+    // Iter 38 S4 — beef 시각 차이 (더 크고 길쭉, deep heart base, 뾰족).
+    "leafShapeOverride": {
+      "aspectRatioMultiplier": 1.15,    // 더 길쭉
+      "baseShapeBias":         -0.05,    // heart ↑
+      "tipSharpnessMultiplier": 1.10     // 더 뾰족
     }
   }
 }

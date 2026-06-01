@@ -139,6 +139,12 @@
       "old":          0.05,
       "complex":      0.05,
       "potato-leaf":  0
+    },
+    // Iter 38 S4 — cherry 시각 차이 (더 둥글고 작음).
+    "leafShapeOverride": {
+      "aspectRatioMultiplier": 0.85,    // 더 둥근
+      "baseShapeBias":          0.05,    // wedge ↑
+      "tipSharpnessMultiplier": 0.95     // 더 둥근 끝
     }
   }
 }

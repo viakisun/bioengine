@@ -184,6 +184,12 @@ export function buildLeafMeshFromPhytomer(
   //   Phase E에서 leaf-engine buildCompoundLeaf 통합 (procedural variation).
   bladeRef?: LeafBladeRef,
   leafletNodes?: ReadonlyArray<LeafletNodeRef>,
+  // Iter 38 S4 — Cultivar shape override (cherry 더 둥근 / beef 더 길쭉).
+  cultivarShapeOverride?: {
+    aspectRatioMultiplier?: number;
+    baseShapeBias?: number;
+    tipSharpnessMultiplier?: number;
+  },
 ): Mesh {
   // Iter 36 v5 Phase E — leaf-engine 통합. bladeRef + leafletNodes 있을 때
   //   buildCompoundLeaf 호출 → CompoundLeafDescriptor.
@@ -204,7 +210,9 @@ export function buildLeafMeshFromPhytomer(
   let leafEngineAsymmetry: number | undefined;
   if (bladeRef && leafletNodes && leafletNodes.length > 0) {
     const seed = hashStr(name);
-    const descriptor = leafEngineBuildCompoundLeaf(bladeRef, leafletNodes, seed);
+    const descriptor = leafEngineBuildCompoundLeaf(
+      bladeRef, leafletNodes, seed, cultivarShapeOverride,
+    );
     // primary + intercalary + secondary leaflet 수의 합 (4 types).
     leafEngineLeafletCount = leafletNodes.length;
     leafEngineSerrationDepth = descriptor.resolved.serrationAmp;
