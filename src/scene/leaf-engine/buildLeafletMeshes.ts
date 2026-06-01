@@ -151,13 +151,17 @@ export function buildLeafletMeshes(ctx: LeafletMeshBuildContext): Mesh[] {
     }
 
     // Plane geometry chunk (mesh-local).
+    // ★ Iter 39 Phase F2.5 — veinSurfaceStrength = 1 (botanical midrib raise +
+    //   lateral vein 음각). seed = djb2(node.id) — deterministic.
     const chunk = buildLeafletPlaneChunk(profile, {
       lengthM,
       curl,
       ageFrac,
       gravityDroopDeg,
-      waviness: 0,  // Phase A — keep simple.
+      waviness: 0,
       isTerminal: node.leafletRef.position === 'terminal',
+      veinSurfaceStrength: 1,
+      seed: djb2(node.id),
     });
 
     // SSOT #186 — anchor contract: vertex.x_min == 0.
