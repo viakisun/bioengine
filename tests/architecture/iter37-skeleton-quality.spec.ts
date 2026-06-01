@@ -190,6 +190,33 @@ test.describe('Iter 37 Phase Q7 — SkeletonConfig leafDetailLevel', () => {
   });
 });
 
+test.describe('Iter 37 Phase R — Leaf mesh stage-aware curl + droop propagation', () => {
+  test('R-CURL-STAGE-BRANCH-01: GrowthModel.ts curl 산식이 leafMaturity 기반 stage 분기', async () => {
+    const growthModel = path.join(REPO_ROOT, 'packages/tomato-engine/src/GrowthModel.ts');
+    const src = await readFile(growthModel);
+    // v2: leafMaturity 4 단계 분기 (0.15 / 0.35 / 0.70)
+    expect(src, 'leafMaturity < 0.15 분기 (young)').toMatch(/leafMaturity\s*<\s*0\.15/);
+    expect(src, 'mature 0.12 curl baseline').toMatch(/leafMaturity\s*<\s*0\.70[\s\S]*?0\.12/);
+    // 회귀 방지: v0 (curl: 0.30 + yellowing × 0.20) 회귀 금지
+    expect(src, 'v0 curl=0.30 hardcoded 회귀 금지').not.toMatch(
+      /curl:\s*0\.30\s*\+\s*yellowing\s*\*\s*0\.20/,
+    );
+  });
+
+  test('R-GRAVITY-DROOP-ALL-CALLS-01: leafChunk.ts createOvateLeaflet 모든 호출에 gravityDroopDeg', async () => {
+    const leafChunk = path.join(REPO_ROOT, 'packages/tomato-geometry/src/leafChunk.ts');
+    const src = await readFile(leafChunk);
+    // createOvateLeaflet 호출 = 7회 (audit 결과). 모두 gravityDroopDeg 전달 의무.
+    // 호출 패턴: createOvateLeaflet( ... 7+ args ... )
+    const calls = [...src.matchAll(/createOvateLeaflet\(/g)];
+    expect(calls.length, 'createOvateLeaflet 호출 7회 (정의 1 + 호출 6)').toBeGreaterThanOrEqual(7);
+
+    // gravityDroopDeg 등장 횟수 ≥ 호출 횟수 (function def + 모든 호출)
+    const droopMatches = src.match(/gravityDroopDeg/g) || [];
+    expect(droopMatches.length, 'gravityDroopDeg 11+ 등장 (def + 호출 + comment)').toBeGreaterThanOrEqual(10);
+  });
+});
+
 test.describe('Iter 37 종합 metric 요약', () => {
   test('TOTAL-INVARIANTS-01: 17 invariants (Q1=3 + Q2=6 + Q3=3 + Q4=2 + Q5=1 + Q6=3 + Q7=2)', async () => {
     // 이 spec 파일의 test 수 자체가 = invariant 수.
