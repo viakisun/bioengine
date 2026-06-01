@@ -107,11 +107,11 @@ export function buildTomatoSkeletonGraph(
     // Iter 36 v5 Phase B — axillary buds (dormant + activated 모두).
     addBudsForAxis(axis, axisIdx, nodes);
     // Iter 36 v5 Phase M — 생장점 (apex meristem) — 각 axis 최상단 표시.
-    if (isMain) addApexNode(axis, axisIdx, nodes);
+    if (isMain) addApexNode(axis, axisIdx, nodes, edges);
   }
 
   // Iter 36 v5 Phase M — 떡잎 (cotyledon) — plant당 좌/우 2개.
-  addCotyledonNodes(plantBase, nodes);
+  addCotyledonNodes(plantBase, nodes, edges);
 
   const graph: PlantSkeletonGraph = { nodes, edges, rootEdgeId };
   if (opts.genome) graph.cultivarGenomeSnapshot = opts.genome;
@@ -696,17 +696,43 @@ function addApexNode(
   axis: AxisBase,
   axisIdx: number,
   nodes: Map<string, SkeletonNode>,
+  edges: Map<string, SkeletonEdge>,
 ): void {
   if (axis.stemCurve.length === 0) return;
   const top = axis.stemCurve[axis.stemCurve.length - 1];
   const aid = `n:apex:axis${axisIdx}`;
-  // apex는 stem top에서 위쪽으로 약간 offset (~3cm visible marker).
+  const topNodeId = stemNodeId(axisIdx, top.nodeIdx);
+  const topNode = nodes.get(topNodeId);
+  const apexPos = { x: top.position.x, y: top.position.y + 0.03, z: top.position.z };
+
+  // Iter 37 Q1.3 — apex-stem extension edge (mainStem 연장선).
+  //   이전: apex가 _고립 노드_로 stem 위 3cm 떠있음 (시각상 disconnected).
+  //   현재: stem top → apex 연결 edge (cuttable=false, mainStem type 재사용).
+  const apexEdgeId = `e:apex:axis${axisIdx}`;
+  edges.set(apexEdgeId, {
+    id: apexEdgeId,
+    type: 'mainStem',
+    startNodeId: topNodeId,
+    endNodeId: aid,
+    bonePath: [{
+      p0: { ...top.position },
+      p1: apexPos,
+      r0: top.radius,
+      r1: top.radius * 0.3,  // apex는 가늘게 (생장점 작음)
+    }],
+    parentEdgeId: axisIdx === 0 ? 'e:mainStem' : `e:sideShoot:${axisIdx}`,
+    cuttable: false,
+    semanticLabel: `apex extension`,
+    attachedOrganIds: [],
+  });
+
   nodes.set(aid, {
     id: aid,
-    pos: { x: top.position.x, y: top.position.y + 0.03, z: top.position.z },
+    pos: apexPos,
     radius: 0.0015,
-    edgeIds: [],
+    edgeIds: [apexEdgeId],
   });
+  if (topNode) topNode.edgeIds.push(apexEdgeId);
 }
 
 /**
@@ -719,17 +745,45 @@ function addApexNode(
 function addCotyledonNodes(
   plantBase: PlantBase,
   nodes: Map<string, SkeletonNode>,
+  edges: Map<string, SkeletonEdge>,
 ): void {
   for (let i = 0; i < plantBase.cotyledons.length; i++) {
     const cot = plantBase.cotyledons[i];
     if (!cot.visibility.visible) continue;
     const cid = `n:cotyledon:side${cot.side === -1 ? 'L' : 'R'}`;
+
+    // Iter 37 Q1.2 — cotyledon-petiole edge (mainStem base → cotyledon).
+    //   이전: cotyledon이 _고립 노드_ — stem과 분리되어 보임.
+    //   현재: mainStem 첫 stem-node (`n:axis0:n0`) → cotyledon petiole edge.
+    //   petiole edge type 재사용 (cuttable=true, leaf petiole과 동일 의미).
+    const baseStemNodeId = `n:axis0:n0`;
+    const baseStemNode = nodes.get(baseStemNodeId);
+    const edgeId = `e:cotyledon-petiole:side${cot.side === -1 ? 'L' : 'R'}`;
+    const basePos = baseStemNode?.pos ?? { x: 0, y: 0, z: 0 };
+    edges.set(edgeId, {
+      id: edgeId,
+      type: 'petiole',
+      startNodeId: baseStemNodeId,
+      endNodeId: cid,
+      bonePath: [{
+        p0: { ...basePos },
+        p1: { ...cot.position },
+        r0: 0.0008,
+        r1: 0.0006,
+      }],
+      parentEdgeId: 'e:mainStem',
+      cuttable: true,
+      semanticLabel: `cotyledon ${cot.side === -1 ? 'L' : 'R'} petiole`,
+      attachedOrganIds: [],
+    });
+
     nodes.set(cid, {
       id: cid,
       pos: { ...cot.position },
       radius: 0.0015,
-      edgeIds: [],
+      edgeIds: [edgeId],
     });
+    if (baseStemNode) baseStemNode.edgeIds.push(edgeId);
   }
 }
 

@@ -394,11 +394,15 @@ function buildAxisBase(
       trusses.push(buildTrussBase(node, stemCenter, genome, physTruss, physiologyState?.TT ?? 0));
     }
 
+    // Iter 37 Q1.1 — bud = petiole-root와 _동일 stem surface_ 지점.
+    //   사용자 botanical: "잎자루와 줄기가 만나는 딱 그 지점에만 곁순".
+    //   이전: stemCenter (centerline) → 시각상 stem 안에 박힘.
+    //   현재: leafAttachPos와 동일 (stem surface, az 방향 stemR 만큼 offset).
     buds.push({
       nodeIdx: node.index,
       visibility: budVisibility(node.budState),
       state: node.budState,
-      position: { ...stemCenter },
+      position: { ...leafAttachPos },
     });
   }
 
