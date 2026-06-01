@@ -58,6 +58,15 @@ silent fallback 함정 방지).
 **SDF skip** (Iter 39 Phase F2): `lateral-vein`, `sub-vein`은 SDF tube 생성
 안 함 — F2.5의 vertex color + normal perturbation으로 surface feature.
 
+★ **Iter 39 Phase G2 (Skeleton SSOT 강화)**:
+- `LeafletNodeRef.attachNodeId` 필드 명시 저장 — helper lookup 의존 0.
+- `LeafletNodeRef.bladeDir` 필드 명시 저장 — leaflet 장축 방향 (plant-local 단위벡터).
+- bladeDir 산출 (skeleton 수준):
+  - **terminal**: pure distal rachis tangent (rachis 연속).
+  - **lateral (primary/intercalary/secondary)**: `normalize(lateral × 0.75 + distal × 0.25)`.
+- skin은 `rotation = makeLeafQuaternion(bladeDir, WORLD_UP)` — _read만_, 자체 계산 0.
+- 참조: `docs/architecture/SKELETON_SSOT.md`.
+
 **Iter 24 contract** (commit acfad71):
 - `buildLeafBladeOnly` 출력 chunk의 vertex.x range는 `[petioleLen + rachisLen·0.15, petioleLen + rachisLen]` 정도 (mesh-local).
 - **`normalizeLeafMeshVertices` 적용 필수** — `chunk.positions`의 `x_min`을 측정해 모든 vertex.x에서 빼기.
