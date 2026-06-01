@@ -407,6 +407,8 @@ function addLeavesForAxis(
       { leftRightImbalance: leafProfile.leftRightImbalance, spacingBias: leafProfile.spacingBias },
       // ★ Iter 39 Phase G3 — leaf.sizeFactor를 maturity proxy로 사용.
       leaf.sizeFactor,
+      // ★ Iter 39 Phase H1 — stem 위치 0(base)~1(apex) 전달 (사용자 #4: leafNodeIdx/totalLeafCount 단위 mismatch fix).
+      nodePositionT,
     );
 
     // Iter 18B PR 8 (SSOT #180) — structured OrganAnchor for leaf blade.
@@ -670,7 +672,7 @@ function addLeafletNodesForLeaf(
   bladeRef: LeafBladeRef,
   parentEdgeId: string,           // petiole edge (rachis의 부모)
   bones: SkeletonBone[],          // ★ Phase L — petiole bonePath
-  totalLeafCount: number,         // ★ Iter 37 Q2.2 — axis 전체 잎 수 (leafPos 산출용)
+  totalLeafCount: number,         // ★ Iter 37 Q2.2 — axis 전체 잎 수 (back-compat, _unused since H1_)
   nodes: Map<string, SkeletonNode>,
   edges: Map<string, SkeletonEdge>,
   /** ★ Iter 39 Phase F4 — leaf-level macro variation. 기본값 (no variation)로
@@ -679,7 +681,12 @@ function addLeafletNodesForLeaf(
   /** ★ Iter 39 Phase G3 — maturity (0-1). leaflet minReadable size 산출용.
    *  기본 1.0 (mature — back-compat). expansionProgress 또는 sizeFactor 사용. */
   maturity: number = 1.0,
+  /** ★ Iter 39 Phase H1 (사용자 #4) — stem 위치 0(base)~1(apex). leaflet 부착 각도
+   *  분기에 사용. 이전 `leafNodeIdx / totalLeafCount` 산식이 _단위 mismatch_였음
+   *  (stem node index vs leaf count). caller (addLeavesForAxis)에서 산출한 값 전달. */
+  stemPositionT: number = 0.5,
 ): void {
+  void totalLeafCount;  // H1에서 stemPositionT로 대체, signature는 back-compat 유지
   const profile = leafProfile ?? { leftRightImbalance: 0, spacingBias: 0 };
   const rachisLen = bladeRef.rachisLengthM;
   // ★ Phase L — petiole edge bones[last] tangent 기반 rachisDir/lateralDir.
@@ -876,14 +883,15 @@ function addLeafletNodesForLeaf(
     const lid = `n:leaflet:axis${axisIdx}:n${leafNodeIdx}:${position}:${leafletCounter++}`;
     const rachisPos = rachisPointAt(rachisU);
 
-    // ★ Iter 37 Q2.2 — 부착 각도 leafPos별 분기 (사용자 §6).
+    // ★ Iter 37 Q2.2 — 부착 각도 stem 위치별 분기 (사용자 §6).
     //   이전: 90° lateral 완벽 수평 (고사리 fern shape).
     //   현재: stem 위치(top/mid/bottom)에 따라 20-85° 범위 분산 + jitter.
-    const leafPos = leafNodeIdx / Math.max(1, totalLeafCount);
+    // ★ Iter 39 Phase H1 (사용자 #4) — `leafNodeIdx / totalLeafCount` 단위 mismatch
+    //   버그 수정 — _stemPositionT_ (0~1, caller가 산출) 사용.
     let baseAngleDeg: number;
-    if (leafPos < 0.33) baseAngleDeg = 20 + leafPos * 105;             // 위쪽 잎: 20-55°
-    else if (leafPos < 0.66) baseAngleDeg = 35 + (leafPos - 0.33) * 105; // 중간: 35-70°
-    else baseAngleDeg = 45 + (leafPos - 0.66) * 120;                   // 아래쪽: 45-85°
+    if (stemPositionT < 0.33) baseAngleDeg = 20 + stemPositionT * 105;             // 위쪽 잎: 20-55°
+    else if (stemPositionT < 0.66) baseAngleDeg = 35 + (stemPositionT - 0.33) * 105; // 중간: 35-70°
+    else baseAngleDeg = 45 + (stemPositionT - 0.66) * 120;                          // 아래쪽: 45-85°
     baseAngleDeg += (1 - rachisU) * 15;  // terminal에 가까울수록 0-15° 추가 spread
     const seed = leafNodeIdx * 0.7919 + leafletCounter * 31;
     const angleJitter = ((seed * 13) % 200 - 100) / 10;  // ±10°
@@ -892,15 +900,18 @@ function addLeafletNodesForLeaf(
     // 부착 방향 — rachis vs lateral 사이의 _각도_ 가 attachRad.
     const sinA = Math.sin(attachRad);
     const cosA = Math.cos(attachRad);
+    // ★ Iter 39 Phase H1 (사용자 #2) — lateralOffsetSign이 _lateral 성분만_ 반전.
+    //   이전 (BUG): outAmount = lateralOffsetSign × ... → rachis 방향 성분(cosA)
+    //   까지 반전되어 왼쪽 leaflet이 rachis 진행 방향과 반대로 _뒤로 꺾임_.
+    //   수정: lateralDir 곱셈에 lateralOffsetSign 직접 적용, rachisDir은 양쪽 동일.
     const dirOut: V3 = {
-      x: lateralDir.x * sinA + rachisDir.x * cosA,
-      y: lateralDir.y * sinA + rachisDir.y * cosA,
-      z: lateralDir.z * sinA + rachisDir.z * cosA,
+      x: lateralDir.x * lateralOffsetSign * sinA + rachisDir.x * cosA,
+      y: lateralDir.y * lateralOffsetSign * sinA + rachisDir.y * cosA,
+      z: lateralDir.z * lateralOffsetSign * sinA + rachisDir.z * cosA,
     };
-    // ★ Iter 39 Phase G2 — outAmount × 0.35 → × 0.25.
-    //   connector(petiolule) 강화로 거리 감소 → leaflet이 rachis에 _밀착_.
-    //   사용자 botanical: "leaflet base가 rachis에 밀착되어야 — 떠 있는 카드 회피".
-    const outAmount = lateralOffsetSign * sf * rachisLen * 0.25;
+    // ★ Iter 39 Phase G2 — outAmount × 0.35 → × 0.25 (connector 강화로 거리 감소).
+    //   ★ H1: lateralOffsetSign 곱셈 _제거_ — dirOut에 이미 적용됨.
+    const outAmount = sf * rachisLen * 0.25;
 
     // ★ Iter 37 Q2.3 — 3D pose roll/twist (사용자 §6 roll±20° / twist±15°).
     //   leaflet position을 _같은 평면_에 두지 않도록 small y/z offset.
