@@ -305,6 +305,8 @@ function addLeavesForAxis(
       petioleEdgeId, bones, axis.leaves.length, nodes, edges,
       // ★ Iter 39 Phase F4 — leaf-level macro profile (asymmetry, spacing).
       { leftRightImbalance: leafProfile.leftRightImbalance, spacingBias: leafProfile.spacingBias },
+      // ★ Iter 39 Phase G3 — leaf.sizeFactor를 maturity proxy로 사용.
+      leaf.sizeFactor,
     );
 
     // Iter 18B PR 8 (SSOT #180) — structured OrganAnchor for leaf blade.
@@ -346,9 +348,53 @@ function addLeavesForAxis(
 const POSITION_SIZE_MULT: Record<LeafletPosition, number> = {
   terminal: 0.32,   // 25cm × 0.32 = 8cm (mature terminal)
   primary: 0.24,    // 6cm primary leaflet
-  intercalary: 0.10, // 2.5cm 작은 잎
-  secondary: 0.14,  // 3.5cm sub-leaflet
+  // ★ Iter 39 Phase G3 (B4): intercalary 0.10→0.18, secondary 0.14→0.20
+  //   plan v5: 사용자 botanical hierarchy intercalary < primary × 0.55.
+  //   clamp가 상한 보호 (computeLeafletTargetSize).
+  intercalary: 0.18, // raw 4.5cm 이하 → minReadable clamp / primary × 0.50 cap
+  secondary: 0.20,   // raw 5cm 이하 → minReadable / primary × 0.70 cap
 };
+
+/**
+ * ★ Iter 39 Phase G3 (B4 + B5 + C4 + C5) — leaflet target size 산출.
+ *
+ * Skeleton SSOT: 모든 size 결정은 skeleton에서. Skin은 lengthM _그대로 사용_.
+ *
+ * 사용자 botanical:
+ * - apex young 잎 (maturity < 0.3): minReadable 6mm 허용 (folded compact)
+ * - expanding/mature: minReadable 18mm (debris-fragment 회피)
+ * - intercalary: primary × 0.55 _이하로 clamp_ (primary처럼 커지지 않음)
+ * - terminal/primary: minReadable로 enforce (skip 금지 — B5)
+ */
+function clamp(x: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, x));
+}
+function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * Math.max(0, Math.min(1, t));
+}
+function computeLeafletTargetSize(
+  position: LeafletPosition,
+  rachisLen: number,
+  positionSf: number,
+  maturity: number,
+): number {
+  // ★ C4: maturity-dependent minimum readable size.
+  //   apex young 0.6cm / mature 1.8cm. smoothstep으로 자연 그라데이션.
+  const t = maturity * maturity * (3 - 2 * maturity);  // smoothstep ≈
+  const minReadableM = lerp(0.006, 0.018, t);
+  const primaryRef = rachisLen * POSITION_SIZE_MULT.primary;
+  const raw = rachisLen * POSITION_SIZE_MULT[position] * positionSf;
+  switch (position) {
+    case 'terminal':
+    case 'primary':
+      return Math.max(raw, minReadableM);
+    case 'intercalary':
+      // ★ B4: primary × 0.55 이하 enforce + minReadable enforce.
+      return clamp(raw, minReadableM, primaryRef * 0.55);
+    case 'secondary':
+      return clamp(raw, minReadableM, primaryRef * 0.70);
+  }
+}
 
 /**
  * 잎 전체 metadata 산출 (deterministic baseline).
@@ -530,6 +576,9 @@ function addLeafletNodesForLeaf(
   /** ★ Iter 39 Phase F4 — leaf-level macro variation. 기본값 (no variation)로
    *  back-compat. */
   leafProfile?: { leftRightImbalance: number; spacingBias: number },
+  /** ★ Iter 39 Phase G3 — maturity (0-1). leaflet minReadable size 산출용.
+   *  기본 1.0 (mature — back-compat). expansionProgress 또는 sizeFactor 사용. */
+  maturity: number = 1.0,
 ): void {
   const profile = leafProfile ?? { leftRightImbalance: 0, spacingBias: 0 };
   const rachisLen = bladeRef.rachisLengthM;
@@ -669,7 +718,8 @@ function addLeafletNodesForLeaf(
           position: 'terminal',
           rachisU: 1.0,
           sizeFactor: terminalSf,
-          targetSizeM: rachisLen * POSITION_SIZE_MULT.terminal * terminalSf,
+          // ★ G3: helper로 minReadable 적용 (maturity-dependent).
+          targetSizeM: computeLeafletTargetSize('terminal', rachisLen, terminalSf, maturity),
           // ★ G2 (C2): terminal attachNode = parentLeafNodeId (petiole tip).
           attachNodeId: parentLeafNodeId,
           // ★ G2 (C3): bladeDir = pure distal (rachis 연속).
@@ -766,11 +816,9 @@ function addLeafletNodesForLeaf(
       y: rachisPos.y + dirOut.y * outAmount + rollOffset,
       z: rachisPos.z + dirOut.z * outAmount + twistOffset,
     };
-    // ★ Iter 39 Phase F3 + F4 — position별 분기 + sf는 _per-leaflet 상대 크기_.
-    //   rachisLen이 이미 leaf-level sf×nodePositionScale 반영 (computeLeafBladeRef).
-    //   sf 인자는 _이 leaflet의 _상대 multiplier_ (LeafInstanceProfile.leftRightImbalance
-    //   로부터 좌우 sfL/sfR가 다르므로 — 좌우 size 차이 시각화).
-    const targetSizeM = rachisLen * (POSITION_SIZE_MULT[position] ?? 0.4) * sf;
+    // ★ Iter 39 Phase G3 — helper로 minReadable + hierarchy clamp 적용.
+    //   skeleton SSOT: skin은 lengthM _그대로 사용_, skip 금지 (B5).
+    const targetSizeM = computeLeafletTargetSize(position, rachisLen, sf, maturity);
 
     // ★ Phase O — attach node에서 분기 (이전: terminalLid에서 모두 시작).
     const attachNodeId = findAttachNodeForU(rachisU);
@@ -942,8 +990,8 @@ function addLeafletNodesForLeaf(
         position: 'secondary',
         rachisU,
         sizeFactor: sf,
-        // ★ Iter 39 Phase F3+F4 — position multiplier × sf (per-leaflet variation).
-        targetSizeM: rachisLen * POSITION_SIZE_MULT.secondary * sf,
+        // ★ Iter 39 Phase G3 — helper로 secondary clamp (primary × 0.70 cap).
+        targetSizeM: computeLeafletTargetSize('secondary', rachisLen, sf, maturity),
         // ★ G2 (C2): secondary attachNode = parent primary leaflet.
         attachNodeId: parentPrimary.lid,
         // ★ G2 (C3): bladeDir = lateral × 0.75 + distal × 0.25.
@@ -975,21 +1023,21 @@ function addLeafletNodesForLeaf(
   }
 
   // 3. Intercalary — rachis 직접 부착 (petiolule edge).
+  //   ★ Iter 39 Phase G3 (B4): sf 0.10-0.26 → 0.40-0.60. clamp가 상한 보호
+  //     (computeLeafletTargetSize primary × 0.55).
   for (let i = 0; i < bladeRef.intercalaryCount; i++) {
     const u = intercalaryUs[i];
-    const sf = 0.10 + (i % 3) * 0.08;
+    const sf = 0.40 + (i % 3) * 0.10;  // 0.40 / 0.50 / 0.60
     const sign = i % 2 === 0 ? -1 : +1;
     addRachisChild('intercalary', u, sf, sign, 'petiolule');
   }
 
   // 4. ★ Phase N — secondary (sub-leaflet) = primary leaflet의 _자식_.
-  //    사용자 ASCII "소엽 → 소엽2" 명확 표현. sub-vein으로 분기.
+  //   ★ Iter 39 Phase G3 (B4): sf 0.15-0.45 → 0.35-0.65.
   for (let i = 0; i < bladeRef.secondaryCount && i < primaries.length; i++) {
     const parent = primaries[i];
-    // ★ Iter 37 Q6.3 — secondary sf 다양화 (이전: 0.30/0.40 두 값만).
-    //   사용자 §3 표: secondary 0.20-0.55.
     const secSeed = leafNodeIdx * 0.7919 + i * 17;
-    const sf = 0.15 + (((secSeed * 31) % 30) / 100);  // 0.15-0.45
+    const sf = 0.35 + (((secSeed * 31) % 30) / 100);  // 0.35-0.65
     const u = primaryUs[Math.floor(i / 2) % primaryUs.length] + 0.04;
     const sign = i % 2 === 0 ? +1 : -1;
     addSubLeaflet(parent, u, sf, sign);

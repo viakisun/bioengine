@@ -157,10 +157,15 @@ export function buildLeafletMeshes(ctx: LeafletMeshBuildContext): Mesh[] {
       baseShape:    resolved.baseShape,
       asymmetry:    resolved.asymmetry,
     });
+    // ★ Iter 39 Phase G3 (B4) — noise scale cap.
+    //   작은 leaflet (lengthM < 2cm)에 lobe/serration이 _비율적_으로 과대 증폭
+    //   되어 broken mesh shard 인상. _절대_ noise를 cap (lengthM 대신 noiseLengthM
+    //   = max(lengthM, 0.02)).
+    const noiseLengthM = Math.max(lengthM, 0.02);
     for (const sample of profile) {
-      const lobe = lobeNoise(sample.u, resolved.lobeDepth * lengthM, leafletSeed);
+      const lobe = lobeNoise(sample.u, resolved.lobeDepth * noiseLengthM, leafletSeed);
       const teeth = serrationNoise(
-        sample.u, resolved.serrationAmp * lengthM, resolved.serrationFreq, leafletSeed,
+        sample.u, resolved.serrationAmp * noiseLengthM, resolved.serrationFreq, leafletSeed,
       );
       sample.halfWidthLeft += lobe + teeth;
       sample.halfWidthRight += lobe * 0.85 + teeth * 1.1;
