@@ -488,16 +488,31 @@ function createOvateLeaflet(
 
   const chunk = newChunk();
 
+  // ★ Iter 38 S2 — 사용자 §5 신규 산식 (baseWidth = sin(πt)^shapePower) + §4
+  //   4 params (aspectRatio, baseShape, tipSharpness, asymmetry) 반영.
+  //   기존 산식 (sin(πt) × (1-0.25t))은 _고정 shape_ — params 무관 동일 outline.
+  //   신규: tipSharpness=1.0 시 기존과 거의 동일 (back-compat), >1.0 시 뾰족.
+  const shapePower = params.tipSharpness ?? 1.0;     // 1=round, 2=pointed (사용자 §5)
+  const aspectRatio = params.aspectRatio ?? 2.0;      // 둥근 ↔ 길쭉
+  const baseShape = params.baseShape ?? 0.85;          // 1=wedge, 0.7=heart (밑부분)
+  const asymmetryFactor = params.asymmetry ?? 0;       // 좌우 비대칭
+
   for (let row = 0; row <= lengthSegs; row++) {
     const t = row / lengthSegs;
-    // Phase A.1 — leafletWidth single function per guideline §8.3.
-    // Base ovate sin(πt)·(1−0.25t) × (1 + teeth + organic) replaces the
-    // older two-branch sin/cos profile. Lobe modulation kept as a small
-    // multiplicative term for the classic compound-leaf bumping.
-    const widthBase = Math.sin(Math.PI * t) * (1 - 0.25 * t);
+    // ★ Iter 38 S2 — sin(πt)^shapePower (사용자 §5).
+    //   shapePower 작음 (1.0): 둥근 outline (기존)
+    //   shapePower 큼 (2.0): 뾰족 outline (mature/old)
+    //   aspectRatio로 나눠 _넓이 축소_ — 길쭉한 잎이 더 좁아짐.
+    const sinPiT = Math.max(0, Math.sin(Math.PI * t));
+    const widthBase = Math.pow(sinPiT, shapePower) * (1 - 0.25 * t) / (aspectRatio / 2.0);
+
+    // ★ Iter 38 S2 — baseShape modulation (밑부분 wedge/heart).
+    //   t < 0.2 (base 근처)에서만 적용. baseShape=1.0 → 변경 없음, 0.7 → heart.
+    const baseFactor = t < 0.2 ? 1 - (1 - baseShape) * (1 - t / 0.2) : 1;
+
     const widthTeeth = Math.sin(t * Math.PI * 18) * params.serrationDepth * 0.08;
     const widthOrganic = (rng.next() - 0.5) * params.serrationDepth * 0.05;
-    const widthFactor = Math.max(0, widthBase * (1 + widthTeeth + widthOrganic));
+    const widthFactor = Math.max(0, widthBase * baseFactor * (1 + widthTeeth + widthOrganic));
     const lobeModulation =
       1 - params.lobeDepth * Math.sin(t * Math.PI * 3) * Math.max(0, 1 - t * 1.5);
     const rowWidth = maxWidth * widthFactor * lobeModulation;
@@ -507,7 +522,11 @@ function createOvateLeaflet(
       const colNorm = (col / (cols - 1)) * 2 - 1;
       const absCol = Math.abs(colNorm);
 
-      let z = colNorm * rowWidth;
+      // ★ Iter 38 S2 — asymmetry 좌우 width offset (사용자 §4 leftRightAsymmetry).
+      //   asymmetryFactor > 0이면 한쪽이 _넓고_ 한쪽이 _좁음_ (자연스러움).
+      const asymBias = asymmetryFactor * 0.5;
+      const sideMul = colNorm >= 0 ? (1 + asymBias) : (1 - asymBias);
+      let z = colNorm * rowWidth * sideMul;
 
       if (absCol > 0.6 && t > 0.05 && t < 0.95) {
         const serrationPhase = t * params.serrationFreq * Math.PI * 2 + rng.next() * 0.5;
