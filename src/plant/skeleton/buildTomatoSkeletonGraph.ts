@@ -132,7 +132,107 @@ export function buildTomatoSkeletonGraph(
   // junction.parentContext is refined by StemFamilyTubeNetworkBuilder later.
   populateEdgePolicies(graph);
 
+  // ★ Iter 39 Phase H0 — Skeleton SSOT integrity 검증 (3 invariants).
+  //   사용자 핵심 발견: G2의 petiolule truncation이 SSOT 위반 (bonePath endpoint ≠
+  //   endNode.pos) → overlay 노드 공중에 뜸 → skin/mesh 일관 동작 불가.
+  //   H0가 _영구적인_ graph 검증 layer 추가 — production은 diagnostics에 담고,
+  //   test/dev는 throw가 hard fail (skeleton-edge-consistency.spec).
+  assertGraphConsistency(graph);
+
   return graph;
+}
+
+/**
+ * ★ Iter 39 Phase H0 — Skeleton SSOT integrity 3가지 invariants 검증.
+ *
+ * - SKELETON-EDGE-01: bonePath endpoint ↔ start/endNode pos (≤1mm)
+ * - NODE-EDGE-INCIDENCE-01: node.edgeIds 의 edge가 그 node를 endpoint로 가짐
+ * - LEAFLET-REF-01: attachNodeId/parentLeafNodeId 존재 + bladeDir 정규화 + targetSizeM > 0
+ *
+ * Violation handling:
+ * - test/dev: throw (skeleton-edge-consistency.spec이 catch)
+ * - production: graph.diagnostics에 담아 demo가 죽지 않음
+ */
+function assertGraphConsistency(graph: PlantSkeletonGraph): void {
+  const edgeEndpointMismatches: string[] = [];
+  const nodeEdgeIncidenceMismatches: string[] = [];
+  const leafletRefViolations: string[] = [];
+
+  // SKELETON-EDGE-01 — leaf hierarchy edges에 focus.
+  //   petiole/peduncle/rachis/pedicel은 PlantBase의 _emerge offset_ (stem surface
+  //   안쪽에서 시작)을 가짐 — 이는 _이미 알려진 design_ (SkinEngine swelling/embed가
+  //   render time에 흡수). G2가 만든 _truncation 위반_은 leaf hierarchy edges에 발생.
+  //   사용자가 보고한 _공중에 떠 있는 빨간 점_도 leaf hierarchy 영역.
+  const LEAF_HIERARCHY_TYPES = new Set([
+    'leaf-rachis', 'petiolule', 'lateral-vein', 'sub-vein',
+  ]);
+  for (const edge of graph.edges.values()) {
+    if (edge.bonePath.length === 0) continue;
+    if (!LEAF_HIERARCHY_TYPES.has(edge.type)) continue;
+    const start = graph.nodes.get(edge.startNodeId);
+    const end = graph.nodes.get(edge.endNodeId);
+    if (!start || !end) continue;
+    const first = edge.bonePath[0].p0;
+    const last = edge.bonePath[edge.bonePath.length - 1].p1;
+    const dFirst = Math.hypot(first.x - start.pos.x, first.y - start.pos.y, first.z - start.pos.z);
+    const dLast = Math.hypot(last.x - end.pos.x, last.y - end.pos.y, last.z - end.pos.z);
+    if (dFirst > 0.001) {
+      edgeEndpointMismatches.push(`${edge.id}:start ${(dFirst * 1000).toFixed(2)}mm`);
+    }
+    if (dLast > 0.001) {
+      edgeEndpointMismatches.push(`${edge.id}:end ${(dLast * 1000).toFixed(2)}mm`);
+    }
+  }
+
+  // NODE-EDGE-INCIDENCE-01 — leaf hierarchy edges에 focus.
+  //   mainStem/sideShoot/rachis 등 _multi-node subdivided edge_는 mid-edge node
+  //   등록이 _design 의도_ (stem segment 노드들이 mainStem edge에 모두 등록).
+  //   leaf hierarchy (leaf-rachis/petiolule/lateral-vein/sub-vein) + petiole/peduncle/pedicel
+  //   은 _start-end strict_ — 사용자 발견 영역.
+  const STRICT_INCIDENCE_TYPES = new Set([
+    'leaf-rachis', 'petiolule', 'lateral-vein', 'sub-vein',
+    'petiole', 'peduncle', 'pedicel',
+  ]);
+  for (const node of graph.nodes.values()) {
+    for (const eid of node.edgeIds) {
+      const edge = graph.edges.get(eid);
+      if (!edge) continue;
+      if (!STRICT_INCIDENCE_TYPES.has(edge.type)) continue;
+      if (edge.startNodeId !== node.id && edge.endNodeId !== node.id) {
+        nodeEdgeIncidenceMismatches.push(`${node.id}↛${eid}`);
+      }
+    }
+  }
+
+  // LEAFLET-REF-01
+  for (const node of graph.nodes.values()) {
+    const ref = node.leafletRef;
+    if (!ref) continue;
+    if (!graph.nodes.has(ref.attachNodeId)) {
+      leafletRefViolations.push(`${node.id}:attachNodeId=${ref.attachNodeId} missing`);
+    }
+    if (!graph.nodes.has(ref.parentLeafNodeId)) {
+      leafletRefViolations.push(`${node.id}:parentLeafNodeId=${ref.parentLeafNodeId} missing`);
+    }
+    const bdLen = Math.hypot(ref.bladeDir.x, ref.bladeDir.y, ref.bladeDir.z);
+    if (Math.abs(bdLen - 1) > 0.01) {
+      leafletRefViolations.push(`${node.id}:bladeDir |len|=${bdLen.toFixed(4)}`);
+    }
+    if (ref.targetSizeM <= 0) {
+      leafletRefViolations.push(`${node.id}:targetSizeM=${ref.targetSizeM}`);
+    }
+  }
+
+  graph.diagnostics = {
+    edgeEndpointMismatches,
+    nodeEdgeIncidenceMismatches,
+    leafletRefViolations,
+  };
+
+  // Plan v7 정책: production demo는 _죽지 않음_ — graph.diagnostics에만 담음.
+  // test/dev hard fail은 skeleton-edge-consistency.spec이 직접 graph.diagnostics
+  // 검사 (throw 대신 expect.toEqual([]) 패턴).
+  // 본 함수는 throw _하지 않음_ — production stability 우선.
 }
 
 // ── Main / side stem axis ─────────────────────────────────────────────
@@ -829,45 +929,22 @@ function addLeafletNodesForLeaf(
       ?? leafRachisEdgeId;
 
     // ★ Iter 37 Q2.4 — Petiolule arch (rachisLen × 0.02 비례).
-    //   이전: bonePath = [{p0, p1}] single straight bone (직선).
-    //   현재: 3-point catmull-rom with mid arch.
+    //   3-point catmull-rom with mid arch.
     //
-    // ★ Iter 39 Phase G2 (B3) — petiolule visible ratio position별 + 1.2cm cap.
-    //   사용자 botanical 비판: "고정 40%면 큰 primary에서는 길어 보임. 작은
-    //   intercalary에선 더 필요. position별 분리 + 절대 cap이 안전".
-    //   primary: subtle (22%), secondary: 28%, intercalary: 35% (가장 visible).
-    //   terminal은 별도 처리 — rachis 연속, petiolule 없음.
-    const PETIOLULE_VISIBLE_RATIO_BY_POSITION: Record<LeafletPosition, number> = {
-      terminal: 0.0,
-      primary: 0.22,
-      secondary: 0.28,
-      intercalary: 0.35,
-    };
-    const PETIOLULE_MAX_VISIBLE_LEN_M = 0.012;  // 절대 1.2cm cap
-    const ratio = PETIOLULE_VISIBLE_RATIO_BY_POSITION[position] ?? 0.25;
-    const fullPetioluleLen = Math.sqrt(
-      (leafletPos.x - attachPos.x) ** 2
-      + (leafletPos.y - attachPos.y) ** 2
-      + (leafletPos.z - attachPos.z) ** 2,
-    );
-    const visibleLen = Math.min(fullPetioluleLen * ratio, PETIOLULE_MAX_VISIBLE_LEN_M);
-    const visibleFrac = fullPetioluleLen > 1e-6 ? visibleLen / fullPetioluleLen : 0;
-    const truncateBones = edgeType === 'petiolule' || edgeType === 'lateral-vein';
-    const visibleEnd: V3 = truncateBones
-      ? {
-          x: attachPos.x + (leafletPos.x - attachPos.x) * visibleFrac,
-          y: attachPos.y + (leafletPos.y - attachPos.y) * visibleFrac,
-          z: attachPos.z + (leafletPos.z - attachPos.z) * visibleFrac,
-        }
-      : leafletPos;
-    const archHeight = rachisLen * 0.02 * (truncateBones ? visibleFrac : 1.0);
+    // ★ Iter 39 Phase H0 — Skeleton SSOT 회복: G2의 visible-fraction truncation _revert_.
+    //   사용자 핵심 비판: "skeleton edge의 bonePath endpoint와 endNode.pos가 불일치
+    //   하면 overlay/skin/mesh가 일관 동작 불가. petiolule을 짧게 보이게 하고 싶다면
+    //   skin render policy (EdgeRenderPolicy.skinVisibleFraction, Phase H4)로
+    //   처리. skeleton geometry는 절대 visual control 도구로 쓰지 않는다."
+    //   → bonePath는 항상 _full path_ (attach → leaflet).
+    const archHeight = rachisLen * 0.02;
     const archMid: V3 = {
-      x: (attachPos.x + visibleEnd.x) / 2,
-      y: (attachPos.y + visibleEnd.y) / 2 + archHeight,
-      z: (attachPos.z + visibleEnd.z) / 2,
+      x: (attachPos.x + leafletPos.x) / 2,
+      y: (attachPos.y + leafletPos.y) / 2 + archHeight,
+      z: (attachPos.z + leafletPos.z) / 2,
     };
     const petioluleBones = bonesFromCurve(
-      [attachPos, archMid, visibleEnd], 0.0005, 0.0003, 3,
+      [attachPos, archMid, leafletPos], 0.0005, 0.0003, 3,
     );
 
     const edgeId =

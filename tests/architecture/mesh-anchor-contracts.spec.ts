@@ -77,25 +77,24 @@ test.describe('Mesh Anchor Contracts (SSOT #186)', () => {
       const meshes = w.__debugScene?.meshes?.filter(m => /skinplant_leaf_.+_l\d+_/.test(m.name)) ?? [];
       const graph = w.__lastGraph;
       if (!graph?.nodes) return { error: 'no graph' };
-      // Build leaflet-node lookup table: key=(parentLeafNodeId, position-index)
       // mesh name: ..._a{ax}_n{n}_l{idx}_{position}
+      // ★ Iter 39 Phase H0 — lookup 수정: lIdx는 _전체 leaflet 리스트_ 인덱스 (terminal/primary/intercalary/secondary 합쳐서).
+      //   이전 (잘못): position type별 posCount로 매칭 → SkinMesh의 _전체_ index와 mismatch.
+      //   수정: parentLeafNodeId가 같은 leaflet 전체 리스트에서 lIdx번째.
       const results: Array<{ name: string; dist_mm: number }> = [];
       for (const m of meshes) {
         const match = m.name.match(/_a(\d+)_n(\d+)_l(\d+)_(\w+)$/);
         if (!match) continue;
-        const axIdx = match[1], nIdx = match[2], lIdx = +match[3], pos = match[4];
-        // parentLeafNodeId pattern in graph: petiole_tip
+        const axIdx = match[1], nIdx = match[2], lIdx = +match[3];
         const parentId = `n:petiole_tip:axis${axIdx}:n${nIdx}`;
-        // Find matching leaflet-node with same position type
-        let matched: { x: number; y: number; z: number } | null = null;
-        let posCount = 0;
+        // 전체 leafletSkeletonNodes 인덱스 lookup (SkinMeshPlant 와 동일 순서).
+        const orderedLeaflets: Array<{ pos: { x: number; y: number; z: number }; pos_type: string }> = [];
         for (const node of graph.nodes.values()) {
           if (node.leafletRef?.parentLeafNodeId !== parentId) continue;
-          if (node.leafletRef.position !== pos) continue;
-          if (posCount === lIdx) { matched = node.pos; break; }
-          posCount++;
+          orderedLeaflets.push({ pos: node.pos, pos_type: node.leafletRef.position });
         }
-        if (!matched) continue;
+        if (lIdx >= orderedLeaflets.length) continue;
+        const matched = orderedLeaflets[lIdx].pos;
         if (m.computeWorldMatrix) m.computeWorldMatrix(true);
         const dx = m.position.x - matched.x;
         const dy = m.position.y - matched.y;

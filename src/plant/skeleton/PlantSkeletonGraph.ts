@@ -609,6 +609,21 @@ export interface PlantSkeletonGraph {
    *  imports PlantGenome directly. Populated only when populator is given
    *  a genome via BuildSkeletonOpts.genome. */
   cultivarGenomeSnapshot?: PlantGenome;
+  /** ★ Iter 39 Phase H0 — Skeleton SSOT integrity diagnostics.
+   *  `assertGraphConsistency`가 production 환경에서 throw 대신 violations를
+   *  여기 담아 demo 렌더가 죽지 않도록. test/dev에서는 throw가 hard fail.
+   *  null이면 invariants 검사 안 됨 (정상 상태에서는 빈 배열로 채워짐). */
+  diagnostics?: SkeletonDiagnostics;
+}
+
+/** ★ Iter 39 Phase H0 — Skeleton invariants 검증 결과. */
+export interface SkeletonDiagnostics {
+  /** SKELETON-EDGE-01: bonePath endpoint ↔ startNode/endNode pos mismatch. */
+  edgeEndpointMismatches: string[];
+  /** NODE-EDGE-INCIDENCE-01: node.edgeIds에 등록된 edge가 그 node를 endpoint로 미참조. */
+  nodeEdgeIncidenceMismatches: string[];
+  /** LEAFLET-REF-01: leafletRef의 attachNodeId/parentLeafNodeId 미존재, bladeDir 정규화 X, targetSizeM ≤ 0. */
+  leafletRefViolations: string[];
 }
 
 // ── Graph helpers ──────────────────────────────────────────────────────
