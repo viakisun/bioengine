@@ -123,3 +123,7 @@ export function buildCompoundLeaf(
 
 export type { ResolvedLeafParams } from './correlationRules';
 export { AGE_PRESETS } from './agePresets';
+
+// Iter 39 Phase A — per-leaflet plane mesh entry (Skin path).
+export { buildLeafletMeshes } from './buildLeafletMeshes';
+export type { LeafletMeshBuildContext } from './buildLeafletMeshes';

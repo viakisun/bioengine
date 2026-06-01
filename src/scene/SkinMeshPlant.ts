@@ -84,7 +84,9 @@ import { defaultSkinEngine } from '../plant/skin/defaultSkinEngine';
 // cylinder는 불필요.
 import { buildLeafMeshFromPhytomer, getLeafMaterial, getYellowLeafMaterial } from '../plant/LeafGenerator';
 // Iter 36 v5 Phase C — skeleton 3-tier: get leaflet nodes for compound leaf rendering.
-import { getLeafletNodesByParentLeaf } from '../plant/skeleton/PlantSkeletonGraph';
+import { getLeafletNodesByParentLeaf, getLeafletSkeletonNodesByParentLeaf } from '../plant/skeleton/PlantSkeletonGraph';
+// Iter 39 Phase A — per-leaflet plane mesh (graph node-driven).
+import { buildLeafletMeshes } from './leaf-engine';
 
 // Iter 35 PR 2 Phase I — ShowcasePlant archived. SkinMeshPlantHandle interface는
 //   원래 ShowcasePlant에서 import하던 type을 _자체 정의_로 inline (1:1 동일).
@@ -767,25 +769,74 @@ export function createSkinMeshPlant(
         const leafletNodes = getLeafletNodesByParentLeaf(graph, meshAnchorNode.id);
         // Iter 38 S4 — cultivar shape override (cherry 더 둥근 / beef 더 길쭉).
         const cultivarShapeOverride = skeletonCultivar?.growthProfile?.leafShapeOverride;
-        const leafMesh = buildLeafMeshFromPhytomer(
-          `skinplant_leaf_${seed}_a${axisIdx}_n${nodeIdx}`,
-          scene, leafOrganState, genome, leafRng,
-          bladeRef, leafletNodes, cultivarShapeOverride,
+        // Iter 39 Phase A — per-leaflet plane mesh path (graph node-driven).
+        //   bladeRef + terminal leaflet skeleton node 둘 다 있을 때 신규 path.
+        //   _legacy buildLeafMeshFromPhytomer는 fallback_ (bladeRef 또는 leaflet
+        //   skeleton 미생성 시 — populator 위반 catch + back-compat).
+        //
+        //   Phase A scope: terminal leaflet 1개만 (smallest delta validation).
+        //   각 leaflet의 mesh.position = graph node.pos (plant-local SSOT).
+        //   Phase B에서 모든 leaflet type, Phase C에서 pose composition.
+        const leafletSkeletonNodes = bladeRef
+          ? getLeafletSkeletonNodesByParentLeaf(graph, meshAnchorNode.id)
+          : [];
+        const terminalNode = leafletSkeletonNodes.find(
+          (n) => n.leafletRef?.position === 'terminal',
         );
-        leafMesh.parent = lushGroup;
-        leafMesh.position = new Vector3(tipPlantPos.x, tipPlantPos.y, tipPlantPos.z);
-        // R26 contract — anchor.rotation 그대로 적용 (petioleCurve tangent → makeLeafQuaternion).
-        const rot = anchor.rotation ?? { x: 0, y: 0, z: 0, w: 1 };
-        leafMesh.rotationQuaternion = new Quaternion(rot.x, rot.y, rot.z, rot.w);
-        // Material — phytomer.leaf.senescence.colorDullness (PlantBase 계산값).
         const yellowing = leafOrganState.senescence?.colorDullness ?? 0;
-        leafMesh.material = yellowing > 0.4 ? yellowLeafMat : leafMat;
-        currentMeshes.push(leafMesh);
-        currentParts.leaves.push(leafMesh);
-        leafMeshCount++;
+        const meshNamePrefix = `skinplant_leaf_${seed}_a${axisIdx}_n${nodeIdx}`;
+
+        if (bladeRef && terminalNode) {
+          // ★ Iter 39 Phase A — graph node-driven path.
+          //   petiole edge의 마지막 bone tangent = R26 rotation 산식과 동일 (DRY).
+          const lastBone = edge.bonePath[edge.bonePath.length - 1];
+          const petioleTipTangent = {
+            x: lastBone.p1.x - lastBone.p0.x,
+            y: lastBone.p1.y - lastBone.p0.y,
+            z: lastBone.p1.z - lastBone.p0.z,
+          };
+          const leafletMeshes = buildLeafletMeshes({
+            scene,
+            bladeRef,
+            // Phase A: terminal만 (Phase B에서 [...leafletSkeletonNodes]로 확장).
+            leafletSkeletonNodes: [terminalNode],
+            leafBladeRootNode: meshAnchorNode,
+            petioleTipTangent,
+            leafOrganState,
+            rng: leafRng,
+            seed: seed * 1009 + axisIdx * 9173 + nodeIdx * 31 + 11,
+            cultivarOverride: cultivarShapeOverride,
+            meshNamePrefix,
+          });
+          for (const lm of leafletMeshes) {
+            lm.parent = lushGroup;
+            lm.material = yellowing > 0.4 ? yellowLeafMat : leafMat;
+            currentMeshes.push(lm);
+            currentParts.leaves.push(lm);
+            leafMeshCount++;
+          }
+        } else {
+          // ★ Fallback — bladeRef 또는 terminal skeleton 미생성 시 legacy path.
+          //   populator 위반 catch (LEAF-LIVE-FALLBACK-NEVER-01과 호환).
+          const leafMesh = buildLeafMeshFromPhytomer(
+            meshNamePrefix,
+            scene, leafOrganState, genome, leafRng,
+            bladeRef, leafletNodes, cultivarShapeOverride,
+          );
+          leafMesh.parent = lushGroup;
+          leafMesh.position = new Vector3(tipPlantPos.x, tipPlantPos.y, tipPlantPos.z);
+          // R26 contract — anchor.rotation 그대로 적용 (petioleCurve tangent → makeLeafQuaternion).
+          const rot = anchor.rotation ?? { x: 0, y: 0, z: 0, w: 1 };
+          leafMesh.rotationQuaternion = new Quaternion(rot.x, rot.y, rot.z, rot.w);
+          // Material — phytomer.leaf.senescence.colorDullness (PlantBase 계산값).
+          leafMesh.material = yellowing > 0.4 ? yellowLeafMat : leafMat;
+          currentMeshes.push(leafMesh);
+          currentParts.leaves.push(leafMesh);
+          leafMeshCount++;
+        }
       }
     }
-    log.debug(`per-leaf meshes=${leafMeshCount} (PR 3-1 graph-anchor entry)`);
+    log.debug(`per-leaf meshes=${leafMeshCount} (Iter 39 Phase A — terminal leaflet path)`);
     void cultivarKey;
 
     // 적엽 (defoliation) — leaf blade mesh hide (graph petiole edges는 위에서 이미 제거).
@@ -852,7 +903,12 @@ export function createSkinMeshPlant(
       bboxMaxLocal: { x: number; y: number; z: number };
     }>();
     for (const m of currentParts.leaves) {
-      const mm = m.name.match(/_a(\d+)_n(\d+)$/);
+      // Iter 39 Phase A — per-leaflet mesh name 패턴:
+      //   legacy fallback: `..._a{ax}_n{n}`
+      //   new path:       `..._a{ax}_n{n}_l{idx}_{position}` — terminal만 docking 대표.
+      //                   primary/intercalary/secondary는 leafMeshByKey 미등록
+      //                   (docking은 잎 1개당 _1_ 대표 mesh가 만족스러움).
+      const mm = m.name.match(/_a(\d+)_n(\d+)(?:_l\d+_terminal)?$/);
       if (!mm) continue;
       // Iter 28 — leaf mesh가 이 build에서 막 생성됨. position +
       // rotationQuaternion 설정 직후라 worldMatrix가 _stale_ (Babylon은 next

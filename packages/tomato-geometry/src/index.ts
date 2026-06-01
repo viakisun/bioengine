@@ -22,6 +22,10 @@ export {
 } from './leafChunk';
 export type { LeafBuildParams, LeafShapeParams } from './leafChunk';
 
+// Iter 39 Phase A — per-leaflet plane chunk (Skin path 신규 entry).
+export { buildLeafletPlaneChunk } from './leafletPlaneChunk';
+export type { LeafletPlaneOptions, ShapeProfileSampleLite } from './leafletPlaneChunk';
+
 export { buildLeafColorBytes, buildLeafNormalBytes, LEAF_TEX_SIZE } from './leafTexture';
 
 export { buildCotyledonChunk } from './cotyledonChunk';

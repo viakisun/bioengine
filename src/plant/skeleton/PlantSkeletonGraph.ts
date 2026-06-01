@@ -670,6 +670,29 @@ export function getLeafletNodesByParentLeaf(
 }
 
 /**
+ * Iter 39 Phase A — leaflet SkeletonNode (id + pos + leafletRef) 반환.
+ *
+ * `getLeafletNodesByParentLeaf`은 LeafletNodeRef만 반환해 _node.id / node.pos
+ * 정보 손실_. Per-leaflet plane mesh가 graph node.pos를 직접 사용하므로 풀
+ * SkeletonNode 보존 필수.
+ *
+ * 기존 helper는 leafEngine.buildCompoundLeaf 시그니처 (Phase B에서 widen 예정)
+ * 호환 위해 그대로 유지.
+ */
+export function getLeafletSkeletonNodesByParentLeaf(
+  graph: PlantSkeletonGraph,
+  parentLeafNodeId: string,
+): SkeletonNode[] {
+  const out: SkeletonNode[] = [];
+  for (const node of graph.nodes.values()) {
+    if (node.type !== 'leaflet-node') continue;
+    if (node.leafletRef?.parentLeafNodeId !== parentLeafNodeId) continue;
+    out.push(node);
+  }
+  return out;
+}
+
+/**
  * Flatten all bones from the graph into a single array, returning a
  * parallel array of edge ids (one per bone) for later vertex tagging.
  */
