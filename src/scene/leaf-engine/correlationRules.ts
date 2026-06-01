@@ -35,6 +35,11 @@ export interface ResolvedLeafParams {
   curl?: number;
   /** Optional: potato-leaf smoothMargin. */
   smoothMargin?: boolean;
+  // ★ Iter 38 S3 — Hybrid shape baselines (사용자 §4 + §7 Hybrid 전략).
+  /** baseShape — 1.0 wedge ↔ 0.7 heart (AGE_PRESETS baseline ± 10% jitter). */
+  baseShape: number;
+  /** tipSharpness — 1.0 round ↔ 2.0 pointed (sin^shapePower exponent). */
+  tipSharpness: number;
 }
 
 /**
@@ -44,6 +49,30 @@ export interface ResolvedLeafParams {
 function lerp(range: readonly [number, number], t: number): number {
   const clamped = Math.max(0, Math.min(1, t));
   return range[0] + (range[1] - range[0]) * clamped;
+}
+
+/**
+ * ★ Iter 38 S3 — Hybrid sampling: baseline + ±10% jitter.
+ *
+ * 사용자 confirm: AGE_PRESETS baseline _고정_ + per-leaflet seed-based jitter.
+ *   같은 preset 잎은 _시각 일관성_ (모두 baseline 근처).
+ *   미세 jitter로 _완전 클론 부재_ (자연 다양성).
+ *
+ * @param range — AGE_PRESETS range (min/max clamp)
+ * @param baseline — preset baseline (range mid or 사용자 설정)
+ * @param seed — deterministic seed (per-leaf, per-param 다른 값)
+ * @param jitterScale — ±jitter (default 0.10 = ±10% of range)
+ */
+function sampleHybrid(
+  range: readonly [number, number],
+  baseline: number,
+  seed: number,
+  jitterScale = 0.10,
+): number {
+  const jitterRange = (range[1] - range[0]) * jitterScale;
+  const jitterNorm = ((seed * 13) % 200 - 100) / 100;  // [-1, 1]
+  const v = baseline + jitterNorm * jitterRange;
+  return Math.max(range[0], Math.min(range[1], v));
 }
 
 /**
@@ -61,6 +90,7 @@ function lerp(range: readonly [number, number], t: number): number {
 export function applyCorrelation(
   complexity: number,
   preset: AgePresetParams,
+  seed = 0,  // ★ Iter 38 S3 — Hybrid sampling seed (optional, back-compat).
 ): ResolvedLeafParams {
   const c = Math.max(0, Math.min(1, complexity));
 
@@ -77,14 +107,31 @@ export function applyCorrelation(
   const secondaryRange = preset.secondaryRange ?? [0, 0];
   const secondaryCount = Math.floor(lerp(secondaryRange, c) * leafletFactor);
 
-  // shape parameters — linear.
-  const aspectRatio = lerp(preset.aspectRatioRange, c);
-  const serrationAmp = lerp(preset.serrationAmpRange, c);
-  // serration frequency — 사용자 §4 표 ("큰 소엽 10-28개 / 작은 5-16개")
-  const serrationFreq = Math.floor(10 + c * 18);  // 10-28
-  const lobeDepth = lerp(preset.lobeDepthRange, c);
+  // ★ Iter 38 S3 — Hybrid shape parameters (baseline + ±10% jitter).
+  //   AGE_PRESETS baseline 사용 — 같은 preset 잎은 _시각 일관성_.
+  //   seed-based jitter — 미세 차이 (자연 클론 부재).
+  //   baseline 미정의 시 range mid fallback.
+  const aspectRatioBaseline = preset.aspectRatioBaseline
+    ?? (preset.aspectRatioRange[0] + preset.aspectRatioRange[1]) / 2;
+  const aspectRatio = sampleHybrid(preset.aspectRatioRange, aspectRatioBaseline, seed);
 
-  // 좌우 비대칭 — 0.02 + c × 0.06 (사용자 §8 "복잡한 잎일수록 좌우 비대칭 증가").
+  const serrationAmpBaseline = (preset.serrationAmpRange[0] + preset.serrationAmpRange[1]) / 2;
+  const serrationAmp = sampleHybrid(preset.serrationAmpRange, serrationAmpBaseline, seed * 7);
+
+  // serration frequency — 사용자 §4 표 (10-28). complexity 기반 (Hybrid 효과 작음).
+  const serrationFreq = Math.floor(10 + c * 18);
+
+  const lobeDepthBaseline = (preset.lobeDepthRange[0] + preset.lobeDepthRange[1]) / 2;
+  const lobeDepth = sampleHybrid(preset.lobeDepthRange, lobeDepthBaseline, seed * 11);
+
+  // ★ Iter 38 S3 — baseShape + tipSharpness Hybrid sampling (사용자 §4 신규).
+  const baseShapeBaseline = preset.baseShapeBaseline ?? 0.85;
+  const baseShape = sampleHybrid([0.70, 1.00], baseShapeBaseline, seed * 17);
+
+  const tipSharpnessBaseline = preset.tipSharpnessBaseline ?? 1.5;
+  const tipSharpness = sampleHybrid([1.00, 2.00], tipSharpnessBaseline, seed * 19);
+
+  // 좌우 비대칭 — preset.asymmetry 강도 (complex 0.3, 기본 0) + complexity 추가.
   const asymmetry = (preset.asymmetry ?? 0) + 0.02 + c * 0.06;
 
   // pose droop — preset range linear.
@@ -104,5 +151,8 @@ export function applyCorrelation(
     color: preset.color,
     curl: preset.curl,
     smoothMargin: preset.smoothMargin,
+    // ★ Iter 38 S3 — Hybrid shape baselines.
+    baseShape,
+    tipSharpness,
   };
 }

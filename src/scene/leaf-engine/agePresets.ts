@@ -36,6 +36,15 @@ export interface AgePresetParams {
   leafLengthFactor?: number;
   /** Optional: leafletCount factor (potato-leaf 0.7×). */
   leafletCountFactor?: number;
+  // ★ Iter 38 S3 — Hybrid baseline shape params (사용자 confirm).
+  //   correlationRules는 _baseline + ±10% jitter_로 sampling.
+  //   같은 preset 잎은 _시각 일관성_ + 미세 차이 (자연).
+  /** aspectRatio baseline (range mid 추천). */
+  aspectRatioBaseline?: number;
+  /** baseShape baseline (1.0 wedge ↔ 0.7 heart). */
+  baseShapeBaseline?: number;
+  /** tipSharpness baseline (1.0 round ↔ 2.0 pointed). */
+  tipSharpnessBaseline?: number;
 }
 
 /**
@@ -58,6 +67,10 @@ export const AGE_PRESETS = {
     lobeDepthRange: [0.03, 0.08],
     poseDroopDegRange: [-15, -5],   // 위로 들림
     color: 'bright-light-green',
+    // ★ Iter 38 S3 — Hybrid baselines.
+    aspectRatioBaseline: 1.5,        // 둥근 (cherry-like)
+    baseShapeBaseline: 0.92,         // 거의 wedge (어린 잎)
+    tipSharpnessBaseline: 1.2,       // 둥근 끝
   },
   mature: {
     leafLengthCmRange: [10, 25],
@@ -68,6 +81,10 @@ export const AGE_PRESETS = {
     lobeDepthRange: [0.07, 0.14],
     poseDroopDegRange: [-5, 15],
     color: 'green',
+    // ★ Iter 38 S3 — Hybrid baselines (range midpoint).
+    aspectRatioBaseline: 2.4,        // 보통 토마토 잎
+    baseShapeBaseline: 0.85,         // 약간 heart base
+    tipSharpnessBaseline: 1.5,       // 중간 sharpness
   },
   old: {
     leafLengthCmRange: [14, 28],
@@ -79,6 +96,10 @@ export const AGE_PRESETS = {
     poseDroopDegRange: [15, 35],     // 아래로 처짐
     color: 'green-with-yellowing',
     curl: 0.4,
+    // ★ Iter 38 S3 — Hybrid baselines.
+    aspectRatioBaseline: 2.8,        // 더 길쭉
+    baseShapeBaseline: 0.80,         // 깊은 heart
+    tipSharpnessBaseline: 1.7,       // 더 뾰족
   },
   complex: {
     leafLengthCmRange: [16, 30],
@@ -91,6 +112,10 @@ export const AGE_PRESETS = {
     poseDroopDegRange: [0, 20],
     color: 'green',
     asymmetry: 0.3,
+    // ★ Iter 38 S3 — Hybrid baselines.
+    aspectRatioBaseline: 2.9,
+    baseShapeBaseline: 0.75,         // 깊은 heart + 비대칭
+    tipSharpnessBaseline: 1.8,       // 뾰족 (beef-style)
   },
   'potato-leaf': {
     leafLengthCmRange: [12, 28],
@@ -104,6 +129,10 @@ export const AGE_PRESETS = {
     smoothMargin: true,
     leafLengthFactor: 1.2,
     leafletCountFactor: 0.7,
+    // ★ Iter 38 S3 — Hybrid baselines (potato-leaf 특수).
+    aspectRatioBaseline: 1.7,        // 둥글고 넓음
+    baseShapeBaseline: 0.95,         // 거의 완전 wedge
+    tipSharpnessBaseline: 1.1,       // 거의 둥근
   },
 } as const satisfies Record<string, AgePresetParams>;
 

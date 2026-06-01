@@ -63,18 +63,20 @@ export function buildCompoundLeaf(
   const preset = AGE_PRESETS[bladeRef.agePreset];
 
   // 2-9. Correlation rules apply → resolved params.
-  const resolved = applyCorrelation(bladeRef.complexity, preset);
+  //   ★ Iter 38 S3 — Hybrid sampling: seed 전달 (AGE_PRESETS baseline + jitter).
+  const resolved = applyCorrelation(bladeRef.complexity, preset, seed);
 
   // 10. 각 leaflet마다 outline + pose 생성.
   const leaflets = leafletNodes.map((node, i) => {
     const leafletSeed = seed * 0.7919 + i * 31.0;
     const lengthM = node.targetSizeM;
 
+    // ★ Iter 38 S3 — resolved.baseShape + tipSharpness 사용 (이전: hardcoded).
     const profile = buildShapeProfile({
       lengthM,
       aspectRatio: resolved.aspectRatio,
-      tipSharpness: 1.4 + ((leafletSeed * 0.13) % 0.4),  // 1.4-1.8
-      baseShape: 0.85,
+      tipSharpness: resolved.tipSharpness,
+      baseShape: resolved.baseShape,
       asymmetry: resolved.asymmetry,
     });
 
