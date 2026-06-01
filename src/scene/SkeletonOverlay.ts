@@ -591,14 +591,25 @@ export function createSkeletonOverlay(
 
     // 2. Draw nodes (markers) — visualHint 사용.
     //    Iter 36 v5 신규 node types만 (legacy phytomer/petiole-tip 등은 PlantBase 경로가 처리).
+    //    Iter 37 Q3.1 — primordium-node 추가.
     const NEW_NODE_TYPES = new Set([
       'leaflet-node', 'rachis-attach-node', 'bud-node', 'cotyledon-node', 'apex-node',
+      'primordium-node',
     ]);
     for (const node of graph.nodes.values()) {
       if (!node.type || !NEW_NODE_TYPES.has(node.type)) continue;
       const hint = node.visualHint;
       if (!hint) continue;
-      const colorHex = hint.markerColor;
+      let colorHex = hint.markerColor;
+
+      // ★ Iter 37 Q4.1 — Senescing leaflet yellow override.
+      //   leaflet-node의 parent leaf의 senescence.colorDullness > 0.4면 yellow (#DAA520).
+      if (node.type === 'leaflet-node' && node.leafletRef) {
+        const parentLeaf = graph.nodes.get(node.leafletRef.parentLeafNodeId);
+        const dullness = parentLeaf?.phytomer?.leaf.senescence?.colorDullness ?? 0;
+        if (dullness > 0.4) colorHex = '#DAA520';
+      }
+
       const sizeM = hint.markerSizeM ?? 0.0015;
       // 시각상 너무 작으면 안 보임 — minimum size enforce (skeleton overlay 검증용).
       const visibleSizeM = Math.max(sizeM, 0.003);
@@ -616,6 +627,26 @@ export function createSkeletonOverlay(
       dot.material = mat;
       dot.parent = root;
       meshes.push(dot);
+    }
+
+    // ★ Iter 37 Q4.2 — Bud → sideShoot lineage dashed line.
+    //   activated bud (budRef.activatedAxisId 존재)가 자라서 어느 sideShoot으로
+    //   가는지 시각상 표시. _dashed orange_ line.
+    for (const node of graph.nodes.values()) {
+      if (node.type !== 'bud-node') continue;
+      const axisId = node.budRef?.activatedAxisId;
+      if (!axisId) continue;
+      const sideShootEdge = graph.edges.get(axisId);
+      if (!sideShootEdge?.bonePath[0]) continue;
+      const target = sideShootEdge.bonePath[0].p0;
+      const points = [
+        new Vector3(node.pos.x, node.pos.y, node.pos.z),
+        new Vector3(target.x, target.y, target.z),
+      ];
+      meshes.push(thickLine(
+        `skel_bud_lineage_${node.id}`, points,
+        Color3.FromHexString('#FF8C00'), 0.0005,  // dark orange
+      ));
     }
   }
 
