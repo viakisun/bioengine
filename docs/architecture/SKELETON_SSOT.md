@@ -3,6 +3,19 @@
 > **사용자 핵심 원칙**: "Skeleton graph가 단일 진실 출처이고, skin은 그
 > 시각화일 뿐이다."
 
+## ★ 절대 원칙 (Iter 39 Phase H0)
+
+**모든 edge**:
+```
+edge.bonePath.first.p0 ≈ startNode.pos   (≤1mm)
+edge.bonePath.last.p1  ≈ endNode.pos     (≤1mm)
+```
+
+이 invariant는 **SKELETON-EDGE-01**로 강제 검증. 위반 시 overlay/skin/mesh가
+서로 다른 위치를 가리키므로 일관 동작 불가. skeleton geometry는 _절대_ visual
+control 도구로 사용 금지. 시각 truncation은 `EdgeRenderPolicy.skinVisibleFraction`
+(`docs/architecture/EDGE_RENDER_POLICY.md`)로 분리.
+
 ## 원칙
 
 모든 botanical 결정 — _부착점, 회전, 크기, 방향, 곡선_ — 은 **skeleton (graph)**
@@ -66,6 +79,16 @@
    - 같은 잎 안의 모든 leaflet은 _공유_
 
 ## Invariants 검증 (자동)
+
+`tests/architecture/skeleton-edge-consistency.spec.ts` (Iter 39 Phase H0, 신규):
+- **SKELETON-EDGE-01**: 모든 edge bonePath endpoint == startNode/endNode.pos (≤1mm).
+  leaf-rachis/petiolule/lateral-vein/sub-vein focus (petiole/peduncle 등은
+  PlantBase emerge offset이 있어 별도).
+- **NODE-EDGE-INCIDENCE-01**: node.edgeIds 의 edge가 그 node를 endpoint로 가짐
+  (leaf hierarchy + petiole/peduncle/pedicel; mainStem/sideShoot/rachis 등 multi-node
+  subdivided edge는 design 제외).
+- **LEAFLET-REF-01**: attachNodeId/parentLeafNodeId 존재 + bladeDir 정규화
+  (|len| ≈ 1) + targetSizeM > 0.
 
 `tests/architecture/mesh-anchor-contracts.spec.ts`:
 - **ANCHOR-05**: per-leaflet `mesh.position == leafletNode.pos` (≤1mm)

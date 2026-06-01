@@ -67,6 +67,16 @@ silent fallback 함정 방지).
 - skin은 `rotation = makeLeafQuaternion(bladeDir, WORLD_UP)` — _read만_, 자체 계산 0.
 - 참조: `docs/architecture/SKELETON_SSOT.md`.
 
+★ **Iter 39 Phase H0 (petiolule truncation revert)**:
+- G2의 `PETIOLULE_VISIBLE_RATIO_BY_POSITION` (skeleton bonePath 단축)이 SSOT
+  위반 (bonePath endpoint ≠ endNode.pos) → SkeletonOverlay에서 leaflet 노드
+  공중에 떠 있는 것처럼 보임.
+- H0가 petiolule/lateral-vein bonePath를 _full path_ (attachPos → leafletPos)로
+  복원. 시각적 truncation 의도는 H4의 `EdgeRenderPolicy.skinVisibleFraction`로
+  이동 (`docs/architecture/EDGE_RENDER_POLICY.md`).
+- SKELETON-EDGE-01 / NODE-EDGE-INCIDENCE-01 / LEAFLET-REF-01 신규 invariants가
+  graph SSOT 강제 (`tests/architecture/skeleton-edge-consistency.spec.ts`).
+
 **Iter 24 contract** (commit acfad71):
 - `buildLeafBladeOnly` 출력 chunk의 vertex.x range는 `[petioleLen + rachisLen·0.15, petioleLen + rachisLen]` 정도 (mesh-local).
 - **`normalizeLeafMeshVertices` 적용 필수** — `chunk.positions`의 `x_min`을 측정해 모든 vertex.x에서 빼기.
