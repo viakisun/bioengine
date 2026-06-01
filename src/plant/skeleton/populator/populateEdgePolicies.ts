@@ -19,7 +19,17 @@ import type {
 } from '../PlantSkeletonGraph';
 import type { PlantLocalV3 } from '../../coordinates/types';
 
-const RADIUS_FLOOR_M = 0.0008; // 0.8 mm — current StemFamily render floor.
+// ★ Iter 39 Phase F1 — type별 render floor (StemFamilyTubeNetworkBuilder와 동기).
+//   사용자: petiole/leaf-rachis/petiolule/vein 굵기 위계 없음 → type별 floor로 차등.
+const RADIUS_FLOOR_M = 0.0008; // 0.8 mm — 줄기 계열 기본 (legacy, summarizeRadius 호환)
+const RADIUS_FLOOR_M_BY_TYPE: Record<SkeletonEdgeType, number> = {
+  mainStem: 0.0008, sideShoot: 0.0008,
+  petiole: 0.0008, peduncle: 0.0008, rachis: 0.0008, pedicel: 0.0008,
+  'leaf-rachis':  0.0003,
+  petiolule:      0.0001,
+  'lateral-vein': 0.0,
+  'sub-vein':     0.0,
+};
 
 const MATERIAL_ROLE: Record<SkeletonEdgeType, NonNullable<EdgeRenderPolicy['material']>['role']> = {
   mainStem: 'main-stem',
@@ -53,15 +63,17 @@ const EDGE_COLOR: Record<SkeletonEdgeType, string> = {
 
 const ZERO_DIR: PlantLocalV3 = { x: 0, y: 0, z: 0 } as PlantLocalV3;
 
-function summarizeRadius(edge: SkeletonEdge): { biological: number; render: number } {
+function summarizeRadius(edge: SkeletonEdge): { biological: number; render: number; floor: number } {
   // Use the maximum of bone radii as biological (the base of taper).
   let maxR = 0;
   for (const b of edge.bonePath) {
     if (b.r0 > maxR) maxR = b.r0;
     if (b.r1 > maxR) maxR = b.r1;
   }
-  const render = Math.max(maxR, RADIUS_FLOOR_M);
-  return { biological: maxR, render };
+  // ★ Iter 39 Phase F1 — type별 floor.
+  const floor = RADIUS_FLOOR_M_BY_TYPE[edge.type] ?? RADIUS_FLOOR_M;
+  const render = Math.max(maxR, floor);
+  return { biological: maxR, render, floor };
 }
 
 /**
@@ -73,9 +85,9 @@ function summarizeRadius(edge: SkeletonEdge): { biological: number; render: numb
  */
 export function populateEdgePolicies(graph: PlantSkeletonGraph): void {
   for (const edge of graph.edges.values()) {
-    const { biological, render } = summarizeRadius(edge);
+    const { biological, render, floor } = summarizeRadius(edge);
     const policy: EdgeRenderPolicy = {
-      radius: { biological, render, min: RADIUS_FLOOR_M },
+      radius: { biological, render, min: floor },
       junction: {
         embedDepthM: 0, // refined by StemFamilyTubeNetworkBuilder (sync TBD).
         radialDir: ZERO_DIR,

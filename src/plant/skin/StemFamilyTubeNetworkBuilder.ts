@@ -181,7 +181,22 @@ const DEFAULT_EMBED_DEPTH_FLOOR_M: Record<SkeletonEdgeType, number> = {
 // 이 floor는 swelling/embed clone된 bone에만 적용 — 0.5mm 이하 organ이
 // sub-pixel로 사라지지 않도록 보장. biological 값과 분리 (debug overlay에서
 // 두 값 비교 가능, SSOT #176 stats.biologicalRadiusByType vs renderRadiusByType).
-const RENDER_RADIUS_FLOOR_M = 0.0008;  // 0.8mm
+//
+// ★ Iter 39 Phase F1 — type별 floor로 교체 (사용자: petiole/leaf-rachis/petiolule/
+//   sub-vein이 모두 0.8mm로 압축되어 굵기 위계 안 보임). 줄기 계열은 0.8mm 유지,
+//   leaf hierarchy는 botanical 위계대로 차등:
+//     leaf-rachis 0.3mm (main midrib), petiolule 0.1mm (connector), vein 0mm (skip 예정).
+//   Phase F2의 SDF_SKIP_TYPES와 호환 — vein 0mm는 emit 안 됨, petiolule 0.1mm는
+//   짧은 connector로 가시화.
+const RENDER_RADIUS_FLOOR_M = 0.0008;  // 0.8mm — 줄기 계열 기본 (deprecated: 아래 dict 사용)
+const RENDER_RADIUS_FLOOR_M_BY_TYPE: Record<SkeletonEdgeType, number> = {
+  mainStem: 0.0008, sideShoot: 0.0008,
+  petiole: 0.0008, peduncle: 0.0008, rachis: 0.0008, pedicel: 0.0008,
+  'leaf-rachis':  0.0003,  // 0.3mm — biological floor (main leaf midrib)
+  petiolule:      0.0001,  // 0.1mm — visible connector (F2 connector-only)
+  'lateral-vein': 0.0,     // F2에서 SDF skip — vein은 surface로 (F2.5)
+  'sub-vein':     0.0,     // F2에서 SDF skip
+};
 
 // ── frame (sweepTube-compatible, world-up referenced) ──────────────────
 
@@ -400,6 +415,8 @@ function preprocessBonePathsWithSwelling(
     const swollen: SkeletonBone[] = edge.bonePath.map((b) => ({
       p0: { ...b.p0 }, p1: { ...b.p1 }, r0: b.r0, r1: b.r1,
     }));
+    // ★ Iter 39 Phase F1 — type별 render floor.
+    const floor = RENDER_RADIUS_FLOOR_M_BY_TYPE[edge.type] ?? RENDER_RADIUS_FLOOR_M;
     for (const bone of swollen) {
       const nid0 = posToNodeId.get(nodePosKey(bone.p0));
       const nid1 = posToNodeId.get(nodePosKey(bone.p1));
@@ -407,8 +424,8 @@ function preprocessBonePathsWithSwelling(
       if (nid1 && junctions.has(nid1)) bone.r1 *= swellingScale;
       // Iter 18A SSOT #177 — render radius floor (biological values in
       // edge.bonePath untouched).
-      bone.r0 = Math.max(bone.r0, RENDER_RADIUS_FLOOR_M);
-      bone.r1 = Math.max(bone.r1, RENDER_RADIUS_FLOOR_M);
+      bone.r0 = Math.max(bone.r0, floor);
+      bone.r1 = Math.max(bone.r1, floor);
     }
     out.set(edgeId, swollen);
   }
@@ -628,11 +645,13 @@ export function buildStemFamilyTubeNetwork(
       const origFirst = swollenBones[0];
       // Iter 18A SSOT #177 — rootBone radii also subject to render floor.
       // (swollenBones already pre-floored in preprocess; rootBone is post-hoc.)
+      // ★ Iter 39 Phase F1 — type별 floor 동기.
+      const rootFloor = RENDER_RADIUS_FLOOR_M_BY_TYPE[edge.type] ?? RENDER_RADIUS_FLOOR_M;
       const rootBone: SkeletonBone = {
         p0: childStart,
         p1: origFirst.p0,
-        r0: Math.max(origFirst.r0 * rootRadiusScale, RENDER_RADIUS_FLOOR_M),
-        r1: Math.max(origFirst.r0 * 1.05, RENDER_RADIUS_FLOOR_M),
+        r0: Math.max(origFirst.r0 * rootRadiusScale, rootFloor),
+        r1: Math.max(origFirst.r0 * 1.05, rootFloor),
       };
       effectiveBonePath = [rootBone, ...swollenBones];
       capStart = false;
