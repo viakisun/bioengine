@@ -123,6 +123,53 @@ function vcross(a: V3, b: V3): V3 {
 
 const EPSILON = 1e-4;
 
+/**
+ * ★ Iter 39 Phase H4 — Arc length 기준 bonePath truncate.
+ *
+ * fraction (0-1): bonePath의 _arc length_ 누적 fraction만큼만 emit.
+ * - fraction >= 1.0: 변경 없이 반환
+ * - fraction <= 0.0: 빈 배열
+ * - 중간: target arc length에서 마지막 bone을 interpolate.
+ *
+ * 사용자 plan v7 review #6: "bone count 기준 슬라이스 X, arc length 기준이어야
+ * segment 길이가 비균일해도 정확한 시각 비율".
+ */
+function truncateBonePathByArcLength(
+  bones: SkeletonBone[],
+  fraction: number,
+): SkeletonBone[] {
+  if (fraction >= 1.0) return bones;
+  if (fraction <= 0.0) return [];
+  let total = 0;
+  for (const b of bones) total += vlen(vsub(b.p1, b.p0));
+  if (total <= 0) return [];
+  const target = total * fraction;
+  let accumulated = 0;
+  const out: SkeletonBone[] = [];
+  for (const b of bones) {
+    const segLen = vlen(vsub(b.p1, b.p0));
+    if (accumulated + segLen <= target) {
+      out.push(b);
+      accumulated += segLen;
+    } else {
+      const remain = target - accumulated;
+      const remainFrac = segLen > 0 ? remain / segLen : 0;
+      out.push({
+        p0: { ...b.p0 },
+        p1: {
+          x: b.p0.x + (b.p1.x - b.p0.x) * remainFrac,
+          y: b.p0.y + (b.p1.y - b.p0.y) * remainFrac,
+          z: b.p0.z + (b.p1.z - b.p0.z) * remainFrac,
+        },
+        r0: b.r0,
+        r1: b.r0 + (b.r1 - b.r0) * remainFrac,
+      });
+      break;
+    }
+  }
+  return out;
+}
+
 // ── colors per edge type (vertex color baked) ──────────────────────────
 
 const COLOR_BY_EDGE_TYPE: Record<SkeletonEdgeType, [number, number, number]> = {
@@ -576,9 +623,12 @@ export function buildStemFamilyTubeNetwork(
     //   원래 Phase S (Iter 39 S1, commit 899261b)에서 모든 leaf hierarchy edges에
     //   SDF skin 추가했으나, 사용자 비판 (plan v1 review): "lateral-vein/sub-vein
     //   tube가 leaflet plane 안에 거미줄/사다리꼴 frame처럼 노출" → 부분 revert.
-    if (edge.type === 'lateral-vein' || edge.type === 'sub-vein') {
-      // recurse into children — leaflet plane mesh는 graph node에 부착되므로
-      // edge skip만 하고 자식 traversal은 유지.
+    // ★ Iter 39 Phase H4 — skinVisibleFraction 0이면 SDF tube emit 안 함, 자식 traversal만.
+    //   사용자 #6: arc length 기준 truncate (bone count X). 0.0 = skip, 1.0 = full,
+    //   0~1 = arc length 기준 부분 emit.
+    const visibleFrac = edge.renderPolicy?.skinVisibleFraction ?? 1.0;
+    if (visibleFrac <= 0.0) {
+      // edge SDF skip, recurse into children (leaflet plane은 graph node에 부착).
       const childIds = childIndex.get(edge.id) ?? [];
       for (const cid of childIds) {
         const cedge = graph.edges.get(cid);
@@ -586,8 +636,21 @@ export function buildStemFamilyTubeNetwork(
       }
       return;
     }
-    const swollenBones = bonePathByEdge.get(edge.id);
+    let swollenBones = bonePathByEdge.get(edge.id);
     if (!swollenBones || swollenBones.length === 0) return;
+    // ★ Iter 39 Phase H4 — visibleFrac < 1.0 시 arc length 기준 truncate.
+    if (visibleFrac < 1.0) {
+      swollenBones = truncateBonePathByArcLength(swollenBones, visibleFrac);
+      if (swollenBones.length === 0) {
+        // 자식 traversal은 유지.
+        const childIds = childIndex.get(edge.id) ?? [];
+        for (const cid of childIds) {
+          const cedge = graph.edges.get(cid);
+          if (cedge) emitEdgeRecursive(cedge, parentInfo);
+        }
+        return;
+      }
+    }
 
     // Iter 18A: per-type biological radius (graph value, pre-embed).
     const bioR0 = edge.bonePath[0]?.r0 ?? 0;

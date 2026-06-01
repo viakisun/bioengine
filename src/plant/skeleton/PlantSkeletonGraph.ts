@@ -568,6 +568,20 @@ export interface EdgeRenderPolicy {
     color: string;
     lineWidth?: number;
   };
+  /**
+   * ★ Iter 39 Phase H4 — Skin tube가 bonePath의 _arc length_ 얼마나를 그릴지 (0-1).
+   *  기본 1.0 (full path). skeleton geometry는 _불변_ — bonePath는 항상 full
+   *  (SKELETON-EDGE-01 contract). visual truncation은 _render time_에 본 필드로만.
+   *  사용자 핵심 원칙: "skeleton geometry vs render policy 분리".
+   *
+   *  예: petiolule = 0.30 (30%만 SDF tube — 이전 G2 truncation 의도가 여기로).
+   *      lateral-vein/sub-vein = 0.0 (SDF skip).
+   *
+   *  arc length 기준 — bone count 아님 (사용자 plan v7 review #6).
+   */
+  skinVisibleFraction?: number;
+  /** ★ Iter 39 Phase H4 — Skin tube radius scale (graph radius × scale). 기본 1.0. */
+  skinRadiusScale?: number;
 }
 
 /** Edge — a contiguous stem-like organ. */

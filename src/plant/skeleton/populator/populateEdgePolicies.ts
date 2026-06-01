@@ -46,6 +46,23 @@ const MATERIAL_ROLE: Record<SkeletonEdgeType, NonNullable<EdgeRenderPolicy['mate
   'sub-vein': 'sub-vein',
 };
 
+/**
+ * ★ Iter 39 Phase H4 — type별 skin visible fraction (arc length 기준).
+ *   사용자 핵심 원칙: "skeleton geometry vs render policy 분리".
+ *   skeleton bonePath는 항상 full (SKELETON-EDGE-01 contract).
+ *   skin SDF tube가 _얼마나_를 그릴지는 본 정책으로만.
+ *   petiolule = 30% — 이전 G2 truncation 의도가 여기로 이동.
+ *   lateral-vein / sub-vein = 0% — SDF skip (F2 결정 유지).
+ */
+const SKIN_VISIBLE_FRACTION_BY_TYPE: Record<SkeletonEdgeType, number> = {
+  mainStem: 1.0, sideShoot: 1.0,
+  petiole: 1.0, peduncle: 1.0, rachis: 1.0, pedicel: 1.0,
+  'leaf-rachis':  1.0,
+  petiolule:      0.30,
+  'lateral-vein': 0.0,
+  'sub-vein':     0.0,
+};
+
 const EDGE_COLOR: Record<SkeletonEdgeType, string> = {
   mainStem: '#8B4513',
   sideShoot: '#A0522D',
@@ -94,6 +111,9 @@ export function populateEdgePolicies(graph: PlantSkeletonGraph): void {
       },
       material: { role: MATERIAL_ROLE[edge.type] },
       visualHint: { color: EDGE_COLOR[edge.type] },
+      // ★ Iter 39 Phase H4 — type별 skin visible fraction (arc length 기준).
+      //   skeleton bonePath는 full (SSOT), skin SDF만 truncate.
+      skinVisibleFraction: SKIN_VISIBLE_FRACTION_BY_TYPE[edge.type] ?? 1.0,
     };
     edge.renderPolicy = policy;
   }
