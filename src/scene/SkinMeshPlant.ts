@@ -314,10 +314,13 @@ export function createSkinMeshPlant(
     // fill organAnchor.morphology/state and graph.cultivarGenomeSnapshot.
     // Skin reads these (PR 3-1/3-2) instead of PlantBase/PlantState directly.
     const skeletonGenome = engine.getGenome(seed) ?? undefined;
+    // Iter 37 Q5 — pass cultivar so computeLeafBladeRef can sample distribution.
+    const skeletonCultivar = getCultivar(cultivarKey);
     const graph = buildPlantSkeleton(plantBase, {
       curveDivisions: 2,
       state,
       genome: skeletonGenome,
+      cultivar: skeletonCultivar,
     });
     lastGraph = graph;
 

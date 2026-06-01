@@ -76,6 +76,10 @@ export interface BuildSkeletonOpts {
    *  graph.cultivarGenomeSnapshot so Skin reads leaf shape parameters from
    *  graph instead of importing PlantGenome directly. */
   genome?: PlantGenome;
+  /** Iter 37 Q5 — Cultivar 객체 (growthProfile.leafPresetDistribution 접근용).
+   *  주어지면 computeLeafBladeRef가 distribution sampling으로 agePreset 결정.
+   *  optional — fallback은 sizeFactor 단순 매핑. */
+  cultivar?: import('@farmsim/tomato-engine').Cultivar;
 }
 
 export function buildTomatoSkeletonGraph(
@@ -102,7 +106,7 @@ export function buildTomatoSkeletonGraph(
     if (isMain) rootEdgeId = stemEdgeId;
 
     addStemAxis(axis, axisIdx, stemEdgeId, stemType, nodes, edges);
-    addLeavesForAxis(axis, axisIdx, stemEdgeId, divisions, nodes, edges);
+    addLeavesForAxis(axis, axisIdx, stemEdgeId, divisions, opts.cultivar, nodes, edges);
     addTrussesForAxis(axis, axisIdx, stemEdgeId, divisions, anatomy, nodes, edges);
     // Iter 36 v5 Phase B — axillary buds (dormant + activated 모두).
     addBudsForAxis(axis, axisIdx, nodes);
@@ -231,6 +235,7 @@ function addLeavesForAxis(
   axisIdx: number,
   stemEdgeId: string,
   divisions: number,
+  cultivar: import('@farmsim/tomato-engine').Cultivar | undefined,  // ★ Iter 37 Q5
   nodes: Map<string, SkeletonNode>,
   edges: Map<string, SkeletonEdge>,
 ): void {
@@ -264,7 +269,7 @@ function addLeavesForAxis(
 
     // Iter 36 v5 Phase B — tipNode가 leaf-blade-root 역할. leafBladeRef로
     // 잎 전체 metadata 부착 (rendering engine이 procedural variation 생성).
-    const leafBladeRef = computeLeafBladeRef(leaf);
+    const leafBladeRef = computeLeafBladeRef(leaf, cultivar);
     nodes.set(tipNodeId, {
       id: tipNodeId,
       pos: { ...tipPos },
@@ -324,34 +329,83 @@ function addLeavesForAxis(
  *   - mature: leafLength 10-25cm, primary 2-4, intercalary 2-6
  *   - old: leafLength 14-28cm, primary 3-4, intercalary 3-8
  */
-function computeLeafBladeRef(leaf: LeafBase): LeafBladeRef {
-  // ★ Iter 37 Q3.2 — Stage 세분화 (이전: sf<0.35 young/sf<0.7 mature/else complex).
-  //   사용자 §2: "어린 잎 primary 1-2쌍, 보통 2-3쌍, 복잡 3-4쌍".
+function computeLeafBladeRef(
+  leaf: LeafBase,
+  cultivar?: import('@farmsim/tomato-engine').Cultivar,
+): LeafBladeRef {
+  // ★ Iter 37 Q3.2 + Q5 — Stage 세분화 + Cultivar distribution sampling.
+  //   사용자 §2 (Q3.2): "어린 잎 primary 1-2쌍, 보통 2-3쌍, 복잡 3-4쌍".
+  //   Q5: cultivar.growthProfile.leafPresetDistribution 있으면 _분포 sampling_,
+  //       없으면 sizeFactor 단순 매핑 (back-compat).
   const sf = leaf.sizeFactor;
   let agePreset: LeafBladeRef['agePreset'];
   let primaryPairs: number;
   let intercalaryCount: number;
   let secondaryCount: number;
-  if (sf < 0.15) {
+
+  // Q5 — distribution sampling (deterministic seed per leaf).
+  const dist = cultivar?.growthProfile?.leafPresetDistribution;
+  if (dist) {
+    const seed = leaf.nodeIdx * 0.7919;
+    const r = ((seed * 9301 + 49297) % 233280) / 233280;
+    const entries: Array<[LeafBladeRef['agePreset'], number]> = [
+      ['young', dist.young ?? 0],
+      ['mature', dist.mature ?? 0],
+      ['old', dist.old ?? 0],
+      ['complex', dist.complex ?? 0],
+      ['potato-leaf', dist['potato-leaf'] ?? 0],
+    ];
+    let acc = 0;
+    agePreset = 'mature';  // fallback
+    for (const [preset, prob] of entries) {
+      acc += prob;
+      if (r < acc) { agePreset = preset; break; }
+    }
+    // sampling으로 결정된 preset에 따라 leaflet 수 분기.
+    switch (agePreset) {
+      case 'young':
+        primaryPairs = sf < 0.15 ? 1 : 2;
+        intercalaryCount = sf < 0.2 ? 0 : 1;
+        secondaryCount = 0;
+        break;
+      case 'mature':
+        primaryPairs = 3;
+        intercalaryCount = 3;
+        secondaryCount = 2;
+        break;
+      case 'old':
+        primaryPairs = 3;
+        intercalaryCount = 4;
+        secondaryCount = 3;
+        break;
+      case 'complex':
+        primaryPairs = 4;
+        intercalaryCount = 6;
+        secondaryCount = 6;
+        break;
+      case 'potato-leaf':
+        primaryPairs = 2;
+        intercalaryCount = 0;
+        secondaryCount = 0;
+        break;
+    }
+  } else if (sf < 0.15) {
     // EARLY_TRUE 초기 — 매우 단순 (terminal + primary 1쌍만).
     agePreset = 'young';
     primaryPairs = 1;
     intercalaryCount = 0;
     secondaryCount = 0;
   } else if (sf < 0.35) {
-    // EARLY_TRUE 후기 — primary 2쌍 + 약간 intercalary.
     agePreset = 'young';
     primaryPairs = 2;
     intercalaryCount = 1;
     secondaryCount = 0;
   } else if (sf < 0.7) {
-    // COMPOUND_DEVELOPING ~ MATURE.
     agePreset = 'mature';
     primaryPairs = 3;
     intercalaryCount = 3;
     secondaryCount = 2;
   } else {
-    // COMPOUND_MATURE / COMPLEX.
     agePreset = sf > 0.9 ? 'complex' : 'mature';
     primaryPairs = 4;
     intercalaryCount = sf > 0.9 ? 6 : 4;
