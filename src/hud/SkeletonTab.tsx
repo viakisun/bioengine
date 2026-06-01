@@ -136,6 +136,20 @@ export function SkeletonTab() {
       {toggleBtn('showDormantBuds', 'Dormant Bud')}
       {toggleBtn('showPrunedBuds', 'Pruned Bud')}
 
+      <Eyebrow>잎 detail level</Eyebrow>
+      <div style={{ display: 'flex', gap: 4 }}>
+        {(['low', 'medium', 'high'] as const).map((lvl) => (
+          <button
+            key={lvl}
+            onClick={() => set({ leafDetailLevel: lvl })}
+            className={skel.leafDetailLevel === lvl ? 'tab-btn active' : 'tab-btn'}
+            style={{ flex: 1 }}
+          >
+            {lvl === 'low' ? 'Low' : lvl === 'medium' ? 'Medium' : 'High'}
+          </button>
+        ))}
+      </div>
+
       <Eyebrow>진단</Eyebrow>
       <ToggleBtn on={debugDiag} onClick={() => setDebugDiag(!debugDiag)}>
         진단 로그 {debugDiag ? 'ON' : 'OFF'}

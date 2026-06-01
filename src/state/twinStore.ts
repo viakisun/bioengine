@@ -127,6 +127,12 @@ export interface SkeletonConfig {
   nodeMarkerSize: number;
   apexMarkerSize: number;
   fruitMarkerScale: number;
+
+  // Iter 37 Q7 — Leaf hierarchy detail level (UX, ~700 nodes 군집 정리).
+  //   low: stem + petiole + leaf-blade-root만
+  //   medium: + leaf-rachis + primary leaflet + lateral-vein
+  //   high: + intercalary + secondary + sub-vein + rachis-attach (default)
+  leafDetailLevel: 'low' | 'medium' | 'high';
 }
 
 export const SKELETON_DEFAULTS: SkeletonConfig = {
@@ -162,6 +168,9 @@ export const SKELETON_DEFAULTS: SkeletonConfig = {
   nodeMarkerSize: 0.011,
   apexMarkerSize: 0.014,
   fruitMarkerScale: 1.0,
+
+  // Iter 37 Q7 — default high (모든 detail 표시).
+  leafDetailLevel: 'high',
 };
 
 // Defaults mirror SceneSetup.ts hardcoded values so toggling between

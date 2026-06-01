@@ -107,6 +107,7 @@ const DEFAULT_CONFIG: SkeletonConfig = {
   axisMainColor: '#e90b2c', axisOrder1Color: '#ff7a1a', axisOrder2Color: '#ffcc00',
   petioleColor: '#ff20a0', rachisColor: '#ff0080', pedicelColor: '#e8408a', calyxColor: '#3fff5a',
   subdivisionsPerInternode: 5,
+  leafDetailLevel: 'high',
   showPetiole: true, showTruss: true, showCalyx: true,
   showFruitDots: true, showDormantBuds: true, showPrunedBuds: true,
   nodeMarkerSize: 0.011, apexMarkerSize: 0.014, fruitMarkerScale: 1.0,
@@ -558,6 +559,16 @@ export function createSkeletonOverlay(
   function drawLeafHierarchyFromGraph(graph: PlantSkeletonGraph): void {
     if (!root || !mats) return;
 
+    // ★ Iter 37 Q7 — leafDetailLevel filter.
+    //   low: skip 모두 (stem/petiole/leaf-blade-root legacy만)
+    //   medium: leaf-rachis + lateral-vein + primary leaflet만
+    //   high: 전부 (default)
+    const level = cfg.leafDetailLevel ?? 'high';
+    if (level === 'low') return;  // legacy PlantBase wireframe만 사용
+    const showRachisAttach = level === 'high';
+    const showIntercalary = level === 'high';   // petiolule edge
+    const showSecondary = level === 'high';      // sub-vein edge
+
     // Edge types to draw (legacy not covered).
     const LEAF_EDGE_TYPES = new Set([
       'leaf-rachis', 'lateral-vein', 'sub-vein', 'petiolule',
@@ -573,6 +584,9 @@ export function createSkeletonOverlay(
     // 1. Draw edges (vein hierarchy lines).
     for (const edge of graph.edges.values()) {
       if (!LEAF_EDGE_TYPES.has(edge.type)) continue;
+      // Iter 37 Q7 — level filter.
+      if (!showIntercalary && edge.type === 'petiolule') continue;
+      if (!showSecondary && edge.type === 'sub-vein') continue;
       if (edge.bonePath.length === 0) continue;
       const points: Vector3[] = [];
       points.push(new Vector3(edge.bonePath[0].p0.x, edge.bonePath[0].p0.y, edge.bonePath[0].p0.z));
@@ -598,6 +612,10 @@ export function createSkeletonOverlay(
     ]);
     for (const node of graph.nodes.values()) {
       if (!node.type || !NEW_NODE_TYPES.has(node.type)) continue;
+      // Iter 37 Q7 — level filter (rachis-attach + secondary leaflet은 high only).
+      if (!showRachisAttach && node.type === 'rachis-attach-node') continue;
+      if (!showSecondary && node.leafletRef?.position === 'secondary') continue;
+      if (!showIntercalary && node.leafletRef?.position === 'intercalary') continue;
       const hint = node.visualHint;
       if (!hint) continue;
       let colorHex = hint.markerColor;
