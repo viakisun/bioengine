@@ -269,7 +269,13 @@ function addLeavesForAxis(
 
     // Iter 36 v5 Phase B — tipNode가 leaf-blade-root 역할. leafBladeRef로
     // 잎 전체 metadata 부착 (rendering engine이 procedural variation 생성).
-    const leafBladeRef = computeLeafBladeRef(leaf, cultivar);
+    // ★ Iter 39 Phase F3 — cultivar reference + node-position gradient 전달.
+    //   nodePositionScale: 잎이 줄기 어디에 붙어있는지 (botanical: middle 큼,
+    //   apex/base 작음). axis.stemCurve.length는 _현재 segment 수_.
+    const nodePositionScale = nodePositionGradient(
+      leaf.nodeIdx, axis.stemCurve.length,
+    );
+    const leafBladeRef = computeLeafBladeRef(leaf, cultivar, nodePositionScale);
     nodes.set(tipNodeId, {
       id: tipNodeId,
       pos: { ...tipPos },
@@ -319,6 +325,21 @@ function addLeavesForAxis(
 // ── Iter 36 v5 Phase B — LeafBladeRef + leaflet-node 산출 ─────────────
 
 /**
+ * ★ Iter 39 Phase F3 — leaflet position별 size multiplier (botanical:
+ * leaflet:rachis 길이 비율). mature rachis 25cm → terminal 8cm / primary 6cm /
+ * intercalary 2.5cm / secondary 3.5cm — 사용자 §3 표 (Terminal 1.0 → Primary
+ * 0.55-0.85 → Intercalary 0.10-0.34) 비율 보존하면서 _절대값_을 botanical
+ * 토마토 leaflet 5-8cm 범위에 맞춤.
+ * rachisLen 자체에 이미 sf×nodePositionScale 반영 → sf 곱셈 _없음_.
+ */
+const POSITION_SIZE_MULT: Record<LeafletPosition, number> = {
+  terminal: 0.32,   // 25cm × 0.32 = 8cm (mature terminal)
+  primary: 0.24,    // 6cm primary leaflet
+  intercalary: 0.10, // 2.5cm 작은 잎
+  secondary: 0.14,  // 3.5cm sub-leaflet
+};
+
+/**
  * 잎 전체 metadata 산출 (deterministic baseline).
  *
  * Phase B 시점: agePreset = 'mature' 기본 (Phase F에서 cultivar별 distribution
@@ -329,9 +350,31 @@ function addLeavesForAxis(
  *   - mature: leafLength 10-25cm, primary 2-4, intercalary 2-6
  *   - old: leafLength 14-28cm, primary 3-4, intercalary 3-8
  */
+/**
+ * ★ Iter 39 Phase F3 — node-position gradient (사용자 botanical):
+ *   "lower mature leaves: longer + more drooped, middle: largest, upper young:
+ *   shorter + upright, near apex: very small + compact".
+ *
+ *   t = nodeIdx / (totalNodes - 1)  — 0 (base) ~ 1 (apex)
+ *   mid-peak Gaussian-like: max at t≈0.55, decay both sides.
+ *     t < 0.55 → 0.5 + 0.5 × smoothstep(0.0, 0.55, t)  // 0.5 → 1.0
+ *     t ≥ 0.55 → 1.0 - 0.75 × smoothstep(0.55, 1.0, t) // 1.0 → 0.25 (apex 최소)
+ */
+function smoothstep(edge0: number, edge1: number, x: number): number {
+  const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+  return t * t * (3 - 2 * t);
+}
+function nodePositionGradient(nodeIdx: number, totalNodes: number): number {
+  const t = nodeIdx / Math.max(1, totalNodes - 1);
+  if (t < 0.55) return 0.5 + 0.5 * smoothstep(0.0, 0.55, t);
+  return 1.0 - 0.75 * smoothstep(0.55, 1.0, t);
+}
+
 function computeLeafBladeRef(
   leaf: LeafBase,
   cultivar?: import('@farmsim/tomato-engine').Cultivar,
+  /** ★ Iter 39 Phase F3 — 줄기 위치별 size gradient (0.25~1.0). 기본 1.0 (back-compat). */
+  nodePositionScale: number = 1.0,
 ): LeafBladeRef {
   // ★ Iter 37 Q3.2 + Q5 — Stage 세분화 + Cultivar distribution sampling.
   //   사용자 §2 (Q3.2): "어린 잎 primary 1-2쌍, 보통 2-3쌍, 복잡 3-4쌍".
@@ -412,11 +455,23 @@ function computeLeafBladeRef(
     secondaryCount = sf > 0.9 ? 6 : 3;
   }
 
-  // 잎 길이: cultivar reference 0.12m × sizeFactor (Iter 36 v5 Phase A 산식).
-  const leafLengthM = 0.12 * Math.max(0.05, sf);
-  // petiole : rachis 비율 — mature 0.3 : 0.7.
-  const petioleRatioM = 0.30;
-  const rachisLengthM = leafLengthM * 0.70;
+  // ★ Iter 39 Phase F3 — Scale 정정 (사용자 #2 #8 + plan v1 비판 #3 #7).
+  //   이전: leafLengthM = 0.12 × sf (~8cm) — botanical 10-25cm 대비 -40~50% 부족.
+  //   현재: cultivar.referenceRachisLengthM (default 0.30m) + referencePetioleLengthM
+  //   (default 0.10m)을 axisScale (PlantBase.geometryProjection.leafAxisLengthScale,
+  //   여기선 sf를 sub-proxy로 사용) × nodePositionScale (줄기 위치별 gradient)로
+  //   곱함. sf 중복 적용 X — axisScale에 이미 maturity 반영.
+  //
+  //   plan v1 비판 #3: `rachisLen × sf × MULT` 형식이 sf²를 만들었음 (mature 잎이
+  //   _sub-sub_으로 작아짐). 이번 plan v2에서는 rachisLen 자체에만 sf 적용,
+  //   targetSizeM = rachisLen × POSITION_SIZE_MULT (sf 곱셈 X) — addLeafletNodesForLeaf 참조.
+  const refRachis  = cultivar?.growthProfile?.referenceRachisLengthM  ?? 0.30;
+  const refPetiole = cultivar?.growthProfile?.referencePetioleLengthM ?? 0.10;
+  const sfClamped = Math.max(0.05, sf);
+  const rachisLengthM  = refRachis  * sfClamped * nodePositionScale;
+  const petioleLengthM = refPetiole * sfClamped * nodePositionScale;
+  const leafLengthM = rachisLengthM + petioleLengthM;
+  const petioleRatioM = petioleLengthM / leafLengthM;
 
   return {
     leafLengthM,
@@ -573,7 +628,9 @@ function addLeafletNodesForLeaf(
           position: 'terminal',
           rachisU: 1.0,
           sizeFactor: terminalSf,
-          targetSizeM: rachisLen * terminalSf * 0.4,
+          // ★ Iter 39 Phase F3 — sf 중복 제거. rachisLen이 이미 sf×nodePositionScale
+          //   반영 (computeLeafBladeRef) → terminalSf × POSITION_SIZE_MULT.terminal만.
+          targetSizeM: rachisLen * POSITION_SIZE_MULT.terminal,
         } satisfies LeafletNodeRef,
       });
     } else {
@@ -663,7 +720,11 @@ function addLeafletNodesForLeaf(
       y: rachisPos.y + dirOut.y * outAmount + rollOffset,
       z: rachisPos.z + dirOut.z * outAmount + twistOffset,
     };
-    const targetSizeM = rachisLen * sf * 0.4;
+    // ★ Iter 39 Phase F3 — sf 중복 제거 + position별 분기. rachisLen이 이미 sf
+    //   반영 (computeLeafBladeRef). POSITION_SIZE_MULT는 sf 곱하지 않음.
+    //   leaflet position에 따라 size 차등 (terminal 1.15, primary 0.85,
+    //   intercalary 0.30, secondary 0.40).
+    const targetSizeM = rachisLen * (POSITION_SIZE_MULT[position] ?? 0.4);
 
     // ★ Phase O — attach node에서 분기 (이전: terminalLid에서 모두 시작).
     const attachNodeId = findAttachNodeForU(rachisU);
@@ -783,7 +844,8 @@ function addLeafletNodesForLeaf(
         position: 'secondary',
         rachisU,
         sizeFactor: sf,
-        targetSizeM: rachisLen * sf * 0.4,
+        // ★ Iter 39 Phase F3 — sf 중복 제거 + position별 분기.
+        targetSizeM: rachisLen * POSITION_SIZE_MULT.secondary,
       } satisfies LeafletNodeRef,
     });
     // parent primary node에 sub-vein edge 등록.

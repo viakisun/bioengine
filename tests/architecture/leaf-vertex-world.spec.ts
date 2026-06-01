@@ -122,13 +122,16 @@ test.describe('Leaf Vertex World Transform (SSOT #185 Iter 28)', () => {
     });
     expect(report.total, 'dock_l_leafstart count > 0').toBeGreaterThan(0);
     // Iter 28 fix 후 정상 분포: stale matrix 회귀가 catch되는 ≤ 200mm.
-    // 정상 plant에서도 잎 mesh의 vertex.x_min이 y/z 분포 있어 0이 아님
-    // (normalizeLeafMeshVertices가 x축만 shift). 진짜 회귀 (3.2m+)는 강하게
-    // catch. 잎 vertex 분포 완전 0 수렴은 별도 작업 (normalizeLeafMeshVertices 3D 확장).
+    // ★ Iter 39 Phase F3 — 한계 200mm → 800mm. 이유: F3에서 leaf scale을 botanical
+    //   reference (cultivar referenceRachisLengthM = 0.30m + 0.10m petiole)로 정상화.
+    //   leafMeshByKey가 terminal leaflet을 대표로 매핑(SkinMeshPlant.ts:906) — terminal은
+    //   rachis tip 위치라 leafBladeRoot(petiole tip)에서 rachisLen(~25cm) + leaflet
+    //   size(~8cm) ≈ 33cm. 정상값. 진짜 stale matrix 회귀 (3.2m+)는 여전히 강하게 catch.
+    //   F6에서 ANCHOR-05/VISUAL-ANCHOR-01 신규 도입 시 시각 anchor 정밀 검증으로 대체.
     expect(
       report.maxMm,
-      `dock_l_leafstart_* 길이 max = ${report.maxMm.toFixed(3)}mm. >200mm = stale matrix 회귀 alarm.\nworst 5:\n` +
+      `dock_l_leafstart_* 길이 max = ${report.maxMm.toFixed(3)}mm. >800mm = stale matrix 회귀 alarm.\nworst 5:\n` +
         report.worst5.map((l) => `  ${l.name}: ${l.spanMm.toFixed(3)}mm`).join('\n'),
-    ).toBeLessThanOrEqual(200);
+    ).toBeLessThanOrEqual(800);
   });
 });
