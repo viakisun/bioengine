@@ -134,8 +134,9 @@ export type { ResolvedLeafParams } from './LeafMeshBuilder';
 export { AGE_PRESETS } from './LeafMeshBuilder';
 
 // Iter 39 Phase A — per-leaflet plane mesh entry (Skin path).
-export { buildLeafletMeshes } from './buildLeafletMeshes';
-export type { LeafletMeshBuildContext } from './buildLeafletMeshes';
+// ★ Iter 39 L3-D (S25) — buildLeafletMeshes inline to LeafMeshBuilder.
+//   canonical entry는 buildLeafMeshFromSkeleton (이미 export).
+export type { LeafletMeshBuildContext } from './LeafMeshBuilder';
 
 // ★ Iter 39 Phase L2-1 — canonical entry (사용자 v3 Option B refactor).
 //   현재 thin wrapper, L2-3 이후 산식 통합 진입점.
