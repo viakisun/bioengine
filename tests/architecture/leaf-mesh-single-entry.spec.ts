@@ -36,67 +36,48 @@ async function walk(dir: string, acc: string[] = []): Promise<string[]> {
   return acc;
 }
 
-test.describe('Iter 34 C6 — Leaf mesh build 진입점 단일 보장', () => {
-  test('LEAF-MESH-SINGLE-ENTRY-01: buildLeafMeshFromPhytomer가 leaf mesh build _유일_ entry', async () => {
-    // src/ 전체에서 buildLeafMeshFromPhytomer _호출_ site (정의 제외)
+test.describe('Iter 34 C6 + Iter 39 L3-A — Leaf mesh build 진입점 단일 보장', () => {
+  test('LEAF-MESH-SINGLE-ENTRY-01 (L3-A revised): canonical entry = buildLeafMeshFromSkeleton (LeafMeshBuilder)', async () => {
+    // ★ L3-A (S19) — fallback path (buildLeafMeshFromPhytomer) 제거.
+    //   canonical entry = LeafMeshBuilder.buildLeafMeshFromSkeleton.
+    //   호출 site = SkinMeshPlant.ts 1건만.
     const srcDir = path.join(REPO_ROOT, 'src');
     const files = await walk(srcDir);
-    const callRe = /buildLeafMeshFromPhytomer\s*\(/;
-    const defRe = /export function buildLeafMeshFromPhytomer/;
+    const callRe = /buildLeafMeshFromSkeleton\s*\(/;
+    const defRe = /export function buildLeafMeshFromSkeleton/;
     const callSites: string[] = [];
     for (const abs of files) {
       const rel = path.relative(REPO_ROOT, abs);
       const text = await fs.readFile(abs, 'utf-8');
-      // 정의 파일이면 _호출만_ 추가 — 함수 정의 line 제외
       if (callRe.test(text)) {
-        // LeafGenerator.ts는 _정의 파일_ → callsite로 안 침
         if (defRe.test(text)) continue;
         callSites.push(rel);
       }
     }
-    // ★ 호출 site는 SkinMeshPlant.ts _1건_만 (canonical)
     expect(callSites).toEqual(['src/scene/SkinMeshPlant.ts']);
   });
 
-  test('LEAF-MESH-DEAD-FALLBACK-REMOVED-01: createLeafBladeOnlyMesh 정의 0 (Iter 34 C1)', async () => {
+  test('LEAF-MESH-FALLBACK-REMOVED-01 (L3-A): buildLeafMeshFromPhytomer 정의 0', async () => {
     const text = await readSrc('src/plant/LeafGenerator.ts');
+    expect(text, 'buildLeafMeshFromPhytomer function 정의 0 — L3-A에서 제거').not.toMatch(
+      /export function buildLeafMeshFromPhytomer/,
+    );
+    // createLeafBladeOnlyMesh (Iter 34 C1)도 여전히 0
     expect(text, 'createLeafBladeOnlyMesh function 정의 0').not.toMatch(
       /export function createLeafBladeOnlyMesh/,
     );
   });
 
-  test('LEAF-MESH-BLADE-ONLY-INTERNAL-01: buildLeafBladeOnly export 0 (Iter 34 C1)', async () => {
+  test('LEAF-MESH-LEAFCHUNK-REMOVED-01 (L3-A): packages/tomato-geometry/leafChunk.ts 파일 0', async () => {
+    // ★ L3-A — leafChunk.ts 전체 삭제 (buildLeafChunkSkin/Legacy/createOvateLeaflet/
+    //   buildLeafBladeOnly 모두 fallback 의존, dead code).
+    const filePath = path.join(REPO_ROOT, 'packages/tomato-geometry/src/leafChunk.ts');
+    let exists = false;
+    try { await fs.access(filePath); exists = true; } catch { /* not exist */ }
+    expect(exists, 'leafChunk.ts 파일은 L3-A에서 삭제됨').toBe(false);
+    // packages/index.ts에서 leafChunk export 0
     const idxText = await readSrc('packages/tomato-geometry/src/index.ts');
-    expect(idxText, 'buildLeafBladeOnly export 0').not.toMatch(/buildLeafBladeOnly/);
-    // 함수 자체는 internal로 보존 (buildLeafChunkSkin이 wrap)
-    const chunkText = await readSrc('packages/tomato-geometry/src/leafChunk.ts');
-    expect(chunkText, 'buildLeafBladeOnly internal 정의 존재').toMatch(
-      /^function buildLeafBladeOnly/m,
-    );
-  });
-
-  test('LEAF-MESH-LEGACY-RENAMED-01: buildLeafChunk (boundary) 0 — Legacy/Skin만 (Iter 34 C2)', async () => {
-    // src/ + packages/ 전체에서 `buildLeafChunk` (boundary, suffix 없음) 호출 0
-    const dirs = [path.join(REPO_ROOT, 'src'), path.join(REPO_ROOT, 'packages')];
-    const files: string[] = [];
-    for (const d of dirs) {
-      try { await fs.access(d); await walk(d, files); } catch { /* skip */ }
-    }
-    // word boundary: \bbuildLeafChunk\b (suffix 없음)
-    const re = /\bbuildLeafChunk\b(?!Legacy|Skin)/;
-    const violations: string[] = [];
-    for (const abs of files) {
-      const rel = path.relative(REPO_ROOT, abs);
-      // 주석/문자열 어떤 raw text든 호출 의도면 violation
-      const text = await fs.readFile(abs, 'utf-8');
-      const lines = text.split('\n');
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        if (line.trim().startsWith('//') || line.trim().startsWith('*')) continue;
-        if (re.test(line)) violations.push(`${rel}:${i + 1}  ${line.trim().slice(0, 80)}`);
-      }
-    }
-    expect(violations, `buildLeafChunk (boundary) 0건 — Legacy/Skin suffix 사용`).toEqual([]);
+    expect(idxText, 'leafChunk export 0').not.toMatch(/from ['"]\.\/leafChunk['"]/);
   });
 
   test('LEAF-MESH-COMPOSE-ROTATION-REMOVED-01: composeLeafRotation + 5 quat helpers 0 (Iter 34 C4)', async () => {

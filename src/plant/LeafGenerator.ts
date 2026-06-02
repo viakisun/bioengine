@@ -1,370 +1,25 @@
-// Babylon wrapper for the engine-agnostic leaf chunk generator.
-// Algorithm lives in @farmsim/tomato-geometry; this file:
-//   - applies GeoChunk to a Babylon Mesh
-//   - owns Scene-keyed PBR material caches (regular + yellow senescent + diseased)
-//   - wires NodeState/PlantGenome into stage-aware leaf params
+// Babylon material wrapper for leaf mesh.
+//
+// ★ Iter 39 Phase L3-A (S19) — pure Babylon wrapper로 축소.
+//   Previous: GeoChunk → Mesh + material + fallback path 혼재.
+//   Current: getLeafMaterial / getYellowLeafMaterial / shader wind toggle.
+//   Mesh 산식은 LeafMeshBuilder.ts (canonical SSOT) 진입.
+//
+// 책임 분리 (active 원칙 #39):
+//   LeafMeshBuilder.ts = pure mesh algorithm (GeoChunk 산출)
+//   LeafGenerator.ts   = Babylon Mesh + Material wrapper (이 파일)
 
 import { Scene } from '@babylonjs/core/scene';
-import { Mesh } from '@babylonjs/core/Meshes/mesh';
-import { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData';
 import { PBRMaterial } from '@babylonjs/core/Materials/PBR/pbrMaterial';
 import { PBRCustomMaterial } from '@babylonjs/materials/custom/pbrCustomMaterial';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import {
-  SeededRandom,
-  // Iter 35 PR 2 Phase L: getLeafStage 제거 (createLeafMeshFromNode archived).
-  getLeafBlendedColor,
-  LeafStage,
-  // Iter 35 PR 2 Phase L: NodeState type 제거 (createLeafMeshFromNode archived).
-  type PlantGenome,
-  type LeafStageInfo,
-} from '@farmsim/tomato-engine';
-// ★ Iter 39 L2-2c (S11) — buildLeafChunkLegacy import 제거 (createLeafMesh 폐기와 함께).
-//   buildLeafChunkSkin는 fallback path (buildLeafMeshFromPhytomer)에서 여전히
-//   사용 — S12에서 별도 결정.
-import {
-  buildLeafChunkSkin,    // Iter 18B PR 7 Skin preset (omit-all leaflets-only).
-  type GeoChunk,
-  type LeafShapeParams,
-} from '@farmsim/tomato-geometry';
-import {
   getLeafColorTexture,
   getLeafNormalTexture,
-  // Iter 35 PR 2 Phase L: getDiseasedLeafColorTexture import 제거 (getDiseasedLeafMaterial archived).
 } from './LeafTexture';
-// SSOT #186 — Iter 24 acfad71 vertex shift logic을 anchors/ utility로 분리.
-import { normalizeLeafMeshVertices } from './anchors';
-// Iter 36 v5 Phase E — leaf-engine procedural variation (Conservative 분리).
-import { buildCompoundLeaf as leafEngineBuildCompoundLeaf } from '../scene/leaf-engine';
-import type { LeafBladeRef, SkeletonNode } from './skeleton/PlantSkeletonGraph';
-
-/** Simple djb2 string hash → deterministic numeric seed (per leaf instance). */
-function hashStr(s: string): number {
-  let h = 5381;
-  for (let i = 0; i < s.length; i++) {
-    h = ((h << 5) + h) ^ s.charCodeAt(i);
-  }
-  return Math.abs(h);
-}
-
-function applyChunkToMesh(chunk: GeoChunk, mesh: Mesh, vertexColors?: number[]) {
-  const vd = new VertexData();
-  vd.positions = chunk.positions;
-  vd.normals = chunk.normals;
-  vd.uvs = chunk.uvs;
-  vd.indices = chunk.indices;
-  if (vertexColors) vd.colors = vertexColors;
-  vd.applyToMesh(mesh);
-}
-
-/**
- * Bake the guideline §12 smooth color blend into vertex colors so the
- * shared PBRMaterial can do per-leaf tinting via useVertexColors=true
- * without per-instance shader uniforms. RGB is the multiplicative tint
- * (relative to the base mature green so the texture's natural color
- * shows through unchanged at age=mature/stress=0/yellow=0). Alpha is
- * always 1 — material uses RGB only.
- */
-function bakeLeafVertexColors(
-  vertexCount: number,
-  ageFrac: number,
-  waterStress: number,
-  yellowing: number
-): number[] {
-  const blended = getLeafBlendedColor(ageFrac, waterStress, yellowing);
-  // Normalize relative to mature so that mature/unstressed/green = (1,1,1) tint
-  // and we only deviate when actually aged/stressed/senescent.
-  // Must mirror LEAF_COLOR_MATURE in @farmsim/tomato-engine/LeafColors.
-  // Mature/normal leaves end up with tint (1,1,1) so the texture's
-  // baseline green shows unchanged; aged/stressed/senescent leaves
-  // deviate from there.
-  const MATURE_R = 0.165, MATURE_G = 0.400, MATURE_B = 0.125;
-  const r = blended.r / MATURE_R;
-  const g = blended.g / MATURE_G;
-  const b = blended.b / MATURE_B;
-  const out = new Array<number>(vertexCount * 4);
-  for (let i = 0; i < vertexCount; i++) {
-    const o = i * 4;
-    out[o] = r;
-    out[o + 1] = g;
-    out[o + 2] = b;
-    out[o + 3] = 1;
-  }
-  return out;
-}
-
-// ★ Iter 39 L2-2c (S11) — createLeafMesh + buildLeafChunkLegacy import 제거.
-//   호출처 0 확인 (LEAF_MESH_PIPELINE_AUDIT S10/`682299c`).
-//   ShowcasePlant legacy wrapper 의도였지만 실제 사용처 없음. dead code chain
-//   완전 제거. buildLeafChunkLegacy 정의 (packages/tomato-geometry)는 L2-2d
-//   (`S12`)에서 별도 결정.
-
-// Iter 35 PR 2 Phase L — createLeafMeshFromNode 제거 (ShowcasePlant 전용, 사용처 0).
-// Canonical entry는 buildLeafMeshFromPhytomer (Iter 33 LEAF-LIVE-FALLBACK-NEVER-01).
-
-// ★ Iter 34 C1 — `createLeafBladeOnlyMesh` (NodeState 기반 dead fallback) 제거.
-// LEAF-LIVE-FALLBACK-NEVER-01 (Iter 33 V1)가 _0% 진입_ 검증 — populator가 100%
-// phytomer-bind 보장. canonical entry = `buildLeafMeshFromPhytomer` (line 213).
-
-// ---------------------------------------------------------------------------
-// Iter 29 Phase 4 — canonical Skin builder: data-driven from LeafOrganState.
-// ---------------------------------------------------------------------------
-
-/**
- * Iter 29 Phase 4 canonical Skin leaf-mesh builder.
- *
- * Plan §13.3 (sleepy-growing-pretzel.md):
- *   buildLeafMesh(leafOrganState, anchor, visualProfile) — Skin reads
- *   `phytomer.leaf` + `anchor` only. No growth-state recomputation
- *   (SKIN-NO-GROWTH-LOGIC-01). No `plantAge` parameter (SKIN-DATA-DRIVEN-01).
- *   No LeafBase.azimuthRad/droopRad direct reads (SKIN-DATA-DRIVEN-03).
- *
- * Derives the existing LeafStageInfo struct from LeafOrganState fields so
- * `buildLeafChunkSkin` keeps the same biology — only the input plumbing
- * changes. `getLeafStage` is NOT called.
- *
- * Visual-only parameters (serration frequency, waviness, petiole length
- * texture) still flow via `genome` for Phase 4; Phase 5 fully migrates
- * those onto `cultivar.visualProfile`.
- *
- * @deprecated Iter 39 L2-2a — fallback path (SkinMeshPlant.ts:825 else
- *   branch). LEAF-LIVE-FALLBACK-NEVER-01이 0% live usage 보장. Canonical
- *   entry는 `LeafMeshBuilder.buildLeafMeshFromSkeleton` (L2-1, S8).
- *   L2-2c (`S11`) import migration 시 buildLeafChunkSkin 의존 inline 검토,
- *   L2-2d (`S12`)에서 제거 또는 _legacy/ 이동.
- *
- * @param leafOrganState  PlantBase-computed canonical leaf state
- * @param visualGenome    shape/texture parameters (Phase 5 → visualProfile)
- * @param rng             seeded RNG per-leaf
- * @param name            mesh name
- * @param scene           Babylon Scene
- */
-export function buildLeafMeshFromPhytomer(
-  name: string,
-  scene: Scene,
-  leafOrganState: {
-    expansionProgress: number;
-    leafletCount: number;
-    currentAreaCm2: number;
-    targetAreaCm2: number;
-    stage: string;
-    posture: { droopDeg: number; curl: number; gravityDroopDeg?: number };
-    senescence: { progress: number; colorDullness: number; curl: number };
-    morphology: { serrationDepth: number; lobeDepth: number; petioleLengthM: number };
-    // Iter 31 Phase 2 (R5 fix) — optional canonical geometry projection.
-    geometryProjection?: {
-      leafAxisLengthScale: number;
-      leafletBladeScale: number;
-      referenceRachisLengthM: number;
-      referencePetioleLengthM: number;
-    };
-  },
-  visualGenome: PlantGenome,
-  rng: SeededRandom,
-  // Iter 36 v5 Phase C — skeleton 3-tier separation.
-  //   Skeleton (LeafBladeRef + SkeletonNode[]) → Rendering engine read.
-  //   Iter 39 Phase B — leafletNodes 타입을 SkeletonNode[]로 widen (node.id 보존).
-  bladeRef?: LeafBladeRef,
-  leafletNodes?: ReadonlyArray<SkeletonNode>,
-  // Iter 38 S4 — Cultivar shape override (cherry 더 둥근 / beef 더 길쭉).
-  cultivarShapeOverride?: {
-    aspectRatioMultiplier?: number;
-    baseShapeBias?: number;
-    tipSharpnessMultiplier?: number;
-  },
-): Mesh {
-  // Iter 36 v5 Phase E — leaf-engine 통합. bladeRef + leafletNodes 있을 때
-  //   buildCompoundLeaf 호출 → CompoundLeafDescriptor.
-  //   descriptor.resolved 의 serrationAmp/lobeDepth/serrationFreq 등을 shape에
-  //   전달 → mesh vertex variation 결과 반영.
-  //   leafletCount는 leaflet skeleton nodes 길이 사용 (4 position types 합).
-  //
-  //   ★ buildLeafChunkSkin은 외부 패키지 (변경 X). 산출값만 leaf-engine 경유.
-  //   ★ Phase E 시점에 intercalary/secondary 별도 mesh 생성은 추후 (skeleton
-  //     marker로 _기본_ 시각화 — buildLeafChunkSkin이 leafletCount 기반).
-  let leafEngineLeafletCount = leafOrganState.leafletCount;
-  let leafEngineSerrationDepth = leafOrganState.morphology.serrationDepth;
-  let leafEngineLobeDepth = leafOrganState.morphology.lobeDepth;
-  // ★ Iter 38 S1 — Hybrid 4 신규 shape params (AGE_PRESETS baseline + jitter).
-  let leafEngineAspectRatio: number | undefined;
-  let leafEngineBaseShape: number | undefined;
-  let leafEngineTipSharpness: number | undefined;
-  let leafEngineAsymmetry: number | undefined;
-  if (bladeRef && leafletNodes && leafletNodes.length > 0) {
-    const seed = hashStr(name);
-    const descriptor = leafEngineBuildCompoundLeaf(
-      bladeRef, leafletNodes, seed, cultivarShapeOverride,
-    );
-    // primary + intercalary + secondary leaflet 수의 합 (4 types).
-    leafEngineLeafletCount = leafletNodes.length;
-    leafEngineSerrationDepth = descriptor.resolved.serrationAmp;
-    leafEngineLobeDepth = descriptor.resolved.lobeDepth;
-    // ★ Iter 38 S1 — 4 신규 shape params from descriptor.resolved.
-    //   baseShape + tipSharpness는 S3에서 ResolvedLeafParams에 추가 — 우선 type-safe access.
-    const resolved = descriptor.resolved as typeof descriptor.resolved & {
-      baseShape?: number;
-      tipSharpness?: number;
-    };
-    leafEngineAspectRatio = resolved.aspectRatio;
-    leafEngineBaseShape = resolved.baseShape;
-    leafEngineTipSharpness = resolved.tipSharpness;
-    leafEngineAsymmetry = resolved.asymmetry;
-  }
-  if (leafOrganState.expansionProgress < 0.01 && leafOrganState.currentAreaCm2 < 0.5) {
-    return new Mesh(name, scene);
-  }
-
-  // ─── LeafStageInfo derived from LeafOrganState (NO getLeafStage call) ──
-  const stageInfo = leafStageInfoFromOrganState(leafOrganState);
-
-  // Shape: morphology values come from PlantBase (Phase 2A computed); visual
-  // detail params (waviness, serrationFreq, petioleLength texture) still
-  // flow via genome until Phase 5 visualProfile.
-  // Iter 36 v5 Phase E — leaf-engine 산출값 (serration/lobe)이 있으면 우선 사용.
-  const shape: LeafShapeParams = {
-    serrationDepth: leafEngineSerrationDepth,
-    serrationFreq: visualGenome.leafSerrationFreq,
-    lobeDepth: leafEngineLobeDepth,
-    waviness: visualGenome.leafWaviness,
-    petioleLength: visualGenome.leafPetioleLength,
-    // ★ Iter 38 S1 — Hybrid 4 신규 shape params (optional, descriptor 있을 때만).
-    aspectRatio: leafEngineAspectRatio,
-    baseShape: leafEngineBaseShape,
-    tipSharpness: leafEngineTipSharpness,
-    asymmetry: leafEngineAsymmetry,
-  };
-
-  // ageFrac mirrors PlantBase senescence — Skin applies value, doesn't recompute.
-  // visibleAreaFactor (PlantBase senescence) reduces vertex-color baseline.
-  const ageFrac = Math.min(1, leafOrganState.senescence.progress);
-  const curl = leafOrganState.posture.curl + leafOrganState.senescence.curl * 0.5;
-
-  // ─── Iter 31 Phase 2 (R5 fix) — Geometry projection ───
-  //
-  // ★ PlantBase가 _계산_, Skin은 _읽고 곱하기만_. 어떤 ageTT / cultivar / sigmoid
-  //   계산도 Skin에서 하지 않음 (Iter 29 책임 분리 보존).
-  //
-  // canonical: leafOrganState.geometryProjection (PlantBase computeLeafGeometryProjection)
-  // legacy fallback: 기존 (current/target) ratio _sqrt 적용_ (mature-small leaf 문제 완화).
-  const projection = leafOrganState.geometryProjection;
-  // Legacy sizeFactor (back compat for state shapes without geometryProjection).
-  // ★ 정정: legacy도 sqrt 적용 — current/target ratio가 1.0이라도 _sqrt 효과_는 minimal.
-  const referenceArea = Math.max(1, leafOrganState.targetAreaCm2);
-  const legacySizeFactor =
-    Math.sqrt(Math.max(0, leafOrganState.currentAreaCm2 / referenceArea))
-    * visualGenome.leafSizeMultiplier;
-
-  const chunk = buildLeafChunkSkin(
-    {
-      stageInfo,
-      // Iter 36 v5 Phase E — leaf-engine 통합 시 leaflet skeleton nodes 길이 사용 (4 types 합).
-      leafletCount: leafEngineLeafletCount,
-      // sizeFactor — legacy fallback (canonical path는 leafAxisLengthScale + leafletBladeScale 사용)
-      sizeFactor: legacySizeFactor,
-      maturity: leafOrganState.expansionProgress,
-      curl,
-      ageFrac,
-      shape,
-      // ★ Iter 31 Phase 2 canonical fields (PlantBase 계산값 그대로 전달).
-      leafAxisLengthScale: projection?.leafAxisLengthScale,
-      // ★ Iter 31 R23 fix — leaflet도 length gate 적용 (어린 leaf size 정합).
-      //   이전: leafletBladeScale = linearAreaScale (length maturity 제외)
-      //   결함: 어린 leaf의 leaflet이 _상대적으로 큼_ → leaf rangeZ > rangeX (a0_n13: 2 leaflets,
-      //   rangeX=5.6cm, rangeZ=6.0cm, dominant=z 결함).
-      //   Fix: leafletBladeScale도 leafAxisLengthScale 사용 → leaflet도 어린 leaf에서 작아짐.
-      leafletBladeScale: projection?.leafAxisLengthScale,
-      referenceRachisLengthM: projection?.referenceRachisLengthM,
-      referencePetioleLengthM: projection?.referencePetioleLengthM,
-      // ★ Iter 32 — area-based gravity droop (mesh deformation only).
-      //   PlantBase가 leaf.posture.gravityDroopDeg에 미리 저장 (G1 main+side
-      //   computeGravityDroopDeg 호출). Skin은 _읽고 그대로 전달_ — 산수 0.
-      //   leafChunk.ts의 longitudinalDroop 산식에 sin(deg) × size × t² 적용.
-      gravityDroopDeg: leafOrganState.posture.gravityDroopDeg ?? 0,
-    },
-    rng,
-  );
-  // SSOT #186 — Mesh anchor contract (Iter 24 acfad71 vertex shift).
-  normalizeLeafMeshVertices(chunk.positions);
-  const vertexCount = chunk.positions.length / 3;
-  // Senescence colorDullness drives the yellowing channel; waterStress flows
-  // through PlantBase plant-level signal (Phase 4: zero on the leaf entry — Phase 5
-  // wires per-leaf stress from PhytomerNode.leaf.stress).
-  const vertexColors = bakeLeafVertexColors(
-    vertexCount,
-    ageFrac,
-    0,
-    leafOrganState.senescence.colorDullness,
-  );
-  const mesh = new Mesh(name, scene);
-  applyChunkToMesh(chunk, mesh, vertexColors);
-  return mesh;
-}
-
-/**
- * Build a LeafStageInfo struct from LeafOrganState fields WITHOUT calling
- * the engine-level `getLeafStage`. Maps PhytomerNode-side stage enum
- * ('primordium' | 'simple_leaf' | …) to the legacy LeafStage enum
- * (COTYLEDON | EARLY_TRUE | …) so `buildLeafChunkSkin` consumers keep
- * working unchanged.
- *
- * SKIN-NO-GROWTH-LOGIC-01: this function does NOT call getLeafStage,
- * leafletCountFromMaturity, computeLeafExpansion, or computeSenescence —
- * all values are read from the already-populated LeafOrganState fields.
- */
-function leafStageInfoFromOrganState(input: {
-  expansionProgress: number;
-  leafletCount: number;
-  stage: string;
-  senescence: { progress: number };
-}): LeafStageInfo {
-  const expansion = Math.max(0, Math.min(1, input.expansionProgress));
-  const senescenceP = Math.max(0, Math.min(1, input.senescence.progress));
-
-  // Senescent / pruned override regardless of expansion
-  if (senescenceP >= 0.3 && input.stage === 'senescent') {
-    return {
-      stage: LeafStage.SENESCENT,
-      blendT: senescenceP,
-      leafletCount: input.leafletCount,
-      serrationStrength: 1,
-      lobeStrength: 1,
-    };
-  }
-  if (input.stage === 'removed') {
-    return {
-      stage: LeafStage.PRUNED,
-      blendT: 0,
-      leafletCount: 0,
-      serrationStrength: 0,
-      lobeStrength: 0,
-    };
-  }
-
-  // EARLY_TRUE (expansion < 0.4)
-  if (expansion < 0.4) {
-    const blendT = expansion / 0.4;
-    return {
-      stage: LeafStage.EARLY_TRUE,
-      blendT,
-      leafletCount: input.leafletCount,
-      serrationStrength: blendT * 0.4,
-      lobeStrength: blendT * 0.3,
-    };
-  }
-  // COMPOUND_DEVELOPING / COMPOUND_MATURE
-  const t = (expansion - 0.4) / 0.6;
-  return {
-    stage: t < 0.5 ? LeafStage.COMPOUND_DEVELOPING : LeafStage.COMPOUND_MATURE,
-    blendT: t,
-    leafletCount: input.leafletCount,
-    serrationStrength: 0.4 + t * 0.6,
-    lobeStrength: 0.5 + t * 0.5,
-  };
-}
 
 const cachedLeafMaterial = new WeakMap<Scene, PBRMaterial>();
 const cachedYellowLeafMaterial = new WeakMap<Scene, PBRMaterial>();
-// Iter 35 PR 2 Phase L: cachedDiseasedLeafMaterial 제거.
 
 /**
  * Shader-side wind toggle.
@@ -403,8 +58,7 @@ export function getLeafMaterial(scene: Scene): PBRMaterial {
       customMat.twoSidedLighting = true;
       customMat.environmentIntensity = 0.85;  // 0.6 → 0.85 — IBL fills shaded leaves
       // Phase B — per-leaf smooth color blend via baked vertex colors.
-      // LeafGenerator bakes RGB tint from getLeafBlendedColor(); PBR
-      // material auto-detects vertex colors from the bound VertexBuffer
+      // PBR material auto-detects vertex colors from the bound VertexBuffer
       // and multiplies them against the albedo texture (no flag needed).
 
       // Cuticle wax — real tomato leaves have a thin waxy layer. clearcoat
@@ -481,8 +135,6 @@ export function getLeafMaterial(scene: Scene): PBRMaterial {
       mat.backFaceCulling = false;
       mat.twoSidedLighting = true;
       mat.environmentIntensity = 0.85;
-      // Same baked-color path as WebGL2 — vertex colors auto-detected
-      // from the mesh's VertexBuffer.ColorKind data; no flag required.
 
       mat.clearCoat.isEnabled = true;
       mat.clearCoat.intensity = 0.35;
@@ -521,5 +173,3 @@ export function getYellowLeafMaterial(scene: Scene): PBRMaterial {
   }
   return mat;
 }
-
-// Iter 35 PR 2 Phase L — getDiseasedLeafMaterial 제거 (ShowcasePlant 전용, 사용처 0).

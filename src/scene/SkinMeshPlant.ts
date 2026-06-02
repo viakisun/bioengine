@@ -82,7 +82,7 @@ import { defaultSkinEngine } from '../plant/skin/defaultSkinEngine';
 // Iter 18B PR 4 — switch to createLeafBladeOnlyMesh. SkinMeshPlant은 SDF
 // skeleton mesh가 petiole tube를 그리므로 leaf mesh 안의 중복 petiole
 // cylinder는 불필요.
-import { buildLeafMeshFromPhytomer, getLeafMaterial, getYellowLeafMaterial } from '../plant/LeafGenerator';
+import { getLeafMaterial, getYellowLeafMaterial } from '../plant/LeafGenerator';
 // Iter 36 v5 Phase C — skeleton 3-tier: get leaflet nodes for compound leaf rendering.
 // Iter 39 Phase B — getLeafletNodesByParentLeaf 제거 (Skin path는 SkeletonNode[] 사용).
 import { getLeafletSkeletonNodesByParentLeaf } from '../plant/skeleton/PlantSkeletonGraph';
@@ -823,23 +823,15 @@ export function createSkinMeshPlant(
             leafMeshCount++;
           }
         } else {
-          // ★ Fallback — bladeRef 또는 leaflet skeleton 미생성 시 legacy path.
-          //   populator 위반 catch (LEAF-LIVE-FALLBACK-NEVER-01과 호환).
-          const leafMesh = buildLeafMeshFromPhytomer(
-            meshNamePrefix,
-            scene, leafOrganState, genome, leafRng,
-            bladeRef, leafletSkeletonNodes, cultivarShapeOverride,
+          // ★ Iter 39 Phase L3-A (S19) — fallback path 제거.
+          //   LEAF-LIVE-FALLBACK-NEVER-01이 populator 100% phytomer-bind
+          //   보장 (Iter 33 V1) → bladeRef + leafletSkeletonNodes 항상 존재.
+          //   본 else branch는 _진입 불가_ → throw로 명시.
+          throw new Error(
+            `[SkinMeshPlant] LEAF-LIVE-FALLBACK-NEVER-01 위반: bladeRef=${!!bladeRef} ` +
+            `leafletSkeletonNodes=${leafletSkeletonNodes.length} ` +
+            `(populator phytomer-bind 100% contract — Iter 33 V1)`,
           );
-          leafMesh.parent = lushGroup;
-          leafMesh.position = new Vector3(tipPlantPos.x, tipPlantPos.y, tipPlantPos.z);
-          // R26 contract — anchor.rotation 그대로 적용 (petioleCurve tangent → makeLeafQuaternion).
-          const rot = anchor.rotation ?? { x: 0, y: 0, z: 0, w: 1 };
-          leafMesh.rotationQuaternion = new Quaternion(rot.x, rot.y, rot.z, rot.w);
-          // Material — phytomer.leaf.senescence.colorDullness (PlantBase 계산값).
-          leafMesh.material = yellowing > 0.4 ? yellowLeafMat : leafMat;
-          currentMeshes.push(leafMesh);
-          currentParts.leaves.push(leafMesh);
-          leafMeshCount++;
         }
       }
     }

@@ -15,12 +15,10 @@ export {
   transformChunk,
 } from './types';
 
-export {
-  buildLeafChunkLegacy,        // Legacy — used by ShowcasePlant. embeds petiole + rachis + petiolules.
-  buildLeafChunkSkin,    // ★ Canonical Skin entry: leaflets only (omit petiole + rachis + petiolules).
-  DEFAULT_LEAF_PARAMS,
-} from './leafChunk';
-export type { LeafBuildParams, LeafShapeParams } from './leafChunk';
+// ★ Iter 39 L3-A (S19) — leafChunk export 제거. leafChunk.ts 파일 자체 삭제.
+//   buildLeafChunkLegacy/Skin/createOvateLeaflet/buildLeafBladeOnly 모두
+//   fallback path 의존 (0% live, LEAF-LIVE-FALLBACK-NEVER-01 보장).
+//   production canonical = LeafMeshBuilder → leafletPlaneChunk (이 패키지에 보존).
 
 // Iter 39 Phase A — per-leaflet plane chunk (Skin path 신규 entry).
 export { buildLeafletPlaneChunk } from './leafletPlaneChunk';
