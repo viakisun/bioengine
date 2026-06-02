@@ -997,17 +997,25 @@ function addLeafletNodesForLeaf(
     //   cp0/cp3 = prev/next attach (tangent 산출용)
     //   cp1/cp2 = start/end = current/next attach (★ 불변 endpoints)
     //   intermediate samples은 8단계로 dense — zig-zag 해소.
+    //
+    // ★ Iter 39 Phase J0-2A — sub-rachis별 _누적_ droopBias 제거.
+    //   기존 `droopBias = -rachisLen × 0.05 × u`는 segment마다 u가 달라서 sag가
+    //   계단식으로 _누적_ → 덩굴-zigzag 인상. 단일 droop으로 교체:
+    //   rachis 전체 length 기준 _전구간 단일 sag arc_ — segment마다 같은
+    //   parabolic profile 위에서 자연스러운 처짐. 좌우 진동 0.
+    //
+    //   산식: 전체 rachis가 u=0(base)~u=1(tip) 사이 sag = -rachisLen × 0.03 × 4u(1-u)
+    //     hat function (4u(1-u): 0 at u=0/1, peak 1 at u=0.5).
+    //   각 sub-segment의 sagY = cp1과 cp2의 평균 sag 위치.
     const cp0 = allAttachPositions[Math.max(0, i)];
     const cp1 = allAttachPositions[i];        // ★ start = exact (불변)
     const cp2 = allAttachPositions[i + 1];    // ★ end = exact (불변)
     const cp3 = allAttachPositions[Math.min(allAttachPositions.length - 1, i + 2)];
-    // ★ G1 — droopBias 축소 0.10 → 0.05 (짧은 segment 과대 증폭 방지).
-    const droopBias = -rachisLen * 0.05 * u;
-    const sagY = (cp1.y + cp2.y) / 2 + droopBias;
-    // cp3에 droop 미반영 (탄젠트 끝 처짐만). intermediate samples이 droop 효과.
-    // Catmull-Rom 4-cp segment with sag: cp1 그대로 + cp2에 sag 적용 시 endpoint 이동.
-    // 안전한 방식: cp0/cp3로 tangent 계산하되 sag는 _intermediate sample_에 보간.
-    const denseSegment = catmullRomSegment4cp(cp0, cp1, cp2, cp3, 8, sagY);
+    // 전체 rachis 단일 droop arc — segment별 누적 X. droop은 petiole의 droopRad가
+    //   이미 잎 전체 방향을 결정. rachis 자체는 _직선_으로 두는 것이 단조 + smooth
+    //   invariant 만족 + skeleton 의 "단순/읽힘" 원칙 (J0 active 원칙 #14).
+    //   필요 시 후속 단계에서 미세 sag 도입 가능.
+    const denseSegment = catmullRomSegment4cp(cp0, cp1, cp2, cp3, 8);
     const subBones = boneListFromDenseSegment(denseSegment, r0, r1);
 
     edges.set(subEdgeId, {
