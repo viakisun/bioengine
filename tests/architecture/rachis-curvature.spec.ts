@@ -39,6 +39,10 @@ async function probeRachis(page: Page): Promise<{
     minSegDot: number;
     minAdjacentDot: number;
     backtrackCount: number;
+    polylineLen: number;
+    directDist: number;
+    linearityRatio: number;   // polylineLen / directDist (1.000=직선)
+    midpointSagM: number;     // midpoint deviation from lerp(start, end)
   }>;
 }> {
   return page.evaluate(() => {
@@ -121,6 +125,23 @@ async function probeRachis(page: Page): Promise<{
         const d = a.x * b.x + a.y * b.y + a.z * b.z;
         if (d < minAdjacentDot) minAdjacentDot = d;
       }
+      // ★ J0-7A: polyline 길이 + midpoint sag.
+      let polylineLen = 0;
+      for (let i = 0; i < pts.length - 1; i++) {
+        polylineLen += Math.hypot(
+          pts[i + 1].x - pts[i].x,
+          pts[i + 1].y - pts[i].y,
+          pts[i + 1].z - pts[i].z,
+        );
+      }
+      const linearityRatio = gLen > 1e-6 ? polylineLen / gLen : 1;
+      // midpoint sag: midPoint vs lerp(start, end) at t=0.5
+      const midIdx = Math.floor(pts.length / 2);
+      const midPt = pts[midIdx];
+      const lerpMidX = startP.x + (endP.x - startP.x) * 0.5;
+      const lerpMidY = startP.y + (endP.y - startP.y) * 0.5;
+      const lerpMidZ = startP.z + (endP.z - startP.z) * 0.5;
+      const midpointSagM = Math.hypot(midPt.x - lerpMidX, midPt.y - lerpMidY, midPt.z - lerpMidZ);
       groups.push({
         parentLeafId,
         nodeCount: pts.length,
@@ -128,6 +149,10 @@ async function probeRachis(page: Page): Promise<{
         minSegDot: Number.isFinite(minSegDot) ? minSegDot : 1,
         minAdjacentDot: Number.isFinite(minAdjacentDot) ? minAdjacentDot : 1,
         backtrackCount,
+        polylineLen,
+        directDist: gLen,
+        linearityRatio,
+        midpointSagM,
       });
     }
     return { groups };
@@ -164,6 +189,33 @@ test.describe('Rachis Curvature Discipline (SSOT #190, Iter 39 Phase J0-2A)', ()
       + violations.slice(0, 10).map(v =>
         `${v.parentLeafId}: minAdjDot=${v.minAdjacentDot.toFixed(3)} (${v.nodeCount} nodes)`
       ).join('\n'),
+    ).toEqual([]);
+  });
+
+  // ★ J0-7A — Curvature presence (직선 금지). active 원칙 #25:
+  //   금지(wave)만 catch하면 fishbone 인상 안 catch. floor invariant 필요.
+  //
+  //   ★ v16 적용: linearity ratio는 _macro polyline_ 측정 단위에서 작은 sag을
+  //   underestimate (1.001-1.002 range with 2-3% relative sag). midpoint sag
+  //   relative-to-rachisLen이 더 직접적인 floor signal.
+  //   기준: midpointSag / rachisLen ≥ 0.005 (0.5% 이상 — single arc 존재).
+  //   동시에 linearity ratio ≥ 1.001 (완전 직선 1.0 정확 차단).
+  test('RACHIS-CURVATURE-PRESENCE-01: midpoint sag ≥ 0.5% × rachisLen + linearity ≥ 1.001', async ({ page }) => {
+    test.setTimeout(120_000);
+    await enterSkin(page, 45);
+    const probe = await probeRachis(page);
+    expect(probe.groups.length, 'rachis groups found').toBeGreaterThan(0);
+    const violations = probe.groups.filter(g => {
+      const relSag = g.directDist > 0 ? g.midpointSagM / g.directDist : 0;
+      return g.linearityRatio < 1.001 || relSag < 0.005;
+    });
+    expect(
+      violations,
+      `CURVATURE-PRESENCE violations (linearity < 1.001 or relSag < 0.5%):\n`
+      + violations.slice(0, 10).map(v => {
+        const relSag = v.directDist > 0 ? (v.midpointSagM / v.directDist * 100) : 0;
+        return `${v.parentLeafId}: linearity=${v.linearityRatio.toFixed(5)}, relSag=${relSag.toFixed(2)}%, sag=${(v.midpointSagM * 1000).toFixed(2)}mm`;
+      }).join('\n'),
     ).toEqual([]);
   });
 });

@@ -954,12 +954,32 @@ function addLeafletNodesForLeaf(
     ? { x: lx / lLen, y: ly / lLen, z: lz / lLen }
     : { x: 1, y: 0, z: 0 };  // vertical petiole fallback
 
-  // rachis 위 부착점 산출.
-  const rachisPointAt = (u: number): V3 => ({
-    x: tipPos.x + rachisDir.x * u * rachisLen,
-    y: tipPos.y + rachisDir.y * u * rachisLen,
-    z: tipPos.z + rachisDir.z * u * rachisLen,
-  });
+  // ─── Iter 39 Phase J0-7A — Rachis weak single arc + leaf-level side bend ──
+  //   사용자 v15/v16: J0-2A에서 sag를 _완전 0_으로 둔 것이 over-correction.
+  //   완전 직선 rachis는 "fishbone/ladder skeleton" 인상. 토마토 복엽 자연
+  //   rachis는 _약한 single arc_를 가짐. wave 누적은 금지지만 _한 번_ 적용되는
+  //   leaf-level 곡률은 필요.
+  //
+  //   산식 (v15):
+  //     forward  = rachisDir × u × rachisLen
+  //     droop    = WORLD_DOWN × rachisLen × 0.025 × 4u(1-u)       (hat, peak u=0.5)
+  //     sideBend = lateralDir × rachisLen × 0.015 × sin(πu) × bias (leaf-level)
+  //
+  //   bias는 axisIdx + leafNodeIdx 기반 _deterministic_ — same leaf id → same
+  //   bias. LEAFLET-DETERMINISM-01 보존.
+  const sideSeed = ((axisIdx * 1009 + leafNodeIdx * 7919) % 100) / 100;  // 0..1
+  const leafSideBias = sideSeed * 2 - 1;  // -1..+1
+  const rachisPointAt = (u: number): V3 => {
+    const fwdAmt = u * rachisLen;
+    const droopAmt = rachisLen * 0.025 * 4 * u * (1 - u);
+    const sideAmt = rachisLen * 0.015 * Math.sin(Math.PI * u) * leafSideBias;
+    // WORLD_DOWN = (0, -1, 0). lateralDir은 위에서 산출됨 (WORLD_UP × rachisDir).
+    return {
+      x: tipPos.x + rachisDir.x * fwdAmt + lateralDir.x * sideAmt,
+      y: tipPos.y + rachisDir.y * fwdAmt - droopAmt + lateralDir.y * sideAmt,
+      z: tipPos.z + rachisDir.z * fwdAmt + lateralDir.z * sideAmt,
+    };
+  };
 
   // ── Iter 39 Phase I0-e — Layout-first: 모든 leaflet items _먼저_ 확정 ──
   //   사용자 v9/v10 핵심: attachUs는 _layout 결과에서_ 산출 (이전 primaryUs 기준
