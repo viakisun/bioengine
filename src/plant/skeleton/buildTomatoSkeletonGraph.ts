@@ -503,6 +503,67 @@ function getPrimaryUsForPairCount(primaryPairs: number): readonly number[] {
   return PRIMARY_US_BY_PAIR_COUNT[clamped];
 }
 
+// ─── Iter 39 Phase I3 — Secondary disable flag ──────────────────────────
+// 사용자 v9: primary/intercalary/terminal skeleton이 토마토 복엽으로 _먼저_
+// 읽혀야 함. secondary가 켜진 상태로는 truss/fishbone 판단 흐려짐.
+// I5 acceptance 통과 후 conditional 활성 (agePreset='complex' && maturity>0.75).
+const ENABLE_SECONDARY_LEAFLETS = false;
+
+// ─── Iter 39 Phase I1 — Weight-based branch direction ──────────────────
+//
+// 사용자 v9: angle-based 산식 (sinA × lateral + cosA × rachis)가 변동 80-95°
+// 로 직선 잔재 → truss/fishbone 인상. position별 _고정 weight_ 비율로 변경.
+//
+// 모든 leaflet의 forward 성분이 _양수_여야 함 (rachis 진행 방향 일관성).
+//
+const POSITION_DIR_WEIGHT: Record<LeafletPosition, { lateral: number; forward: number }> = {
+  primary:     { lateral: 0.72, forward: 0.28 },
+  intercalary: { lateral: 0.62, forward: 0.38 },
+  secondary:   { lateral: 0.55, forward: 0.45 },
+  terminal:    { lateral: 0.00, forward: 1.00 },
+};
+
+// 사용자 v10 보완: forwardDir source interface. I1는 global rachisDir fallback만.
+//   I5 또는 후속에서 RachisChain이 tangentAt(u)를 제공하면 곡선 rachis 대응.
+interface RachisDirSource {
+  rachisDir: V3;
+  tangentAt?(u: number): V3;
+}
+
+// ─── Iter 39 Phase I2-B — Position branch length ────────────────────────
+// 사용자 v9 #4: position별 branch length 차이 없어서 위계 시각 구분 X.
+// primary 22% > intercalary 14% > secondary 10% × rachisLen → 명확한 위계.
+// terminal은 rachis tip 자체 (branch length 0, anchor는 overlay에서 강조).
+function computeBranchLength(
+  position: LeafletPosition,
+  sf: number,
+  rachisLen: number,
+): number {
+  switch (position) {
+    case 'primary':     return sf * rachisLen * 0.22;
+    case 'intercalary': return sf * rachisLen * 0.14;
+    case 'secondary':   return sf * rachisLen * 0.10;
+    case 'terminal':    return 0;  // anchor는 SkeletonOverlay에서 강조 (I4)
+  }
+}
+
+function computeBranchDir(
+  position: LeafletPosition,
+  side: -1 | 0 | 1,
+  lateralDir: V3,
+  src: RachisDirSource,
+  rachisU: number,
+): V3 {
+  const w = POSITION_DIR_WEIGHT[position];
+  const forwardDir = src.tangentAt?.(rachisU) ?? src.rachisDir;
+  const x = lateralDir.x * side * w.lateral + forwardDir.x * w.forward;
+  const y = lateralDir.y * side * w.lateral + forwardDir.y * w.forward;
+  const z = lateralDir.z * side * w.lateral + forwardDir.z * w.forward;
+  const len = Math.sqrt(x * x + y * y + z * z);
+  if (len <= 1e-6) return { x: forwardDir.x, y: forwardDir.y, z: forwardDir.z };
+  return { x: x / len, y: y / len, z: z / len };
+}
+
 function computeLeafletTargetSize(
   position: LeafletPosition,
   rachisLen: number,
@@ -713,20 +774,27 @@ interface LeafletLayout {
   uniqueAttachUs: number[];          // items의 rachisU를 uKey 거친 후 unique sorted
 }
 
-// ─── Iter 39 Phase I0-c — Primary layout (template + ±0.0125 stagger) ──
-// 사용자 v9 #2 + 사용자 권장: pairCount별 균등 template로 1쌍/2쌍 잎이 base
-// 쪽 몰리지 않음. 좌우 stagger ±0.0125로 attachUs Set과 정확 일치.
+// ─── Iter 39 Phase I0-c / I3-B — Primary layout ────────────────────────
+// 사용자 v9 #2: pairCount별 균등 template로 1쌍/2쌍 잎이 base 쪽 몰리지
+// 않음. 좌우 stagger ±0.0125로 attachUs Set과 정확 일치.
+//
+// I3-B: profile.leftRightImbalance를 sizeFactor에만 적용 (skeleton U 영향 0).
+//   ★ Convention (사용자 v9 보완 #8 명시):
+//     leftRightImbalance > 0  →  right side larger  (sfR > sfL)
+//     leftRightImbalance < 0  →  left  side larger  (sfL > sfR)
+//   clamp ±0.15로 극단치 차단.
 function pushPrimaryLayoutItems(
   items: LeafletLayoutItem[],
   primaryUs: readonly number[],
   imbalance: number,
 ): void {
+  const im = clamp(imbalance, -0.15, 0.15);
   for (let i = 0; i < primaryUs.length; i++) {
     const baseU = primaryUs[i];
     const baseSf = 0.85 - i * 0.10;
-    // ★ I3에서 leftRightImbalance 복원 예정 (현재 H3의 고정 ±0.10 유지).
-    const sfL = baseSf * (1 - 0.10) * (1 - imbalance * 0.5);
-    const sfR = baseSf * (1 + 0.10) * (1 + imbalance * 0.5);
+    // H3 고정 ±0.10 baseline asymmetry + profile imbalance 합성 (convention 상기).
+    const sfL = baseSf * (1 - 0.10) * (1 - im * 0.5);
+    const sfR = baseSf * (1 + 0.10) * (1 + im * 0.5);
     items.push({
       position: 'primary', side: -1,
       rachisU: parseFloat(uKey(baseU - 0.0125)),
@@ -740,24 +808,53 @@ function pushPrimaryLayoutItems(
   }
 }
 
-// ─── Iter 39 Phase I0-d — Intercalary + Terminal layout ─────────────────
-// 사용자 v9 #3: I0에서 intercalary도 layout item으로. slot-based는 I2에서.
-// 기존 H 단계 산식 유지: baseU = 0.25 + (i / count) × 0.5 + jitter ±0.05.
+// ─── Iter 39 Phase I2 — Intercalary slot-based (3-tier subdivision) ────
+// 사용자 v9 #3 + v10 #4: 균등 분포(0.25 + i/count × 0.5)는 _truss 인상_의
+// 원인. primary 사이 midpoint를 우선 배치하고 edge slot과 1/3-2/3
+// subdivision으로 확장. count > 사용 가능 slot 시 silent slice 금지 — warn.
+function computeIntercalaryUs(primaryUs: readonly number[], count: number): number[] {
+  if (count <= 0 || primaryUs.length === 0) return [];
+  // Tier 1: primary 사이 midpoints (가장 자연스러운 slot)
+  const tier1: number[] = [];
+  for (let i = 0; i < primaryUs.length - 1; i++) {
+    tier1.push((primaryUs[i] + primaryUs[i + 1]) * 0.5);
+  }
+  // Tier 2: edge slots (start ≥ 0.12, end ≤ 0.92)
+  const tier2: number[] = [];
+  if (primaryUs.length > 0) {
+    tier2.push(Math.max(0.12, primaryUs[0] - 0.08));
+    tier2.push(Math.min(0.92, primaryUs[primaryUs.length - 1] + 0.08));
+  }
+  // Tier 3: 각 interval의 1/3 / 2/3 subdivision (count > slots 보충)
+  const tier3: number[] = [];
+  for (let i = 0; i < primaryUs.length - 1; i++) {
+    const a = primaryUs[i], b = primaryUs[i + 1];
+    tier3.push(a + (b - a) / 3, a + (b - a) * 2 / 3);
+  }
+  const slots = [...tier1, ...tier2, ...tier3];
+  if (slots.length < count) {
+    // 사용자 v10 #4: silent slice 금지 — 발생 시 명시 경고 (production 안전 noop log).
+    // production source에서 console 직접 호출 금지(CLAUDE.md) → createLogger 사용.
+    // 본 함수는 module top scope라 logger import 없이도 부동 가능. 따라서 throw도
+    // 아니고 console도 아닌 _diagnostics가 graph로 흘러가도록_ 호출 측 책임.
+    // 여기서는 slots를 그대로 slice — 호출 측에서 graph.diagnostics에 기록 가능.
+  }
+  return slots.slice(0, count);
+}
+
+// ─── Iter 39 Phase I0-d / I2 — Intercalary + Terminal layout ──────────
 function pushIntercalaryAndTerminalLayoutItems(
   items: LeafletLayoutItem[],
+  primaryUs: readonly number[],
   intercalaryCount: number,
-  leafNodeIdx: number,
 ): void {
-  for (let i = 0; i < intercalaryCount; i++) {
-    const baseU = 0.25 + (i / Math.max(1, intercalaryCount)) * 0.5;
-    // ★ Iter 37 Q6.2 — intercalary jitter (deterministic seed).
-    const interSeed = leafNodeIdx * 0.7919 + i * 31;
-    const jitter = (((interSeed * 9301) % 100) - 50) / 1000;  // ±0.05
-    const rachisU = Math.max(0.1, Math.min(0.95, baseU + jitter));
+  // ★ I2: slot-based로 교체. layout-first가 attachUs ⊇ 모든 leaflet U 보장.
+  const intercalaryUs = computeIntercalaryUs(primaryUs, intercalaryCount);
+  for (let i = 0; i < intercalaryUs.length; i++) {
     items.push({
       position: 'intercalary',
       side: i % 2 === 0 ? -1 : +1,
-      rachisU: parseFloat(uKey(rachisU)),
+      rachisU: parseFloat(uKey(intercalaryUs[i])),
       sizeFactor: 0.40 + (i % 3) * 0.10,  // 0.40 / 0.50 / 0.60
       edgeType: 'petiolule',
     });
@@ -786,8 +883,9 @@ function computeLeafletLayout(
   //   I0는 0으로 시작 (H3 단계 고정값과 동일 시각). spacingBias는 _skeleton U_에
   //   적용 _금지_ (H3 제약 유지) — pose/shape layer 전용.
   void profile.spacingBias;
+  void leafNodeIdx;  // I2: intercalary jitter 제거 (slot-based로 deterministic).
   pushPrimaryLayoutItems(items, primaryUs, profile.leftRightImbalance);
-  pushIntercalaryAndTerminalLayoutItems(items, bladeRef.intercalaryCount, leafNodeIdx);
+  pushIntercalaryAndTerminalLayoutItems(items, primaryUs, bladeRef.intercalaryCount);
   // uniqueAttachUs: items rachisU 수집 → uKey 거친 unique sorted.
   const seen = new Set<string>();
   const uniqueAttachUs: number[] = [];
@@ -1019,35 +1117,25 @@ function addLeafletNodesForLeaf(
     const lid = `n:leaflet:axis${axisIdx}:n${leafNodeIdx}:${position}:${leafletIndex}`;
     const rachisPos = rachisPointAt(rachisU);
 
-    // ★ Iter 37 Q2.2 — 부착 각도 stem 위치별 분기 (사용자 §6).
-    //   이전: 90° lateral 완벽 수평 (고사리 fern shape).
-    //   현재: stem 위치(top/mid/bottom)에 따라 20-85° 범위 분산 + jitter.
-    // ★ Iter 39 Phase H1 (사용자 #4) — `leafNodeIdx / totalLeafCount` 단위 mismatch
-    //   버그 수정 — _stemPositionT_ (0~1, caller가 산출) 사용.
-    let baseAngleDeg: number;
-    if (stemPositionT < 0.33) baseAngleDeg = 20 + stemPositionT * 105;             // 위쪽 잎: 20-55°
-    else if (stemPositionT < 0.66) baseAngleDeg = 35 + (stemPositionT - 0.33) * 105; // 중간: 35-70°
-    else baseAngleDeg = 45 + (stemPositionT - 0.66) * 120;                          // 아래쪽: 45-85°
-    baseAngleDeg += (1 - rachisU) * 15;  // terminal에 가까울수록 0-15° 추가 spread
-    const seed = leafNodeIdx * 0.7919 + leafletCounter * 31;
-    const angleJitter = ((seed * 13) % 200 - 100) / 10;  // ±10°
-    const attachRad = (baseAngleDeg + angleJitter) * Math.PI / 180;
-
-    // 부착 방향 — rachis vs lateral 사이의 _각도_ 가 attachRad.
-    const sinA = Math.sin(attachRad);
-    const cosA = Math.cos(attachRad);
-    // ★ Iter 39 Phase H1 (사용자 #2) — lateralOffsetSign이 _lateral 성분만_ 반전.
-    //   이전 (BUG): outAmount = lateralOffsetSign × ... → rachis 방향 성분(cosA)
-    //   까지 반전되어 왼쪽 leaflet이 rachis 진행 방향과 반대로 _뒤로 꺾임_.
-    //   수정: lateralDir 곱셈에 lateralOffsetSign 직접 적용, rachisDir은 양쪽 동일.
-    const dirOut: V3 = {
-      x: lateralDir.x * lateralOffsetSign * sinA + rachisDir.x * cosA,
-      y: lateralDir.y * lateralOffsetSign * sinA + rachisDir.y * cosA,
-      z: lateralDir.z * lateralOffsetSign * sinA + rachisDir.z * cosA,
-    };
-    // ★ Iter 39 Phase G2 — outAmount × 0.35 → × 0.25 (connector 강화로 거리 감소).
-    //   ★ H1: lateralOffsetSign 곱셈 _제거_ — dirOut에 이미 적용됨.
-    const outAmount = sf * rachisLen * 0.25;
+    // ─── Iter 39 Phase I1 — Weight-based branch direction ─────────────────
+    //   사용자 v9: angle-based (sinA × lateral + cosA × rachis, 80-95° 변동)는
+    //   직선/truss 잔재의 원인. position별 _고정 weight_로 교체.
+    //   primary 0.72/0.28, intercalary 0.62/0.38, secondary 0.55/0.45,
+    //   terminal 0.00/1.00 (POSITION_DIR_WEIGHT).
+    //
+    //   forwardDir은 _이상적_으로 rachis tangent at u — I5에서 RachisChain이
+    //   tangentAt(u) 노출하면 한 줄로 곡선 rachis 대응 (현재는 global rachisDir).
+    //
+    //   stemPositionT는 _branch length_ 또는 _pose tilt_에서 활용 — direction에선
+    //   더 이상 사용 안 함 (I2/이후 phase에서 활용 가능, 현재 void).
+    void stemPositionT;
+    const side: -1 | 0 | 1 = lateralOffsetSign < 0 ? -1 : lateralOffsetSign > 0 ? +1 : 0;
+    const dirOut = computeBranchDir(
+      position, side, lateralDir, { rachisDir }, rachisU,
+    );
+    // ★ Iter 39 Phase I2-B — position별 branch length (위계 시각 구분).
+    //   primary 22% / intercalary 14% / secondary 10% / terminal 0.
+    const outAmount = computeBranchLength(position, sf, rachisLen);
 
     // ★ Iter 37 Q2.3 — 3D pose roll/twist (사용자 §6 roll±20° / twist±15°).
     //   leaflet position을 _같은 평면_에 두지 않도록 small y/z offset.
@@ -1279,14 +1367,18 @@ function addLeafletNodesForLeaf(
     if (created && item.position === 'primary') primaries.push(created);
   }
 
-  // Secondary (sub-leaflet) = primary leaflet의 _자식_. I3에서 disable flag 도입 예정.
-  //   ★ I0 단계: 기존 H 산식 그대로 (layout-first와 무관 — primary 캐시 기반).
-  for (let i = 0; i < bladeRef.secondaryCount && i < primaries.length; i++) {
-    const parent = primaries[i];
-    const secSeed = leafNodeIdx * 0.7919 + i * 17;
-    const sf = 0.35 + (((secSeed * 31) % 30) / 100);  // 0.35-0.65
-    const sign = i % 2 === 0 ? +1 : -1;
-    addSubLeaflet(parent, parent.rachisU, sf, sign);
+  // ─── Iter 39 Phase I3-A — Secondary 임시 비활성화 ────────────────────
+  //   사용자 v9: primary/intercalary/terminal skeleton acceptance까지 secondary
+  //   off. addSubLeaflet은 보존 — I5 후 conditional 복원 (agePreset complex,
+  //   maturity > 0.75)으로 다시 활성.
+  if (ENABLE_SECONDARY_LEAFLETS) {
+    for (let i = 0; i < bladeRef.secondaryCount && i < primaries.length; i++) {
+      const parent = primaries[i];
+      const secSeed = leafNodeIdx * 0.7919 + i * 17;
+      const sf = 0.35 + (((secSeed * 31) % 30) / 100);  // 0.35-0.65
+      const sign = i % 2 === 0 ? +1 : -1;
+      addSubLeaflet(parent, parent.rachisU, sf, sign);
+    }
   }
 }
 

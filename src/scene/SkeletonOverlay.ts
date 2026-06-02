@@ -619,8 +619,33 @@ export function createSkeletonOverlay(
       const hint = node.visualHint;
       if (!hint) continue;
       let colorHex = hint.markerColor;
+      let sizeOverride: number | null = null;
 
-      // ★ Iter 37 Q4.1 — Senescing leaflet yellow override.
+      // ─── Iter 39 Phase I4 — Leaflet anchor color/size 분리 (leaf vs truss) ──
+      //   사용자 v9 #6/#9: 기존 leaflet anchor `#FF4500` (orange-red)가 truss
+      //   flower/fruit `#FF6347/#FF3A3A`와 시각 혼동 → leaf-only 녹색 계열 + terminal 강조.
+      if (node.type === 'leaflet-node' && node.leafletRef) {
+        switch (node.leafletRef.position) {
+          case 'terminal':
+            colorHex = '#7bff3a';  // bright green ★ terminal 강조
+            sizeOverride = 0.0040;
+            break;
+          case 'primary':
+            colorHex = '#3aaa3a';  // medium green
+            sizeOverride = 0.0025;
+            break;
+          case 'intercalary':
+            colorHex = '#cfd83a';  // yellow-green
+            sizeOverride = 0.0018;
+            break;
+          case 'secondary':
+            colorHex = '#5ac9b5';  // teal
+            sizeOverride = 0.0015;
+            break;
+        }
+      }
+
+      // ★ Iter 37 Q4.1 — Senescing leaflet yellow override (위 색을 _덮어씀_).
       //   leaflet-node의 parent leaf의 senescence.colorDullness > 0.4면 yellow (#DAA520).
       if (node.type === 'leaflet-node' && node.leafletRef) {
         const parentLeaf = graph.nodes.get(node.leafletRef.parentLeafNodeId);
@@ -628,7 +653,12 @@ export function createSkeletonOverlay(
         if (dullness > 0.4) colorHex = '#DAA520';
       }
 
-      const sizeM = hint.markerSizeM ?? 0.0015;
+      // ─── Iter 39 Phase I4 — rachis-attach 색을 dark green으로 (leaf 계열) ──
+      if (node.type === 'rachis-attach-node') {
+        colorHex = '#236b23';  // dark green
+      }
+
+      const sizeM = sizeOverride ?? hint.markerSizeM ?? 0.0015;
       // 시각상 너무 작으면 안 보임 — minimum size enforce (skeleton overlay 검증용).
       const visibleSizeM = Math.max(sizeM, 0.003);
 
