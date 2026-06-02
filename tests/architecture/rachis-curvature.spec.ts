@@ -200,7 +200,13 @@ test.describe('Rachis Curvature Discipline (SSOT #190, Iter 39 Phase J0-2A)', ()
   //   relative-to-rachisLen이 더 직접적인 floor signal.
   //   기준: midpointSag / rachisLen ≥ 0.005 (0.5% 이상 — single arc 존재).
   //   동시에 linearity ratio ≥ 1.001 (완전 직선 1.0 정확 차단).
-  test('RACHIS-CURVATURE-PRESENCE-01: midpoint sag ≥ 0.5% × rachisLen + linearity ≥ 1.001', async ({ page }) => {
+  //
+  //   ★ J0-8A (v18) — RETIRED. 이 invariant는 _측정 가능_ floor만 잡고 _시각
+  //   가능_은 못 잡음 (사용자 원칙 #27). RANGE-01이 lower+upper 통합 대체.
+  //   spec은 _archive_ — 삭제하지 말고 유지 (시각 측정 가능 threshold 0.5% 검증
+  //   하는 보조 invariant로 history). 단 RANGE-01과 _동시 활성_이면 RANGE-01
+  //   floor 4%가 더 strict하므로 PRESENCE는 redundant. 본 spec은 회귀 baseline용.
+  test('RACHIS-CURVATURE-PRESENCE-01 (retired, J0-8A): midpoint sag ≥ 0.5% × rachisLen + linearity ≥ 1.001', async ({ page }) => {
     test.setTimeout(120_000);
     await enterSkin(page, 45);
     const probe = await probeRachis(page);
@@ -215,6 +221,31 @@ test.describe('Rachis Curvature Discipline (SSOT #190, Iter 39 Phase J0-2A)', ()
       + violations.slice(0, 10).map(v => {
         const relSag = v.directDist > 0 ? (v.midpointSagM / v.directDist * 100) : 0;
         return `${v.parentLeafId}: linearity=${v.linearityRatio.toFixed(5)}, relSag=${relSag.toFixed(2)}%, sag=${(v.midpointSagM * 1000).toFixed(2)}mm`;
+      }).join('\n'),
+    ).toEqual([]);
+  });
+
+  // ★ J0-8A — Curvature MAGNITUDE (lower + upper bound). active 원칙 #27:
+  //   "측정 가능"과 "시각 가능"은 다른 임계. PRESENCE-01의 0.5% floor는 측정만 catch,
+  //   시각 fishbone 회귀 차단을 위해서는 visual detectability threshold (~5%) 필요.
+  //
+  //   RANGE-01 = lower (4%, visual floor) + upper (10%, wave/smooth ceiling).
+  //   monotonic + smooth와 _동시_ 통과해야 함 (각각 별 invariant이므로 implicit).
+  test('RACHIS-CURVATURE-RANGE-01: relSag ∈ [4%, 10%] × rachisLen', async ({ page }) => {
+    test.setTimeout(120_000);
+    await enterSkin(page, 45);
+    const probe = await probeRachis(page);
+    expect(probe.groups.length, 'rachis groups found').toBeGreaterThan(0);
+    const violations = probe.groups.filter(g => {
+      const relSag = g.directDist > 0 ? g.midpointSagM / g.directDist : 0;
+      return relSag < 0.04 || relSag > 0.10;
+    });
+    expect(
+      violations,
+      `CURVATURE-RANGE violations (relSag < 4% or > 10%):\n`
+      + violations.slice(0, 10).map(v => {
+        const relSag = v.directDist > 0 ? (v.midpointSagM / v.directDist * 100) : 0;
+        return `${v.parentLeafId}: relSag=${relSag.toFixed(2)}%, sag=${(v.midpointSagM * 1000).toFixed(2)}mm, directDist=${v.directDist.toFixed(3)}m`;
       }).join('\n'),
     ).toEqual([]);
   });

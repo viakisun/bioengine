@@ -976,24 +976,26 @@ function addLeafletNodesForLeaf(
     ? { x: lx / lLen, y: ly / lLen, z: lz / lLen }
     : { x: 1, y: 0, z: 0 };  // vertical petiole fallback
 
-  // ─── Iter 39 Phase J0-7A — Rachis weak single arc + leaf-level side bend ──
-  //   사용자 v15/v16: J0-2A에서 sag를 _완전 0_으로 둔 것이 over-correction.
-  //   완전 직선 rachis는 "fishbone/ladder skeleton" 인상. 토마토 복엽 자연
-  //   rachis는 _약한 single arc_를 가짐. wave 누적은 금지지만 _한 번_ 적용되는
-  //   leaf-level 곡률은 필요.
+  // ─── Iter 39 Phase J0-7A / J0-8A — Rachis single arc + leaf-level side bend ──
+  //   J0-7A 산식 (peak 2.5%)이 metric 통과지만 _시각상 직선_. 사용자 v17/v18 진단:
+  //   _visual detectability_가 metric과 별개. floor 0.5% (PRESENCE)가 측정만 가능,
+  //   ~5% 이상이 시각 가능.
   //
-  //   산식 (v15):
+  //   J0-8A: droop magnitude 2.5% → 6% (시각 임계 이상). sideBend는 1.5% _유지_
+  //   (사용자 v18 #2: 동시 amplification은 wave 인상 위험).
+  //
+  //   산식:
   //     forward  = rachisDir × u × rachisLen
-  //     droop    = WORLD_DOWN × rachisLen × 0.025 × 4u(1-u)       (hat, peak u=0.5)
-  //     sideBend = lateralDir × rachisLen × 0.015 × sin(πu) × bias (leaf-level)
+  //     droop    = WORLD_DOWN × rachisLen × 0.060 × 4u(1-u)       (J0-8A: 0.025 → 0.060)
+  //     sideBend = lateralDir × rachisLen × 0.015 × sin(πu) × bias (J0-7A 유지)
   //
-  //   bias는 axisIdx + leafNodeIdx 기반 _deterministic_ — same leaf id → same
-  //   bias. LEAFLET-DETERMINISM-01 보존.
+  //   smooth 안전: peak 6%, adjacent tangent dot ≈ cos(atan(4×0.06)) ≈ 0.972 — safe.
+  //   bias는 axisIdx + leafNodeIdx 기반 deterministic. LEAFLET-DETERMINISM-01 보존.
   const sideSeed = ((axisIdx * 1009 + leafNodeIdx * 7919) % 100) / 100;  // 0..1
   const leafSideBias = sideSeed * 2 - 1;  // -1..+1
   const rachisPointAt = (u: number): V3 => {
     const fwdAmt = u * rachisLen;
-    const droopAmt = rachisLen * 0.025 * 4 * u * (1 - u);
+    const droopAmt = rachisLen * 0.060 * 4 * u * (1 - u);  // ★ J0-8A: 0.025 → 0.060
     const sideAmt = rachisLen * 0.015 * Math.sin(Math.PI * u) * leafSideBias;
     // WORLD_DOWN = (0, -1, 0). lateralDir은 위에서 산출됨 (WORLD_UP × rachisDir).
     return {
