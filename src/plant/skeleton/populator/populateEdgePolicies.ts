@@ -47,19 +47,18 @@ const MATERIAL_ROLE: Record<SkeletonEdgeType, NonNullable<EdgeRenderPolicy['mate
 };
 
 /**
- * ★ Iter 39 Phase H4 — type별 skin visible fraction (arc length 기준).
- *   사용자 핵심 원칙: "skeleton geometry vs render policy 분리".
- *   skeleton bonePath는 항상 full (SKELETON-EDGE-01 contract).
- *   skin SDF tube가 _얼마나_를 그릴지는 본 정책으로만.
- *   petiolule = 30% — 이전 G2 truncation 의도가 여기로 이동.
- *   lateral-vein / sub-vein = 0% — SDF skip (F2 결정 유지).
+ * Skin tube visible fraction per edge type (arc length 기준).
+ * Connector edge는 _length 자르지 않음_ (active 원칙 #36, K2).
+ * 시각 조정은 radius(skinRadiusScale)로만. sub-vein 0.0 = ENABLE_SECONDARY_LEAFLETS=false
+ * 한정 — secondary 활성 시 재검토.
+ * History (LEAF_TUBE_RENDERING.md): K0 0.0/0.30 → K0-3A 0.65/0.50 → K2 1.0/1.0.
  */
 const SKIN_VISIBLE_FRACTION_BY_TYPE: Record<SkeletonEdgeType, number> = {
   mainStem: 1.0, sideShoot: 1.0,
   petiole: 1.0, peduncle: 1.0, rachis: 1.0, pedicel: 1.0,
   'leaf-rachis':  1.0,
-  petiolule:      0.30,
-  'lateral-vein': 0.0,
+  petiolule:      1.0,
+  'lateral-vein': 1.0,
   'sub-vein':     0.0,
 };
 

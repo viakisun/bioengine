@@ -127,14 +127,20 @@ const EPSILON = 1e-4;
  * ★ Iter 39 Phase H4 — Arc length 기준 bonePath truncate.
  *
  * fraction (0-1): bonePath의 _arc length_ 누적 fraction만큼만 emit.
+ * ★ Iter 39 Phase K1 — End-Anchored Truncation (사용자 명칭).
+ *   K0 forward truncate가 leaflet 쪽 끝을 잘라 blade mesh base와 visible gap
+ *   야기. K1에서 _end_ 쪽 보존, _start_ 쪽 자름으로 회귀.
+ *
  * - fraction >= 1.0: 변경 없이 반환
  * - fraction <= 0.0: 빈 배열
- * - 중간: target arc length에서 마지막 bone을 interpolate.
+ * - total < MIN_VISIBLE_ARC_LENGTH_M (1mm): full bones (collapse 방지)
+ * - 중간: start 쪽에서 cut, end (mesh anchor) 쪽 full 보존
  *
- * 사용자 plan v7 review #6: "bone count 기준 슬라이스 X, arc length 기준이어야
- * segment 길이가 비균일해도 정확한 시각 비율".
+ * 사용자 v7 #6: "bone count 슬라이스 X, arc length 기준이어야 정확".
  */
-function truncateBonePathByArcLength(
+const MIN_VISIBLE_ARC_LENGTH_M = 0.001;
+
+export function truncateBonePathByArcLength(
   bones: SkeletonBone[],
   fraction: number,
 ): SkeletonBone[] {
@@ -143,30 +149,48 @@ function truncateBonePathByArcLength(
   let total = 0;
   for (const b of bones) total += vlen(vsub(b.p1, b.p0));
   if (total <= 0) return [];
+  // K1 보완 #1 floor — 1mm 미만 edge는 truncate skip (collapse 방지).
+  if (total < MIN_VISIBLE_ARC_LENGTH_M) return bones;
+
   const target = total * fraction;
-  let accumulated = 0;
+  // K1: start 쪽 잘라낼 길이. end (mesh anchor) 쪽은 full 보존.
+  const cutFromStart = total - target;
+  let scanned = 0;
   const out: SkeletonBone[] = [];
   for (const b of bones) {
     const segLen = vlen(vsub(b.p1, b.p0));
-    if (accumulated + segLen <= target) {
-      out.push(b);
-      accumulated += segLen;
-    } else {
-      const remain = target - accumulated;
-      const remainFrac = segLen > 0 ? remain / segLen : 0;
-      out.push({
-        p0: { ...b.p0 },
-        p1: {
-          x: b.p0.x + (b.p1.x - b.p0.x) * remainFrac,
-          y: b.p0.y + (b.p1.y - b.p0.y) * remainFrac,
-          z: b.p0.z + (b.p1.z - b.p0.z) * remainFrac,
-        },
-        r0: b.r0,
-        r1: b.r0 + (b.r1 - b.r0) * remainFrac,
-      });
-      break;
+    if (scanned + segLen <= cutFromStart) {
+      // 이 bone 전체가 잘림.
+      scanned += segLen;
+      continue;
     }
+    if (scanned < cutFromStart) {
+      // 이 bone _일부_ 잘림 — 시작쪽 interpolate, 끝쪽 보존.
+      const cutInBone = cutFromStart - scanned;
+      const cutFrac = segLen > 0 ? cutInBone / segLen : 0;
+      out.push({
+        p0: {
+          x: b.p0.x + (b.p1.x - b.p0.x) * cutFrac,
+          y: b.p0.y + (b.p1.y - b.p0.y) * cutFrac,
+          z: b.p0.z + (b.p1.z - b.p0.z) * cutFrac,
+        },
+        p1: { ...b.p1 },
+        r0: b.r0 + (b.r1 - b.r0) * cutFrac,
+        r1: b.r1,
+      });
+      scanned = cutFromStart;
+      continue;
+    }
+    out.push(b);
+    scanned += segLen;
   }
+
+  // K1 보완 #1 empty fallback — floating point 오차로 out empty 시 마지막
+  // segment 보존하여 endNode.pos 도달 보장.
+  if (out.length === 0 && bones.length > 0) {
+    return [bones[bones.length - 1]];
+  }
+
   return out;
 }
 
