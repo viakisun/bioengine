@@ -34,27 +34,53 @@ async function enterSkin(page: Page, day: number) {
 }
 
 test.describe('Mesh Anchor Contracts (SSOT #186)', () => {
-  test('ANCHOR-01: LeafBladeOnly mesh의 vertex.x_min이 mesh-local (0,0,0) 근처 (≤1mm)', async ({ page }) => {
+  test('ANCHOR-01 (K3 3D): leaflet mesh stem-side vertex (x, y, z) 모두 mesh-local (0,0,0) ≤1mm', async ({ page }) => {
+    // ★ K3 phase: x_min만 검증 → x_min vertex의 (x, y, z) _모두_ 검증.
+    //   K3 이전 산식 (x만 shift) 잔존 시 yzOffset (y² + z²) 잠재 — 사용자
+    //   진단으로 max 91mm 검출. K3 산식 (3D shift) 회귀 변경 catch.
     test.setTimeout(120_000);
     await enterSkin(page, 45);
     const probe = await page.evaluate(() => {
       const w = window as unknown as {
         __debugScene?: { meshes?: Array<{ name: string; getVerticesData(k: string): Float32Array | null }> };
+        __scene?: { meshes?: Array<{ name: string; getVerticesData(k: string): Float32Array | null }> };
       };
-      const leaves = w.__debugScene?.meshes?.filter(m => m.name.startsWith('skinplant_leaf_')) ?? [];
+      const scene = w.__scene ?? w.__debugScene;
+      const leaves = scene?.meshes?.filter(m => m.name?.startsWith('skinplant_leaf_')) ?? [];
       return leaves.map(m => {
         const verts = m.getVerticesData('position');
-        if (!verts || verts.length < 3) return { name: m.name, minX_mm: NaN };
+        if (!verts || verts.length < 3) return { name: m.name, minX_mm: NaN, yAt_mm: NaN, zAt_mm: NaN, offset_mm: NaN };
         let minX = Infinity;
+        let yAt = 0;
+        let zAt = 0;
         for (let i = 0; i < verts.length; i += 3) {
-          if (verts[i] < minX) minX = verts[i];
+          if (verts[i] < minX) {
+            minX = verts[i];
+            yAt = verts[i + 1];
+            zAt = verts[i + 2];
+          }
         }
-        return { name: m.name, minX_mm: minX * 1000 };
+        const offset = Math.sqrt(minX * minX + yAt * yAt + zAt * zAt);
+        return {
+          name: m.name,
+          minX_mm: minX * 1000,
+          yAt_mm: yAt * 1000,
+          zAt_mm: zAt * 1000,
+          offset_mm: offset * 1000,
+        };
       });
     });
     expect(probe.length, 'leaf mesh 개수').toBeGreaterThan(0);
+    const violations = probe.filter(r => !(Math.abs(r.offset_mm) < 1));
+    // eslint-disable-next-line no-console
+    if (violations.length > 0) {
+      console.log(`ANCHOR-01 violations (${violations.length}):\n  ${violations.slice(0, 5).map(r => `${r.name}: offset=${r.offset_mm.toFixed(3)}mm (x=${r.minX_mm.toFixed(2)}, y=${r.yAt_mm.toFixed(2)}, z=${r.zAt_mm.toFixed(2)})`).join('\n  ')}`);
+    }
     for (const r of probe) {
-      expect(Math.abs(r.minX_mm), `${r.name}: vertex.x_min`).toBeLessThan(1);
+      expect(
+        Math.abs(r.offset_mm),
+        `${r.name}: stem-side vertex 3D offset (x=${r.minX_mm.toFixed(3)}mm, y=${r.yAt_mm.toFixed(3)}mm, z=${r.zAt_mm.toFixed(3)}mm)`,
+      ).toBeLessThan(1);
     }
   });
 
@@ -205,39 +231,60 @@ test.describe('Mesh Anchor Contracts (SSOT #186)', () => {
     }
   });
 
-  test('ANCHOR-04: normalizeLeafMeshVertices byte-identical to Iter 24 acfad71 inline', async () => {
-    // Synthetic chunk.positions — Iter 24 logic 재현 후 비교.
+  test('ANCHOR-04 (K3 3D): normalizeLeafMeshVertices stem-side vertex == (0, 0, 0)', async () => {
+    // K3 phase: x_min vertex의 (x, y, z) 모두 shift. stem-side = (0, 0, 0).
+    // K2까지: x만 shift (y/z = 임의). K3로 확장 — leaf base가 leafletNode.pos
+    // 에 정확 anchor (probe yzOffset p50 8.2mm → 0).
+    //
+    // Synthetic chunk.positions — stem-side vertex (x_min) y=0.02, z=-0.01
+    // 같은 임의 offset 보유 fixture.
     const positions = new Float32Array([
-      // 첫 leaflet stem-side 가까운 vertex들
-      0.05, 0.0, 0.1,
+      0.05, 0.01, 0.10,
       0.08, -0.01, 0.05,
-      // 가장 stem-side
-      0.03, 0.0, 0.0,
-      // 다른 leaflet
-      0.5, -0.1, 0.2,
-      1.0, -0.2, 0.0,
+      // 가장 stem-side (x_min = 0.03, y = 0.02, z = -0.01) — K3 shift target
+      0.03, 0.02, -0.01,
+      0.50, -0.10, 0.20,
+      1.00, -0.20, 0.00,
     ]);
     const before = new Float32Array(positions);
     normalizeLeafMeshVertices(positions);
-    // Inline Iter 24 acfad71 logic 별도 적용해 결과 비교.
+
+    // K3 산식 byte-identical 재현.
     const expected = new Float32Array(before);
     {
       let minX = Infinity;
+      let yAtMinX = 0;
+      let zAtMinX = 0;
       for (let i = 0; i < expected.length; i += 3) {
-        if (expected[i] < minX) minX = expected[i];
+        if (expected[i] < minX) {
+          minX = expected[i];
+          yAtMinX = expected[i + 1];
+          zAtMinX = expected[i + 2];
+        }
       }
-      if (Number.isFinite(minX) && minX !== 0) {
+      const needShift = minX !== 0 || yAtMinX !== 0 || zAtMinX !== 0;
+      if (needShift) {
         for (let i = 0; i < expected.length; i += 3) {
-          expected[i] -= minX;
+          expected[i]     -= minX;
+          expected[i + 1] -= yAtMinX;
+          expected[i + 2] -= zAtMinX;
         }
       }
     }
     expect(Array.from(positions)).toEqual(Array.from(expected));
-    // Iter 24 contract: 결과 min x = 0
-    let resultMin = Infinity;
+
+    // K3 contract: stem-side vertex = (0, 0, 0).
+    let resultMinX = Infinity;
+    let yAt = 0, zAt = 0;
     for (let i = 0; i < positions.length; i += 3) {
-      if (positions[i] < resultMin) resultMin = positions[i];
+      if (positions[i] < resultMinX) {
+        resultMinX = positions[i];
+        yAt = positions[i + 1];
+        zAt = positions[i + 2];
+      }
     }
-    expect(resultMin).toBeCloseTo(0, 6);
+    expect(resultMinX).toBeCloseTo(0, 6);
+    expect(yAt).toBeCloseTo(0, 6);
+    expect(zAt).toBeCloseTo(0, 6);
   });
 });
