@@ -19,17 +19,20 @@
 4. materializeLeafletSpec(item)  ─ 각 layout item을 leaflet node + edge로 구체화
 ```
 
-## Primary Template (pair count별)
+## Primary Template (pair count별, J0-4 적용)
 
-| pairCount | primaryUs |
-|---|---|
-| 1 | `[0.48]` |
-| 2 | `[0.32, 0.68]` |
-| 3 | `[0.24, 0.50, 0.74]` |
-| 4 | `[0.18, 0.35, 0.55, 0.75]` |
+| pairCount | primaryUs | 이전 (I0) |
+|---|---|---|
+| 1 | `[0.52]` | `[0.48]` |
+| 2 | `[0.36, 0.68]` | `[0.32, 0.68]` |
+| 3 | `[0.28, 0.52, 0.74]` | `[0.24, 0.50, 0.74]` |
+| 4 | `[0.22, 0.40, 0.60, 0.78]` | `[0.18, 0.35, 0.55, 0.75]` |
 
 `getPrimaryUsForPairCount(n)` — clamp(1, 4). pairCount 외 값은 round 후 clamp.
-좌측 primary는 `baseU - 0.0125`, 우측은 `baseU + 0.0125` (attachUs Set 정확 일치).
+좌측 primary는 `baseU - 0.020`, 우측은 `baseU + 0.020` (J0-4: ±0.0125 → ±0.020).
+
+**TERMINAL-CLEARANCE-01**: 4쌍 lastPrimaryU = 0.78 + 0.020 = 0.80 ≤ 0.82,
+terminal 1.0 - 0.80 = 0.20 gap ≥ 0.15 ✓.
 
 ## Intercalary Slot Tiers
 
@@ -60,16 +63,23 @@ tier3: 각 interval의 1/3, 2/3       — count > 사용 가능 slot 시 보충
 
 좌우 모두 `dot(branchDir, forwardDir) > 0` 보장 (rachis 진행 방향 일관성).
 
-## Position별 Branch Length
+## Position별 Branch Length (J0-3B 채택)
 
-`computeBranchLength(position, sf, rachisLen)` — 위계 시각 구분:
+`computeBranchLength(position, sf, rachisLen)` — 위계 시각 구분 + leaflet
+응집.
 
-| position | factor |
-|---|---|
-| primary | `sf × rachisLen × 0.22` |
-| intercalary | `sf × rachisLen × 0.14` |
-| secondary | `sf × rachisLen × 0.10` |
-| terminal | `0` (rachis tip 자체) |
+| position | factor (J0-3B) | 이전 (I2) |
+|---|---|---|
+| primary | `sf × rachisLen × 0.08` | × 0.22 |
+| intercalary | `sf × rachisLen × 0.04` | × 0.14 |
+| secondary | `sf × rachisLen × 0.10` | × 0.10 (disabled) |
+| terminal | `0` (rachis tip 자체) | 0 |
+
+채택 사유: metrics-3A.json (0.12/0.06) vs metrics-3B.json (0.08/0.04) 비교 —
+3A는 primary max 0.120 > strict 0.10 위반. 3B는 strict 통과 + 절대 max
+24.9cm → 9.0cm 단축.
+
+**PETIOLULE-LEN-01 strict**: primary ≤ 0.10 × rachisLen, intercalary ≤ 0.06.
 
 ## `uKey(u): string` Rounding Convention
 

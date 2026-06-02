@@ -16,6 +16,23 @@ edge.bonePath.last.p1  ≈ endNode.pos     (≤1mm)
 control 도구로 사용 금지. 시각 truncation은 `EdgeRenderPolicy.skinVisibleFraction`
 (`docs/architecture/EDGE_RENDER_POLICY.md`)로 분리.
 
+## ★ Skeleton Closure 원칙 (Iter 39 Phase J0)
+
+복엽-읽힘은 _구조 정합성_ (Phase H/I)과 _다른 문제_. J0가 _skeleton 자체가
+토마토 복엽으로 읽히는가_를 닫음. 핵심 원칙:
+
+1. **Acceptance 결정은 _graph-native 정량 metrics_** — 3D 시각 판단은 _참고만_
+   (camera/perspective/mesh/조명 착시 위험).
+2. **Rachis curvature는 단순/단조 + 인접 smooth** — sinusoidal/zigzag 금지.
+3. **Petiolule은 거의 안 보일 정도로 짧음** (rachisLen의 10% 이하).
+4. **Hierarchy는 _수치 ratio_로 검증** — absolute size는 J1 책임.
+5. **Skeleton node.pos는 deterministic** — `rollOffset/twistOffset` 등 seed
+   기반 noise가 node 위치 자체에 들어가면 안 됨. noise는 visual pose에서만.
+6. **Invariant threshold는 _case별_ 차등 허용** — young/mature/complex는
+   botanical 자체가 다름. minReadable clamp 영역에서는 ratio 검증 제외.
+
+자세한 metrics 모델: `docs/architecture/LEAFLET_LAYOUT.md` (J0 섹션).
+
 ## ★ Layout-first 원칙 (Iter 39 Phase I)
 
 **모든 leaflet의 최종 (position, side, rachisU, sizeFactor)는 _먼저_ 확정** →
@@ -96,6 +113,28 @@ attachUs는 layout 결과에서 산출 → strict exact match만 사용.
    - 같은 잎 안의 모든 leaflet은 _공유_
 
 ## Invariants 검증 (자동)
+
+**Iter 39 Phase J0 신규 5 invariants** (skeleton closure):
+- `tests/architecture/rachis-curvature.spec.ts`:
+  - **RACHIS-MONOTONIC-01**: rachis attach 노드 polyline projection strict
+    monotonic 증가 + 각 segment dot > 0.70 (단조).
+  - **RACHIS-SMOOTH-01**: 인접 segment tangent dot > 0.85 (연속).
+- `tests/architecture/leaflet-determinism.spec.ts`:
+  - **LEAFLET-DETERMINISM-01**: 같은 시점 재빌드 시 모든 leaflet node.pos
+    byte-identical (≤ 1e-9). roll/twist seed noise가 node 위치에 누락된 검증.
+- `tests/architecture/petiolule-length.spec.ts`:
+  - **PETIOLULE-LEN-01**: primary `petioluleLen / rachisLen ≤ 0.10`,
+    intercalary ≤ 0.06.
+- `tests/architecture/compound-layout.spec.ts`:
+  - **COMPOUND-GAP-01** (case-aware): young/mature/complex 별 attachU gap.
+  - **COMPOUND-SLOTS-01**: intercalary가 primary 영역 [-0.10, +0.10] 안.
+  - **TERMINAL-CLEARANCE-01**: lastPrimaryU ≤ 0.82 + clearance ≥ 0.15.
+- `tests/architecture/hierarchy-visible.spec.ts`:
+  - **HIERARCHY-VISIBLE-01**: terminal ≥ primary × 1.15, primary ≥
+    intercalary × 1.8 (case-aware: clamp 영역 skip).
+- `tests/architecture/lr-stagger.spec.ts`:
+  - **LR-STAGGER-01**: 좌우 primary 같은 U 0, minStagger ≥ 0.020,
+    sizeFactor 차이 ≥ 0.05.
 
 `tests/architecture/leaflet-attach-coherence.spec.ts` (Iter 39 Phase I5, 신규):
 - **LEAFLET-ATTACH-COHERENCE-01**: primary/intercalary `leafletRef.attachNodeId`
