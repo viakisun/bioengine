@@ -491,11 +491,14 @@ function uKey(u: number): string {
   return (Math.round(u * 1000) / 1000).toFixed(3);
 }
 
+// ★ J0-4 (v14): terminal clearance 확보 (lastPrimaryU ≤ 0.82, gap ≥ 0.15).
+//   이전 I0-a 분포가 [0.18, 0.35, 0.55, 0.75]로 마지막 primary 0.75 + stagger
+//   0.0125 = 0.7625 — terminal 1.0과 0.24 gap. 새 분포는 응집 균형 + clearance:
 const PRIMARY_US_BY_PAIR_COUNT: Record<number, readonly number[]> = {
-  1: [0.48],
-  2: [0.32, 0.68],
-  3: [0.24, 0.50, 0.74],
-  4: [0.18, 0.35, 0.55, 0.75],
+  1: [0.52],
+  2: [0.36, 0.68],
+  3: [0.28, 0.52, 0.74],
+  4: [0.22, 0.40, 0.60, 0.78],  // last + 0.020 stagger = 0.80 < 0.82 ✓, gap 0.20 ≥ 0.15 ✓
 };
 
 function getPrimaryUsForPairCount(primaryPairs: number): readonly number[] {
@@ -796,12 +799,12 @@ function pushPrimaryLayoutItems(
     const sfR = baseSf * (1 + 0.10) * (1 + im * 0.5);
     items.push({
       position: 'primary', side: -1,
-      rachisU: parseFloat(uKey(baseU - 0.0125)),
+      rachisU: parseFloat(uKey(baseU - 0.020)),
       sizeFactor: sfL, edgeType: 'lateral-vein',
     });
     items.push({
       position: 'primary', side: +1,
-      rachisU: parseFloat(uKey(baseU + 0.0125)),
+      rachisU: parseFloat(uKey(baseU + 0.020)),
       sizeFactor: sfR, edgeType: 'lateral-vein',
     });
   }
