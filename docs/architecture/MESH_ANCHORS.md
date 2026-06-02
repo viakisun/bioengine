@@ -77,21 +77,37 @@ silent fallback 함정 방지).
 - SKELETON-EDGE-01 / NODE-EDGE-INCIDENCE-01 / LEAFLET-REF-01 신규 invariants가
   graph SSOT 강제 (`tests/architecture/skeleton-edge-consistency.spec.ts`).
 
-**Iter 24 contract** (commit acfad71):
+**Iter 24 contract** (commit acfad71, _x만 shift_) — **Iter 39 K3에서 3D
+확장**:
 - `buildLeafBladeOnly` 출력 chunk의 vertex.x range는 `[petioleLen + rachisLen·0.15, petioleLen + rachisLen]` 정도 (mesh-local).
-- **`normalizeLeafMeshVertices` 적용 필수** — `chunk.positions`의 `x_min`을 측정해 모든 vertex.x에서 빼기.
-- 결과: 첫 leaflet의 stem-side vertex가 mesh-local `(0, ?, ?)`.
-- `mesh.position = tip` 설정 시 첫 leaflet이 정확히 SDF petiole tip 위치.
+- Iter 24 acfad71: `chunk.positions`의 `x_min`만 측정해 모든 vertex.x에서 빼기.
+- 결과 (Iter 24): 첫 leaflet의 stem-side vertex가 mesh-local `(0, y₀, z₀)` —
+  **y, z 임의 offset 잔존**.
 
-**위반 시 증상**: leaflets가 petiole tip에서 `petioleLen + rachisLen·0.15`
-만큼 떨어진 곳에 그려짐 → 사용자가 본 "잎이 줄기에 안 붙어보임" (Iter 18~24
-disconnect bug).
+**Iter 39 K3 확장 — 3D anchor**:
+- `normalizeLeafMeshVertices`가 x_min vertex의 `(x, y, z)` _모두_ shift.
+- 결과: stem-side vertex = mesh-local `(0, 0, 0)`. mesh-local origin이
+  정확히 base vertex와 일치.
 
-**utility**: `src/plant/anchors/leafAnchor.ts:normalizeLeafMeshVertices()`.
-Iter 24 acfad71 로직을 함수로 분리 (byte-identical).
+**K3 진단 (probe)**:
+- yzOffset 분포: p50 **8.2mm**, p95 **35mm**, max **91mm** (Iter 24 산식 기준).
+- mesh.position = leafletNode.pos로 set해도 _실제 base vertex_ world position
+  = node.pos + rotation × (0, y₀, z₀) → **시각상 leaflet이 공중에 떠 보임**.
+- K3로 yzOffset = 0 강제 → leaflet base가 정확히 leafletNode.pos에 anchor.
 
-**검증**: `tests/architecture/mesh-anchor-contracts.spec.ts`에서 모든 leaf
-mesh의 첫 vertex가 mesh-local `(0, 0, 0)` 근처 (≤1mm).
+**위반 시 증상**: K0/K1/K2 (skinVisibleFraction 정책 조정)로 connector tube
+gap을 해소했음에도, _mesh anchor 자체_에 잔존 offset (~수십 mm)이 있어 leaflet
+이 떠 보임 (사용자 close-up 증상). K3 fix로 _수학적으로_ 0.
+
+**utility**: `src/plant/anchors/leafAnchor.ts:normalizeLeafMeshVertices()` (K3
+확장 후 3D).
+
+**검증**: `tests/architecture/mesh-anchor-contracts.spec.ts`:
+- ANCHOR-01: 모든 leaf mesh의 x_min vertex가 mesh-local x ≤1mm.
+- ANCHOR-04 (K3 3D revised): synthetic fixture로 stem-side vertex = (0, 0, 0)
+  byte-identical 검증 (x, y, z 모두).
+- `assertLeafAnchorInvariant`: runtime invariant — stem-side vertex의
+  `sqrt(x² + y² + z²) ≤ 1mm`.
 
 #### ★ Iter 31 R26 contract — `OrganAnchor.rotation` 산출 (commit 4029b6b)
 

@@ -21,7 +21,25 @@
 **Critical**: 결정은 1-7 _metrics_ (active 원칙 #21 사용자: graph-native 정량
 기반). 8번은 _참고 reference_ — sanity check.
 
-## ★ 21 Invariants 누적 (H 4 + I 1 + J0-1~9 16)
+## ★ 26 Invariants 누적 (H 4 + I 1 + J0-1~9 16 + K0 2 + K1 1 + K3 1 revised — Iter 39 Phase K3)
+
+> **K3 (Mesh Anchor 3D)**: K2 후에도 사용자 close-up _수십 mm gap_ 잔존
+> 진단 — `normalizeLeafMeshVertices`가 x만 shift, stem-side vertex y/z offset
+> p50 8mm / max 91mm. K3에서 3D shift (x, y, z 모두) → stem-side = (0, 0, 0).
+> ANCHOR-04 (K3 3D revised). [MESH_ANCHORS.md](MESH_ANCHORS.md).
+
+> **K0 (Leaf Tube Rendering, lateral-vein 0.0 → 0.65 / petiolule 0.30 → 0.50)**:
+> [LEAF_TUBE_RENDERING.md](LEAF_TUBE_RENDERING.md). `lateral-vein` explicit
+> skip이 visual implicit assumption 위반 → policy 보정.
+>
+> **K1 (End-Anchored Truncation)**: forward truncate가 leaflet 쪽 잘라 blade
+> base gap. `truncateBonePathByArcLength` 방향 역순화. K2 후에는 _guardrail_
+> (현재 사용 안 함, 미래 회귀 보호).
+>
+> **K2 (Connector Visibility 1.0)**: K1 reverse 후에도 attach 쪽 ~10mm gap
+> 잔존 (embed 0.6mm, 17배 차이). `fraction = 1.0`만이 양쪽 gap 모두 해소.
+> lateral-vein 0.65 → 1.0, petiolule 0.50 → 1.0. LEAF-TUBE-VISIBILITY-01
+> revised (range 폐기, == 1.0 강제). 원칙 #36.
 
 ### Phase H — Structural Integrity (4)
 - `SKELETON-EDGE-01` — bonePath endpoint == node.pos (≤1mm)
@@ -52,7 +70,22 @@
 ### Phase J0-8 — Curvature Amplification (1)
 - `RACHIS-CURVATURE-RANGE-01` — relSag ∈ [4%, 10%] (visual detectability)
 
-### Phase J0-9 — Grammar Closure (4 신규)
+### Phase K0 — Leaf Tube Rendering (2)
+- `LEAF-TUBE-AUDIT-01` — 5 leaf tube edge types (petiole / leaf-rachis /
+  lateral-vein / petiolule, sub-vein 제외) 모두 graph 존재 + 잎별 leaflet
+  count vs edge count 대응 (primary↔lateral-vein, intercalary↔petiolule)
+- `LEAF-TUBE-VISIBILITY-01` (K2 revised) — connector edge (leaf-rachis /
+  lateral-vein / petiolule) `|value - 1.0| ≤ 1e-6` 강제 + sub-vein `|value
+  - 0.0| ≤ 1e-6` (secondary disabled 전제). K0 range [0.5, 0.9] / [0.45,
+  0.75] 폐기. 원칙 #36 (connector는 visibility 자르지 않음).
+
+### Phase K1 — End-Anchored Truncation (1 신규, K2에서 guardrail)
+- `LEAF-TUBE-ANCHOR-01` (mode A graph + mode B synthetic) — K1
+  `truncateBonePathByArcLength` end-anchored 산식 보호. mode A: 현재 graph에
+  fraction < 1.0 edge가 있을 시 검증 (K2 후 0개, vacuously PASS). mode B:
+  synthetic fixture (6 fractions)로 산식 자체 회귀 catch. 원칙 #35.
+
+### Phase J0-9 — Grammar Closure (4)
 - `CLOSURE-MAX-UNCOVERED-GAP-01` — influence radius (primary 0.11 / intercalary
   0.06 / terminal 0.10) coverage. rachis [0.15, 0.95] uncovered max ≤ mature
   0.18 / young 0.30
