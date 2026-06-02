@@ -530,20 +530,20 @@ interface RachisDirSource {
   tangentAt?(u: number): V3;
 }
 
-// ─── Iter 39 Phase I2-B — Position branch length ────────────────────────
-// 사용자 v9 #4: position별 branch length 차이 없어서 위계 시각 구분 X.
-// primary 22% > intercalary 14% > secondary 10% × rachisLen → 명확한 위계.
-// terminal은 rachis tip 자체 (branch length 0, anchor는 overlay에서 강조).
+// ─── Iter 39 Phase J0-3A — Petiolule length 실험 1 (interim) ────────────
+// 사용자 J0 v14: J0-3A factor 0.12/0.06 → metrics-3A.json. J0-3B (0.08/0.04)
+// 과 _diff_ 비교 후 채택. 시각 평가 X.
+// (이전 I2-B factor: 0.22/0.14/0.10)
 function computeBranchLength(
   position: LeafletPosition,
   sf: number,
   rachisLen: number,
 ): number {
   switch (position) {
-    case 'primary':     return sf * rachisLen * 0.22;
-    case 'intercalary': return sf * rachisLen * 0.14;
-    case 'secondary':   return sf * rachisLen * 0.10;
-    case 'terminal':    return 0;  // anchor는 SkeletonOverlay에서 강조 (I4)
+    case 'primary':     return sf * rachisLen * 0.12;  // ← J0-3A
+    case 'intercalary': return sf * rachisLen * 0.06;  // ← J0-3A
+    case 'secondary':   return sf * rachisLen * 0.10;  // (I3 disabled)
+    case 'terminal':    return 0;
   }
 }
 
