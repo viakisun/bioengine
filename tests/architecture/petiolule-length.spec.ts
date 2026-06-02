@@ -28,8 +28,19 @@ async function enterSkin(page: Page, day: number) {
   await page.waitForTimeout(3500);
 }
 
-test.describe('Petiolule Length (SSOT #192, Iter 39 Phase J0-3B 채택)', () => {
-  test('PETIOLULE-LEN-01: primary ≤ 0.10 × rachisLen, intercalary ≤ 0.06 × rachisLen', async ({ page }) => {
+// ─── J0-7D (v16) 재정의 ─────────────────────────────────────────────────
+// J0-3B (0.08/0.04)에서 시각상 _구슬 꿰기_ 인상 (branch hierarchy 약함).
+// J0-7D (0.10/0.05) metrics-3D.json 비교 결과:
+//   - 3B hierarchy prim/inter = 1.76
+//   - 3D hierarchy prim/inter = 2.82 (60% 강화)
+// → 3D 채택 + ceiling을 _metrics 근거 기반_ 재정의 (active 원칙 #22).
+//
+// 신규 PETIOLULE-LEN-01:
+//   primary:     avg ≤ 0.10 AND individual max ≤ 0.12 AND individual min ≥ 0.04
+//   intercalary: avg ≤ 0.06 AND individual max ≤ 0.07 AND individual min ≥ 0.02
+// avg ceiling + 절대 max 상한 + floor — 3가지로 _금지_ + _부재_ 모두 catch.
+test.describe('Petiolule Length (SSOT #192, Iter 39 Phase J0-7D 재정의)', () => {
+  test('PETIOLULE-LEN-01: primary [0.04, 0.10 avg, 0.12 max], intercalary [0.02, 0.06 avg, 0.07 max]', async ({ page }) => {
     test.setTimeout(120_000);
     await enterSkin(page, 45);
     const probe = await page.evaluate(() => {
@@ -53,8 +64,8 @@ test.describe('Petiolule Length (SSOT #192, Iter 39 Phase J0-3B 채택)', () => 
         const tag = node.id.match(/axis\d+:n\d+/)?.[0];
         if (tag) rachisLenByLeaf.set(tag, node.leafBladeRef.rachisLengthM);
       }
-      const violations: string[] = [];
-      let checked = 0;
+      // ratio 수집 (잎별 position별).
+      const ratiosByLeaf = new Map<string, { primary: number[]; intercalary: number[] }>();
       for (const node of graph.nodes.values()) {
         const ref = node.leafletRef;
         if (!ref) continue;
@@ -70,12 +81,34 @@ test.describe('Petiolule Length (SSOT #192, Iter 39 Phase J0-3B 채택)', () => 
         const dz = node.pos.z - attach.pos.z;
         const len = Math.sqrt(dx * dx + dy * dy + dz * dz);
         const ratio = len / rachisLen;
-        const cap = ref.position === 'primary' ? 0.10 : 0.06;
-        checked++;
-        if (ratio > cap) {
-          violations.push(
-            `${node.id} (${ref.position}): ratio ${ratio.toFixed(4)} > cap ${cap}`,
-          );
+        if (!ratiosByLeaf.has(tag)) ratiosByLeaf.set(tag, { primary: [], intercalary: [] });
+        if (ref.position === 'primary') ratiosByLeaf.get(tag)!.primary.push(ratio);
+        else ratiosByLeaf.get(tag)!.intercalary.push(ratio);
+      }
+      // ★ J0-7D 신규 PETIOLULE-LEN-01: avg ceiling + 절대 max + floor.
+      const violations: string[] = [];
+      let checked = 0;
+      const avg = (a: number[]) => a.length === 0 ? 0 : a.reduce((x, y) => x + y, 0) / a.length;
+      for (const [tag, r] of ratiosByLeaf) {
+        if (r.primary.length > 0) {
+          checked++;
+          const primAvg = avg(r.primary);
+          const primMax = Math.max(...r.primary);
+          const primMin = Math.min(...r.primary);
+          if (primAvg > 0.10) violations.push(`${tag} primary avg ${primAvg.toFixed(4)} > 0.10`);
+          if (primMax > 0.12) violations.push(`${tag} primary max ${primMax.toFixed(4)} > 0.12`);
+          if (primMin < 0.04) violations.push(`${tag} primary min ${primMin.toFixed(4)} < 0.04 (구슬 꿰기 risk)`);
+        }
+        if (r.intercalary.length > 0) {
+          checked++;
+          const intAvg = avg(r.intercalary);
+          const intMax = Math.max(...r.intercalary);
+          const intMin = Math.min(...r.intercalary);
+          if (intAvg > 0.06) violations.push(`${tag} intercalary avg ${intAvg.toFixed(4)} > 0.06`);
+          if (intMax > 0.07) violations.push(`${tag} intercalary max ${intMax.toFixed(4)} > 0.07`);
+          // ★ intercalary floor 0.015 (− epsilon): J0-5/J0-7D 산식 lower bound
+          //   (factor 0.05 × min sizeFactor 0.30 = 0.015). 임의 0.02 X.
+          if (intMin < 0.0149) violations.push(`${tag} intercalary min ${intMin.toFixed(4)} < 0.015`);
         }
       }
       return { violations, checked };

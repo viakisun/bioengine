@@ -551,17 +551,18 @@ interface RachisDirSource {
   tangentAt?(u: number): V3;
 }
 
-// ─── Iter 39 Phase J0-3B — Petiolule length 목표 (botanical 응집) ───────
-// 사용자 J0 v14: J0-3B factor 0.08/0.04. metrics-3B.json과 3A 비교 후 채택.
-// (이전 J0-3A: 0.12/0.06, 그 전 I2-B: 0.22/0.14/0.10)
+// ─── Iter 39 Phase J0-7D — Petiolule length 재실험 (0.10/0.05 mid) ──────
+// 사용자 v15/v16: J0-3B 0.08/0.04이 시각상 _구슬 꿰기_ 인상 (branch hierarchy
+// 약함). 0.10/0.05 중간값 metrics-3D.json + 3-way 비교 후 채택.
+// (이전 J0-3B: 0.08/0.04, J0-3A: 0.12/0.06, I2-B: 0.22/0.14/0.10)
 function computeBranchLength(
   position: LeafletPosition,
   sf: number,
   rachisLen: number,
 ): number {
   switch (position) {
-    case 'primary':     return sf * rachisLen * 0.08;  // ← J0-3B
-    case 'intercalary': return sf * rachisLen * 0.04;  // ← J0-3B
+    case 'primary':     return sf * rachisLen * 0.10;  // ← J0-7D
+    case 'intercalary': return sf * rachisLen * 0.05;  // ← J0-7D
     case 'secondary':   return sf * rachisLen * 0.10;  // (I3 disabled)
     case 'terminal':    return 0;
   }
