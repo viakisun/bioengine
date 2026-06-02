@@ -1,0 +1,467 @@
+{
+  "aggregate": {
+    "leafCount": 8,
+    "primPetio": {
+      "avg": 0.08305156375,
+      "max": 0.11175438999999998
+    },
+    "interPetio": {
+      "avg": 0.01790624999999999,
+      "max": 0.021000000000000036
+    },
+    "attachUGap": {
+      "avgOfAvg": 0.06270833333333334,
+      "maxOfMax": 0.18999999999999995
+    },
+    "terminalClearance": {
+      "avg": 0.18999999999999995
+    },
+    "hierarchy": {
+      "termOverPrimAvg": 1.857630956672543,
+      "primOverInterAvg": 2.8151829465882714
+    },
+    "rachis": {
+      "backtrackTotal": 0,
+      "minSegDotOverall": 0.9774601189236832,
+      "minAdjDotOverall": 0.9985458214362548
+    },
+    "compactness": {
+      "maxPetioleAbsM": 0.12625674853227795,
+      "spreadOverRachisAvg": 0.4334426222639359
+    }
+  },
+  "perLeaf": [
+    {
+      "parentTag": "axis0:n10",
+      "rachisLen": 1.2572446429576192,
+      "leafletCount": {
+        "total": 15,
+        "primary": 8,
+        "intercalary": 6,
+        "terminal": 1
+      },
+      "pairCount": 4,
+      "petiolule": {
+        "primary": {
+          "avg": 0.08262982,
+          "max": 0.09983929999999996
+        },
+        "intercalary": {
+          "avg": 0.018000000000000002,
+          "max": 0.020999999999999974
+        }
+      },
+      "attachUGap": {
+        "avg": 0.06142857142857143,
+        "max": 0.13,
+        "n": 14
+      },
+      "terminalClearance": {
+        "lastPrimaryU": 0.81,
+        "termU": 1,
+        "gap": 0.18999999999999995
+      },
+      "hierarchy": {
+        "terminalAvg": 0.4777529643238953,
+        "primaryAvg": 0.24932615650452555,
+        "intercalaryAvg": 0.08146945286365372,
+        "termOverPrim": 1.9161766700367178,
+        "primOverInter": 3.060363703703703
+      },
+      "rachis": {
+        "backtrack": 0,
+        "minSegDot": 0.9825024299905182,
+        "minAdjDot": 0.999024039213316,
+        "segCount": 16,
+        "polylineLen": 1.26478188533901,
+        "directDist": 1.2572446429576192,
+        "linearityRatio": 1.0059950483174538,
+        "midpointSagM": 0.09468358079409953,
+        "relSagPct": 7.531038714260105
+      },
+      "compactness": {
+        "maxPetioleAbsM": 0.12552242508163858,
+        "centroidSpreadM": 0.5290416856152488,
+        "spreadOverRachis": 0.42079454351119666
+      }
+    },
+    {
+      "parentTag": "axis0:n11",
+      "rachisLen": 1.1452118962541367,
+      "leafletCount": {
+        "total": 15,
+        "primary": 8,
+        "intercalary": 6,
+        "terminal": 1
+      },
+      "pairCount": 4,
+      "petiolule": {
+        "primary": {
+          "avg": 0.0834565,
+          "max": 0.11024750000000001
+        },
+        "intercalary": {
+          "avg": 0.018000000000000013,
+          "max": 0.021000000000000008
+        }
+      },
+      "attachUGap": {
+        "avg": 0.06142857142857143,
+        "max": 0.13,
+        "n": 14
+      },
+      "terminalClearance": {
+        "lastPrimaryU": 0.81,
+        "termU": 1,
+        "gap": 0.18999999999999995
+      },
+      "hierarchy": {
+        "terminalAvg": 0.4351805205765719,
+        "primaryAvg": 0.22938090388736002,
+        "intercalaryAvg": 0.07420973087726805,
+        "termOverPrim": 1.8971959443941857,
+        "primOverInter": 3.090981481481481
+      },
+      "rachis": {
+        "backtrack": 0,
+        "minSegDot": 0.9809805178328294,
+        "minAdjDot": 0.9989626416021898,
+        "segCount": 16,
+        "polylineLen": 1.1528810553864273,
+        "directDist": 1.1452118962541364,
+        "linearityRatio": 1.0066967162648028,
+        "midpointSagM": 0.08520506983905896,
+        "relSagPct": 7.440113931557598
+      },
+      "compactness": {
+        "maxPetioleAbsM": 0.12625674853227795,
+        "centroidSpreadM": 0.4847033476372298,
+        "spreadOverRachis": 0.4232433746301812
+      }
+    },
+    {
+      "parentTag": "axis0:n12",
+      "rachisLen": 0.9716698713523175,
+      "leafletCount": {
+        "total": 15,
+        "primary": 8,
+        "intercalary": 6,
+        "terminal": 1
+      },
+      "pairCount": 4,
+      "petiolule": {
+        "primary": {
+          "avg": 0.08262318000000002,
+          "max": 0.0997557
+        },
+        "intercalary": {
+          "avg": 0.018000000000000006,
+          "max": 0.021
+        }
+      },
+      "attachUGap": {
+        "avg": 0.06142857142857143,
+        "max": 0.13,
+        "n": 14
+      },
+      "terminalClearance": {
+        "lastPrimaryU": 0.81,
+        "termU": 1,
+        "gap": 0.18999999999999995
+      },
+      "hierarchy": {
+        "terminalAvg": 0.36923455111388065,
+        "primaryAvg": 0.1926778912351665,
+        "intercalaryAvg": 0.06296420766363017,
+        "termOverPrim": 1.9163306632997343,
+        "primOverInter": 3.0601177777777777
+      },
+      "rachis": {
+        "backtrack": 0,
+        "minSegDot": 0.9802472802216167,
+        "minAdjDot": 0.9989229619906148,
+        "segCount": 16,
+        "polylineLen": 0.9785850132329564,
+        "directDist": 0.9716698713523174,
+        "linearityRatio": 1.0071167606246914,
+        "midpointSagM": 0.07052003602467977,
+        "relSagPct": 7.257612704048732
+      },
+      "compactness": {
+        "maxPetioleAbsM": 0.09692960818566039,
+        "centroidSpreadM": 0.41444488248186045,
+        "spreadOverRachis": 0.4265284894601687
+      }
+    },
+    {
+      "parentTag": "axis0:n13",
+      "rachisLen": 0.7626537475998079,
+      "leafletCount": {
+        "total": 15,
+        "primary": 8,
+        "intercalary": 6,
+        "terminal": 1
+      },
+      "pairCount": 4,
+      "petiolule": {
+        "primary": {
+          "avg": 0.08344986,
+          "max": 0.11016390000000004
+        },
+        "intercalary": {
+          "avg": 0.017999999999999995,
+          "max": 0.021000000000000008
+        }
+      },
+      "attachUGap": {
+        "avg": 0.06142857142857143,
+        "max": 0.13,
+        "n": 14
+      },
+      "terminalClearance": {
+        "lastPrimaryU": 0.81,
+        "termU": 1,
+        "gap": 0.18999999999999995
+      },
+      "hierarchy": {
+        "terminalAvg": 0.289808424087927,
+        "primaryAvg": 0.15274403631763028,
+        "intercalaryAvg": 0.049419962844467556,
+        "termOverPrim": 1.8973469018801636,
+        "primOverInter": 3.0907355555555545
+      },
+      "rachis": {
+        "backtrack": 0,
+        "minSegDot": 0.9806319085711276,
+        "minAdjDot": 0.9989304956178202,
+        "segCount": 16,
+        "polylineLen": 0.7679410737307736,
+        "directDist": 0.7626537475998079,
+        "linearityRatio": 1.0069328003010616,
+        "midpointSagM": 0.05523030830168793,
+        "relSagPct": 7.24185890064875
+      },
+      "compactness": {
+        "maxPetioleAbsM": 0.0840169111852105,
+        "centroidSpreadM": 0.32487774732036767,
+        "spreadOverRachis": 0.42598328316462014
+      }
+    },
+    {
+      "parentTag": "axis0:n14",
+      "rachisLen": 0.539908118304902,
+      "leafletCount": {
+        "total": 15,
+        "primary": 8,
+        "intercalary": 6,
+        "terminal": 1
+      },
+      "pairCount": 4,
+      "petiolule": {
+        "primary": {
+          "avg": 0.08261653999999999,
+          "max": 0.09967210000000001
+        },
+        "intercalary": {
+          "avg": 0.01799999999999999,
+          "max": 0.021000000000000036
+        }
+      },
+      "attachUGap": {
+        "avg": 0.06142857142857143,
+        "max": 0.13,
+        "n": 14
+      },
+      "terminalClearance": {
+        "lastPrimaryU": 0.81,
+        "termU": 1,
+        "gap": 0.18999999999999995
+      },
+      "hierarchy": {
+        "terminalAvg": 0.20516508495586278,
+        "primaryAvg": 0.107052817565428,
+        "intercalaryAvg": 0.03498604606615765,
+        "termOverPrim": 1.9164846813160337,
+        "primOverInter": 3.059871851851852
+      },
+      "rachis": {
+        "backtrack": 0,
+        "minSegDot": 0.978787122774897,
+        "minAdjDot": 0.9988865121690353,
+        "segCount": 16,
+        "polylineLen": 0.5442422680779718,
+        "directDist": 0.539908118304902,
+        "linearityRatio": 1.0080275691846925,
+        "midpointSagM": 0.03807991497267164,
+        "relSagPct": 7.0530361892367
+      },
+      "compactness": {
+        "maxPetioleAbsM": 0.05381377595849803,
+        "centroidSpreadM": 0.23309592300628612,
+        "spreadOverRachis": 0.4317325765319387
+      }
+    },
+    {
+      "parentTag": "axis0:n15",
+      "rachisLen": 0.3252803527380642,
+      "leafletCount": {
+        "total": 15,
+        "primary": 8,
+        "intercalary": 6,
+        "terminal": 1
+      },
+      "pairCount": 4,
+      "petiolule": {
+        "primary": {
+          "avg": 0.08357618600000002,
+          "max": 0.11175438999999998
+        },
+        "intercalary": {
+          "avg": 0.018000000000000013,
+          "max": 0.021
+        }
+      },
+      "attachUGap": {
+        "avg": 0.06142857142857143,
+        "max": 0.13,
+        "n": 14
+      },
+      "terminalClearance": {
+        "lastPrimaryU": 0.81,
+        "termU": 1,
+        "gap": 0.18999999999999995
+      },
+      "hierarchy": {
+        "terminalAvg": 0.1236065340404644,
+        "primaryAvg": 0.06524565903019694,
+        "intercalaryAvg": 0.02107816685742656,
+        "termOverPrim": 1.8944790485334346,
+        "primOverInter": 3.095414296296296
+      },
+      "rachis": {
+        "backtrack": 0,
+        "minSegDot": 0.9774601189236832,
+        "minAdjDot": 0.9988970814080836,
+        "segCount": 16,
+        "polylineLen": 0.3282577465419589,
+        "directDist": 0.32528035273806416,
+        "linearityRatio": 1.0091533158361161,
+        "midpointSagM": 0.02228288979797189,
+        "relSagPct": 6.850364496473431
+      },
+      "compactness": {
+        "maxPetioleAbsM": 0.03635150739922719,
+        "centroidSpreadM": 0.14266896471371204,
+        "spreadOverRachis": 0.43860308042827867
+      }
+    },
+    {
+      "parentTag": "axis0:n16",
+      "rachisLen": 0.15524035219071913,
+      "leafletCount": {
+        "total": 15,
+        "primary": 8,
+        "intercalary": 6,
+        "terminal": 1
+      },
+      "pairCount": 4,
+      "petiolule": {
+        "primary": {
+          "avg": 0.08249287,
+          "max": 0.09811504999999997
+        },
+        "intercalary": {
+          "avg": 0.01799999999999997,
+          "max": 0.020999999999999998
+        }
+      },
+      "attachUGap": {
+        "avg": 0.06142857142857143,
+        "max": 0.13,
+        "n": 14
+      },
+      "terminalClearance": {
+        "lastPrimaryU": 0.81,
+        "termU": 1,
+        "gap": 0.18999999999999995
+      },
+      "hierarchy": {
+        "terminalAvg": 0.05899133383247327,
+        "primaryAvg": 0.030734933260855697,
+        "intercalaryAvg": 0.0100595748219586,
+        "termOverPrim": 1.919357798235573,
+        "primOverInter": 3.055291481481481
+      },
+      "rachis": {
+        "backtrack": 0,
+        "minSegDot": 0.9775049892816958,
+        "minAdjDot": 0.9989737381283857,
+        "segCount": 16,
+        "polylineLen": 0.15677054966195106,
+        "directDist": 0.15524035219071913,
+        "linearityRatio": 1.009856956967941,
+        "midpointSagM": 0.010243349051417928,
+        "relSagPct": 6.598380451258931
+      },
+      "compactness": {
+        "maxPetioleAbsM": 0.015231414917210011,
+        "centroidSpreadM": 0.06930327106559583,
+        "spreadOverRachis": 0.4464256237994998
+      }
+    },
+    {
+      "parentTag": "axis0:n17",
+      "rachisLen": 0.06203967910863436,
+      "leafletCount": {
+        "total": 13,
+        "primary": 8,
+        "intercalary": 4,
+        "terminal": 1
+      },
+      "pairCount": 4,
+      "petiolule": {
+        "primary": {
+          "avg": 0.08356755400000002,
+          "max": 0.11164571000000012
+        },
+        "intercalary": {
+          "avg": 0.017249999999999956,
+          "max": 0.02099999999999997
+        }
+      },
+      "attachUGap": {
+        "avg": 0.07166666666666667,
+        "max": 0.18999999999999995,
+        "n": 12
+      },
+      "terminalClearance": {
+        "lastPrimaryU": 0.81,
+        "termU": 1,
+        "gap": 0.18999999999999995
+      },
+      "hierarchy": {
+        "terminalAvg": 0.023575078061281056,
+        "primaryAvg": 0.01567829699540033,
+        "intercalaryAvg": 0.015543266044255584,
+        "termOverPrim": 1.5036759456845006,
+        "primOverInter": 1.0086874245580226
+      },
+      "rachis": {
+        "backtrack": 0,
+        "minSegDot": 0.9791370460414032,
+        "minAdjDot": 0.9985458214362548,
+        "segCount": 14,
+        "polylineLen": 0.06263272847206237,
+        "directDist": 0.06203967910863436,
+        "linearityRatio": 1.0095591945662639,
+        "midpointSagM": 0.003958986508434151,
+        "relSagPct": 6.381378120124996
+      },
+      "compactness": {
+        "maxPetioleAbsM": 0.006926464022255658,
+        "centroidSpreadM": 0.02818028385008368,
+        "spreadOverRachis": 0.454230006585603
+      }
+    }
+  ]
+}

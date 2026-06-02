@@ -529,15 +529,19 @@ const POSITION_DIR_WEIGHT: Record<LeafletPosition, { lateral: number; forward: n
   terminal:    { lateral: 0.00, forward: 1.00 },
 };
 
-// ─── Iter 39 Phase J0-7C — Primary direction _per pair index_ variation ──
-// 사용자 v15/v16: 모든 primary 동일 0.72/0.28은 fishbone grammar의 원인.
+// ─── Iter 39 Phase J0-7C / J0-8C-1 — Primary direction _per pair index_ variation ──
+// 사용자 v15/v16/v18: 모든 primary 동일 0.72/0.28은 fishbone grammar의 원인.
 // fan progression — base 쌍 더 lateral, terminal 쪽 쌍 더 forward (부채꼴).
-// 좌우는 _같은 pair index_ → _같은 weight_ 공유. side는 sign으로만 분기 (v16 #3).
+// 좌우는 _같은 pair index_ → _같은 weight_ 공유. side는 sign으로만 분기.
+//
+// J0-8C-1 (moderate): J0-7C amplitude가 시각상 spokes 인상 유지 → forward
+// component 전반적으로 증대. 사용자 v18 #4: strong 후보 바로 적용 X, moderate
+// 먼저 metric 비교.
 const PRIMARY_DIR_WEIGHT_BY_PAIR_INDEX: ReadonlyArray<{ lateral: number; forward: number }> = [
-  { lateral: 0.76, forward: 0.24 },  // pair[0] — base, 더 옆으로
-  { lateral: 0.70, forward: 0.30 },  // pair[1]
-  { lateral: 0.73, forward: 0.27 },  // pair[2] — rhythm
-  { lateral: 0.68, forward: 0.32 },  // pair[3] — terminal 쪽 쌍, 더 forward (fan)
+  { lateral: 0.70, forward: 0.30 },  // pair[0] — was 0.76/0.24
+  { lateral: 0.66, forward: 0.34 },  // pair[1] — was 0.70/0.30
+  { lateral: 0.68, forward: 0.32 },  // pair[2] — was 0.73/0.27 (rhythm)
+  { lateral: 0.62, forward: 0.38 },  // pair[3] — was 0.68/0.32 (terminal, fan)
 ];
 function getPrimaryDirWeight(pairIndex: number): { lateral: number; forward: number } {
   const idx = Math.max(0, Math.min(PRIMARY_DIR_WEIGHT_BY_PAIR_INDEX.length - 1, pairIndex));
