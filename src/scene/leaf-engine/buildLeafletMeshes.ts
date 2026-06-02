@@ -25,7 +25,9 @@ import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData';
 import { Vector3, Quaternion } from '@babylonjs/core/Maths/math.vector';
 import type { SeededRandom } from '@farmsim/tomato-engine';
-import { buildLeafletPlaneChunk } from '@farmsim/tomato-geometry';
+// ★ Iter 39 L3-B (S20) — leafletPlaneChunk를 src/scene/leaf-engine/로 이동.
+//   tomato-geometry는 cotyledon/stem/truss만 보유.
+import { buildLeafletPlaneChunk } from './leafletPlaneChunk';
 import type {
   SkeletonNode,
   LeafBladeRef,

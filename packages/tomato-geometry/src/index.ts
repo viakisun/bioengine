@@ -21,8 +21,8 @@ export {
 //   production canonical = LeafMeshBuilder → leafletPlaneChunk (이 패키지에 보존).
 
 // Iter 39 Phase A — per-leaflet plane chunk (Skin path 신규 entry).
-export { buildLeafletPlaneChunk } from './leafletPlaneChunk';
-export type { LeafletPlaneOptions, ShapeProfileSampleLite } from './leafletPlaneChunk';
+// ★ Iter 39 L3-B (S20) — leafletPlaneChunk를 src/scene/leaf-engine/로 이동.
+//   tomato-geometry는 cotyledon/stem/truss만 보유.
 
 export { buildLeafColorBytes, buildLeafNormalBytes, LEAF_TEX_SIZE } from './leafTexture';
 

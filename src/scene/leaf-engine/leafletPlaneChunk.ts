@@ -19,7 +19,9 @@
 // `createOvateLeaflet`은 ShowcasePlant + buildLeafChunkLegacy byte-identical
 // 보존을 위해 _변경 없음_. 본 generator는 Skin 경로 전용.
 
-import { newChunk, type GeoChunk } from './types';
+// ★ Iter 39 L3-B (S20) — leafletPlaneChunk를 src/scene/leaf-engine/로 이동.
+//   import path 갱신: ./types → @farmsim/tomato-geometry (newChunk + GeoChunk type).
+import { newChunk, type GeoChunk } from '@farmsim/tomato-geometry';
 
 export interface ShapeProfileSampleLite {
   u: number;
