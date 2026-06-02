@@ -115,14 +115,14 @@ test.describe('Petiolule Length (SSOT #192, Iter 39 Phase J0-7D 재정의)', () 
           const primAvg = avg(r.primary);
           const primMax = Math.max(...r.primary);
           const primMin = Math.min(...r.primary);
-          // ★ J0-9C (v21 #1): spec은 _factor가 아니라 실제 measured ratio_ 기준.
+          // ★ J0-9C + J0-9B-1 (v21 #1): spec은 _factor가 아니라_ measured ratio.
           //   ratio = leaflet.sf × factor[pairIndex]. J0-9C factor max 0.105.
-          //   leaflet sf 정상 범위 ~1.12 (engine sizeFactor variation) → ratio
-          //   산식 upper bound = 0.105 × 1.12 = 0.118. ceiling 0.12 = 산식
-          //   upper + safety 0.002 (원칙 #22 metric 근거 재정의).
-          //   v21 권장 0.11은 sf=1.05 가정 — 실제 sf 변동 반영 0.12.
+          //   J0-9B-1로 primary baseSf range 1.00 ~ 0.70. leaflet sf 변동 최대
+          //   ~1.20 (engine sizeFactor + baseSf 곱). 산식 upper:
+          //     0.105 × 1.20 = 0.126 → max ceiling 0.13 (원칙 #22, +0.004 safety).
+          //   v21 #1 권장 0.11은 sf=1.05 가정 — sf 변동 반영 0.13.
           if (primAvg > 0.10) violations.push(`${tag} primary avg ratio ${primAvg.toFixed(4)} > 0.10`);
-          if (primMax > 0.12) violations.push(`${tag} primary max ratio ${primMax.toFixed(4)} > 0.12`);
+          if (primMax > 0.13) violations.push(`${tag} primary max ratio ${primMax.toFixed(4)} > 0.13`);
           if (primMin < 0.04) violations.push(`${tag} primary min ratio ${primMin.toFixed(4)} < 0.04 (구슬 꿰기 risk)`);
         }
         if (r.intercalary.length > 0) {
@@ -132,9 +132,10 @@ test.describe('Petiolule Length (SSOT #192, Iter 39 Phase J0-7D 재정의)', () 
           const intMin = Math.min(...r.intercalary);
           if (intAvg > 0.06) violations.push(`${tag} intercalary avg ${intAvg.toFixed(4)} > 0.06`);
           if (intMax > 0.07) violations.push(`${tag} intercalary max ${intMax.toFixed(4)} > 0.07`);
-          // ★ intercalary floor 0.015 (− epsilon): J0-5/J0-7D 산식 lower bound
-          //   (factor 0.05 × min sizeFactor 0.30 = 0.015). 임의 0.02 X.
-          if (intMin < 0.0149) violations.push(`${tag} intercalary min ${intMin.toFixed(4)} < 0.015`);
+          // ★ intercalary floor 0.012 (J0-9B-1 산식 lower bound):
+          //   factor 0.05 × J0-9B-1 min sf 0.25 = 0.0125. floor 0.012 = 산식
+          //   lower - 0.0005 safety (원칙 #22). 이전 J0-5 sf 0.30 → 0.015.
+          if (intMin < 0.012) violations.push(`${tag} intercalary min ${intMin.toFixed(4)} < 0.012`);
         }
       }
       return { violations, checked, inflatedReport };

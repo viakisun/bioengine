@@ -16,6 +16,18 @@ edge.bonePath.last.p1  ≈ endNode.pos     (≤1mm)
 control 도구로 사용 금지. 시각 truncation은 `EdgeRenderPolicy.skinVisibleFraction`
 (`docs/architecture/EDGE_RENDER_POLICY.md`)로 분리.
 
+## ★ Skeleton J0 _Closed_ (Iter 39 Phase J0-9E)
+
+> **Status**: J0 종료. baseline은 [SKELETON_CLOSE.md](SKELETON_CLOSE.md),
+> 후속 phase는 [POSTCLOSE_PHASES.md](POSTCLOSE_PHASES.md).
+> 21 architecture invariants PASS. _이후 변경은 모든 invariants 회귀 검증 필수_.
+
+J0-9 신규 4 invariants (Compound Closure, influence radius 기반):
+- `CLOSURE-MAX-UNCOVERED-GAP-01`: rachis [0.15, 0.95] uncovered ≤ 0.18 mature / 0.30 young
+- `CLOSURE-INTERCALARY-FILL-01`: pair-base macro gap fill ≥ 0.60
+- `CLOSURE-TERMINAL-EMPHASIS-01`: terminalU ≥ 0.95, size ≥ 1.20, clearance ∈ [0.15, 0.28]
+- `CLOSURE-ROLE-SEPARATION-01`: sizeRatio ≥ 2.2, branchLenRatio ≥ 1.6
+
 ## ★ Skeleton Closure 원칙 (Iter 39 Phase J0)
 
 복엽-읽힘은 _구조 정합성_ (Phase H/I)과 _다른 문제_. J0가 _skeleton 자체가
@@ -38,6 +50,16 @@ control 도구로 사용 금지. 시각 truncation은 `EdgeRenderPolicy.skinVisi
    (LEAFLET-DETERMINISM-01 위반).
 8. **metrics는 _금지_ + _부재_ 모두 catch** — strict ceiling만 두면 0 → ∞
    approach 가능. floor 필요 (예: PETIOLULE-LEN min, RACHIS-CURVATURE-PRESENCE).
+**추가 J0-9 원칙** (v20/v21):
+
+10. **곱셈 score 금지** — 각 metric 범위가 다르면 곱셈은 수치 불일치. 독립
+    invariants 묶음 또는 0~100 정규화 점수제. CLOSURE 4 metric 같이.
+11. **Coverage = Influence Radius** — leaflet 간 center gap은 role 차이 무시.
+    primary 0.11 / intercalary 0.06 / terminal 0.10별 radius로 silhouette
+    coverage 측정.
+12. **Reporting first → Hard invariant** — 새 metric은 즉시 hard fail 금지.
+    baseline 측정 후 threshold 확정 → 활성. CLOSURE / SPACING-ZONE 모두.
+
 9. **Grammar 부재는 grammar 위반과 동등** — 단조 직선 + 등간격 + 동일 weight
    는 정합 통과지만 _grammar 부재_. 별도 invariant: RACHIS-CURVATURE-PRESENCE,
    ATTACH-SPACING-CV, BRANCH-DIR-VARIATION.
