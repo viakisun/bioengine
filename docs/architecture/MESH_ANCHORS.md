@@ -86,14 +86,45 @@ silent fallback 함정 방지).
 
 **Iter 39 K3 확장 — 3D anchor**:
 - `normalizeLeafMeshVertices`가 x_min vertex의 `(x, y, z)` _모두_ shift.
-- 결과: stem-side vertex = mesh-local `(0, 0, 0)`. mesh-local origin이
-  정확히 base vertex와 일치.
+- 결과: stem-side vertex = mesh-local `(0, 0, 0)`.
 
 **K3 진단 (probe)**:
 - yzOffset 분포: p50 **8.2mm**, p95 **35mm**, max **91mm** (Iter 24 산식 기준).
 - mesh.position = leafletNode.pos로 set해도 _실제 base vertex_ world position
   = node.pos + rotation × (0, y₀, z₀) → **시각상 leaflet이 공중에 떠 보임**.
-- K3로 yzOffset = 0 강제 → leaflet base가 정확히 leafletNode.pos에 anchor.
+- K3로 yzOffset = 0 강제 → leaflet base의 _첫_ vertex가 leafletNode.pos에 anchor.
+
+**Iter 39 L1-B 확장 — Centroid anchor (사용자 close-up 진단 정확)**:
+
+K3 (`strict less-than`)은 row=0의 _첫 만나는 vertex_ 선택. leafletPlaneChunk
+산식상 row=0 (stem-side)에 col 0~8 9 vertices가 모두 x = x_min:
+- col=0 → z = -halfWidthLeft (**leftmost edge**)
+- col=4 → z = 0 (center)
+- col=8 → z = +halfWidthRight (**rightmost edge**)
+
+K3 산식이 col=0 (left edge)를 anchor로 선택 → leaflet base의 _왼쪽 가장자리_
+가 leafletNode.pos에 매달림 (probe `firstMinXOffset` avg **7.8mm**).
+
+**L1-B fix** (Option B — Centroid):
+```ts
+// row=0 (x ≈ x_min) vertex들의 y, z 평균을 anchor로 사용.
+const EPS = 1e-5;
+let sumY = 0, sumZ = 0, count = 0;
+for each vertex with |x - minX| < EPS:
+  sumY += y, sumZ += z, count++
+yCenter = sumY / count;  zCenter = sumZ / count;
+// (minX, yCenter, zCenter) → mesh-local (0, 0, 0).
+```
+
+**결과**: `centroidOffset = 0.000mm` (avg over 118 leaflets). leaflet base
+중심이 정확히 leafletNode.pos. 사용자 #2 "센터가 아닌 끄트머리에 연결" 해소.
+
+**v2 보완** (사용자):
+1. EPS = **1e-5** (= 0.01mm tolerance, Float32 safe).
+2. needShift tolerance 비교 (`Math.abs(x) > 1e-9`).
+3. ANCHOR-01 invariant = row centroid 기준 (x_min vertex 단일 기준 폐기).
+4. Probe diagnostic: centroidOffset + firstMinXOffset 둘 다 출력 (차이 visualize).
+5. assertLeafAnchorInvariant 산식 동기 갱신.
 
 **위반 시 증상**: K0/K1/K2 (skinVisibleFraction 정책 조정)로 connector tube
 gap을 해소했음에도, _mesh anchor 자체_에 잔존 offset (~수십 mm)이 있어 leaflet

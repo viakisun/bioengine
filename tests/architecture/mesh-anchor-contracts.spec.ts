@@ -34,10 +34,10 @@ async function enterSkin(page: Page, day: number) {
 }
 
 test.describe('Mesh Anchor Contracts (SSOT #186)', () => {
-  test('ANCHOR-01 (K3 3D): leaflet mesh stem-side vertex (x, y, z) 모두 mesh-local (0,0,0) ≤1mm', async ({ page }) => {
-    // ★ K3 phase: x_min만 검증 → x_min vertex의 (x, y, z) _모두_ 검증.
-    //   K3 이전 산식 (x만 shift) 잔존 시 yzOffset (y² + z²) 잠재 — 사용자
-    //   진단으로 max 91mm 검출. K3 산식 (3D shift) 회귀 변경 catch.
+  test('ANCHOR-01 (L1-B center): leaflet mesh stem-side row centroid (x_min, y_avg, z_avg) ≤1mm', async ({ page }) => {
+    // L1-B (active 원칙 #38): _x_min vertex_ 단일 검증 → _x_min row의
+    //   geometric centroid_ 검증. K3 strict-less-than (col=0 left edge)
+    //   편향 fix. row=0의 9 vertices (col 0~8) 평균 = leaflet base center.
     test.setTimeout(120_000);
     await enterSkin(page, 45);
     const probe = await page.evaluate(() => {
@@ -49,37 +49,64 @@ test.describe('Mesh Anchor Contracts (SSOT #186)', () => {
       const leaves = scene?.meshes?.filter(m => m.name?.startsWith('skinplant_leaf_')) ?? [];
       return leaves.map(m => {
         const verts = m.getVerticesData('position');
-        if (!verts || verts.length < 3) return { name: m.name, minX_mm: NaN, yAt_mm: NaN, zAt_mm: NaN, offset_mm: NaN };
+        if (!verts || verts.length < 3) return {
+          name: m.name, minX_mm: NaN, yAvg_mm: NaN, zAvg_mm: NaN,
+          centroidOffset_mm: NaN, firstMinXOffset_mm: NaN, rowCount: 0,
+        };
         let minX = Infinity;
-        let yAt = 0;
-        let zAt = 0;
         for (let i = 0; i < verts.length; i += 3) {
-          if (verts[i] < minX) {
-            minX = verts[i];
-            yAt = verts[i + 1];
-            zAt = verts[i + 2];
+          if (verts[i] < minX) minX = verts[i];
+        }
+        const EPS = 1e-5;
+        let sumY = 0, sumZ = 0, count = 0;
+        // first-minX vertex (col=0 leftmost edge) — diagnostic (보완 #4).
+        let firstY = 0, firstZ = 0, foundFirst = false;
+        for (let i = 0; i < verts.length; i += 3) {
+          if (Math.abs(verts[i] - minX) < EPS) {
+            sumY += verts[i + 1];
+            sumZ += verts[i + 2];
+            count++;
+            if (!foundFirst) {
+              firstY = verts[i + 1];
+              firstZ = verts[i + 2];
+              foundFirst = true;
+            }
           }
         }
-        const offset = Math.sqrt(minX * minX + yAt * yAt + zAt * zAt);
+        const yAvg = count > 0 ? sumY / count : 0;
+        const zAvg = count > 0 ? sumZ / count : 0;
+        const centroidOffset = Math.sqrt(minX * minX + yAvg * yAvg + zAvg * zAvg);
+        const firstMinXOffset = Math.sqrt(minX * minX + firstY * firstY + firstZ * firstZ);
         return {
           name: m.name,
           minX_mm: minX * 1000,
-          yAt_mm: yAt * 1000,
-          zAt_mm: zAt * 1000,
-          offset_mm: offset * 1000,
+          yAvg_mm: yAvg * 1000,
+          zAvg_mm: zAvg * 1000,
+          centroidOffset_mm: centroidOffset * 1000,
+          firstMinXOffset_mm: firstMinXOffset * 1000,
+          rowCount: count,
         };
       });
     });
     expect(probe.length, 'leaf mesh 개수').toBeGreaterThan(0);
-    const violations = probe.filter(r => !(Math.abs(r.offset_mm) < 1));
+
+    // diagnostic: row count + first-minX offset 평균 (보완 #4 — center vs first 차이 visualize).
+    const validProbes = probe.filter(r => Number.isFinite(r.centroidOffset_mm));
+    const avgRowCount = validProbes.reduce((s, r) => s + r.rowCount, 0) / validProbes.length;
+    const avgFirstOffset = validProbes.reduce((s, r) => s + r.firstMinXOffset_mm, 0) / validProbes.length;
+    const avgCentroidOffset = validProbes.reduce((s, r) => s + r.centroidOffset_mm, 0) / validProbes.length;
     // eslint-disable-next-line no-console
+    console.log(`ANCHOR-01: n=${validProbes.length} avgRowCount=${avgRowCount.toFixed(1)} avgFirstMinXOffset=${avgFirstOffset.toFixed(3)}mm avgCentroidOffset=${avgCentroidOffset.toFixed(3)}mm`);
+
+    const violations = probe.filter(r => !(Math.abs(r.centroidOffset_mm) < 1));
     if (violations.length > 0) {
-      console.log(`ANCHOR-01 violations (${violations.length}):\n  ${violations.slice(0, 5).map(r => `${r.name}: offset=${r.offset_mm.toFixed(3)}mm (x=${r.minX_mm.toFixed(2)}, y=${r.yAt_mm.toFixed(2)}, z=${r.zAt_mm.toFixed(2)})`).join('\n  ')}`);
+      // eslint-disable-next-line no-console
+      console.log(`ANCHOR-01 violations (${violations.length}):\n  ${violations.slice(0, 5).map(r => `${r.name}: centroidOffset=${r.centroidOffset_mm.toFixed(3)}mm (x_min=${r.minX_mm.toFixed(2)}, y_avg=${r.yAvg_mm.toFixed(2)}, z_avg=${r.zAvg_mm.toFixed(2)})`).join('\n  ')}`);
     }
     for (const r of probe) {
       expect(
-        Math.abs(r.offset_mm),
-        `${r.name}: stem-side vertex 3D offset (x=${r.minX_mm.toFixed(3)}mm, y=${r.yAt_mm.toFixed(3)}mm, z=${r.zAt_mm.toFixed(3)}mm)`,
+        Math.abs(r.centroidOffset_mm),
+        `${r.name}: stem-side row centroid offset (x_min=${r.minX_mm.toFixed(3)}mm, y_avg=${r.yAvg_mm.toFixed(3)}mm, z_avg=${r.zAvg_mm.toFixed(3)}mm, rowN=${r.rowCount})`,
       ).toBeLessThan(1);
     }
   });
@@ -231,60 +258,78 @@ test.describe('Mesh Anchor Contracts (SSOT #186)', () => {
     }
   });
 
-  test('ANCHOR-04 (K3 3D): normalizeLeafMeshVertices stem-side vertex == (0, 0, 0)', async () => {
-    // K3 phase: x_min vertex의 (x, y, z) 모두 shift. stem-side = (0, 0, 0).
-    // K2까지: x만 shift (y/z = 임의). K3로 확장 — leaf base가 leafletNode.pos
-    // 에 정확 anchor (probe yzOffset p50 8.2mm → 0).
+  test('ANCHOR-04 (L1-B center): stem-side row centroid == (0, 0, 0)', async () => {
+    // L1-B (active 원칙 #38): stem-side row의 _geometric centroid_가
+    //   mesh-local (0, 0, 0)에 anchor. K3 strict-less-than (col=0 left edge)
+    //   편향 fix.
     //
-    // Synthetic chunk.positions — stem-side vertex (x_min) y=0.02, z=-0.01
-    // 같은 임의 offset 보유 fixture.
+    // Synthetic fixture: stem-side row (x = 0.03)에 3 vertices
+    //   y: 0.02, 0.04, 0.06 → avg 0.04
+    //   z: -0.02, 0.00, +0.02 → avg 0.00
+    //   centroid = (0.03, 0.04, 0.00)
+    // shift 후: (0, 0, 0) at centroid. col=0 vertex (0.03, 0.02, -0.02) →
+    //   shift 후 (0, -0.02, -0.02). x_min vertex가 _0이 아님_ 정상.
     const positions = new Float32Array([
-      0.05, 0.01, 0.10,
-      0.08, -0.01, 0.05,
-      // 가장 stem-side (x_min = 0.03, y = 0.02, z = -0.01) — K3 shift target
-      0.03, 0.02, -0.01,
+      // stem-side row (x = 0.03), 3 vertices
+      0.03, 0.02, -0.02,  // col=0 (left edge)
+      0.03, 0.04,  0.00,  // col=center
+      0.03, 0.06,  0.02,  // col=2 (right edge)
+      // other rows
       0.50, -0.10, 0.20,
       1.00, -0.20, 0.00,
     ]);
     const before = new Float32Array(positions);
     normalizeLeafMeshVertices(positions);
 
-    // K3 산식 byte-identical 재현.
+    // L1-B 산식 byte-identical 재현.
     const expected = new Float32Array(before);
     {
       let minX = Infinity;
-      let yAtMinX = 0;
-      let zAtMinX = 0;
       for (let i = 0; i < expected.length; i += 3) {
-        if (expected[i] < minX) {
-          minX = expected[i];
-          yAtMinX = expected[i + 1];
-          zAtMinX = expected[i + 2];
+        if (expected[i] < minX) minX = expected[i];
+      }
+      const EPS = 1e-5;
+      let sumY = 0, sumZ = 0, count = 0;
+      for (let i = 0; i < expected.length; i += 3) {
+        if (Math.abs(expected[i] - minX) < EPS) {
+          sumY += expected[i + 1];
+          sumZ += expected[i + 2];
+          count++;
         }
       }
-      const needShift = minX !== 0 || yAtMinX !== 0 || zAtMinX !== 0;
+      const yCenter = count > 0 ? sumY / count : 0;
+      const zCenter = count > 0 ? sumZ / count : 0;
+      const SHIFT_TOL = 1e-9;
+      const needShift =
+        Math.abs(minX)    > SHIFT_TOL ||
+        Math.abs(yCenter) > SHIFT_TOL ||
+        Math.abs(zCenter) > SHIFT_TOL;
       if (needShift) {
         for (let i = 0; i < expected.length; i += 3) {
           expected[i]     -= minX;
-          expected[i + 1] -= yAtMinX;
-          expected[i + 2] -= zAtMinX;
+          expected[i + 1] -= yCenter;
+          expected[i + 2] -= zCenter;
         }
       }
     }
     expect(Array.from(positions)).toEqual(Array.from(expected));
 
-    // K3 contract: stem-side vertex = (0, 0, 0).
+    // L1-B contract: stem-side row centroid = (0, 0, 0).
     let resultMinX = Infinity;
-    let yAt = 0, zAt = 0;
     for (let i = 0; i < positions.length; i += 3) {
-      if (positions[i] < resultMinX) {
-        resultMinX = positions[i];
-        yAt = positions[i + 1];
-        zAt = positions[i + 2];
+      if (positions[i] < resultMinX) resultMinX = positions[i];
+    }
+    const EPS = 1e-5;
+    let cy = 0, cz = 0, cn = 0;
+    for (let i = 0; i < positions.length; i += 3) {
+      if (Math.abs(positions[i] - resultMinX) < EPS) {
+        cy += positions[i + 1];
+        cz += positions[i + 2];
+        cn++;
       }
     }
     expect(resultMinX).toBeCloseTo(0, 6);
-    expect(yAt).toBeCloseTo(0, 6);
-    expect(zAt).toBeCloseTo(0, 6);
+    expect(cy / cn).toBeCloseTo(0, 6);
+    expect(cz / cn).toBeCloseTo(0, 6);
   });
 });

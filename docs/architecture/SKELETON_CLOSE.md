@@ -21,13 +21,17 @@
 **Critical**: 결정은 1-7 _metrics_ (active 원칙 #21 사용자: graph-native 정량
 기반). 8번은 _참고 reference_ — sanity check.
 
-## ★ 27 Invariants 누적 (H 4 + I 1 + J0-1~9 16 + K0 2 + K1 1 + K3 1 revised + L0 1 — Iter 39 Phase L0-D-1)
+## ★ 27 Invariants 누적 (H 4 + I 1 + J0-1~9 16 + K0 2 + K1 1 + K3 1 → L1 갱신 + L0 1 — Iter 39 Phase L1-B)
 
-> **L0-D-1 (Per-Leaflet Pitch)**: K3 후에도 close-up "안쪽 cup" 인상 잔존
-> 진단 — `foldDroopDeg = -10 + 40 × maturity` (mature 30°)이 leaflet plane
-> 평균 31° tilt 야기. Track A (vertex cup/droop) baseline 측정으로 _반박_
-> 후 폐기. Root cause = per-leaflet pose. fix: `-5 + 15 × maturity` (mature
-> 10°). normalDotUp p50 0.854 → 0.951. [LEAF_MESH_SHAPE.md](LEAF_MESH_SHAPE.md).
+> **L0-D-1 (Per-Leaflet Pitch)**: K3 후 close-up "안쪽 cup" 잔존 진단 →
+> `foldDroopDeg` -10+40m → -5+15m (mature 30°→10°). normalDotUp p50 0.951.
+> [LEAF_MESH_SHAPE.md](LEAF_MESH_SHAPE.md).
+>
+> **L1-B (Center Anchor)**: L0-D-1 후에도 사용자 "센터가 아닌 끄트머리에
+> 연결" 진단 — K3 strict-less-than이 row=0의 _첫_ vertex (col=0 leftmost edge)
+> 선택. probe `firstMinXOffset` avg 7.8mm 측정. fix: row=0 vertices의 centroid
+> shift. avgCentroidOffset 0.000mm. ANCHOR-01/04 (L1-B center) revised.
+> [MESH_ANCHORS.md](MESH_ANCHORS.md). 원칙 #38.
 
 > **K3 (Mesh Anchor 3D)**: K2 후에도 사용자 close-up _수십 mm gap_ 잔존
 > 진단 — `normalizeLeafMeshVertices`가 x만 shift, stem-side vertex y/z offset

@@ -122,3 +122,56 @@ mature leaflet 평균 기울기 30° → 18° (사용자 명시 목표 10~18° �
 ### Track A (폐기, 잠재 future)
 - vertex cup/droop 산식 변경.
 - 사용자 의도가 _더 droop 강화_라면 future option. 현재 droop은 충분 (21mm avg).
+
+### L1-B (Center Anchor, applied) — `S6` commit
+
+L0-D-1 후 사용자 추가 3가지 보고:
+1. 잎이 안쪽으로 말림 (잔존)
+2. **연결이 _센터_가 아닌 _끄트머리_** ★
+3. 잎 모양 앞뒤 뭉툭
+
+**진단**: K3 `normalizeLeafMeshVertices` strict-less-than이 row=0 (stem-side)의
+_첫_ vertex 선택. leafletPlaneChunk 산식상 row=0에 col 0~8 9 vertices가 모두
+x = x_min — col=0이 `-halfWidthLeft` (leftmost edge)에 위치.
+
+**측정** (probe ANCHOR-01 진단):
+```
+n=118 avgRowCount=9.0 avgFirstMinXOffset=7.818mm avgCentroidOffset=0.000mm
+```
+
+→ K3 산식의 _첫_ vertex가 row centroid에서 **평균 7.8mm offset** (leftmost
+edge로 치우침). 사용자 #2 "끄트머리에 연결" 정확.
+
+**Fix** (Option B, [leafAnchor.ts](../../src/plant/anchors/leafAnchor.ts)):
+```ts
+// row=0 (x ≈ x_min) vertices의 y, z 평균 → mesh-local (0, 0, 0).
+const EPS = 1e-5;
+let sumY = 0, sumZ = 0, count = 0;
+for each vertex with |x - minX| < EPS:
+  sumY += y; sumZ += z; count++;
+shift by (minX, sumY/count, sumZ/count).
+```
+
+**결과**: avgCentroidOffset 0.000mm. leaflet base _중심_이 정확히 leafletNode.pos.
+
+**5 보완 (사용자)**:
+1. EPS 1e-5 (= 0.01mm tolerance, Float32 safe).
+2. needShift는 tolerance 비교 (`Math.abs(x) > 1e-9`).
+3. ANCHOR-01 invariant = row centroid 기준 (x_min vertex 단일 폐기).
+4. Probe에 centroidOffset + firstMinXOffset 둘 다 (차이 visualize).
+5. assertLeafAnchorInvariant 산식 동기 갱신.
+
+**L1-B가 #1, #3 부수 해소 가능성**:
+- 좌측 edge anchor로 인한 _시각적 기울어진 인상_이 사용자 본 "안쪽 cup" 일부.
+- 끝 row vertex 겹침 ("뭉툭") 인상도 anchor 보정 후 다르게 보일 가능성.
+- → 사용자 시각 평가 후 L1-A / L1-C 별도 결정.
+
+### L1-A (잔존 curl, 대기)
+- L1-B 후 사용자 _여전히_ inward curl 보고 시.
+- L0-D-2 (opennessFactor) 또는 veinSurfaceStrength 조정.
+
+### L1-C (잎 모양 뭉툭, 대기)
+- L1-B 후 사용자 _여전히_ 뭉툭 보고 시.
+- 단순 epsilon taper _금지_ — 그 자체가 flat end 만들 수 있음.
+- cap topology 검토 (endpoint row collapse to 1 vertex 또는 별도 fan
+  triangulation).

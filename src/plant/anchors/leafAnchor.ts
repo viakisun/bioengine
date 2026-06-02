@@ -37,24 +37,46 @@ import type { LeafAnchor } from './types';
 export function normalizeLeafMeshVertices(
   chunkPositions: Float32Array | number[],
 ): void {
+  // L1-B: stem-side row의 _geometric centroid_를 anchor로 사용 (Option B).
+  // K3 strict-less-than이 row=0의 첫 vertex (col=0, leftmost edge)를 선택
+  // → leaflet base center가 아닌 _left edge_가 leafletNode.pos에 매달림
+  // (사용자 #2 "끄트머리에 연결" root cause).
+  //
+  // Option B: x ≈ minX인 모든 vertex (stem-side row)의 y, z 평균.
+  // - col=COLS/2 단순 선택 (Option A) 대비 _asymmetry > 0_ 케이스 robust.
+  // - leaflet plane 산식에 의존 안 함 — chunk_positions만 사용.
+
   let minX = Infinity;
-  let yAtMinX = 0;
-  let zAtMinX = 0;
   for (let i = 0; i < chunkPositions.length; i += 3) {
-    if (chunkPositions[i] < minX) {
-      minX = chunkPositions[i];
-      yAtMinX = chunkPositions[i + 1];
-      zAtMinX = chunkPositions[i + 2];
-    }
+    if (chunkPositions[i] < minX) minX = chunkPositions[i];
   }
   if (!Number.isFinite(minX)) return;
-  // K3: x_min vertex의 (x, y, z) 모두 0으로 shift. stem-side = (0, 0, 0).
-  const needShift = minX !== 0 || yAtMinX !== 0 || zAtMinX !== 0;
+
+  // v2 보완 #1: EPS = 1e-5 (= 0.01mm 단위, Float32 safe).
+  const EPS = 1e-5;
+  let sumY = 0, sumZ = 0, count = 0;
+  for (let i = 0; i < chunkPositions.length; i += 3) {
+    if (Math.abs(chunkPositions[i] - minX) < EPS) {
+      sumY += chunkPositions[i + 1];
+      sumZ += chunkPositions[i + 2];
+      count++;
+    }
+  }
+  const yCenter = count > 0 ? sumY / count : 0;
+  const zCenter = count > 0 ? sumZ / count : 0;
+
+  // v2 보완 #2: needShift는 tolerance 비교.
+  const SHIFT_TOL = 1e-9;
+  const needShift =
+    Math.abs(minX)    > SHIFT_TOL ||
+    Math.abs(yCenter) > SHIFT_TOL ||
+    Math.abs(zCenter) > SHIFT_TOL;
   if (!needShift) return;
+
   for (let i = 0; i < chunkPositions.length; i += 3) {
     chunkPositions[i]     -= minX;
-    chunkPositions[i + 1] -= yAtMinX;
-    chunkPositions[i + 2] -= zAtMinX;
+    chunkPositions[i + 1] -= yCenter;
+    chunkPositions[i + 2] -= zCenter;
   }
 }
 
@@ -87,27 +109,39 @@ export function makeLeafAnchor(
  * @param epsilon 기본 0.001 m (= 1 mm).
  */
 export function assertLeafAnchorInvariant(mesh: Mesh, epsilon: number = 0.001): void {
+  // L1-B (active 원칙 #38): anchor = stem-side row centroid (col 0~8 평균),
+  //   not _첫 만나는_ x_min vertex. K3 strict-less-than이 col=0 left edge로
+  //   편향 → leaflet base center 보장 위해 row centroid 검증.
+
   const verts = mesh.getVerticesData('position');
   if (!verts || verts.length < 3) {
     throw new Error(`[leafAnchor] mesh ${mesh.name} has no vertex data`);
   }
+
   let minX = Infinity;
-  let yAtMinX = 0;
-  let zAtMinX = 0;
   for (let i = 0; i < verts.length; i += 3) {
-    if (verts[i] < minX) {
-      minX = verts[i];
-      yAtMinX = verts[i + 1];
-      zAtMinX = verts[i + 2];
+    if (verts[i] < minX) minX = verts[i];
+  }
+
+  const EPS = 1e-5;
+  let sumY = 0, sumZ = 0, count = 0;
+  for (let i = 0; i < verts.length; i += 3) {
+    if (Math.abs(verts[i] - minX) < EPS) {
+      sumY += verts[i + 1];
+      sumZ += verts[i + 2];
+      count++;
     }
   }
-  const offset = Math.hypot(minX, yAtMinX, zAtMinX);
+  const yCenter = count > 0 ? sumY / count : 0;
+  const zCenter = count > 0 ? sumZ / count : 0;
+  const offset = Math.hypot(minX, yCenter, zCenter);
+
   if (offset > epsilon) {
     throw new Error(
-      `[leafAnchor] mesh ${mesh.name} stem-side vertex `
-      + `(${minX.toFixed(4)}, ${yAtMinX.toFixed(4)}, ${zAtMinX.toFixed(4)}) `
-      + `not at mesh-local (0,0,0) (offset=${offset.toFixed(4)}m, ε=${epsilon}). `
-      + `normalizeLeafMeshVertices() 호출 누락 또는 K3 이전 산식? `
+      `[leafAnchor] mesh ${mesh.name} stem-side row centroid `
+      + `(x_min=${minX.toFixed(4)}, y_avg=${yCenter.toFixed(4)}, z_avg=${zCenter.toFixed(4)}) `
+      + `not at mesh-local (0,0,0) (offset=${offset.toFixed(4)}m, ε=${epsilon}, n=${count}). `
+      + `normalizeLeafMeshVertices() 호출 누락 또는 K3/L1 이전 산식? `
       + `참조: docs/architecture/MESH_ANCHORS.md`,
     );
   }
