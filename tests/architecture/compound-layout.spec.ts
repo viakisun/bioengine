@@ -147,6 +147,87 @@ test.describe('Compound Leaf Layout (SSOT #193, Iter 39 Phase J0-4)', () => {
     ).toEqual([]);
   });
 
+  // ★ J0-7C — primary branch direction variance (pair index별 다른 weight).
+  //   pair count ≥ 2일 때만. 각 pair의 branch _forward 성분_ = dot(branchDir, rachisDir).
+  //   pair별 forward 평균의 variance > 0.0001 (모든 pair 동일 weight 금지).
+  test('BRANCH-DIR-VARIATION-01: primary pair index별 forward 성분 variance > 0 (pair ≥ 2)', async ({ page }) => {
+    test.setTimeout(120_000);
+    await enterSkin(page, 45);
+    const probe = await page.evaluate(() => {
+      const w = window as unknown as {
+        __lastGraph?: {
+          nodes?: Map<string, {
+            id: string;
+            pos: { x: number; y: number; z: number };
+            leafletRef?: { position: string; attachNodeId: string; bladeDir: { x: number; y: number; z: number } };
+          }>;
+        };
+      };
+      const graph = w.__lastGraph;
+      if (!graph?.nodes) return { leaves: [] };
+      // bladeDir의 forward 성분 (rachisDir에 대한 dot) 계산이 정확하려면 rachisDir
+      // 필요. 대안: bladeDir 자체의 leaf-local _좌표_ 비교.
+      // 좌우 pair는 같은 weight를 공유하므로 bladeDir이 거의 대칭. forward 성분 ≈
+      // (lateral×0 + forward×1) 부분이 같음 → pair _간_ forward 차이 검증.
+      // 산식: bladeDir과 그 leaf의 평균 rachisDir(= 잎의 first primary와 terminal
+      // 사이 벡터)로 forward 성분 추정.
+      const byTag = new Map<string, {
+        primaries: Array<{ pos: { x: number; y: number; z: number }; bladeDir: { x: number; y: number; z: number } }>;
+        terminal?: { x: number; y: number; z: number };
+        leafBladeRoot?: { x: number; y: number; z: number };
+      }>();
+      for (const node of graph.nodes.values()) {
+        const ref = node.leafletRef;
+        if (!ref) continue;
+        const tag = node.id.match(/axis\d+:n\d+/)?.[0];
+        if (!tag) continue;
+        if (!byTag.has(tag)) byTag.set(tag, { primaries: [] });
+        const g = byTag.get(tag)!;
+        if (ref.position === 'primary') g.primaries.push({ pos: node.pos, bladeDir: ref.bladeDir });
+        else if (ref.position === 'terminal') g.terminal = node.pos;
+      }
+      const leaves: Array<{ parentTag: string; pairCount: number; forwardVariance: number; forwards: number[] }> = [];
+      for (const [parentTag, g] of byTag) {
+        if (g.primaries.length < 4 || !g.terminal) continue;  // pair ≥ 2
+        // 잎 rachis 방향 = first primary attach → terminal.
+        const first = g.primaries[0];
+        const rx = g.terminal.x - first.pos.x;
+        const ry = g.terminal.y - first.pos.y;
+        const rz = g.terminal.z - first.pos.z;
+        const rLen = Math.hypot(rx, ry, rz);
+        if (rLen < 1e-6) continue;
+        const rDir = { x: rx / rLen, y: ry / rLen, z: rz / rLen };
+        // 좌우 쌍 단위로 평균 forward 성분 (bladeDir · rDir).
+        const forwards: number[] = [];
+        for (let i = 0; i + 1 < g.primaries.length; i += 2) {
+          const a = g.primaries[i].bladeDir;
+          const b = g.primaries[i + 1].bladeDir;
+          const fwd = (a.x * rDir.x + a.y * rDir.y + a.z * rDir.z
+                     + b.x * rDir.x + b.y * rDir.y + b.z * rDir.z) * 0.5;
+          forwards.push(fwd);
+        }
+        if (forwards.length < 2) continue;
+        const mean = forwards.reduce((a, b) => a + b, 0) / forwards.length;
+        const variance = forwards.reduce((a, b) => a + (b - mean) ** 2, 0) / forwards.length;
+        leaves.push({ parentTag, pairCount: forwards.length, forwardVariance: variance, forwards });
+      }
+      return { leaves };
+    });
+    const checkable = probe.leaves.filter(l => l.pairCount >= 2);
+    if (checkable.length === 0) {
+      console.warn('BRANCH-DIR-VARIATION-01: no leaf with pair ≥ 2, soft skip');
+      return;
+    }
+    const violations = checkable.filter(l => l.forwardVariance < 0.0001);
+    expect(
+      violations,
+      `BRANCH-DIR-VARIATION-01 violations (variance < 0.0001):\n`
+      + violations.slice(0, 10).map(v =>
+        `${v.parentTag}: variance=${v.forwardVariance.toFixed(6)} (forwards=${v.forwards.map(f => f.toFixed(3)).join(', ')})`
+      ).join('\n'),
+    ).toEqual([]);
+  });
+
   // ★ J0-7B — primary attach U rhythm (등간격 금지). active 원칙 #26.
   //   pair ≥ 3 (gap ≥ 2개)에서만 검증 — 1, 2쌍은 CV 정의 불가.
   test('ATTACH-SPACING-CV-01: primary 간격 CV ∈ [0.05, 0.30] (pair ≥ 3)', async ({ page }) => {

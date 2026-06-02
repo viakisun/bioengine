@@ -523,11 +523,26 @@ const ENABLE_SECONDARY_LEAFLETS = false;
 // 모든 leaflet의 forward 성분이 _양수_여야 함 (rachis 진행 방향 일관성).
 //
 const POSITION_DIR_WEIGHT: Record<LeafletPosition, { lateral: number; forward: number }> = {
-  primary:     { lateral: 0.72, forward: 0.28 },
+  primary:     { lateral: 0.72, forward: 0.28 },  // ★ J0-7C 후 _fallback_ only
   intercalary: { lateral: 0.62, forward: 0.38 },
   secondary:   { lateral: 0.55, forward: 0.45 },
   terminal:    { lateral: 0.00, forward: 1.00 },
 };
+
+// ─── Iter 39 Phase J0-7C — Primary direction _per pair index_ variation ──
+// 사용자 v15/v16: 모든 primary 동일 0.72/0.28은 fishbone grammar의 원인.
+// fan progression — base 쌍 더 lateral, terminal 쪽 쌍 더 forward (부채꼴).
+// 좌우는 _같은 pair index_ → _같은 weight_ 공유. side는 sign으로만 분기 (v16 #3).
+const PRIMARY_DIR_WEIGHT_BY_PAIR_INDEX: ReadonlyArray<{ lateral: number; forward: number }> = [
+  { lateral: 0.76, forward: 0.24 },  // pair[0] — base, 더 옆으로
+  { lateral: 0.70, forward: 0.30 },  // pair[1]
+  { lateral: 0.73, forward: 0.27 },  // pair[2] — rhythm
+  { lateral: 0.68, forward: 0.32 },  // pair[3] — terminal 쪽 쌍, 더 forward (fan)
+];
+function getPrimaryDirWeight(pairIndex: number): { lateral: number; forward: number } {
+  const idx = Math.max(0, Math.min(PRIMARY_DIR_WEIGHT_BY_PAIR_INDEX.length - 1, pairIndex));
+  return PRIMARY_DIR_WEIGHT_BY_PAIR_INDEX[idx];
+}
 
 // 사용자 v10 보완: forwardDir source interface. I1는 global rachisDir fallback만.
 //   I5 또는 후속에서 RachisChain이 tangentAt(u)를 제공하면 곡선 rachis 대응.
@@ -558,8 +573,12 @@ function computeBranchDir(
   lateralDir: V3,
   src: RachisDirSource,
   rachisU: number,
+  pairIndex?: number,  // ★ J0-7C: primary일 때 _쌍 index_로 weight 차별화
 ): V3 {
-  const w = POSITION_DIR_WEIGHT[position];
+  // primary + pairIndex 있을 때 per-pair-index weight, 외엔 fallback POSITION_DIR_WEIGHT.
+  const w = position === 'primary' && pairIndex != null
+    ? getPrimaryDirWeight(pairIndex)
+    : POSITION_DIR_WEIGHT[position];
   const forwardDir = src.tangentAt?.(rachisU) ?? src.rachisDir;
   const x = lateralDir.x * side * w.lateral + forwardDir.x * w.forward;
   const y = lateralDir.y * side * w.lateral + forwardDir.y * w.forward;
@@ -769,6 +788,7 @@ function computeLeafBladeRef(
 interface LeafletLayoutItem {
   position: LeafletPosition;
   side: -1 | 0 | 1;                  // -1=left, 0=center(terminal), +1=right
+  pairIndex?: number;                 // ★ J0-7C: primary 쌍 index (0..pairCount-1). primary일 때만.
   rachisU: number;                   // 최종 attach U (stagger 적용 후, uKey 통과)
   sizeFactor: number;
   edgeType: 'lateral-vein' | 'petiolule' | 'leaf-rachis';
@@ -803,12 +823,12 @@ function pushPrimaryLayoutItems(
     const sfL = baseSf * (1 - 0.10) * (1 - im * 0.5);
     const sfR = baseSf * (1 + 0.10) * (1 + im * 0.5);
     items.push({
-      position: 'primary', side: -1,
+      position: 'primary', side: -1, pairIndex: i,
       rachisU: parseFloat(uKey(baseU - 0.020)),
       sizeFactor: sfL, edgeType: 'lateral-vein',
     });
     items.push({
-      position: 'primary', side: +1,
+      position: 'primary', side: +1, pairIndex: i,
       rachisU: parseFloat(uKey(baseU + 0.020)),
       sizeFactor: sfR, edgeType: 'lateral-vein',
     });
@@ -1143,6 +1163,7 @@ function addLeafletNodesForLeaf(
     sf: number,
     lateralOffsetSign: number,
     edgeType: 'lateral-vein' | 'petiolule',
+    pairIndex?: number,  // ★ J0-7C: primary 쌍 index
   ): {
     lid: string; pos: V3; edgeId: string;
     attachNodeId: string; position: LeafletPosition; rachisU: number; bladeDir: V3;
@@ -1167,7 +1188,7 @@ function addLeafletNodesForLeaf(
     void stemPositionT;
     const side: -1 | 0 | 1 = lateralOffsetSign < 0 ? -1 : lateralOffsetSign > 0 ? +1 : 0;
     const dirOut = computeBranchDir(
-      position, side, lateralDir, { rachisDir }, rachisU,
+      position, side, lateralDir, { rachisDir }, rachisU, pairIndex,
     );
     // ★ Iter 39 Phase I2-B — position별 branch length (위계 시각 구분).
     //   primary 22% / intercalary 14% / secondary 10% / terminal 0.
@@ -1386,6 +1407,7 @@ function addLeafletNodesForLeaf(
       item.sizeFactor,
       item.side,
       item.edgeType,
+      item.pairIndex,  // ★ J0-7C: primary일 때 쌍 index 전달
     );
   };
 
