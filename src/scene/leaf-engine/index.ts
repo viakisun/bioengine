@@ -28,7 +28,8 @@ import { AGE_PRESETS, applyCorrelation, type ResolvedLeafParams } from './LeafMe
 import { buildShapeProfile, type ShapeProfileSample } from './LeafMeshBuilder';
 // ★ Iter 39 L3-C S21 — lobeNoise + serrationNoise inline to LeafMeshBuilder.
 import { lobeNoise, serrationNoise } from './LeafMeshBuilder';
-import { computeLeafletPose, type LeafletPose } from './poseVariation';
+// ★ Iter 39 L3-C S24 — poseVariation inline to LeafMeshBuilder.
+import { computeLeafletPose, type LeafletPose } from './LeafMeshBuilder';
 
 export interface CompoundLeafDescriptor {
   /** Resolved 잎 전체 파라미터 (correlation 적용 후). */
@@ -146,5 +147,5 @@ export { PROFILE_BY_POSITION, applyPositionProfile } from './LeafMeshBuilder';
 export type { LeafletPosition, LeafletShapeProfile } from './LeafMeshBuilder';
 
 // Iter 39 Phase F4 — LeafInstanceProfile (per-compound-leaf macro variation).
-export { computeLeafInstanceProfile } from './leafInstanceProfile';
-export type { LeafInstanceProfile } from './leafInstanceProfile';
+export { computeLeafInstanceProfile } from './LeafMeshBuilder';
+export type { LeafInstanceProfile } from './LeafMeshBuilder';

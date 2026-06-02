@@ -60,7 +60,8 @@ import { populateNodeTypes } from './populator/populateNodeTypes';
 import { populateAnchorMorphology } from './populator/populateAnchorMorphology';
 import { populateEdgePolicies } from './populator/populateEdgePolicies';
 // ★ Iter 39 Phase F4 — LeafInstanceProfile (leaf-level macro variation).
-import { computeLeafInstanceProfile } from '../../scene/leaf-engine/leafInstanceProfile';
+// ★ Iter 39 L3-C S24 — leafInstanceProfile inline to LeafMeshBuilder.
+import { computeLeafInstanceProfile } from '../../scene/leaf-engine/LeafMeshBuilder';
 
 type V3 = { x: number; y: number; z: number };
 

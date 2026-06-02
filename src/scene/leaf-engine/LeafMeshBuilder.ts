@@ -66,6 +66,93 @@ export function lobeNoise(u: number, amp: number, seed: number): number {
   return Math.max(0, v) * amp;
 }
 
+// ─── L3-C S24: leafInstanceProfile + poseVariation (inline) ─────────────
+// 잎 1장당 1번 산출되는 macro-level traits + per-leaflet pose.
+
+import type { LeafletPosition as SkeletonLeafletPosition } from '../../plant/skeleton/PlantSkeletonGraph';
+
+export interface LeafInstanceProfile {
+  rachisCurvature: number;
+  leafDroopDeg: number;
+  leftRightImbalance: number;
+  spacingBias: number;
+  opennessFactor: number;
+  overallTwist: number;
+}
+
+function smoothstep(edge0: number, edge1: number, x: number): number {
+  const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+  return t * t * (3 - 2 * t);
+}
+
+function lerpScalar(a: number, b: number, t: number): number {
+  return a + (b - a) * Math.max(0, Math.min(1, t));
+}
+
+/**
+ * Compute leaf-level variation profile.
+ * Deterministic: leafNodeIdx + globalSeed 기반 — same plant seed → same profile.
+ */
+export function computeLeafInstanceProfile(
+  leafNodeIdx: number,
+  maturity: number,
+  nodePositionT: number,
+  globalSeed: number,
+): LeafInstanceProfile {
+  const seed = (globalSeed * 1009 + leafNodeIdx * 31) >>> 0;
+  const h = (i: number): number => ((seed * (i * 7919 + 1) + 49297) % 1000) / 1000;
+  const signed = (i: number): number => h(i) * 2 - 1;
+
+  const rachisCurvature = signed(1) * 0.15;
+  const droopBase = lerpScalar(-10, 30, maturity);
+  const leafDroopDeg = droopBase + signed(2) * 8;
+  const apexBoost = nodePositionT > 0.85 ? 1.3 : 1.0;
+  const leftRightImbalance = signed(3) * 0.20 * apexBoost;
+  const spacingBias = signed(4) * 0.05;
+  const opennessBase = lerpScalar(0.25, 1.0, smoothstep(0.15, 0.85, maturity));
+  const opennessFactor = Math.max(0.25, Math.min(1.05, opennessBase + signed(5) * 0.1));
+  const overallTwist = signed(6) * 0.10;
+
+  return {
+    rachisCurvature,
+    leafDroopDeg,
+    leftRightImbalance,
+    spacingBias,
+    opennessFactor,
+    overallTwist,
+  };
+}
+
+export interface LeafletPose {
+  attachAngleDeg: number;
+  pitchDeg: number;
+  rollDeg: number;
+  twistDeg: number;
+}
+
+/** Leaflet pose 산출 — botanical model 기반 deterministic noise. */
+export function computeLeafletPose(
+  position: SkeletonLeafletPosition,
+  rachisU: number,
+  poseDroopDeg: number,
+  seed: number,
+): LeafletPose {
+  let attachAngleDeg: number;
+  switch (position) {
+    case 'terminal':    attachAngleDeg = 0; break;
+    case 'primary':     attachAngleDeg = 60 + (seed % 10) - 5; break;
+    case 'secondary':   attachAngleDeg = 70 + (seed % 15); break;
+    case 'intercalary': attachAngleDeg = 75 + (seed % 10); break;
+  }
+
+  const pitchNoise = (Math.sin(seed * 1.3 + rachisU * 6) * 5);
+  const pitchDeg = poseDroopDeg + pitchNoise;
+  const rollDeg = (Math.sin(seed * 2.7) * 18);
+  const twistDeg = (Math.sin(seed * 3.1 + rachisU * 4) * 12);
+
+  return { attachAngleDeg, pitchDeg, rollDeg, twistDeg };
+}
+
 // ─── L3-C S23: agePresets + correlationRules (inline) ───────────────────
 // 사용자 botanical reference §7-8: 5 age presets + complexity 묶음 산식.
 
