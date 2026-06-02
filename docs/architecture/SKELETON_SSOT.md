@@ -16,6 +16,23 @@ edge.bonePath.last.p1  ≈ endNode.pos     (≤1mm)
 control 도구로 사용 금지. 시각 truncation은 `EdgeRenderPolicy.skinVisibleFraction`
 (`docs/architecture/EDGE_RENDER_POLICY.md`)로 분리.
 
+## ★ Layout-first 원칙 (Iter 39 Phase I)
+
+**모든 leaflet의 최종 (position, side, rachisU, sizeFactor)는 _먼저_ 확정** →
+attachUs는 layout 결과에서 산출 → strict exact match만 사용.
+
+**금지**:
+- `attachUs` 생성 후 leaflet U를 별도 stagger/jitter로 이동 (mismatch 위험)
+- `findAttachNodeForU` nearest fallback (truss/fishbone 인상의 원인)
+- skeleton `rachisU`에 `profile.spacingBias` 또는 per-leaflet jitter 적용
+
+**필수**:
+- 모든 attach U map key는 `uKey(u): string` 으로 단일화 (`Map<string, ...>`)
+- `getExactAttachNodeId` strict — miss 시 hard error
+- `materializeLeafletSpec(item)` wrapper로 layout item이 source of truth임을 명시
+
+자세한 내용: `docs/architecture/LEAFLET_LAYOUT.md`.
+
 ## 원칙
 
 모든 botanical 결정 — _부착점, 회전, 크기, 방향, 곡선_ — 은 **skeleton (graph)**
@@ -79,6 +96,12 @@ control 도구로 사용 금지. 시각 truncation은 `EdgeRenderPolicy.skinVisi
    - 같은 잎 안의 모든 leaflet은 _공유_
 
 ## Invariants 검증 (자동)
+
+`tests/architecture/leaflet-attach-coherence.spec.ts` (Iter 39 Phase I5, 신규):
+- **LEAFLET-ATTACH-COHERENCE-01**: primary/intercalary `leafletRef.attachNodeId`
+  가 `rachis-attach` node를 가리키고, leaflet edge의 `startNodeId == attachNodeId`
+  (terminal/secondary 제외 — 별도 의미). graph-native 합성: SKELETON-EDGE-01이
+  보장하는 `edge.bonePath endpoint == node.pos` 위에서 incidence만 점검.
 
 `tests/architecture/skeleton-edge-consistency.spec.ts` (Iter 39 Phase H0, 신규):
 - **SKELETON-EDGE-01**: 모든 edge bonePath endpoint == startNode/endNode.pos (≤1mm).
