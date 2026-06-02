@@ -1145,19 +1145,15 @@ function addLeafletNodesForLeaf(
     //   primary 22% / intercalary 14% / secondary 10% / terminal 0.
     const outAmount = computeBranchLength(position, sf, rachisLen);
 
-    // ★ Iter 37 Q2.3 — 3D pose roll/twist (사용자 §6 roll±20° / twist±15°).
-    //   leaflet position을 _같은 평면_에 두지 않도록 small y/z offset.
-    const rollSeed = leafNodeIdx * 0.7919 + leafletCounter * 19;
-    const twistSeed = leafNodeIdx * 0.7919 + leafletCounter * 23;
-    const rollDeg = ((rollSeed * 17) % 400 - 200) / 10;    // ±20°
-    const twistDeg = ((twistSeed * 19) % 300 - 150) / 10;  // ±15°
-    const rollOffset = Math.sin(rollDeg * Math.PI / 180) * sf * 0.005;   // ~±1mm
-    const twistOffset = Math.sin(twistDeg * Math.PI / 180) * sf * 0.003;
-
+    // ★ Iter 39 Phase J0-2C — roll/twist offset 제거.
+    //   기존 `rollOffset = sin(rollDeg) × sf × 5mm`, `twistOffset = sin(twistDeg) × sf × 3mm`
+    //   가 _leaflet skeleton node 위치 자체_를 흔들었음 (visual 연출이
+    //   structural에 누락). J0 active 원칙 #18: skeleton node.pos는 deterministic.
+    //   visual roll/twist 연출은 J1의 leaf plane pose quaternion 단계로 위임.
     const leafletPos: V3 = {
       x: rachisPos.x + dirOut.x * outAmount,
-      y: rachisPos.y + dirOut.y * outAmount + rollOffset,
-      z: rachisPos.z + dirOut.z * outAmount + twistOffset,
+      y: rachisPos.y + dirOut.y * outAmount,
+      z: rachisPos.z + dirOut.z * outAmount,
     };
     // ★ Iter 39 Phase G3 — helper로 minReadable + hierarchy clamp 적용.
     //   skeleton SSOT: skin은 lengthM _그대로 사용_, skip 금지 (B5).
