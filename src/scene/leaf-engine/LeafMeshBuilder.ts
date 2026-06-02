@@ -34,6 +34,61 @@ import { buildLeafletMeshes, type LeafletMeshBuildContext } from './buildLeaflet
 
 export type LeafMeshBuildInput = LeafletMeshBuildContext;
 
+// ─── L3-C S21: lobe + serration noise (inline) ──────────────────────────
+// 사용자 botanical reference §5: "큰 갈라짐 + 작은 톱니" 두 layer.
+//   lobeNoise(u, amp, seed)       → low frequency / high amplitude (잎 큰 결각)
+//   serrationNoise(u, amp, freq, seed) → high frequency / low amplitude (잎 톱니)
+
+/**
+ * Lobe noise — 잎 outline에 추가될 큰 갈라짐 (낮은 빈도, 큰 진폭).
+ * sin 합성 (deterministic + 가벼움, Perlin 대신 단순 Fourier).
+ *
+ * @param u 잎 길이 0-1 (base → tip).
+ * @param amp lobe 진폭 (잎 폭 대비, ResolvedLeafParams.lobeDepth).
+ * @param seed deterministic seed (per leaf instance ID).
+ */
+export function lobeNoise(u: number, amp: number, seed: number): number {
+  const freq1 = 2.0 + (seed % 1.5);    // 2.0-3.5 Hz
+  const freq2 = 3.7 + ((seed * 7) % 1.2); // 3.7-4.9 Hz
+  const freq3 = 5.1 + ((seed * 13) % 1.0); // 5.1-6.1 Hz
+
+  const phase1 = (seed * 0.7) % (Math.PI * 2);
+  const phase2 = (seed * 1.3) % (Math.PI * 2);
+  const phase3 = (seed * 2.1) % (Math.PI * 2);
+
+  const v = (
+    Math.sin(2 * Math.PI * freq1 * u + phase1) * 0.5 +
+    Math.sin(2 * Math.PI * freq2 * u + phase2) * 0.3 +
+    Math.sin(2 * Math.PI * freq3 * u + phase3) * 0.2
+  );
+
+  // [-1, 1] → [0, amp] (잎 outline은 항상 _바깥쪽으로_ 갈라짐).
+  return Math.max(0, v) * amp;
+}
+
+/**
+ * Triangle wave — period 1 단위로 톱니 형성. 결과 [0, 1].
+ */
+function triangleWave(x: number): number {
+  const f = x - Math.floor(x);
+  return f < 0.5 ? f * 2 : 2 - f * 2;
+}
+
+/**
+ * Serration noise — 잎 outline에 추가될 작은 톱니 (높은 빈도, 작은 진폭).
+ *
+ * @param u 잎 길이 0-1.
+ * @param amp 톱니 진폭 (잎 폭 대비, ResolvedLeafParams.serrationAmp).
+ * @param freq 톱니 빈도 (한쪽당 10-28).
+ * @param seed deterministic seed.
+ */
+export function serrationNoise(u: number, amp: number, freq: number, seed: number): number {
+  if (amp <= 0 || freq <= 0) return 0;
+  const phase = (seed * 0.5) % 1.0;
+  const t = triangleWave(u * freq + phase);
+  return t * amp;
+}
+
 // ─── L2-3: Per-Leaflet Position Profile re-export ──────────────────────────
 // 산식은 leafletPositionProfile.ts (pure module, Babylon 의존 0, unit test 가능).
 export {

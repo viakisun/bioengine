@@ -26,8 +26,8 @@ import { AGE_PRESETS } from './agePresets';
 import type { ResolvedLeafParams } from './correlationRules';
 import { applyCorrelation } from './correlationRules';
 import { buildShapeProfile, type ShapeProfileSample } from './shapeProfile';
-import { lobeNoise } from './lobeNoise';
-import { serrationNoise } from './serrationNoise';
+// ★ Iter 39 L3-C S21 — lobeNoise + serrationNoise inline to LeafMeshBuilder.
+import { lobeNoise, serrationNoise } from './LeafMeshBuilder';
 import { computeLeafletPose, type LeafletPose } from './poseVariation';
 
 export interface CompoundLeafDescriptor {
