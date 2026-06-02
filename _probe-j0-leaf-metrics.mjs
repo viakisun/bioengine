@@ -132,11 +132,29 @@ async function main() {
           if (endNode) attachPoints.push({ ...endNode.pos });
         }
       }
+      // ★ J0-7E (v16) — rachis linearity ratio + midpoint sag (직선 부재 측정).
       let backtrack = 0, minAdjDot = 1, minSegDot = 1;
+      let polylineLen = 0, directDist = 0, linearityRatio = 1, midpointSagM = 0;
       if (attachPoints.length >= 2) {
         const startP = attachPoints[0], endP = attachPoints[attachPoints.length - 1];
         const gx = endP.x - startP.x, gy = endP.y - startP.y, gz = endP.z - startP.z;
         const gLen = Math.hypot(gx, gy, gz);
+        directDist = gLen;
+        for (let i = 0; i < attachPoints.length - 1; i++) {
+          polylineLen += Math.hypot(
+            attachPoints[i + 1].x - attachPoints[i].x,
+            attachPoints[i + 1].y - attachPoints[i].y,
+            attachPoints[i + 1].z - attachPoints[i].z,
+          );
+        }
+        linearityRatio = gLen > 1e-6 ? polylineLen / gLen : 1;
+        // midpoint sag
+        const midIdx = Math.floor(attachPoints.length / 2);
+        const midPt = attachPoints[midIdx];
+        const lerpMidX = startP.x + (endP.x - startP.x) * 0.5;
+        const lerpMidY = startP.y + (endP.y - startP.y) * 0.5;
+        const lerpMidZ = startP.z + (endP.z - startP.z) * 0.5;
+        midpointSagM = Math.hypot(midPt.x - lerpMidX, midPt.y - lerpMidY, midPt.z - lerpMidZ);
         if (gLen > 1e-6) {
           const gDir = { x: gx / gLen, y: gy / gLen, z: gz / gLen };
           const tans = [];
@@ -194,7 +212,9 @@ async function main() {
           termOverPrim: primSize > 0 ? termSize / primSize : 0,
           primOverInter: interSize > 0 ? primSize / interSize : 0,
         },
-        rachis: { backtrack, minSegDot, minAdjDot, segCount: attachPoints.length },
+        rachis: { backtrack, minSegDot, minAdjDot, segCount: attachPoints.length,
+                  polylineLen, directDist, linearityRatio, midpointSagM,
+                  relSagPct: directDist > 0 ? (midpointSagM / directDist * 100) : 0 },
         compactness: { maxPetioleAbsM: maxPetioleAbs, centroidSpreadM: spread, spreadOverRachis: rachisLen > 0 ? spread / rachisLen : 0 },
       });
     }

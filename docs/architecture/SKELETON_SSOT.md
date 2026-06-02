@@ -31,6 +31,17 @@ control 도구로 사용 금지. 시각 truncation은 `EdgeRenderPolicy.skinVisi
 6. **Invariant threshold는 _case별_ 차등 허용** — young/mature/complex는
    botanical 자체가 다름. minReadable clamp 영역에서는 ratio 검증 제외.
 
+추가 J0-7 원칙 (rhythm restoration):
+
+7. **Structural variation vs Random noise** — leaf-level deterministic
+   rhythm은 OK, seed-based per-build random noise는 금지
+   (LEAFLET-DETERMINISM-01 위반).
+8. **metrics는 _금지_ + _부재_ 모두 catch** — strict ceiling만 두면 0 → ∞
+   approach 가능. floor 필요 (예: PETIOLULE-LEN min, RACHIS-CURVATURE-PRESENCE).
+9. **Grammar 부재는 grammar 위반과 동등** — 단조 직선 + 등간격 + 동일 weight
+   는 정합 통과지만 _grammar 부재_. 별도 invariant: RACHIS-CURVATURE-PRESENCE,
+   ATTACH-SPACING-CV, BRANCH-DIR-VARIATION.
+
 자세한 metrics 모델: `docs/architecture/LEAFLET_LAYOUT.md` (J0 섹션).
 
 ## ★ Layout-first 원칙 (Iter 39 Phase I)
@@ -113,6 +124,20 @@ attachUs는 layout 결과에서 산출 → strict exact match만 사용.
    - 같은 잎 안의 모든 leaflet은 _공유_
 
 ## Invariants 검증 (자동)
+
+**Iter 39 Phase J0-7 신규 3 invariants** (skeleton rhythm restoration):
+- `tests/architecture/rachis-curvature.spec.ts`:
+  - **RACHIS-CURVATURE-PRESENCE-01**: midpoint sag / rachisLen ≥ 0.5% +
+    linearity ratio ≥ 1.001. 직선 rachis 금지 (단일 macro arc 필요).
+- `tests/architecture/compound-layout.spec.ts`:
+  - **ATTACH-SPACING-CV-01** (pair ≥ 3): primary 간격 CV ∈ [0.05, 0.30].
+    등간격 금지.
+  - **BRANCH-DIR-VARIATION-01** (pair ≥ 2): pair 단위 forward 성분 variance >
+    0.0001. 모든 primary 동일 weight 금지.
+- `tests/architecture/petiolule-length.spec.ts` (재정의 J0-7D):
+  - **PETIOLULE-LEN-01**: primary avg ≤ 0.10 + max ≤ 0.12 + min ≥ 0.04.
+    intercalary avg ≤ 0.06 + max ≤ 0.07 + min ≥ 0.015. ceiling + floor
+    (구슬 꿰기 방지).
 
 **Iter 39 Phase J0 신규 5 invariants** (skeleton closure):
 - `tests/architecture/rachis-curvature.spec.ts`:

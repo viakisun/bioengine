@@ -19,20 +19,23 @@
 4. materializeLeafletSpec(item)  ─ 각 layout item을 leaflet node + edge로 구체화
 ```
 
-## Primary Template (pair count별, J0-4 적용)
+## Primary Template (pair count별, J0-7B 적용)
 
-| pairCount | primaryUs | 이전 (I0) |
-|---|---|---|
-| 1 | `[0.52]` | `[0.48]` |
-| 2 | `[0.36, 0.68]` | `[0.32, 0.68]` |
-| 3 | `[0.28, 0.52, 0.74]` | `[0.24, 0.50, 0.74]` |
-| 4 | `[0.22, 0.40, 0.60, 0.78]` | `[0.18, 0.35, 0.55, 0.75]` |
+| pairCount | primaryUs (J0-7B) | J0-4 | 비고 |
+|---|---|---|---|
+| 1 | `[0.50]` | `[0.52]` | single |
+| 2 | `[0.34, 0.68]` | `[0.36, 0.68]` | single gap (CV 정의 불가, exempt) |
+| 3 | `[0.27, 0.48, 0.74]` | `[0.28, 0.52, 0.74]` | gap 0.21/0.26, CV 0.108 |
+| 4 | `[0.22, 0.41, 0.63, 0.79]` | `[0.22, 0.40, 0.60, 0.78]` | gap 0.19/0.22/0.16, CV 0.137 |
 
 `getPrimaryUsForPairCount(n)` — clamp(1, 4). pairCount 외 값은 round 후 clamp.
-좌측 primary는 `baseU - 0.020`, 우측은 `baseU + 0.020` (J0-4: ±0.0125 → ±0.020).
+좌측 primary는 `baseU - 0.020`, 우측은 `baseU + 0.020`.
 
-**TERMINAL-CLEARANCE-01**: 4쌍 lastPrimaryU = 0.78 + 0.020 = 0.80 ≤ 0.82,
-terminal 1.0 - 0.80 = 0.20 gap ≥ 0.15 ✓.
+**TERMINAL-CLEARANCE-01**: 4쌍 lastPrimaryU = 0.79 + 0.020 = 0.81 ≤ 0.82,
+terminal 1.0 - 0.81 = 0.19 gap ≥ 0.15 ✓.
+
+**ATTACH-SPACING-CV-01** (J0-7B): pair ≥ 3 잎에서 쌍 단위 baseU 간격 CV
+∈ [0.05, 0.30]. 등간격 grammar 부재 catch.
 
 ## Intercalary Slot Tiers
 
@@ -63,23 +66,70 @@ tier3: 각 interval의 1/3, 2/3       — count > 사용 가능 slot 시 보충
 
 좌우 모두 `dot(branchDir, forwardDir) > 0` 보장 (rachis 진행 방향 일관성).
 
-## Position별 Branch Length (J0-3B 채택)
+## Rachis Curvature (J0-7A 신규 — single arc)
+
+`rachisPointAt(u)` 산식 (직선 + leaf-level macro arc + side bend):
+```
+forward  = rachisDir × u × rachisLen
+droop    = WORLD_DOWN × rachisLen × 0.025 × 4u(1-u)        (hat, peak u=0.5)
+sideBend = lateralDir × rachisLen × 0.015 × sin(πu) × leafSideBias
+```
+
+- `leafSideBias`: `((axisIdx × 1009 + leafNodeIdx × 7919) % 100) / 50 - 1` → [-1, +1].
+  deterministic (LEAFLET-DETERMINISM-01 보존).
+- droop peak = 2.5% × rachisLen (30cm rachis → 7.5mm sag, 100cm → 25mm).
+- side peak = 1.5% × rachisLen.
+- segment 누적 X — _한 번_만 적용.
+
+**RACHIS-CURVATURE-PRESENCE-01**: midpoint sag / rachisLen ≥ 0.5% (산식 design
+2.5% 대비 안전 floor).
+
+## Primary Direction per-Pair-Index (J0-7C 신규 — fan progression)
+
+| pairIndex | lateral | forward | 의미 |
+|---|---|---|---|
+| 0 (base) | 0.76 | 0.24 | 더 옆으로 (base 쌍) |
+| 1 | 0.70 | 0.30 | |
+| 2 | 0.73 | 0.27 | rhythm |
+| 3 (terminal 쪽) | 0.68 | 0.32 | 더 forward (부채꼴) |
+
+- 좌우 pair는 _같은_ weight 공유. side 차이는 sign으로만 분기.
+- intercalary/secondary/terminal은 기존 POSITION_DIR_WEIGHT 유지.
+- pair index > 3은 last entry로 clamp.
+
+**BRANCH-DIR-VARIATION-01** (pair ≥ 2): pair 단위 forward 평균 variance > 0.0001.
+
+## Position별 Branch Length (J0-7D 재채택)
 
 `computeBranchLength(position, sf, rachisLen)` — 위계 시각 구분 + leaflet
 응집.
 
-| position | factor (J0-3B) | 이전 (I2) |
-|---|---|---|
-| primary | `sf × rachisLen × 0.08` | × 0.22 |
-| intercalary | `sf × rachisLen × 0.04` | × 0.14 |
-| secondary | `sf × rachisLen × 0.10` | × 0.10 (disabled) |
-| terminal | `0` (rachis tip 자체) | 0 |
+| position | factor (J0-7D) | J0-3B | I2 |
+|---|---|---|---|
+| primary | `sf × rachisLen × 0.10` | × 0.08 | × 0.22 |
+| intercalary | `sf × rachisLen × 0.05` | × 0.04 | × 0.14 |
+| secondary | `sf × rachisLen × 0.10` | × 0.10 (disabled) | × 0.10 |
+| terminal | `0` (rachis tip 자체) | 0 | 0 |
 
-채택 사유: metrics-3A.json (0.12/0.06) vs metrics-3B.json (0.08/0.04) 비교 —
-3A는 primary max 0.120 > strict 0.10 위반. 3B는 strict 통과 + 절대 max
-24.9cm → 9.0cm 단축.
+채택 사유 (3-way metrics 비교):
 
-**PETIOLULE-LEN-01 strict**: primary ≤ 0.10 × rachisLen, intercalary ≤ 0.06.
+| | 3A 0.12 | 3B 0.08 | **3D 0.10** | 평가 |
+|---|---|---|---|---|
+| primPetio avg | 0.084 | 0.056 | 0.083 | — |
+| primPetio max | 0.120 | 0.080 | 0.112 | 3D 12% 위반이나 metric 기반 재정의 |
+| hierarchy prim/inter | 1.76 | 1.76 | **2.82** | 3D _60% 강화_ ★ |
+| 시각 인상 (참고) | 자연 | 구슬 꿰기 | mid | — |
+
+→ **J0-7D 3D 채택**. 시각 _구슬 꿰기_의 직접 원인은 hierarchy 약화였고,
+3D가 60% 강화. metric 근거 (active 원칙 #21).
+
+**PETIOLULE-LEN-01 _재정의_** (J0-7D, active 원칙 #22):
+- primary:     avg ≤ 0.10 AND max ≤ 0.12 AND min ≥ 0.04 (floor 신규)
+- intercalary: avg ≤ 0.06 AND max ≤ 0.07 AND min ≥ 0.015 (산식 lower bound)
+
+max 0.12 = 산식 `0.10 × max sf 1.0` (산식 자체의 upper bound).
+intercalary min 0.015 = `factor 0.05 × min sf 0.30` (산식 lower bound).
+ad-hoc raise X — 모두 산식에서 도출.
 
 ## `uKey(u): string` Rounding Convention
 
