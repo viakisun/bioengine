@@ -40,7 +40,10 @@ import { applyCorrelation } from './correlationRules';
 import {
   applyPositionProfile,
   endpointTaperWeight,
+  LEAF_MESH_RESOLUTION,
+  DEFAULT_LEAF_MESH_QUALITY,
   type LeafletPosition,
+  type LeafMeshQuality,
 } from './leafletPositionProfile';
 import type { CultivarShapeOverride } from './index';
 
@@ -69,6 +72,9 @@ export interface LeafletMeshBuildContext {
   cultivarOverride?: CultivarShapeOverride;
   /** "skinplant_leaf_{seed}_a{ax}_n{n}" — 개별 mesh는 _l{idx}_{position} 접미사. */
   meshNamePrefix: string;
+  /** ★ L2-4b — leaf mesh resolution quality. Default 'low' (production 동일).
+   *  'high' = hero/near plant opt-in (samples 23, lengthSegs 22, +44% vertex). */
+  quality?: LeafMeshQuality;
 }
 
 const WORLD_UP: V3 = { x: 0, y: 1, z: 0 };
@@ -164,6 +170,8 @@ export function buildLeafletMeshes(ctx: LeafletMeshBuildContext): Mesh[] {
     //   position fields _덮어쓰기_ (사용자 v3 #3 병합 순서).
     //   targetSizeM은 _그대로_ — position scale 곱하지 않음 (SSOT).
     const positioned = applyPositionProfile(resolved, node.leafletRef.position as LeafletPosition);
+    // ★ L2-4b — quality profile (default 'low', production 동일).
+    const qualityRes = LEAF_MESH_RESOLUTION[ctx.quality ?? DEFAULT_LEAF_MESH_QUALITY];
     // Profile (좌우 halfWidth + lobe + serration) — buildCompoundLeaf와 동일 산식.
     const profile = buildShapeProfile({
       lengthM,
@@ -171,6 +179,7 @@ export function buildLeafletMeshes(ctx: LeafletMeshBuildContext): Mesh[] {
       tipSharpness: positioned.tipSharpness * sharpnessJitter,
       baseShape:    positioned.baseShape,
       asymmetry:    positioned.asymmetry,
+      samples:      qualityRes.shapeProfileSamples,
     });
     // ★ Iter 39 Phase G3 (B4) — noise scale cap.
     //   작은 leaflet (lengthM < 2cm)에 lobe/serration이 _비율적_으로 과대 증폭

@@ -13,6 +13,30 @@
 
 export type LeafletPosition = 'terminal' | 'primary' | 'intercalary' | 'secondary';
 
+// ─── L2-4b: Mesh Quality Profile (사용자 v3 #5) ───────────────────────────
+//
+// Resolution 전역 상수 _금지_. quality flag + dict.
+// **default는 'low' 유지** — production 회귀 0. 'high'는 hero/near plant
+// opt-in.
+//
+// 현재 shapeProfile samples만 quality 조정 (lengthSegs = samples - 1).
+// COLS (leafletPlaneChunk 내부 hardcode 9)는 patkage 변경 필요 → 후속 phase.
+
+export type LeafMeshQuality = 'low' | 'high';
+
+export interface LeafMeshResolution {
+  /** buildShapeProfile.samples — lengthSegs = samples - 1. */
+  shapeProfileSamples: number;
+}
+
+export const LEAF_MESH_RESOLUTION: Record<LeafMeshQuality, LeafMeshResolution> = {
+  low:  { shapeProfileSamples: 16 },  // ★ default — 현재 production 동일 (lengthSegs 15)
+  high: { shapeProfileSamples: 23 },  // hero/near plant opt-in (lengthSegs 22, +44%)
+};
+
+/** Default quality. production 회귀 0 (v3 #5 핵심). */
+export const DEFAULT_LEAF_MESH_QUALITY: LeafMeshQuality = 'low';
+
 export interface LeafletShapeProfile {
   /** length 대비 폭 비율. aspectRatio = 1 / widthRatio. */
   widthRatio: number;
