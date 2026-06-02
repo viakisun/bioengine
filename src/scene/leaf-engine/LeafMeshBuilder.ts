@@ -491,37 +491,26 @@ export type {
   LeafletShapeProfile,
 } from './leafletPositionProfile';
 
-/**
- * ★ Canonical entry for leaf mesh generation (Phase L3-D monolithic).
- *
- * Per-leaflet plane meshes for one compound leaf 생성. 산식 _전체_ 본 함수
- * 내부 (L3 inline 완료):
- *   - AGE_PRESETS + applyCorrelation → resolved leaf-level params
- *   - cultivar shape override
- *   - for each leaflet:
- *     - applyPositionProfile (terminal/primary/intercalary 차별화)
- *     - buildShapeProfile (halfWidth profile)
- *     - lobe + serration noise × endpointTaperWeight (cap taper)
- *     - buildLeafletPlaneChunk (vertex grid)
- *     - normalizeLeafMeshVertices (L1-B centroid anchor)
- *     - Babylon Mesh + position + rotation (foldDroopDeg + opennessFactor)
- *
- * @param ctx  Leaflet mesh build context (bladeRef + skeletonNodes + leafOrganState + ...)
- * @returns    Babylon Mesh[] (per leaflet, length = skeletonNodes.length).
- *
- * Output contract (REFACTOR-PARITY-01): 동일 input + 동일 seed → 동일 vertex
- * count / position / bbox.
- */
-export function buildLeafMeshFromSkeleton(ctx: LeafMeshBuildInput): Mesh[] {
-  // ★ Mandatory path — silent fallback 회피 (Iter 33 V1 phytomer-bind 100%).
-  if (!ctx.bladeRef) {
-    throw new Error('buildLeafMeshFromSkeleton: bladeRef required (mandatory contract)');
-  }
-  if (!ctx.leafletSkeletonNodes) {
-    throw new Error('buildLeafMeshFromSkeleton: leafletSkeletonNodes required (mandatory contract)');
-  }
-  if (ctx.leafletSkeletonNodes.length === 0) return [];
+// ─── L3-E (S26) — 사용자 v3 sketch 함수 분해 ────────────────────────────
+// monolithic for-loop를 단일 책임 함수로 분해.
 
+/** Leaf-level descriptor — resolved params + maturity envelope. */
+interface LeafShapeDescriptor {
+  resolved: ResolvedLeafParams;
+  ageFrac: number;
+  curl: number;
+  gravityDroopDeg: number;
+  maturity: number;
+  opennessFactor: number;
+  foldDroopDeg: number;
+  qualitySamples: number;
+}
+
+/**
+ * Step 1: leaf-level descriptor 산출.
+ * AGE_PRESETS + applyCorrelation + cultivar override + maturity envelope.
+ */
+function buildLeafShapeDescriptor(ctx: LeafMeshBuildInput): LeafShapeDescriptor {
   const preset = AGE_PRESETS[ctx.bladeRef.agePreset];
   const resolved = applyCorrelation(ctx.bladeRef.complexity, preset, ctx.seed);
 
@@ -542,103 +531,180 @@ export function buildLeafMeshFromSkeleton(ctx: LeafMeshBuildInput): Mesh[] {
   const ageFrac = Math.min(1, ctx.leafOrganState.senescence.progress);
   const curl = ctx.leafOrganState.posture.curl + ctx.leafOrganState.senescence.curl * 0.5;
   const gravityDroopDeg = ctx.leafOrganState.posture.gravityDroopDeg ?? 0;
-  // ★ Iter 39 Phase F5 — maturity-driven pose envelope.
   const maturity = Math.max(0, Math.min(1, ctx.leafOrganState.expansionProgress));
-  const opennessFactor = (() => {
-    const t = Math.max(0, Math.min(1, (maturity - 0.2) / (0.8 - 0.2)));
-    return 0.2 + (1.0 - 0.2) * (t * t * (3 - 2 * t));   // smoothstep 0.2 → 1.0
-  })();
-  // ★ L0-D-1 — per-leaflet pitch 약화.
-  const foldDroopDeg = -5 + (10 - (-5)) * maturity;    // -5° ~ +10°
+  // Iter 39 Phase F5 — maturity-driven pose envelope.
+  const t = Math.max(0, Math.min(1, (maturity - 0.2) / (0.8 - 0.2)));
+  const opennessFactor = 0.2 + (1.0 - 0.2) * (t * t * (3 - 2 * t));   // smoothstep
+  // L0-D-1 per-leaflet pitch.
+  const foldDroopDeg = -5 + 15 * maturity;    // -5° ~ +10°
+  // L2-4b quality.
+  const qualityRes = LEAF_MESH_RESOLUTION[ctx.quality ?? DEFAULT_LEAF_MESH_QUALITY];
+
+  return {
+    resolved,
+    ageFrac,
+    curl,
+    gravityDroopDeg,
+    maturity,
+    opennessFactor,
+    foldDroopDeg,
+    qualitySamples: qualityRes.shapeProfileSamples,
+  };
+}
+
+/**
+ * Step 2: per-leaflet outline profile (halfWidth + lobe + serration with cap taper).
+ * L2-3 position profile + L2-4a endpoint taper 통합.
+ */
+function buildLeafletOutlineWithNoise(
+  node: SkeletonNode,
+  leafletSeed: number,
+  idSeed: number,
+  desc: LeafShapeDescriptor,
+): ReturnType<typeof buildShapeProfile> {
+  const lengthM = node.leafletRef!.targetSizeM;
+  // Per-leaflet shape jitter (G4: ±5%).
+  const aspectJitter    = 1 + (((idSeed * 23) % 100 - 50) / 1000);
+  const sharpnessJitter = 1 + (((idSeed * 29) % 100 - 50) / 1000);
+  // L2-3 per-position profile.
+  const positioned = applyPositionProfile(desc.resolved, node.leafletRef!.position as LeafletPosition);
+
+  const profile = buildShapeProfile({
+    lengthM,
+    aspectRatio:  positioned.aspectRatio  * aspectJitter,
+    tipSharpness: positioned.tipSharpness * sharpnessJitter,
+    baseShape:    positioned.baseShape,
+    asymmetry:    positioned.asymmetry,
+    samples:      desc.qualitySamples,
+  });
+
+  // G3 noise scale cap (작은 leaflet broken mesh shard 방지).
+  const noiseLengthM = Math.max(lengthM, 0.02);
+  // L2-4a cap topology — endpoint taper.
+  const lengthSegs = profile.length - 1;
+  for (let r = 0; r < profile.length; r++) {
+    const sample = profile[r];
+    const t = lengthSegs > 0 ? r / lengthSegs : 0;
+    const taper = endpointTaperWeight(t);
+    const lobe = lobeNoise(sample.u, positioned.lobeDepth * noiseLengthM, leafletSeed) * taper;
+    const teeth = serrationNoise(
+      sample.u, positioned.serrationAmp * noiseLengthM, positioned.serrationFreq, leafletSeed,
+    ) * taper;
+    sample.halfWidthLeft += lobe + teeth;
+    sample.halfWidthRight += lobe * 0.85 + teeth * 1.1;
+  }
+  return profile;
+}
+
+/**
+ * Step 3: leaflet pose composition (mesh.position + rotationQuaternion).
+ * F5 maturity envelope + L0-D-1 pitch + per-leaflet noise.
+ */
+function applyLeafletPose(
+  mesh: Mesh,
+  node: SkeletonNode,
+  idSeed: number,
+  desc: LeafShapeDescriptor,
+): void {
+  // graph SSOT — mesh.position = leafletSkeletonNode.pos (plant-local).
+  mesh.position = new Vector3(node.pos.x, node.pos.y, node.pos.z);
+
+  // F5 maturity-dependent pose composition.
+  const bd = node.leafletRef!.bladeDir;
+  const baseQ = makeLeafQuaternion(bd, WORLD_UP);
+  const baseRotQ = new Quaternion(baseQ.x, baseQ.y, baseQ.z, baseQ.w);
+  const pitchNoise = (((idSeed * 17) % 200 - 100) / 1000);
+  const rollNoise  = (((idSeed * 19) % 400 - 200) / 1000);
+  const twistNoise = (((idSeed * 13) % 300 - 150) / 1000);
+  const pitchRad = (desc.foldDroopDeg * Math.PI / 180 + pitchNoise) * desc.opennessFactor;
+  const rollRad  = rollNoise  * desc.opennessFactor;
+  const twistRad = twistNoise * desc.opennessFactor;
+  const localQ = Quaternion.RotationYawPitchRoll(twistRad, pitchRad, rollRad);
+  mesh.rotationQuaternion = baseRotQ.multiply(localQ);
+  // SSOT #185 — leafMesh stale worldMatrix trap (Iter 28 fix).
+  mesh.computeWorldMatrix(true);
+}
+
+/**
+ * Step 4: per-leaflet patch — profile → Babylon Mesh (vertex + position + rotation).
+ */
+function buildLeafletPatch(
+  node: SkeletonNode,
+  i: number,
+  desc: LeafShapeDescriptor,
+  ctx: LeafMeshBuildInput,
+): Mesh | null {
+  if (!node.leafletRef) return null;
+  const lengthM = node.leafletRef.targetSizeM;
+  if (lengthM <= 0) return null;
+
+  const leafletSeed = djb2(node.id) * 0.7919 + i * 31;
+  const idSeed = djb2(node.id);
+
+  // outline (profile + lobe + serration with taper)
+  const profile = buildLeafletOutlineWithNoise(node, leafletSeed, idSeed, desc);
+
+  // Plane geometry chunk (mesh-local).
+  const chunk = buildLeafletPlaneChunk(profile, {
+    lengthM,
+    curl: desc.curl,
+    ageFrac: desc.ageFrac,
+    gravityDroopDeg: desc.gravityDroopDeg,
+    waviness: 0,
+    isTerminal: node.leafletRef.position === 'terminal',
+    veinSurfaceStrength: 1,
+    seed: djb2(node.id),
+  });
+
+  // SSOT #186 — L1-B centroid anchor.
+  normalizeLeafMeshVertices(chunk.positions);
+
+  // Babylon Mesh 생성.
+  const meshName = `${ctx.meshNamePrefix}_l${i}_${node.leafletRef.position}`;
+  const mesh = new Mesh(meshName, ctx.scene);
+  const vd = new VertexData();
+  vd.positions = chunk.positions;
+  vd.normals = chunk.normals;
+  vd.uvs = chunk.uvs;
+  vd.indices = chunk.indices;
+  vd.applyToMesh(mesh);
+
+  // Position + rotation composition.
+  applyLeafletPose(mesh, node, idSeed, desc);
+
+  return mesh;
+}
+
+/**
+ * ★ Canonical entry for leaf mesh generation (Phase L3-E 함수 분해).
+ *
+ *   buildLeafMeshFromSkeleton(input)
+ *     ├─ buildLeafShapeDescriptor(input)              ← leaf-level params
+ *     └─ for each leaflet:
+ *        └─ buildLeafletPatch(node, i, desc, ctx)     ← per-leaflet mesh
+ *           ├─ buildLeafletOutlineWithNoise(...)
+ *           ├─ buildLeafletPlaneChunk(...)
+ *           ├─ normalizeLeafMeshVertices(...)
+ *           └─ applyLeafletPose(mesh, ...)
+ *
+ * Output contract (REFACTOR-PARITY-01): 동일 input + seed → 동일 vertex
+ * count / position / bbox / index.
+ */
+export function buildLeafMeshFromSkeleton(ctx: LeafMeshBuildInput): Mesh[] {
+  if (!ctx.bladeRef) {
+    throw new Error('buildLeafMeshFromSkeleton: bladeRef required (mandatory contract)');
+  }
+  if (!ctx.leafletSkeletonNodes) {
+    throw new Error('buildLeafMeshFromSkeleton: leafletSkeletonNodes required (mandatory contract)');
+  }
+  if (ctx.leafletSkeletonNodes.length === 0) return [];
+
+  const descriptor = buildLeafShapeDescriptor(ctx);
 
   const meshes: Mesh[] = [];
-
   for (let i = 0; i < ctx.leafletSkeletonNodes.length; i++) {
-    const node = ctx.leafletSkeletonNodes[i];
-    if (!node.leafletRef) continue;
-
-    const leafletSeed = djb2(node.id) * 0.7919 + i * 31;
-    const lengthM = node.leafletRef.targetSizeM;
-    if (lengthM <= 0) continue;
-
-    // ★ Per-leaflet shape jitter (G4: ±5%).
-    const idSeed = djb2(node.id);
-    const aspectJitter    = 1 + (((idSeed * 23) % 100 - 50) / 1000);
-    const sharpnessJitter = 1 + (((idSeed * 29) % 100 - 50) / 1000);
-
-    // ★ L2-3 — per-position profile.
-    const positioned = applyPositionProfile(resolved, node.leafletRef.position as LeafletPosition);
-    // ★ L2-4b — quality profile (default 'low').
-    const qualityRes = LEAF_MESH_RESOLUTION[ctx.quality ?? DEFAULT_LEAF_MESH_QUALITY];
-
-    const profile = buildShapeProfile({
-      lengthM,
-      aspectRatio:  positioned.aspectRatio  * aspectJitter,
-      tipSharpness: positioned.tipSharpness * sharpnessJitter,
-      baseShape:    positioned.baseShape,
-      asymmetry:    positioned.asymmetry,
-      samples:      qualityRes.shapeProfileSamples,
-    });
-
-    // ★ G3 — noise scale cap (작은 leaflet broken mesh shard 방지).
-    const noiseLengthM = Math.max(lengthM, 0.02);
-    // ★ L2-4a — cap topology: endpoint taper noise.
-    const lengthSegs = profile.length - 1;
-    for (let r = 0; r < profile.length; r++) {
-      const sample = profile[r];
-      const t = lengthSegs > 0 ? r / lengthSegs : 0;
-      const taper = endpointTaperWeight(t);
-      const lobe = lobeNoise(sample.u, positioned.lobeDepth * noiseLengthM, leafletSeed) * taper;
-      const teeth = serrationNoise(
-        sample.u, positioned.serrationAmp * noiseLengthM, positioned.serrationFreq, leafletSeed,
-      ) * taper;
-      sample.halfWidthLeft += lobe + teeth;
-      sample.halfWidthRight += lobe * 0.85 + teeth * 1.1;
-    }
-
-    // Plane geometry chunk (mesh-local).
-    const chunk = buildLeafletPlaneChunk(profile, {
-      lengthM,
-      curl,
-      ageFrac,
-      gravityDroopDeg,
-      waviness: 0,
-      isTerminal: node.leafletRef.position === 'terminal',
-      veinSurfaceStrength: 1,
-      seed: djb2(node.id),
-    });
-
-    // SSOT #186 — L1-B centroid anchor.
-    normalizeLeafMeshVertices(chunk.positions);
-
-    const meshName = `${ctx.meshNamePrefix}_l${i}_${node.leafletRef.position}`;
-    const mesh = new Mesh(meshName, ctx.scene);
-    const vd = new VertexData();
-    vd.positions = chunk.positions;
-    vd.normals = chunk.normals;
-    vd.uvs = chunk.uvs;
-    vd.indices = chunk.indices;
-    vd.applyToMesh(mesh);
-
-    // ★ graph SSOT — mesh.position = leafletSkeletonNode.pos (plant-local).
-    mesh.position = new Vector3(node.pos.x, node.pos.y, node.pos.z);
-    // ★ Iter 39 Phase F5 — maturity-dependent pose composition.
-    const bd = node.leafletRef.bladeDir;
-    const baseQ = makeLeafQuaternion(bd, WORLD_UP);
-    const baseRotQ = new Quaternion(baseQ.x, baseQ.y, baseQ.z, baseQ.w);
-    const pitchNoise = (((idSeed * 17) % 200 - 100) / 1000);
-    const rollNoise  = (((idSeed * 19) % 400 - 200) / 1000);
-    const twistNoise = (((idSeed * 13) % 300 - 150) / 1000);
-    const pitchRad = (foldDroopDeg * Math.PI / 180 + pitchNoise) * opennessFactor;
-    const rollRad  = rollNoise  * opennessFactor;
-    const twistRad = twistNoise * opennessFactor;
-    const localQ = Quaternion.RotationYawPitchRoll(twistRad, pitchRad, rollRad);
-    mesh.rotationQuaternion = baseRotQ.multiply(localQ);
-    // SSOT #185 — leafMesh stale worldMatrix trap (Iter 28 fix).
-    mesh.computeWorldMatrix(true);
-
-    meshes.push(mesh);
+    const mesh = buildLeafletPatch(ctx.leafletSkeletonNodes[i], i, descriptor, ctx);
+    if (mesh) meshes.push(mesh);
   }
-
   return meshes;
 }
