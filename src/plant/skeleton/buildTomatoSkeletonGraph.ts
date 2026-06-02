@@ -493,15 +493,17 @@ function uKey(u: number): string {
   return (Math.round(u * 1000) / 1000).toFixed(3);
 }
 
-// ★ J0-7B (v16): primary attach U rhythm — 등간격 깨기.
-//   J0-4 분포 `[0.22, 0.40, 0.60, 0.78]` (gap 0.18/0.20/0.18, CV 0.054)는 strict
-//   통과지만 _시각상 등간격_ → fishbone 인상. botanical rhythm은 약한 비등간격.
-//   J0-7B 분포: 3/4쌍 모두 CV ≥ 0.10 (rhythm 명확). TERMINAL-CLEARANCE 유지.
+// ★ J0-9A (v21): primary attach U zone-rhythm.
+//   J0-7B `[0.22, 0.41, 0.63, 0.79]` (gap 0.19/0.22/0.16)이 시각상 _여전히 단조_.
+//   v21 권장값으로 distal closure 강화 — gap 0.22/0.20/0.17 (base sparse, distal dense).
+//   3쌍/2쌍/1쌍은 v19 그대로 유지.
+//   TERMINAL-CLEARANCE: 4쌍 lastPrimaryU 0.79 + stagger 0.020 = 0.81 ≤ 0.82 ✓
+//                       terminal 1.0 - 0.81 = 0.19 ≥ 0.15 ✓
 const PRIMARY_US_BY_PAIR_COUNT: Record<number, readonly number[]> = {
   1: [0.50],                     // single — rhythm 정의 불가, 중앙
   2: [0.34, 0.68],               // single gap — CV undefined, exempt
   3: [0.27, 0.48, 0.74],         // gap 0.21/0.26, CV ≈ 0.108
-  4: [0.22, 0.41, 0.63, 0.79],   // gap 0.19/0.22/0.16, CV ≈ 0.137
+  4: [0.20, 0.42, 0.62, 0.79],   // ★ J0-9A: gap 0.22/0.20/0.17 (distal closure)
 };
 
 function getPrimaryUsForPairCount(primaryPairs: number): readonly number[] {
@@ -840,38 +842,74 @@ function pushPrimaryLayoutItems(
   }
 }
 
-// ─── Iter 39 Phase I2 — Intercalary slot-based (3-tier subdivision) ────
-// 사용자 v9 #3 + v10 #4: 균등 분포(0.25 + i/count × 0.5)는 _truss 인상_의
-// 원인. primary 사이 midpoint를 우선 배치하고 edge slot과 1/3-2/3
-// subdivision으로 확장. count > 사용 가능 slot 시 silent slice 금지 — warn.
-function computeIntercalaryUs(primaryUs: readonly number[], count: number): number[] {
-  if (count <= 0 || primaryUs.length === 0) return [];
-  // Tier 1: primary 사이 midpoints (가장 자연스러운 slot)
-  const tier1: number[] = [];
+// ─── Iter 39 Phase I2 → J0-9A (v21): Intercalary _largest-gap-first_ slot ────
+// J0-9A (v21 #3): 큰 primary gap부터 midpoint 우선 채움 (closure 개선).
+// 출력은 sorted unique. tier2/tier3는 count가 tier1 만으로 부족한 경우만 보충.
+// 어떤 gap을 채웠는지 diagnostic 별도 반환 (largest-gap-first 효과 확인).
+interface IntercalaryFillDiagnostic {
+  fillsApplied: Array<{ a: number; b: number; gap: number; mid: number }>;
+  edgeSlotsUsed: number;
+  subdivisionSlotsUsed: number;
+}
+function computeIntercalaryUs(
+  primaryUs: readonly number[],
+  count: number,
+): { us: number[]; diagnostic: IntercalaryFillDiagnostic } {
+  const diagnostic: IntercalaryFillDiagnostic = {
+    fillsApplied: [],
+    edgeSlotsUsed: 0,
+    subdivisionSlotsUsed: 0,
+  };
+  if (count <= 0 || primaryUs.length === 0) {
+    return { us: [], diagnostic };
+  }
+  const result: number[] = [];
+  // Tier 1: primary 사이 midpoints — _큰 gap 우선_ (J0-9A v21).
+  const intervals = [];
   for (let i = 0; i < primaryUs.length - 1; i++) {
-    tier1.push((primaryUs[i] + primaryUs[i + 1]) * 0.5);
+    intervals.push({
+      a: primaryUs[i],
+      b: primaryUs[i + 1],
+      gap: primaryUs[i + 1] - primaryUs[i],
+      mid: (primaryUs[i] + primaryUs[i + 1]) * 0.5,
+    });
   }
-  // Tier 2: edge slots (start ≥ 0.12, end ≤ 0.92)
-  const tier2: number[] = [];
-  if (primaryUs.length > 0) {
-    tier2.push(Math.max(0.12, primaryUs[0] - 0.08));
-    tier2.push(Math.min(0.92, primaryUs[primaryUs.length - 1] + 0.08));
+  intervals.sort((a, b) => b.gap - a.gap);  // descending by gap
+  for (const interval of intervals) {
+    if (result.length >= count) break;
+    result.push(interval.mid);
+    diagnostic.fillsApplied.push(interval);
   }
-  // Tier 3: 각 interval의 1/3 / 2/3 subdivision (count > slots 보충)
-  const tier3: number[] = [];
-  for (let i = 0; i < primaryUs.length - 1; i++) {
-    const a = primaryUs[i], b = primaryUs[i + 1];
-    tier3.push(a + (b - a) / 3, a + (b - a) * 2 / 3);
+  // Tier 2: edge slots (start ≥ 0.12, end ≤ 0.92) — count > tier1 보충.
+  if (result.length < count && primaryUs.length > 0) {
+    const edgeSlots = [
+      Math.max(0.12, primaryUs[0] - 0.08),
+      Math.min(0.92, primaryUs[primaryUs.length - 1] + 0.08),
+    ];
+    for (const slot of edgeSlots) {
+      if (result.length >= count) break;
+      result.push(slot);
+      diagnostic.edgeSlotsUsed++;
+    }
   }
-  const slots = [...tier1, ...tier2, ...tier3];
-  if (slots.length < count) {
-    // 사용자 v10 #4: silent slice 금지 — 발생 시 명시 경고 (production 안전 noop log).
-    // production source에서 console 직접 호출 금지(CLAUDE.md) → createLogger 사용.
-    // 본 함수는 module top scope라 logger import 없이도 부동 가능. 따라서 throw도
-    // 아니고 console도 아닌 _diagnostics가 graph로 흘러가도록_ 호출 측 책임.
-    // 여기서는 slots를 그대로 slice — 호출 측에서 graph.diagnostics에 기록 가능.
+  // Tier 3: 각 interval의 1/3 / 2/3 subdivision (count > tier1+tier2 보충).
+  if (result.length < count) {
+    const sub: number[] = [];
+    for (let i = 0; i < primaryUs.length - 1; i++) {
+      const a = primaryUs[i], b = primaryUs[i + 1];
+      sub.push(a + (b - a) / 3, a + (b - a) * 2 / 3);
+    }
+    for (const slot of sub) {
+      if (result.length >= count) break;
+      result.push(slot);
+      diagnostic.subdivisionSlotsUsed++;
+    }
   }
-  return slots.slice(0, count);
+  // ★ v21 #3: 출력은 _sorted unique_.
+  const uniqueSorted = [...new Set(result.map(uKey))]
+    .map(parseFloat)
+    .sort((a, b) => a - b);
+  return { us: uniqueSorted, diagnostic };
 }
 
 // ─── Iter 39 Phase I0-d / I2 — Intercalary + Terminal layout ──────────
@@ -880,8 +918,10 @@ function pushIntercalaryAndTerminalLayoutItems(
   primaryUs: readonly number[],
   intercalaryCount: number,
 ): void {
-  // ★ I2: slot-based로 교체. layout-first가 attachUs ⊇ 모든 leaflet U 보장.
-  const intercalaryUs = computeIntercalaryUs(primaryUs, intercalaryCount);
+  // ★ I2 → J0-9A v21: largest-gap-first + sorted unique. diagnostic은 호출 측
+  //   에서 (필요 시) graph.diagnostics 또는 probe로 expose.
+  void computeIntercalaryUs;  // silence — 결과 구조분해 직접
+  const { us: intercalaryUs } = computeIntercalaryUs(primaryUs, intercalaryCount);
   for (let i = 0; i < intercalaryUs.length; i++) {
     items.push({
       position: 'intercalary',
