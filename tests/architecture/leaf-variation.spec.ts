@@ -115,6 +115,47 @@ test.describe('Leaf Variation (SSOT #206, Iter 39 Phase L2-5a reporting)', () =>
       }
     }
 
-    // assert 없음 (reporting only, S17에서 threshold 확정).
+    // ★ S17 — Hard threshold (실측 × 0.7 보수적, modulo aliasing 회귀 catch).
+    //   axis 0 baseline (S16 measurement):
+    //     aspect overall std-dev 0.233 → threshold > 0.16
+    //     length overall std-dev 0.100 → threshold > 0.07 (m)
+    //     terminal aspect std-dev 0.055 → threshold > 0.04 (작음, aliasing 의심)
+    //     primary  aspect std-dev 0.119 → threshold > 0.08
+    //     intercalary aspect std-dev 0.200 → threshold > 0.14
+    for (const [axis, ms] of byAxis) {
+      if (ms.length < 4) continue;  // 너무 적은 leaves는 skip
+      const aspects = ms.map(m => m.aspect);
+      const lengths = ms.map(m => m.length);
+
+      expect(
+        stdDev(aspects),
+        `axis ${axis} overall aspect std-dev (variation 부족 = modulo aliasing 의심)`,
+      ).toBeGreaterThan(0.16);
+      expect(
+        stdDev(lengths),
+        `axis ${axis} overall length std-dev (variation 부족)`,
+      ).toBeGreaterThan(0.07);
+
+      // per-position checks (terminal n=8은 적으니 skip 가능).
+      const byPosition: Record<string, typeof ms> = {};
+      for (const m of ms) {
+        if (!byPosition[m.position]) byPosition[m.position] = [];
+        byPosition[m.position].push(m);
+      }
+      const primaryAspects = (byPosition['primary'] ?? []).map(m => m.aspect);
+      if (primaryAspects.length >= 4) {
+        expect(
+          stdDev(primaryAspects),
+          `axis ${axis} primary aspect std-dev`,
+        ).toBeGreaterThan(0.08);
+      }
+      const intercalaryAspects = (byPosition['intercalary'] ?? []).map(m => m.aspect);
+      if (intercalaryAspects.length >= 4) {
+        expect(
+          stdDev(intercalaryAspects),
+          `axis ${axis} intercalary aspect std-dev`,
+        ).toBeGreaterThan(0.14);
+      }
+    }
   });
 });
