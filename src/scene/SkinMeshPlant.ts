@@ -330,6 +330,8 @@ export function createSkinMeshPlant(
     //   graph.diagnostics는 assertGraphConsistency가 buildTomatoSkeletonGraph 끝에서
     //   채움. test가 직접 검사 (production은 throw 안 함).
     (window as unknown as { __lastGraph?: typeof graph }).__lastGraph = graph;
+    // ★ Iter 39 Phase J0-2B-audit — PlantBase 노출 (droopRad 분포 측정 probe용).
+    (window as unknown as { __lastPlantBase?: typeof plantBase }).__lastPlantBase = plantBase;
 
     // 적엽 (defoliation) — petiole edges 제거 (SkinSDF가 petiole tube 안 그림).
     //   사용자 요청: "잎줄기까지 잘라줘. main stem 자르지 말고"

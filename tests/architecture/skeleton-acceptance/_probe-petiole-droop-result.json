@@ -1,0 +1,156 @@
+{
+  "samples": [
+    {
+      "axisIdx": 0,
+      "nodeIdx": 0,
+      "sizeFactor": 2.9775046142674806,
+      "droopRad": 1.308598173040974,
+      "droopDeg": 74.97715239377798,
+      "visible": false
+    },
+    {
+      "axisIdx": 0,
+      "nodeIdx": 1,
+      "sizeFactor": 3.1062375641322975,
+      "droopRad": 1.3058695146175405,
+      "droopDeg": 74.82081178238244,
+      "visible": false
+    },
+    {
+      "axisIdx": 0,
+      "nodeIdx": 2,
+      "sizeFactor": 3.230586667770096,
+      "droopRad": 1.3029861311562103,
+      "droopDeg": 74.65560607933038,
+      "visible": false
+    },
+    {
+      "axisIdx": 0,
+      "nodeIdx": 3,
+      "sizeFactor": 3.346317365591502,
+      "droopRad": 1.2997985665955447,
+      "droopDeg": 74.47297208307877,
+      "visible": false
+    },
+    {
+      "axisIdx": 0,
+      "nodeIdx": 4,
+      "sizeFactor": 3.449488587479842,
+      "droopRad": 1.2961677233965636,
+      "droopDeg": 74.26494009170338,
+      "visible": false
+    },
+    {
+      "axisIdx": 0,
+      "nodeIdx": 5,
+      "sizeFactor": 3.536577521599025,
+      "droopRad": 0.9094659566117659,
+      "droopDeg": 52.10856092468224,
+      "visible": false
+    },
+    {
+      "axisIdx": 0,
+      "nodeIdx": 6,
+      "sizeFactor": 3.604615566747009,
+      "droopRad": 0.8448052826002789,
+      "droopDeg": 48.40377720335278,
+      "visible": false
+    },
+    {
+      "axisIdx": 0,
+      "nodeIdx": 7,
+      "sizeFactor": 3.6512489363898486,
+      "droopRad": 0.7793874463019446,
+      "droopDeg": 44.65561127858051,
+      "visible": false
+    },
+    {
+      "axisIdx": 0,
+      "nodeIdx": 8,
+      "sizeFactor": 3.6747807767217204,
+      "droopRad": 0.7131488023140018,
+      "droopDeg": 40.860416537401775,
+      "visible": false
+    },
+    {
+      "axisIdx": 0,
+      "nodeIdx": 9,
+      "sizeFactor": 3.674063563117105,
+      "droopRad": 0.6460369084687154,
+      "droopDeg": 37.01518826493686,
+      "visible": false
+    },
+    {
+      "axisIdx": 0,
+      "nodeIdx": 10,
+      "sizeFactor": 3.6480285805408856,
+      "droopRad": 0.5779764038088236,
+      "droopDeg": 33.115608596394594,
+      "visible": true
+    },
+    {
+      "axisIdx": 0,
+      "nodeIdx": 11,
+      "sizeFactor": 3.594142901799662,
+      "droopRad": 0.5087607305039606,
+      "droopDeg": 29.14984263986963,
+      "visible": true
+    },
+    {
+      "axisIdx": 0,
+      "nodeIdx": 12,
+      "sizeFactor": 3.5037150348144026,
+      "droopRad": 0.4377280871771792,
+      "droopDeg": 25.079971969586936,
+      "visible": true
+    },
+    {
+      "axisIdx": 0,
+      "nodeIdx": 13,
+      "sizeFactor": 3.348628630864395,
+      "droopRad": 0.446123563299726,
+      "droopDeg": 25.560997318411726,
+      "visible": true
+    },
+    {
+      "axisIdx": 0,
+      "nodeIdx": 14,
+      "sizeFactor": 3.0512724192220206,
+      "droopRad": 0.3289970850205506,
+      "droopDeg": 18.850144443784266,
+      "visible": true
+    },
+    {
+      "axisIdx": 0,
+      "nodeIdx": 15,
+      "sizeFactor": 2.4652889335178205,
+      "droopRad": 0.1966064348607781,
+      "droopDeg": 11.264718942636325,
+      "visible": true
+    },
+    {
+      "axisIdx": 0,
+      "nodeIdx": 16,
+      "sizeFactor": 1.555768725219969,
+      "droopRad": 0.057117599154509605,
+      "droopDeg": 3.2725973674733995,
+      "visible": true
+    },
+    {
+      "axisIdx": 0,
+      "nodeIdx": 17,
+      "sizeFactor": 0.7090249040986785,
+      "droopRad": 0.005959033414591078,
+      "droopDeg": 0.34142746463350054,
+      "visible": true
+    }
+  ],
+  "stats": {
+    "n": 8,
+    "min": 0.34142746463350054,
+    "p50": 25.079971969586936,
+    "p95": 33.115608596394594,
+    "max": 33.115608596394594,
+    "avg": 18.329413592848795
+  }
+}
