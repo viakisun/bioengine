@@ -22,9 +22,8 @@
 // 통합).
 
 import type { LeafBladeRef, SkeletonNode } from '../../plant/skeleton/PlantSkeletonGraph';
-import { AGE_PRESETS } from './agePresets';
-import type { ResolvedLeafParams } from './correlationRules';
-import { applyCorrelation } from './correlationRules';
+// ★ Iter 39 L3-C S23 — agePresets + correlationRules inline to LeafMeshBuilder.
+import { AGE_PRESETS, applyCorrelation, type ResolvedLeafParams } from './LeafMeshBuilder';
 // ★ Iter 39 L3-C S22 — shapeProfile inline to LeafMeshBuilder.
 import { buildShapeProfile, type ShapeProfileSample } from './LeafMeshBuilder';
 // ★ Iter 39 L3-C S21 — lobeNoise + serrationNoise inline to LeafMeshBuilder.
@@ -130,8 +129,8 @@ export function buildCompoundLeaf(
   return { resolved, leaflets };
 }
 
-export type { ResolvedLeafParams } from './correlationRules';
-export { AGE_PRESETS } from './agePresets';
+export type { ResolvedLeafParams } from './LeafMeshBuilder';
+export { AGE_PRESETS } from './LeafMeshBuilder';
 
 // Iter 39 Phase A — per-leaflet plane mesh entry (Skin path).
 export { buildLeafletMeshes } from './buildLeafletMeshes';

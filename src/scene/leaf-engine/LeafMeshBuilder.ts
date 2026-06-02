@@ -66,6 +66,204 @@ export function lobeNoise(u: number, amp: number, seed: number): number {
   return Math.max(0, v) * amp;
 }
 
+// ─── L3-C S23: agePresets + correlationRules (inline) ───────────────────
+// 사용자 botanical reference §7-8: 5 age presets + complexity 묶음 산식.
+
+export interface AgePresetParams {
+  leafLengthCmRange: readonly [number, number];
+  majorLeafletPairsRange: readonly [number, number];
+  intercalaryRange: readonly [number, number];
+  secondaryRange?: readonly [number, number];
+  aspectRatioRange: readonly [number, number];
+  serrationAmpRange: readonly [number, number];
+  lobeDepthRange: readonly [number, number];
+  poseDroopDegRange: readonly [number, number];
+  color: 'bright-light-green' | 'green' | 'green-with-yellowing';
+  curl?: number;
+  asymmetry?: number;
+  smoothMargin?: boolean;
+  leafLengthFactor?: number;
+  leafletCountFactor?: number;
+  aspectRatioBaseline?: number;
+  baseShapeBaseline?: number;
+  tipSharpnessBaseline?: number;
+}
+
+/** 5 age presets (botanical reference §7). */
+export const AGE_PRESETS = {
+  young: {
+    leafLengthCmRange: [2, 8],
+    majorLeafletPairsRange: [1, 2],
+    intercalaryRange: [0, 2],
+    aspectRatioRange: [1.2, 1.8],
+    serrationAmpRange: [0.005, 0.015],
+    lobeDepthRange: [0.03, 0.08],
+    poseDroopDegRange: [-15, -5],
+    color: 'bright-light-green',
+    aspectRatioBaseline: 1.5,
+    baseShapeBaseline: 0.92,
+    tipSharpnessBaseline: 1.2,
+  },
+  mature: {
+    leafLengthCmRange: [10, 25],
+    majorLeafletPairsRange: [2, 4],
+    intercalaryRange: [2, 6],
+    aspectRatioRange: [1.8, 3.0],
+    serrationAmpRange: [0.02, 0.04],
+    lobeDepthRange: [0.07, 0.14],
+    poseDroopDegRange: [-5, 15],
+    color: 'green',
+    aspectRatioBaseline: 2.4,
+    baseShapeBaseline: 0.85,
+    tipSharpnessBaseline: 1.5,
+  },
+  old: {
+    leafLengthCmRange: [14, 28],
+    majorLeafletPairsRange: [3, 4],
+    intercalaryRange: [3, 8],
+    aspectRatioRange: [2.0, 3.5],
+    serrationAmpRange: [0.03, 0.06],
+    lobeDepthRange: [0.10, 0.20],
+    poseDroopDegRange: [15, 35],
+    color: 'green-with-yellowing',
+    curl: 0.4,
+    aspectRatioBaseline: 2.8,
+    baseShapeBaseline: 0.80,
+    tipSharpnessBaseline: 1.7,
+  },
+  complex: {
+    leafLengthCmRange: [16, 30],
+    majorLeafletPairsRange: [4, 4],
+    intercalaryRange: [5, 10],
+    secondaryRange: [3, 8],
+    aspectRatioRange: [2.2, 3.5],
+    serrationAmpRange: [0.04, 0.06],
+    lobeDepthRange: [0.14, 0.25],
+    poseDroopDegRange: [0, 20],
+    color: 'green',
+    asymmetry: 0.3,
+    aspectRatioBaseline: 2.9,
+    baseShapeBaseline: 0.75,
+    tipSharpnessBaseline: 1.8,
+  },
+  'potato-leaf': {
+    leafLengthCmRange: [12, 28],
+    majorLeafletPairsRange: [2, 3],
+    intercalaryRange: [0, 1],
+    aspectRatioRange: [1.3, 2.2],
+    serrationAmpRange: [0.0, 0.01],
+    lobeDepthRange: [0.0, 0.03],
+    poseDroopDegRange: [-5, 15],
+    color: 'green',
+    smoothMargin: true,
+    leafLengthFactor: 1.2,
+    leafletCountFactor: 0.7,
+    aspectRatioBaseline: 1.7,
+    baseShapeBaseline: 0.95,
+    tipSharpnessBaseline: 1.1,
+  },
+} as const satisfies Record<string, AgePresetParams>;
+
+export type AgePresetKey = keyof typeof AGE_PRESETS;
+
+export interface ResolvedLeafParams {
+  leafLengthM: number;
+  primaryPairs: number;
+  intercalaryCount: number;
+  secondaryCount: number;
+  aspectRatio: number;
+  serrationAmp: number;
+  serrationFreq: number;
+  lobeDepth: number;
+  asymmetry: number;
+  poseDroopDeg: number;
+  color: AgePresetParams['color'];
+  curl?: number;
+  smoothMargin?: boolean;
+  baseShape: number;
+  tipSharpness: number;
+}
+
+/** Linear lerp helper. */
+function lerp(range: readonly [number, number], t: number): number {
+  const clamped = Math.max(0, Math.min(1, t));
+  return range[0] + (range[1] - range[0]) * clamped;
+}
+
+/** Hybrid sampling: baseline + ±jitter (default ±10% of range). */
+function sampleHybrid(
+  range: readonly [number, number],
+  baseline: number,
+  seed: number,
+  jitterScale = 0.10,
+): number {
+  const jitterRange = (range[1] - range[0]) * jitterScale;
+  const jitterNorm = ((seed * 13) % 200 - 100) / 100;  // [-1, 1]
+  const v = baseline + jitterNorm * jitterRange;
+  return Math.max(range[0], Math.min(range[1], v));
+}
+
+/**
+ * Correlation 산식 적용 — complexity seed 0-1을 _묶음 변화_로 변환.
+ * 사용자 §8 직접 매핑.
+ */
+export function applyCorrelation(
+  complexity: number,
+  preset: AgePresetParams,
+  seed = 0,
+): ResolvedLeafParams {
+  const c = Math.max(0, Math.min(1, complexity));
+
+  const leafLengthCm = lerp(preset.leafLengthCmRange, c);
+  const factor = preset.leafLengthFactor ?? 1.0;
+  const leafLengthM = (leafLengthCm * factor) / 100;
+
+  const leafletFactor = preset.leafletCountFactor ?? 1.0;
+  const primaryPairs = Math.floor(lerp(preset.majorLeafletPairsRange, c) * leafletFactor);
+  const intercalaryCount = Math.floor(lerp(preset.intercalaryRange, c * c) * leafletFactor);
+  const secondaryRange = preset.secondaryRange ?? [0, 0];
+  const secondaryCount = Math.floor(lerp(secondaryRange, c) * leafletFactor);
+
+  const aspectRatioBaseline = preset.aspectRatioBaseline
+    ?? (preset.aspectRatioRange[0] + preset.aspectRatioRange[1]) / 2;
+  const aspectRatio = sampleHybrid(preset.aspectRatioRange, aspectRatioBaseline, seed);
+
+  const serrationAmpBaseline = (preset.serrationAmpRange[0] + preset.serrationAmpRange[1]) / 2;
+  const serrationAmp = sampleHybrid(preset.serrationAmpRange, serrationAmpBaseline, seed * 7);
+
+  const serrationFreq = Math.floor(10 + c * 18);
+
+  const lobeDepthBaseline = (preset.lobeDepthRange[0] + preset.lobeDepthRange[1]) / 2;
+  const lobeDepth = sampleHybrid(preset.lobeDepthRange, lobeDepthBaseline, seed * 11);
+
+  const baseShapeBaseline = preset.baseShapeBaseline ?? 0.85;
+  const baseShape = sampleHybrid([0.70, 1.00], baseShapeBaseline, seed * 17);
+
+  const tipSharpnessBaseline = preset.tipSharpnessBaseline ?? 1.5;
+  const tipSharpness = sampleHybrid([1.00, 2.00], tipSharpnessBaseline, seed * 19);
+
+  const asymmetry = (preset.asymmetry ?? 0) + 0.02 + c * 0.06;
+  const poseDroopDeg = lerp(preset.poseDroopDegRange, c);
+
+  return {
+    leafLengthM,
+    primaryPairs: Math.max(1, primaryPairs),
+    intercalaryCount: Math.max(0, intercalaryCount),
+    secondaryCount: Math.max(0, secondaryCount),
+    aspectRatio,
+    serrationAmp,
+    serrationFreq,
+    lobeDepth,
+    asymmetry,
+    poseDroopDeg,
+    color: preset.color,
+    curl: preset.curl,
+    smoothMargin: preset.smoothMargin,
+    baseShape,
+    tipSharpness,
+  };
+}
+
 // ─── L3-C S22: shapeProfile (inline) ────────────────────────────────────
 // 소엽 outline 생성 산식 (botanical reference §5):
 //   baseWidth(u) = sin(πu)^shapePower (0~1, tip sharpness 결정)

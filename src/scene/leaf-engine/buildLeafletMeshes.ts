@@ -38,8 +38,8 @@ import { normalizeLeafMeshVertices } from '../../plant/anchors';
 import { buildShapeProfile } from './LeafMeshBuilder';
 // ★ Iter 39 L3-C S21 — lobeNoise + serrationNoise inline to LeafMeshBuilder.
 import { lobeNoise, serrationNoise } from './LeafMeshBuilder';
-import { AGE_PRESETS } from './agePresets';
-import { applyCorrelation } from './correlationRules';
+// ★ Iter 39 L3-C S23 — agePresets + correlationRules inline to LeafMeshBuilder.
+import { AGE_PRESETS, applyCorrelation } from './LeafMeshBuilder';
 import {
   applyPositionProfile,
   endpointTaperWeight,
