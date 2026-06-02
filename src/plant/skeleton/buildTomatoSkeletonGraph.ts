@@ -448,7 +448,9 @@ function addLeavesForAxis(
  * rachisLen 자체에 이미 sf×nodePositionScale 반영 → sf 곱셈 _없음_.
  */
 const POSITION_SIZE_MULT: Record<LeafletPosition, number> = {
-  terminal: 0.32,   // 25cm × 0.32 = 8cm (mature terminal)
+  // ★ J0-5 (v14): terminal 0.32 → 0.38. J1에서 absolute scale 재조정 가능 문서 명시.
+  //   목적: hierarchy ratio (terminal ≥ primary × 1.15) 안정 통과.
+  terminal: 0.38,   // ↑ 0.32 (J0-5)
   primary: 0.24,    // 6cm primary leaflet
   // ★ Iter 39 Phase G3 (B4): intercalary 0.10→0.18, secondary 0.14→0.20
   //   plan v5: 사용자 botanical hierarchy intercalary < primary × 0.55.
@@ -793,7 +795,9 @@ function pushPrimaryLayoutItems(
   const im = clamp(imbalance, -0.15, 0.15);
   for (let i = 0; i < primaryUs.length; i++) {
     const baseU = primaryUs[i];
-    const baseSf = 0.85 - i * 0.10;
+    // ★ J0-5: primary sizeFactor 산식 강화 — 0.85 - 0.10i → 0.95 - 0.08i.
+    //   전체 primary가 더 크고, 인덱스 간 감쇠 완만.
+    const baseSf = 0.95 - i * 0.08;
     // H3 고정 ±0.10 baseline asymmetry + profile imbalance 합성 (convention 상기).
     const sfL = baseSf * (1 - 0.10) * (1 - im * 0.5);
     const sfR = baseSf * (1 + 0.10) * (1 + im * 0.5);
@@ -857,7 +861,8 @@ function pushIntercalaryAndTerminalLayoutItems(
       position: 'intercalary',
       side: i % 2 === 0 ? -1 : +1,
       rachisU: parseFloat(uKey(intercalaryUs[i])),
-      sizeFactor: 0.40 + (i % 3) * 0.10,  // 0.40 / 0.50 / 0.60
+      // ★ J0-5: intercalary sizeFactor 0.40-0.60 → 0.30-0.42 (보조 더 명확).
+      sizeFactor: 0.30 + (i % 3) * 0.06,  // 0.30 / 0.36 / 0.42
       edgeType: 'petiolule',
     });
   }
