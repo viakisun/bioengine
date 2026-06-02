@@ -5,8 +5,8 @@
 // "보기에 다름"이 아니라 invariant로 catch.
 //
 // HIERARCHY-VISIBLE-01:
-// - avg(terminal targetSizeM) ≥ avg(primary targetSizeM) × 1.15
-// - avg(primary targetSizeM) ≥ avg(intercalary targetSizeM) × 1.8
+// - avg(terminal targetSizeM) ≥ avg(primary targetSizeM) × 1.20 (J0-9B-1 강화)
+// - avg(primary targetSizeM) ≥ avg(intercalary targetSizeM) × 2.2 (J0-9B-1 강화)
 
 import { test, expect, type Page } from '@playwright/test';
 
@@ -25,7 +25,7 @@ async function enterSkin(page: Page, day: number) {
 }
 
 test.describe('Hierarchy Ratio (SSOT #194, Iter 39 Phase J0-5)', () => {
-  test('HIERARCHY-VISIBLE-01: terminal ≥ primary × 1.15 + primary ≥ intercalary × 1.8', async ({ page }) => {
+  test('HIERARCHY-VISIBLE-01: terminal ≥ primary × 1.20 + primary ≥ intercalary × 2.2 (J0-9B-1)', async ({ page }) => {
     test.setTimeout(120_000);
     await enterSkin(page, 45);
     const probe = await page.evaluate(() => {
@@ -90,8 +90,8 @@ test.describe('Hierarchy Ratio (SSOT #194, Iter 39 Phase J0-5)', () => {
       if (l.termAvg > 0 && l.primAvg > 0
           && l.primCount >= MIN_PRIMARY_FOR_HIERARCHY
           && !primaryClamped) {
-        if (l.termOverPrim < 1.15) {
-          violations.push(`${l.parentTag}: termOverPrim ${l.termOverPrim.toFixed(3)} < 1.15 (primAvg=${l.primAvg.toFixed(4)})`);
+        if (l.termOverPrim < 1.20) {
+          violations.push(`${l.parentTag}: termOverPrim ${l.termOverPrim.toFixed(3)} < 1.20 (primAvg=${l.primAvg.toFixed(4)})`);
         }
       }
       // prim/inter ratio: 양쪽 모두 clamp 영역 아닐 때만.
@@ -99,8 +99,8 @@ test.describe('Hierarchy Ratio (SSOT #194, Iter 39 Phase J0-5)', () => {
           && l.primCount >= MIN_PRIMARY_FOR_HIERARCHY
           && l.interCount >= MIN_INTERCALARY_FOR_RATIO
           && !primaryClamped && !interClamped) {
-        if (l.primOverInter < 1.8) {
-          violations.push(`${l.parentTag}: primOverInter ${l.primOverInter.toFixed(3)} < 1.8 (primAvg=${l.primAvg.toFixed(4)}, interAvg=${l.interAvg.toFixed(4)})`);
+        if (l.primOverInter < 2.2) {
+          violations.push(`${l.parentTag}: primOverInter ${l.primOverInter.toFixed(3)} < 2.2 (primAvg=${l.primAvg.toFixed(4)}, interAvg=${l.interAvg.toFixed(4)})`);
         }
       }
     }

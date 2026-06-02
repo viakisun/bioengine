@@ -841,9 +841,10 @@ function pushPrimaryLayoutItems(
   const im = clamp(imbalance, -0.15, 0.15);
   for (let i = 0; i < primaryUs.length; i++) {
     const baseU = primaryUs[i];
-    // ★ J0-5: primary sizeFactor 산식 강화 — 0.85 - 0.10i → 0.95 - 0.08i.
-    //   전체 primary가 더 크고, 인덱스 간 감쇠 완만.
-    const baseSf = 0.95 - i * 0.08;
+    // ★ J0-9B-1 (v21): primary sizeFactor 산식 강화 — 0.95-0.08i → 1.00-0.10i.
+    //   range 1.00 ~ 0.70 (4쌍), 차이 더 명확 (이전 0.95 ~ 0.71). intercalary와
+    //   prim/inter ratio ≥ 2.2 보장.
+    const baseSf = 1.00 - i * 0.10;
     // H3 고정 ±0.10 baseline asymmetry + profile imbalance 합성 (convention 상기).
     const sfL = baseSf * (1 - 0.10) * (1 - im * 0.5);
     const sfR = baseSf * (1 + 0.10) * (1 + im * 0.5);
@@ -945,8 +946,9 @@ function pushIntercalaryAndTerminalLayoutItems(
       position: 'intercalary',
       side: i % 2 === 0 ? -1 : +1,
       rachisU: parseFloat(uKey(intercalaryUs[i])),
-      // ★ J0-5: intercalary sizeFactor 0.40-0.60 → 0.30-0.42 (보조 더 명확).
-      sizeFactor: 0.30 + (i % 3) * 0.06,  // 0.30 / 0.36 / 0.42
+      // ★ J0-9B-1 (v21): intercalary sizeFactor 0.30+(i%3)×0.06 → 0.25+(i%3)×0.05.
+      //   range 0.25 / 0.30 / 0.35 (이전 0.30 / 0.36 / 0.42). 보조 더 명확.
+      sizeFactor: 0.25 + (i % 3) * 0.05,  // 0.25 / 0.30 / 0.35
       edgeType: 'petiolule',
     });
   }
