@@ -557,18 +557,36 @@ interface RachisDirSource {
   tangentAt?(u: number): V3;
 }
 
-// ─── Iter 39 Phase J0-7D — Petiolule length 재실험 (0.10/0.05 mid) ──────
-// 사용자 v15/v16: J0-3B 0.08/0.04이 시각상 _구슬 꿰기_ 인상 (branch hierarchy
-// 약함). 0.10/0.05 중간값 metrics-3D.json + 3-way 비교 후 채택.
-// (이전 J0-3B: 0.08/0.04, J0-3A: 0.12/0.06, I2-B: 0.22/0.14/0.10)
+// ─── Iter 39 Phase J0-7D + J0-9C — Petiolule length per-pair-index rhythm ─
+// 사용자 v15/v16: J0-3B 0.08/0.04이 시각상 _구슬 꿰기_. 0.10/0.05 (J0-7D) 채택.
+//   J0-9C (v21): primary _pair index별_ rhythm으로 "모두 같은 hook 반복" 해소.
+//   factor `[0.105, 0.100, 0.095, 0.090]` (v21 안전 ceiling — max factor 0.105).
+//
+//   ★ PETIOLULE-LEN-01 평가는 _실제 ratio_ (petioluleLen / rachisLen) 기준.
+//   sf > 1 시 inflated ratio 가능 (J0-8B audit FAIL 62.5% — engine sizeFactor
+//   POSTCLOSE-1 phase). factor만 보면 안전해도 inflated case에서 ratio 초과.
+const PRIMARY_BRANCH_LENGTH_BY_PAIR_INDEX: ReadonlyArray<number> = [
+  0.105,  // pair[0] — base, 약간 큼
+  0.100,  // pair[1]
+  0.095,  // pair[2] — rhythm
+  0.090,  // pair[3] — terminal 쪽, 더 짧음 (terminal에 양보)
+];
 function computeBranchLength(
   position: LeafletPosition,
   sf: number,
   rachisLen: number,
+  pairIndex?: number,  // ★ J0-9C: primary 쌍 index
 ): number {
   switch (position) {
-    case 'primary':     return sf * rachisLen * 0.10;  // ← J0-7D
-    case 'intercalary': return sf * rachisLen * 0.05;  // ← J0-7D
+    case 'primary': {
+      const factor = pairIndex != null
+        ? PRIMARY_BRANCH_LENGTH_BY_PAIR_INDEX[
+            Math.min(pairIndex, PRIMARY_BRANCH_LENGTH_BY_PAIR_INDEX.length - 1)
+          ]
+        : 0.10;  // fallback: J0-7D 균일값
+      return sf * rachisLen * factor;
+    }
+    case 'intercalary': return sf * rachisLen * 0.05;
     case 'secondary':   return sf * rachisLen * 0.10;  // (I3 disabled)
     case 'terminal':    return 0;
   }
@@ -1239,7 +1257,8 @@ function addLeafletNodesForLeaf(
     );
     // ★ Iter 39 Phase I2-B — position별 branch length (위계 시각 구분).
     //   primary 22% / intercalary 14% / secondary 10% / terminal 0.
-    const outAmount = computeBranchLength(position, sf, rachisLen);
+    // ★ J0-9C: primary는 pairIndex 전달, 외엔 fallback 균일.
+    const outAmount = computeBranchLength(position, sf, rachisLen, pairIndex);
 
     // ★ Iter 39 Phase J0-2C — roll/twist offset 제거.
     //   기존 `rollOffset = sin(rollDeg) × sf × 5mm`, `twistOffset = sin(twistDeg) × sf × 3mm`

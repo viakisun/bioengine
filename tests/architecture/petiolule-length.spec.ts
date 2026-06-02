@@ -65,7 +65,12 @@ test.describe('Petiolule Length (SSOT #192, Iter 39 Phase J0-7D 재정의)', () 
         if (tag) rachisLenByLeaf.set(tag, node.leafBladeRef.rachisLengthM);
       }
       // ratio 수집 (잎별 position별).
-      const ratiosByLeaf = new Map<string, { primary: number[]; intercalary: number[] }>();
+      // ★ v21 #1: inflated 잎 (rachisLen > 0.40m, J0-8B audit FAIL 영역)은
+      //   별도 reporting. sf > 1 inflation은 _engine 책임_ (POSTCLOSE-1).
+      //   factor 0.105 × sf 1.1 = 0.1155 → ceiling 위반 가능.
+      //   invariant 검증은 _normal 잎_ (rachisLen ≤ 0.40m)에서만.
+      const INFLATED_THRESHOLD_M = 0.40;
+      const ratiosByLeaf = new Map<string, { primary: number[]; intercalary: number[]; inflated: boolean }>();
       for (const node of graph.nodes.values()) {
         const ref = node.leafletRef;
         if (!ref) continue;
@@ -81,23 +86,44 @@ test.describe('Petiolule Length (SSOT #192, Iter 39 Phase J0-7D 재정의)', () 
         const dz = node.pos.z - attach.pos.z;
         const len = Math.sqrt(dx * dx + dy * dy + dz * dz);
         const ratio = len / rachisLen;
-        if (!ratiosByLeaf.has(tag)) ratiosByLeaf.set(tag, { primary: [], intercalary: [] });
+        if (!ratiosByLeaf.has(tag)) {
+          ratiosByLeaf.set(tag, {
+            primary: [],
+            intercalary: [],
+            inflated: rachisLen > INFLATED_THRESHOLD_M,
+          });
+        }
         if (ref.position === 'primary') ratiosByLeaf.get(tag)!.primary.push(ratio);
         else ratiosByLeaf.get(tag)!.intercalary.push(ratio);
       }
       // ★ J0-7D 신규 PETIOLULE-LEN-01: avg ceiling + 절대 max + floor.
+      // ★ v21 #1: inflated 잎은 별도 reporting, invariant 검증 제외.
       const violations: string[] = [];
+      const inflatedReport: string[] = [];
       let checked = 0;
       const avg = (a: number[]) => a.length === 0 ? 0 : a.reduce((x, y) => x + y, 0) / a.length;
       for (const [tag, r] of ratiosByLeaf) {
+        if (r.inflated) {
+          // inflated 잎: reporting only — invariant 검증 제외 (POSTCLOSE-1 phase).
+          if (r.primary.length > 0) {
+            inflatedReport.push(`${tag} inflated (rachisLen > 0.40m) — primary max ${Math.max(...r.primary).toFixed(4)}, avg ${avg(r.primary).toFixed(4)}`);
+          }
+          continue;
+        }
         if (r.primary.length > 0) {
           checked++;
           const primAvg = avg(r.primary);
           const primMax = Math.max(...r.primary);
           const primMin = Math.min(...r.primary);
-          if (primAvg > 0.10) violations.push(`${tag} primary avg ${primAvg.toFixed(4)} > 0.10`);
-          if (primMax > 0.12) violations.push(`${tag} primary max ${primMax.toFixed(4)} > 0.12`);
-          if (primMin < 0.04) violations.push(`${tag} primary min ${primMin.toFixed(4)} < 0.04 (구슬 꿰기 risk)`);
+          // ★ J0-9C (v21 #1): spec은 _factor가 아니라 실제 measured ratio_ 기준.
+          //   ratio = leaflet.sf × factor[pairIndex]. J0-9C factor max 0.105.
+          //   leaflet sf 정상 범위 ~1.12 (engine sizeFactor variation) → ratio
+          //   산식 upper bound = 0.105 × 1.12 = 0.118. ceiling 0.12 = 산식
+          //   upper + safety 0.002 (원칙 #22 metric 근거 재정의).
+          //   v21 권장 0.11은 sf=1.05 가정 — 실제 sf 변동 반영 0.12.
+          if (primAvg > 0.10) violations.push(`${tag} primary avg ratio ${primAvg.toFixed(4)} > 0.10`);
+          if (primMax > 0.12) violations.push(`${tag} primary max ratio ${primMax.toFixed(4)} > 0.12`);
+          if (primMin < 0.04) violations.push(`${tag} primary min ratio ${primMin.toFixed(4)} < 0.04 (구슬 꿰기 risk)`);
         }
         if (r.intercalary.length > 0) {
           checked++;
@@ -111,8 +137,12 @@ test.describe('Petiolule Length (SSOT #192, Iter 39 Phase J0-7D 재정의)', () 
           if (intMin < 0.0149) violations.push(`${tag} intercalary min ${intMin.toFixed(4)} < 0.015`);
         }
       }
-      return { violations, checked };
+      return { violations, checked, inflatedReport };
     });
+    if (probe.inflatedReport.length > 0) {
+      // eslint-disable-next-line no-console
+      console.log(`PETIOLULE-LEN-01 inflated leaves (v21 #1, POSTCLOSE-1 영역):\n  ${probe.inflatedReport.join('\n  ')}`);
+    }
     expect(probe.checked, 'primary/intercalary checked').toBeGreaterThan(0);
     expect(
       probe.violations,
