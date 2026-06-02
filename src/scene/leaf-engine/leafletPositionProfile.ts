@@ -73,6 +73,27 @@ export const PROFILE_BY_POSITION: Record<LeafletPosition, LeafletShapeProfile> =
 };
 
 /**
+ * Endpoint taper weight (Iter 39 Phase L2-4a — cap topology).
+ *
+ * leafletPlaneChunk row 인덱스 t (0=base, 1=tip)에서 lobe/serration noise에
+ * 곱할 가중치. sin(πt)는 t=0/1에서 0, t=0.5에서 1 → 끝쪽 noise suppress.
+ *
+ * 효과:
+ *   - row=0/row=N의 9 vertices가 profile baseline halfWidth (= 0) + noise 0
+ *     → 모두 z ≈ 0에 수렴 → cap에서 vertex 겹침 _깨끗한 cap_
+ *   - 가운데 vertices는 그대로 (taper = 1)
+ *
+ * Endpoint row collapse to 1 vertex (Option (i))는 uv/normal/index buffer
+ * 영향 큼 → high-risk. L2-4a는 _noise taper_ 만 (Option (ii) approach).
+ *
+ * @param t  row index normalized [0, 1] (0 = base, 0.5 = middle, 1 = tip)
+ * @returns  taper weight ∈ [0, 1]
+ */
+export function endpointTaperWeight(t: number): number {
+  return Math.sin(t * Math.PI);
+}
+
+/**
  * Position profile을 leaf-level resolved에 _덮어쓰기_ (사용자 v3 #3 병합 순서).
  *
  *   ...resolved 먼저 (rachisCurvature, baseShape, asymmetry — leaf-level fallback)

@@ -37,7 +37,11 @@ import { lobeNoise } from './lobeNoise';
 import { serrationNoise } from './serrationNoise';
 import { AGE_PRESETS } from './agePresets';
 import { applyCorrelation } from './correlationRules';
-import { applyPositionProfile, type LeafletPosition } from './leafletPositionProfile';
+import {
+  applyPositionProfile,
+  endpointTaperWeight,
+  type LeafletPosition,
+} from './leafletPositionProfile';
 import type { CultivarShapeOverride } from './index';
 
 type V3 = { x: number; y: number; z: number };
@@ -173,12 +177,19 @@ export function buildLeafletMeshes(ctx: LeafletMeshBuildContext): Mesh[] {
     //   되어 broken mesh shard 인상. _절대_ noise를 cap (lengthM 대신 noiseLengthM
     //   = max(lengthM, 0.02)).
     const noiseLengthM = Math.max(lengthM, 0.02);
-    for (const sample of profile) {
+    // ★ Iter 39 Phase L2-4a — cap topology: endpoint taper noise.
+    //   row=0 (base) / row=N (tip)에서 noise * sin(πt) → 끝쪽 0 가중치 →
+    //   9 vertices가 origin으로 수렴 → 뭉툭 cap 해소.
+    const lengthSegs = profile.length - 1;
+    for (let i = 0; i < profile.length; i++) {
+      const sample = profile[i];
+      const t = lengthSegs > 0 ? i / lengthSegs : 0;
+      const taper = endpointTaperWeight(t);
       // ★ L2-3 — position profile에서 가져온 lobeDepth/serrationAmp/Freq 사용.
-      const lobe = lobeNoise(sample.u, positioned.lobeDepth * noiseLengthM, leafletSeed);
+      const lobe = lobeNoise(sample.u, positioned.lobeDepth * noiseLengthM, leafletSeed) * taper;
       const teeth = serrationNoise(
         sample.u, positioned.serrationAmp * noiseLengthM, positioned.serrationFreq, leafletSeed,
-      );
+      ) * taper;
       sample.halfWidthLeft += lobe + teeth;
       sample.halfWidthRight += lobe * 0.85 + teeth * 1.1;
     }
