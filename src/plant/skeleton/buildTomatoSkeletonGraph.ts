@@ -474,6 +474,35 @@ function clamp(x: number, lo: number, hi: number): number {
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * Math.max(0, Math.min(1, t));
 }
+
+// ─── Iter 39 Phase I0-a — Layout-first 기반 helper ──────────────────────
+//
+// 사용자 v9/v10 review의 핵심 보완:
+//   - uKey(u: number): string  — 모든 attachU map key 단일화.
+//     floating-point hash collision 0 (0.500 vs 0.5 vs 0.499999 차단).
+//     기존 `Math.round(u * 100) / 100`이 산식 곳곳에 흩어진 문제 해결.
+//   - getPrimaryUsForPairCount(pairCount) — pair count별 template.
+//     기존 `[0.18, 0.35, 0.55, 0.75].slice(0, pairCount)`는 1쌍/2쌍 잎이 base
+//     쪽 몰림 → young 잎 자연스럽지 않음. pairCount별 분포 균등 재배치.
+//
+// Example: uKey(0.4875) → "0.488", uKey(0.5) → "0.500"
+
+function uKey(u: number): string {
+  return (Math.round(u * 1000) / 1000).toFixed(3);
+}
+
+const PRIMARY_US_BY_PAIR_COUNT: Record<number, readonly number[]> = {
+  1: [0.48],
+  2: [0.32, 0.68],
+  3: [0.24, 0.50, 0.74],
+  4: [0.18, 0.35, 0.55, 0.75],
+};
+
+function getPrimaryUsForPairCount(primaryPairs: number): readonly number[] {
+  const clamped = Math.max(1, Math.min(4, Math.round(primaryPairs)));
+  return PRIMARY_US_BY_PAIR_COUNT[clamped];
+}
+
 function computeLeafletTargetSize(
   position: LeafletPosition,
   rachisLen: number,
@@ -663,6 +692,115 @@ function computeLeafBladeRef(
  *       petiolule edge: 부착점 → leaflet pos (좌우 lateral offset)
  *   - 모든 leaflet-node.edgeIds에 자신 부착 edge ID 추가.
  */
+
+// ─── Iter 39 Phase I0-b — Layout-first 타입 ─────────────────────────────
+//
+// 사용자 v9/v10 핵심 강제: 모든 leaflet의 _최종_ U/side/sf를 _먼저_ 확정 →
+// attachUs는 layout 결과에서. nearest fallback 금지. truss/fishbone 인상 제거.
+//
+// Secondary는 이 layout에서 _제외_ (parent primary 기반 별도 산출 — I3 phase).
+
+interface LeafletLayoutItem {
+  position: LeafletPosition;
+  side: -1 | 0 | 1;                  // -1=left, 0=center(terminal), +1=right
+  rachisU: number;                   // 최종 attach U (stagger 적용 후, uKey 통과)
+  sizeFactor: number;
+  edgeType: 'lateral-vein' | 'petiolule' | 'leaf-rachis';
+}
+
+interface LeafletLayout {
+  items: LeafletLayoutItem[];
+  uniqueAttachUs: number[];          // items의 rachisU를 uKey 거친 후 unique sorted
+}
+
+// ─── Iter 39 Phase I0-c — Primary layout (template + ±0.0125 stagger) ──
+// 사용자 v9 #2 + 사용자 권장: pairCount별 균등 template로 1쌍/2쌍 잎이 base
+// 쪽 몰리지 않음. 좌우 stagger ±0.0125로 attachUs Set과 정확 일치.
+function pushPrimaryLayoutItems(
+  items: LeafletLayoutItem[],
+  primaryUs: readonly number[],
+  imbalance: number,
+): void {
+  for (let i = 0; i < primaryUs.length; i++) {
+    const baseU = primaryUs[i];
+    const baseSf = 0.85 - i * 0.10;
+    // ★ I3에서 leftRightImbalance 복원 예정 (현재 H3의 고정 ±0.10 유지).
+    const sfL = baseSf * (1 - 0.10) * (1 - imbalance * 0.5);
+    const sfR = baseSf * (1 + 0.10) * (1 + imbalance * 0.5);
+    items.push({
+      position: 'primary', side: -1,
+      rachisU: parseFloat(uKey(baseU - 0.0125)),
+      sizeFactor: sfL, edgeType: 'lateral-vein',
+    });
+    items.push({
+      position: 'primary', side: +1,
+      rachisU: parseFloat(uKey(baseU + 0.0125)),
+      sizeFactor: sfR, edgeType: 'lateral-vein',
+    });
+  }
+}
+
+// ─── Iter 39 Phase I0-d — Intercalary + Terminal layout ─────────────────
+// 사용자 v9 #3: I0에서 intercalary도 layout item으로. slot-based는 I2에서.
+// 기존 H 단계 산식 유지: baseU = 0.25 + (i / count) × 0.5 + jitter ±0.05.
+function pushIntercalaryAndTerminalLayoutItems(
+  items: LeafletLayoutItem[],
+  intercalaryCount: number,
+  leafNodeIdx: number,
+): void {
+  for (let i = 0; i < intercalaryCount; i++) {
+    const baseU = 0.25 + (i / Math.max(1, intercalaryCount)) * 0.5;
+    // ★ Iter 37 Q6.2 — intercalary jitter (deterministic seed).
+    const interSeed = leafNodeIdx * 0.7919 + i * 31;
+    const jitter = (((interSeed * 9301) % 100) - 50) / 1000;  // ±0.05
+    const rachisU = Math.max(0.1, Math.min(0.95, baseU + jitter));
+    items.push({
+      position: 'intercalary',
+      side: i % 2 === 0 ? -1 : +1,
+      rachisU: parseFloat(uKey(rachisU)),
+      sizeFactor: 0.40 + (i % 3) * 0.10,  // 0.40 / 0.50 / 0.60
+      edgeType: 'petiolule',
+    });
+  }
+  // Terminal — rachis 끝 (U=1.0). 항상 1개.
+  items.push({
+    position: 'terminal', side: 0,
+    rachisU: 1.0,
+    sizeFactor: 1.0,
+    edgeType: 'leaf-rachis',
+  });
+}
+
+// ─── Iter 39 Phase I0-b/c/d — computeLeafletLayout ──────────────────────
+// 모든 leaflet의 _최종_ (position, side, rachisU, sf) 확정 후 uniqueAttachUs
+// 추출. 이후 sub-rachis edge / attach node / leaflet materialization은 _이
+// 결과만_ 참조 (single source of truth).
+function computeLeafletLayout(
+  bladeRef: LeafBladeRef,
+  profile: { leftRightImbalance: number; spacingBias: number },
+  leafNodeIdx: number,
+): LeafletLayout {
+  const primaryUs = getPrimaryUsForPairCount(bladeRef.primaryPairs);
+  const items: LeafletLayoutItem[] = [];
+  // ★ I3에서 imbalance가 sf에 양수=right larger convention으로 복원될 예정.
+  //   I0는 0으로 시작 (H3 단계 고정값과 동일 시각). spacingBias는 _skeleton U_에
+  //   적용 _금지_ (H3 제약 유지) — pose/shape layer 전용.
+  void profile.spacingBias;
+  pushPrimaryLayoutItems(items, primaryUs, profile.leftRightImbalance);
+  pushIntercalaryAndTerminalLayoutItems(items, bladeRef.intercalaryCount, leafNodeIdx);
+  // uniqueAttachUs: items rachisU 수집 → uKey 거친 unique sorted.
+  const seen = new Set<string>();
+  const uniqueAttachUs: number[] = [];
+  for (const it of items) {
+    const k = uKey(it.rachisU);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    uniqueAttachUs.push(parseFloat(k));
+  }
+  uniqueAttachUs.sort((a, b) => a - b);
+  return { items, uniqueAttachUs };
+}
+
 function addLeafletNodesForLeaf(
   axisIdx: number,
   leafNodeIdx: number,
@@ -718,33 +856,18 @@ function addLeafletNodesForLeaf(
     z: tipPos.z + rachisDir.z * u * rachisLen,
   });
 
-  // ── Phase O — rachis를 _multiple sub-edges_로 분할 + attach nodes 분산 ──
-  //   사용자 의도: 잎줄기에 _여러 마디_가 있고 각 마디에서 좌우 소엽 분기.
-  //   이전 (Phase J): leaf-rachis edge가 하나 — 모든 leaflet이 terminal에서 분기 (별모양).
-  //   신규: rachisU별 attach node + sub-rachis edge → botanical fishbone.
-
-  // 1. 모든 attachment rachisU 수집 (primary + intercalary) + terminal(1.0)
-  const primaryUs = [0.18, 0.35, 0.55, 0.75].slice(0, bladeRef.primaryPairs);
-  const intercalaryUs: number[] = [];
-  for (let i = 0; i < bladeRef.intercalaryCount; i++) {
-    // ★ Iter 37 Q6.2 — intercalary 위치 jitter (이전: 균등 분포).
-    //   deterministic seed 기반 ±5% 변동.
-    const baseU = 0.25 + (i / Math.max(1, bladeRef.intercalaryCount)) * 0.5;
-    const interSeed = leafNodeIdx * 0.7919 + i * 31;
-    const jitter = (((interSeed * 9301) % 100) - 50) / 1000;  // ±0.05
-    intercalaryUs.push(Math.max(0.1, Math.min(0.95, baseU + jitter)));
-  }
-  // attach points: primary + intercalary + terminal(1.0). 중복 제거 + 정렬.
-  const attachUsSet = new Set<number>();
-  for (const u of primaryUs) attachUsSet.add(Math.round(u * 100) / 100);
-  for (const u of intercalaryUs) attachUsSet.add(Math.round(u * 100) / 100);
-  attachUsSet.add(1.0);  // terminal
-  const attachUs = Array.from(attachUsSet).sort((a, b) => a - b);
+  // ── Iter 39 Phase I0-e — Layout-first: 모든 leaflet items _먼저_ 확정 ──
+  //   사용자 v9/v10 핵심: attachUs는 _layout 결과에서_ 산출 (이전 primaryUs 기준
+  //   생성 후 uR=primaryUs[i]+0.04를 nearest fallback으로 매칭 → rachisPos와
+  //   attachNode.pos 불일치 → truss/fishbone). 이제 attachUs ⊇ 모든 leaflet U.
+  const layout = computeLeafletLayout(bladeRef, profile, leafNodeIdx);
+  const attachUs = layout.uniqueAttachUs;
 
   // 2. rachis를 sub-edges로 분할 — leaf-blade-root → attach[0] → attach[1] → ... → terminal.
-  //    각 attach node 생성 + sub-edge 등록 + parent edge id Map (rachisU → edge id).
-  const attachNodeByU = new Map<number, string>();
-  const subRachisEdgeIdByU = new Map<number, string>();
+  //    각 attach node 생성 + sub-edge 등록 + parent edge id Map (uKey → edge id).
+  //    ★ I0-e: Map<string, string> — floating-point hash collision 0.
+  const attachNodeByU = new Map<string, string>();
+  const subRachisEdgeIdByU = new Map<string, string>();
   let prevNodeId = parentLeafNodeId;
   let prevPos: V3 = { ...tipPos };
 
@@ -759,9 +882,12 @@ function addLeafletNodesForLeaf(
     const u = attachUs[i];
     const attachPos = rachisPointAt(u);
     const isTerminal = u >= 0.999;
+    // ★ Iter 39 Phase I0-e — attachNodeId suffix를 _uKey 3-decimal_로.
+    //   기존 u.toFixed(2)는 layout-first가 도입한 ±0.0125 stagger를 _구별 못 함_
+    //   (예: 0.168/0.193 → 두 다른 attachU가 같은 id "0.17"로 collision).
     const attachNodeId = isTerminal
       ? `n:leaflet:axis${axisIdx}:n${leafNodeIdx}:terminal:0`  // terminal node ID 유지
-      : `n:rachis-attach:axis${axisIdx}:n${leafNodeIdx}:u${u.toFixed(2)}`;
+      : `n:rachis-attach:axis${axisIdx}:n${leafNodeIdx}:u${uKey(u)}`;
 
     // sub-rachis edge.
     const subEdgeId = `e:leaf-rachis:axis${axisIdx}:n${leafNodeIdx}:seg${i}`;
@@ -792,12 +918,12 @@ function addLeafletNodesForLeaf(
       startNodeId: prevNodeId,
       endNodeId: attachNodeId,
       bonePath: subBones,
-      parentEdgeId: i === 0 ? parentEdgeId : subRachisEdgeIdByU.get(attachUs[i - 1])!,
+      parentEdgeId: i === 0 ? parentEdgeId : subRachisEdgeIdByU.get(uKey(attachUs[i - 1]))!,
       cuttable: true,
       semanticLabel: `leaf ${leafNodeIdx} rachis seg ${i}`,
       attachedOrganIds: [],
     });
-    subRachisEdgeIdByU.set(u, subEdgeId);
+    subRachisEdgeIdByU.set(uKey(u), subEdgeId);
 
     // attach node 생성 (terminal은 leafletRef 포함).
     if (isTerminal) {
@@ -849,26 +975,28 @@ function addLeafletNodesForLeaf(
     const prevNode = nodes.get(prevNodeId);
     if (prevNode) prevNode.edgeIds.push(subEdgeId);
 
-    attachNodeByU.set(u, attachNodeId);
+    attachNodeByU.set(uKey(u), attachNodeId);
     prevNodeId = attachNodeId;
     prevPos = attachPos;
   }
 
-  const terminalLid = attachNodeByU.get(1.0)!;
-  const leafRachisEdgeId = subRachisEdgeIdByU.get(1.0)!;  // 마지막 sub-edge — sub-vein parent로 사용.
+  const terminalLid = attachNodeByU.get(uKey(1.0))!;
+  const leafRachisEdgeId = subRachisEdgeIdByU.get(uKey(1.0))!;  // 마지막 sub-edge — sub-vein parent로 사용.
 
-  // attach node lookup helper — rachisU에 가장 가까운 attach node 찾기.
-  const findAttachNodeForU = (u: number): string => {
-    const rounded = Math.round(u * 100) / 100;
-    if (attachNodeByU.has(rounded)) return attachNodeByU.get(rounded)!;
-    // fallback: 가장 가까운 attachU.
-    let bestU = attachUs[0];
-    let bestDist = Math.abs(rounded - bestU);
-    for (const a of attachUs) {
-      const d = Math.abs(rounded - a);
-      if (d < bestDist) { bestDist = d; bestU = a; }
+  // ─── Iter 39 Phase I0-f — getExactAttachNodeId (strict, nearest fallback 제거) ──
+  //   사용자 v9 #11 + v10 #3: layout-first가 attachUs ⊇ 모든 leaflet U 보장 →
+  //   missing은 _개발 버그_. dev/test에서 hard error로 즉시 catch.
+  //   기존 findAttachNodeForU의 nearest fallback은 truss/fishbone 인상의 핵심 원인.
+  const getExactAttachNodeId = (u: number): string => {
+    const key = uKey(u);
+    const id = attachNodeByU.get(key);
+    if (!id) {
+      const available = Array.from(attachNodeByU.keys()).join(', ');
+      throw new Error(
+        `LEAFLET-ATTACH-COHERENCE violated: no attach node for u=${key} (available: ${available})`,
+      );
     }
-    return attachNodeByU.get(bestU)!;
+    return id;
   };
 
   let leafletCounter = 1;
@@ -939,12 +1067,13 @@ function addLeafletNodesForLeaf(
     //   skeleton SSOT: skin은 lengthM _그대로 사용_, skip 금지 (B5).
     const targetSizeM = computeLeafletTargetSize(position, rachisLen, sf, maturity);
 
-    // ★ Phase O — attach node에서 분기 (이전: terminalLid에서 모두 시작).
-    const attachNodeId = findAttachNodeForU(rachisU);
+    // ★ Iter 39 Phase I0-f — strict attach lookup (nearest fallback 제거).
+    //   layout-first가 attachUs ⊇ 모든 leaflet U 보장 → exact match만.
+    const attachNodeId = getExactAttachNodeId(rachisU);
     const attachNode = nodes.get(attachNodeId);
     const attachPos = attachNode?.pos ?? rachisPos;
     const parentSubRachisEdgeId =
-      subRachisEdgeIdByU.get(Math.round(rachisU * 100) / 100)
+      subRachisEdgeIdByU.get(uKey(rachisU))
       ?? leafRachisEdgeId;
 
     // ★ Iter 37 Q2.4 — Petiolule arch (rachisLen × 0.02 비례).
@@ -1118,52 +1247,46 @@ function addLeafletNodesForLeaf(
     if (parentNodeRef) parentNodeRef.edgeIds.push(subVeinEdgeId);
   };
 
-  // 2. Primary pairs (left/right) — 위에서 산출한 primaryUs 사용.
-  //   ★ Iter 39 Phase H3 (사용자 #3) — skeleton attach U _고정_ (jitter 제거).
-  //   이전 (BUG): uL/uR이 spacingBias + jitter로 이동 → attachUs Set과 mismatch
-  //   → findAttachNodeForU가 nearest 매칭 → leaflet rachisPos와 attachNode.pos 어긋남.
+  // ─── Iter 39 Phase I0-f — Layout-first materialization ──────────────────
+  //   사용자 v10 #2: layout item이 _source of truth_임이 코드에 명시.
+  //   `addRachisChild(p, u, sf, side, type)` 5-arg 직접 호출 금지 — wrapper로 통일.
   //
-  //   ★ profile.spacingBias and per-leaflet U jitter must NOT move skeleton
-  //     attach nodes. They may affect leaflet pose, shape, or mesh-level
-  //     asymmetry _only after skeleton acceptance_ (H5).
+  //   사용자 v10 #3: nearest fallback _완전 제거_ — getExactAttachNodeId만.
+  //   layout.items의 rachisU는 모두 layout.uniqueAttachUs에 _포함됨이 보장_됨
+  //   (computeLeafletLayout 산식 invariant) → strict match success.
   //
-  //   leaf-level asymmetry (좌우 size 차이)는 sfL/sfR로 표현 — _유지_.
+  //   terminal item은 sub-rachis chain에서 _이미_ 생성됨 (위 attachUs 루프) → skip.
+  void profile;  // spacingBias는 skeleton 단계에서 사용 안 함 (H3 명시 제약)
+  const materializeLeafletSpec = (item: LeafletLayoutItem): ReturnType<typeof addRachisChild> | null => {
+    if (item.position === 'terminal') return null;  // sub-rachis chain에서 이미 생성
+    if (item.edgeType === 'leaf-rachis') return null;  // defensive: terminal-only
+    return addRachisChild(
+      item.position,
+      item.rachisU,
+      item.sizeFactor,
+      item.side,
+      item.edgeType,
+    );
+  };
+
+  // Primary는 secondary parent로 쓰이므로 _순서대로_ 캐시.
   const primaries: Array<{
     lid: string; pos: V3; edgeId: string;
     attachNodeId: string; position: LeafletPosition; rachisU: number; bladeDir: V3;
   }> = [];
-  void profile;  // spacingBias는 skeleton 단계에서 사용 안 함 (H3 명시 제약)
-  for (let i = 0; i < primaryUs.length; i++) {
-    const baseSf = 0.85 - i * 0.10;
-    // leaf-level imbalance (좌우 size 차이) — _skeleton size only_, U position 영향 0.
-    const sfL = baseSf * (1 - 0.10);  // 기본 약간 좌측 크기 감소 (구조적 asymmetry baseline)
-    const sfR = baseSf * (1 + 0.10);
-    // ★ H3: U는 정확히 primaryUs[i] / primaryUs[i] + 0.04 — attachUs Set과 일치.
-    const uL = primaryUs[i];
-    const uR = primaryUs[i] + 0.04;
-    primaries.push(addRachisChild('primary', uL, sfL, -1, 'lateral-vein'));
-    primaries.push(addRachisChild('primary', uR, sfR, +1, 'lateral-vein'));
+  for (const item of layout.items) {
+    const created = materializeLeafletSpec(item);
+    if (created && item.position === 'primary') primaries.push(created);
   }
 
-  // 3. Intercalary — rachis 직접 부착 (petiolule edge).
-  //   ★ Iter 39 Phase G3 (B4): sf 0.10-0.26 → 0.40-0.60. clamp가 상한 보호
-  //     (computeLeafletTargetSize primary × 0.55).
-  for (let i = 0; i < bladeRef.intercalaryCount; i++) {
-    const u = intercalaryUs[i];
-    const sf = 0.40 + (i % 3) * 0.10;  // 0.40 / 0.50 / 0.60
-    const sign = i % 2 === 0 ? -1 : +1;
-    addRachisChild('intercalary', u, sf, sign, 'petiolule');
-  }
-
-  // 4. ★ Phase N — secondary (sub-leaflet) = primary leaflet의 _자식_.
-  //   ★ Iter 39 Phase G3 (B4): sf 0.15-0.45 → 0.35-0.65.
+  // Secondary (sub-leaflet) = primary leaflet의 _자식_. I3에서 disable flag 도입 예정.
+  //   ★ I0 단계: 기존 H 산식 그대로 (layout-first와 무관 — primary 캐시 기반).
   for (let i = 0; i < bladeRef.secondaryCount && i < primaries.length; i++) {
     const parent = primaries[i];
     const secSeed = leafNodeIdx * 0.7919 + i * 17;
     const sf = 0.35 + (((secSeed * 31) % 30) / 100);  // 0.35-0.65
-    const u = primaryUs[Math.floor(i / 2) % primaryUs.length] + 0.04;
     const sign = i % 2 === 0 ? +1 : -1;
-    addSubLeaflet(parent, u, sf, sign);
+    addSubLeaflet(parent, parent.rachisU, sf, sign);
   }
 }
 
