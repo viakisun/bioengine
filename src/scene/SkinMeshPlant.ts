@@ -86,8 +86,11 @@ import { buildLeafMeshFromPhytomer, getLeafMaterial, getYellowLeafMaterial } fro
 // Iter 36 v5 Phase C — skeleton 3-tier: get leaflet nodes for compound leaf rendering.
 // Iter 39 Phase B — getLeafletNodesByParentLeaf 제거 (Skin path는 SkeletonNode[] 사용).
 import { getLeafletSkeletonNodesByParentLeaf } from '../plant/skeleton/PlantSkeletonGraph';
-// Iter 39 Phase A — per-leaflet plane mesh (graph node-driven).
-import { buildLeafletMeshes } from './leaf-engine';
+// ★ Iter 39 Phase L2-1 — canonical leaf mesh entry (사용자 v3 Option B).
+//   LeafMeshBuilder = pure mesh algorithm layer. 현재 thin wrapper로
+//   buildLeafletMeshes 위임 — L2-3 이후 산식 통합 진입점.
+//   참조: docs/architecture/LEAF_MESH_PIPELINE_AUDIT.md
+import { buildLeafMeshFromSkeleton } from './leaf-engine';
 
 // Iter 35 PR 2 Phase I — ShowcasePlant archived. SkinMeshPlantHandle interface는
 //   원래 ShowcasePlant에서 import하던 type을 _자체 정의_로 inline (1:1 동일).
@@ -796,7 +799,7 @@ export function createSkinMeshPlant(
             y: lastBone.p1.y - lastBone.p0.y,
             z: lastBone.p1.z - lastBone.p0.z,
           };
-          const leafletMeshes = buildLeafletMeshes({
+          const leafletMeshes = buildLeafMeshFromSkeleton({
             scene,
             bladeRef,
             leafletSkeletonNodes,

@@ -136,6 +136,12 @@ export { AGE_PRESETS } from './agePresets';
 export { buildLeafletMeshes } from './buildLeafletMeshes';
 export type { LeafletMeshBuildContext } from './buildLeafletMeshes';
 
+// ★ Iter 39 Phase L2-1 — canonical entry (사용자 v3 Option B refactor).
+//   현재 thin wrapper, L2-3 이후 산식 통합 진입점.
+//   참조: docs/architecture/LEAF_MESH_PIPELINE_AUDIT.md
+export { buildLeafMeshFromSkeleton } from './LeafMeshBuilder';
+export type { LeafMeshBuildInput } from './LeafMeshBuilder';
+
 // Iter 39 Phase F4 — LeafInstanceProfile (per-compound-leaf macro variation).
 export { computeLeafInstanceProfile } from './leafInstanceProfile';
 export type { LeafInstanceProfile } from './leafInstanceProfile';
