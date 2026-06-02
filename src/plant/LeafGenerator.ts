@@ -19,8 +19,10 @@ import {
   type PlantGenome,
   type LeafStageInfo,
 } from '@farmsim/tomato-engine';
+// ★ Iter 39 L2-2c (S11) — buildLeafChunkLegacy import 제거 (createLeafMesh 폐기와 함께).
+//   buildLeafChunkSkin는 fallback path (buildLeafMeshFromPhytomer)에서 여전히
+//   사용 — S12에서 별도 결정.
 import {
-  buildLeafChunkLegacy,        // Legacy ShowcasePlant path.
   buildLeafChunkSkin,    // Iter 18B PR 7 Skin preset (omit-all leaflets-only).
   type GeoChunk,
   type LeafShapeParams,
@@ -91,40 +93,11 @@ function bakeLeafVertexColors(
   return out;
 }
 
-/**
- * Legacy positional-args wrapper — used by 29 static neighbor plants
- * in GreenhouseScene where there's no NodeState. Group 3 replaces
- * those with GrowthEngine-driven Light LOD plants.
- *
- * @deprecated Iter 39 L2-2a — 호출처 0 확인 (LEAF_MESH_PIPELINE_AUDIT Section 3).
- *   L2-2d (`S12`)에서 _legacy/로 이동 또는 삭제 예정. 사용 X.
- */
-export function createLeafMesh(
-  name: string,
-  scene: Scene,
-  leafletCount: number,
-  sizeFactor: number,
-  maturity: number,
-  curl: number,
-  rng: SeededRandom,
-  shapeParams?: LeafShapeParams,
-  ageFrac?: number
-): Mesh {
-  const chunk = buildLeafChunkLegacy(
-    {
-      leafletCount,
-      sizeFactor,
-      maturity,
-      curl,
-      ageFrac: ageFrac ?? 0,
-      shape: shapeParams,
-    },
-    rng
-  );
-  const mesh = new Mesh(name, scene);
-  applyChunkToMesh(chunk, mesh);
-  return mesh;
-}
+// ★ Iter 39 L2-2c (S11) — createLeafMesh + buildLeafChunkLegacy import 제거.
+//   호출처 0 확인 (LEAF_MESH_PIPELINE_AUDIT S10/`682299c`).
+//   ShowcasePlant legacy wrapper 의도였지만 실제 사용처 없음. dead code chain
+//   완전 제거. buildLeafChunkLegacy 정의 (packages/tomato-geometry)는 L2-2d
+//   (`S12`)에서 별도 결정.
 
 // Iter 35 PR 2 Phase L — createLeafMeshFromNode 제거 (ShowcasePlant 전용, 사용처 0).
 // Canonical entry는 buildLeafMeshFromPhytomer (Iter 33 LEAF-LIVE-FALLBACK-NEVER-01).
