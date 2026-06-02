@@ -438,6 +438,26 @@ interface TwinState {
   showSkeleton: boolean;
   setShowSkeleton: (v: boolean) => void;
 
+  /** ★ Iter 39 Phase J0-1 — Isolated Leaf Debug Mode.
+   *  Skeleton closure acceptance를 single compound leaf 단위로 검증할 때 사용.
+   *
+   *  - 'off':     일반 모드 (모든 organ 보임)
+   *  - 'strict':  target leaf의 skeleton만 보임. 다른 잎, truss, fruit, mesh, skin
+   *               모두 hide. Mode A — metrics report와 _대응하는_ 시각 reference.
+   *  - 'context': target leaf 강조 + 주변 alpha 0.15-0.20. Mode B — 상호작용 확인.
+   *
+   *  targetLeafId 예: `axis0:n8` (axisIdx:nodeIdx). 없으면 첫 번째 visible leaf.
+   *
+   *  Acceptance 결정은 _metrics report로만_ (active 원칙 #21). 본 모드는 해석 보조. */
+  isolatedLeafMode: {
+    mode: 'off' | 'strict' | 'context';
+    targetLeafId: string | null;
+  };
+  setIsolatedLeafMode: (patch: Partial<{
+    mode: 'off' | 'strict' | 'context';
+    targetLeafId: string | null;
+  }>) => void;
+
   /** 적엽 (defoliation) — plant-local Y가 이 값(cm) 이하인 leaves _hide_.
    *  0 = OFF. 기본 30cm (토마토 농가 하부 적엽 — 병해 예방, 통풍 개선).
    *  단순 _시각화_ 토글 (simulation 미영향). */
@@ -520,6 +540,27 @@ function readQualityFromUrl(): number | null {
 // Iter 31 — default boot quality 8 (사용자: "1단계는 너무 안보임").
 //   localStorage에 이전 저장된 renderQuality < 5는 _무시_ (낮은 화질 fallback 방지).
 const BOOT_QUALITY = readQualityFromUrl() ?? 8;
+
+/**
+ * ★ Iter 39 Phase J0-1 — Isolated Leaf Debug Mode boot 진입점.
+ *   URL: `?debug=isolatedLeaf&mode=strict&leafId=axis0:n8`
+ *   mode 누락 시 'strict' 기본, leafId 누락 시 null (첫 visible leaf로 fallback).
+ */
+function readIsolatedLeafModeFromUrl(): {
+  mode: 'off' | 'strict' | 'context';
+  targetLeafId: string | null;
+} {
+  if (typeof window === 'undefined') return { mode: 'off', targetLeafId: null };
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('debug') !== 'isolatedLeaf') return { mode: 'off', targetLeafId: null };
+  const m = params.get('mode');
+  const mode: 'off' | 'strict' | 'context' =
+    m === 'context' ? 'context' : m === 'off' ? 'off' : 'strict';
+  const leafId = params.get('leafId');
+  return { mode, targetLeafId: leafId };
+}
+
+const BOOT_ISOLATED_LEAF = readIsolatedLeafModeFromUrl();
 
 // ===========================================================================
 // Lighting / renderQuality persistence — localStorage
@@ -649,6 +690,12 @@ export const useTwinStore = create<TwinState>((set) => ({
   singlePlantCamera: 'free',
   showSkeleton: false,
   setShowSkeleton: (v) => set({ showSkeleton: v }),
+  // ★ Iter 39 Phase J0-1 — Isolated Leaf Debug Mode (Mode A strict / Mode B context).
+  //   기본 off — production은 모든 organ 보임. URL param `?debug=isolatedLeaf` 진입.
+  isolatedLeafMode: BOOT_ISOLATED_LEAF,
+  setIsolatedLeafMode: (patch) => set((s) => ({
+    isolatedLeafMode: { ...s.isolatedLeafMode, ...patch },
+  })),
   defoliationHeightCm: 0,
   setDefoliationHeightCm: (cm) => set({ defoliationHeightCm: Math.max(0, cm) }),
   debugDiagnostics: false,

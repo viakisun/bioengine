@@ -37,6 +37,7 @@ import type {
   FloralSiteBase,
 } from '../plant/PlantBase';
 import type { SkeletonConfig } from '../state/twinStore';
+import { useTwinStore } from '../state/twinStore';
 // Iter 20 — docking overlay (shared with SkinMeshPlant via window.__dockingJunctionPairs).
 import { createPetioleJunctionOverlay } from './dockingOverlay/PetioleJunctionOverlay';
 import type { PetioleJunctionPair } from './dockingOverlay/dockingPairs';
@@ -565,6 +566,33 @@ export function createSkeletonOverlay(
     //   high: 전부 (default)
     const level = cfg.leafDetailLevel ?? 'high';
     if (level === 'low') return;  // legacy PlantBase wireframe만 사용
+
+    // ★ Iter 39 Phase J0-1 — Isolated Leaf Debug Mode 필터.
+    //   strict/context 모두 target leaf id 결정. strict는 다른 잎 hide,
+    //   context는 dim (현재 빠른 구현은 strict hide만, context는 향후 alpha).
+    //   targetLeafId 형식: `axis${X}:n${Y}` (id substring에 포함).
+    const isoState = useTwinStore.getState().isolatedLeafMode;
+    const isoMode = isoState.mode;
+    let targetTag: string | null = null;
+    if (isoMode !== 'off') {
+      if (isoState.targetLeafId) {
+        targetTag = isoState.targetLeafId;
+      } else {
+        // fallback: 첫 번째 leaflet-node가 속한 leaf을 target으로
+        for (const node of graph.nodes.values()) {
+          if (node.type === 'leaflet-node' && node.leafletRef) {
+            const m = node.id.match(/axis\d+:n\d+/);
+            if (m) { targetTag = m[0]; break; }
+          }
+        }
+      }
+    }
+    const isOtherLeaf = (id: string): boolean => {
+      if (!targetTag) return false;
+      const m = id.match(/axis\d+:n\d+/);
+      if (!m) return false;
+      return m[0] !== targetTag;
+    };
     const showRachisAttach = level === 'high';
     const showIntercalary = level === 'high';   // petiolule edge
     const showSecondary = level === 'high';      // sub-vein edge
@@ -584,6 +612,8 @@ export function createSkeletonOverlay(
     // 1. Draw edges (vein hierarchy lines).
     for (const edge of graph.edges.values()) {
       if (!LEAF_EDGE_TYPES.has(edge.type)) continue;
+      // ★ J0-1: strict 모드는 target leaf 외 hide. context는 (현 단계) 모두 그림.
+      if (isoMode === 'strict' && isOtherLeaf(edge.id)) continue;
       // Iter 37 Q7 — level filter.
       if (!showIntercalary && edge.type === 'petiolule') continue;
       if (!showSecondary && edge.type === 'sub-vein') continue;
@@ -612,6 +642,8 @@ export function createSkeletonOverlay(
     ]);
     for (const node of graph.nodes.values()) {
       if (!node.type || !NEW_NODE_TYPES.has(node.type)) continue;
+      // ★ J0-1: strict 모드는 target leaf 외 hide.
+      if (isoMode === 'strict' && isOtherLeaf(node.id)) continue;
       // Iter 37 Q7 — level filter (rachis-attach + secondary leaflet은 high only).
       if (!showRachisAttach && node.type === 'rachis-attach-node') continue;
       if (!showSecondary && node.leafletRef?.position === 'secondary') continue;
@@ -711,10 +743,17 @@ export function createSkeletonOverlay(
       return;
     }
     clearMeshes();
+    // ★ Iter 39 Phase J0-1 — Isolated Leaf Debug Mode.
+    //   strict: target leaf 외 axis/sideShoot stem 그리지 않음.
+    //     leaf hierarchy도 target leaf만 (drawLeafHierarchyFromGraph 내부 필터).
+    //   context/off: 평소대로 모두 그림.
+    const isoMode = useTwinStore.getState().isolatedLeafMode.mode;
     try {
-      drawAxisAll(pb.mainAxis, 0);
-      for (let i = 0; i < pb.sideShoots.length; i++) {
-        drawAxisAll(pb.sideShoots[i], i + 1);
+      if (isoMode !== 'strict') {
+        drawAxisAll(pb.mainAxis, 0);
+        for (let i = 0; i < pb.sideShoots.length; i++) {
+          drawAxisAll(pb.sideShoots[i], i + 1);
+        }
       }
       // Iter 36 v5 Phase P — graph 기반 leaf hierarchy (legacy 위에 덧붙임).
       if (lastGraph) drawLeafHierarchyFromGraph(lastGraph);

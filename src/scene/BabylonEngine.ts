@@ -271,6 +271,23 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
     if (s.skeleton !== prev.skeleton && greenhouse) {
       greenhouse.skinMeshPlant.setSkeletonConfig(s.skeleton);
     }
+    // ★ Iter 39 Phase J0-1 — Isolated Leaf Debug Mode 적용.
+    //   strict: lush mesh OFF + skeleton ON (target leaf 외 모두 hide는
+    //     SkeletonOverlay 자체에서 처리).
+    //   context: lush ON 유지 (alpha dim은 overlay/skin 측 향후 처리),
+    //     skeleton ON 강제.
+    //   off: 사용자 토글 그대로.
+    if (s.isolatedLeafMode !== prev.isolatedLeafMode && greenhouse) {
+      const m = s.isolatedLeafMode.mode;
+      if (m === 'strict') {
+        greenhouse.skinMeshPlant.setLushEnabled(false);
+        greenhouse.skinMeshPlant.setSkeletonEnabled(true);
+      } else if (m === 'context') {
+        greenhouse.skinMeshPlant.setLushEnabled(true);
+        greenhouse.skinMeshPlant.setSkeletonEnabled(true);
+      }
+      // off: 토글 미강제 (사용자 showSkeleton 그대로).
+    }
     // Iter 35 PR 2: useImplicitMesh subscription 제거 — SkinMesh가 유일 renderer.
     if (s.lighting !== prev.lighting && sceneSetup) {
       applyLightingToScene(scene, sceneSetup, s.lighting);
@@ -292,6 +309,14 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
     greenhouse.skinMeshPlant.setSkeletonConfig(initialState.skeleton);
     if (initialState.showSkeleton) {
       greenhouse.skinMeshPlant.setSkeletonMode(true);
+    }
+    // ★ Iter 39 Phase J0-1 — Boot 시 URL query로 진입한 isolated mode 적용.
+    const m0 = initialState.isolatedLeafMode.mode;
+    if (m0 === 'strict') {
+      greenhouse.skinMeshPlant.setLushEnabled(false);
+      greenhouse.skinMeshPlant.setSkeletonEnabled(true);
+    } else if (m0 === 'context') {
+      greenhouse.skinMeshPlant.setSkeletonEnabled(true);
     }
   }
 
