@@ -571,19 +571,32 @@ export function createSkeletonOverlay(
     //   strict/context 모두 target leaf id 결정. strict는 다른 잎 hide,
     //   context는 dim (현재 빠른 구현은 strict hide만, context는 향후 alpha).
     //   targetLeafId 형식: `axis${X}:n${Y}` (id substring에 포함).
+    //
+    //   ★ J0-8 fix: targetLeafId가 _현재 graph에 없으면_ (예: URL `axis0:n13`
+    //   이지만 day 100에 n13 미존재) 빈 화면이 됐던 버그. _existing tags_
+    //   검증 후 fallback 처리.
     const isoState = useTwinStore.getState().isolatedLeafMode;
     const isoMode = isoState.mode;
     let targetTag: string | null = null;
     if (isoMode !== 'off') {
-      if (isoState.targetLeafId) {
+      // 현재 graph에 _실제 존재하는_ leaf tag 수집.
+      const availableTags = new Set<string>();
+      for (const node of graph.nodes.values()) {
+        if (node.type === 'leaflet-node' && node.leafletRef) {
+          const m = node.id.match(/axis\d+:n\d+/);
+          if (m) availableTags.add(m[0]);
+        }
+      }
+      // 1) user-specified targetLeafId가 실제 존재하면 사용.
+      if (isoState.targetLeafId && availableTags.has(isoState.targetLeafId)) {
         targetTag = isoState.targetLeafId;
-      } else {
-        // fallback: 첫 번째 leaflet-node가 속한 leaf을 target으로
-        for (const node of graph.nodes.values()) {
-          if (node.type === 'leaflet-node' && node.leafletRef) {
-            const m = node.id.match(/axis\d+:n\d+/);
-            if (m) { targetTag = m[0]; break; }
-          }
+      } else if (availableTags.size > 0) {
+        // 2) 없으면 (specified가 미존재거나 unspecified) 첫 available tag로 fallback.
+        targetTag = availableTags.values().next().value ?? null;
+        if (isoState.targetLeafId) {
+          log.warn(
+            `isolated mode: leafId ${isoState.targetLeafId} not found, fallback to ${targetTag}. available: ${Array.from(availableTags).join(', ')}`,
+          );
         }
       }
     }
