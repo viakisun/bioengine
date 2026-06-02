@@ -29,14 +29,45 @@
 //        └─ applyLeafletPose(chunk, leaflet.pose)
 //     └─ mergeLeafletPatches(patches)
 
-// ★ Iter 39 L3-D (S25) — buildLeafletMeshes inline. monolithic SSOT 구축.
+// ★ Iter 39 L3-D~F — pure mesh algorithm SSOT.
+//   L3-F (S27): Babylon Mesh/Material/Texture 의존 _0_. 결과는 LeafMeshPatch[]
+//   (GeoChunk + meshName + position + rotationQuat — pure data).
+//   Babylon Mesh 생성은 LeafGenerator.wrapLeafChunksAsMeshes.
 
-import { Scene } from '@babylonjs/core/scene';
-import { Mesh } from '@babylonjs/core/Meshes/mesh';
-import { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData';
-import { Vector3, Quaternion } from '@babylonjs/core/Maths/math.vector';
 import type { SeededRandom } from '@farmsim/tomato-engine';
+import type { GeoChunk } from '@farmsim/tomato-geometry';
 import { buildLeafletPlaneChunk } from './leafletPlaneChunk';
+
+// ─── Pure quaternion math (Babylon 의존 0) ───────────────────────────────
+
+type Quat4 = { x: number; y: number; z: number; w: number };
+
+/** Quaternion from yaw-pitch-roll (intrinsic Y-X-Z, same as Babylon). */
+function quatFromYawPitchRoll(yaw: number, pitch: number, roll: number): Quat4 {
+  // Babylon Quaternion.RotationYawPitchRoll uses Y (yaw) * X (pitch) * Z (roll).
+  const halfRoll  = roll  * 0.5;
+  const halfPitch = pitch * 0.5;
+  const halfYaw   = yaw   * 0.5;
+  const sinRoll  = Math.sin(halfRoll),  cosRoll  = Math.cos(halfRoll);
+  const sinPitch = Math.sin(halfPitch), cosPitch = Math.cos(halfPitch);
+  const sinYaw   = Math.sin(halfYaw),   cosYaw   = Math.cos(halfYaw);
+  return {
+    x: cosYaw * sinPitch * cosRoll + sinYaw * cosPitch * sinRoll,
+    y: sinYaw * cosPitch * cosRoll - cosYaw * sinPitch * sinRoll,
+    z: cosYaw * cosPitch * sinRoll - sinYaw * sinPitch * cosRoll,
+    w: cosYaw * cosPitch * cosRoll + sinYaw * sinPitch * sinRoll,
+  };
+}
+
+/** Quaternion multiply (a × b). */
+function quatMultiply(a: Quat4, b: Quat4): Quat4 {
+  return {
+    x: a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y,
+    y: a.w * b.y - a.x * b.z + a.y * b.w + a.z * b.x,
+    z: a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w,
+    w: a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z,
+  };
+}
 import type {
   SkeletonNode,
   LeafBladeRef,
@@ -63,8 +94,28 @@ function djb2(s: string): number {
   return Math.abs(h);
 }
 
+// ─── L3-F: LeafMeshPatch (pure data, Babylon Mesh 분리) ──────────────────
+//
+// LeafMeshBuilder는 _pure data_ 산출:
+//   - chunk: GeoChunk (vertex/index/normal/uv)
+//   - meshName: Babylon Mesh 이름 (LeafGenerator가 사용)
+//   - position: plant-local
+//   - rotationQuat: rotation (Babylon Quaternion이 같은 layout)
+//
+// LeafGenerator.wrapLeafChunksAsMeshes가 Babylon Mesh로 변환.
+
+export interface LeafMeshPatch {
+  /** Babylon Mesh 이름. */
+  meshName: string;
+  /** Vertex data (positions/normals/uvs/indices). */
+  chunk: GeoChunk;
+  /** Mesh.position (plant-local). */
+  position: { x: number; y: number; z: number };
+  /** Mesh.rotationQuaternion (Babylon Quaternion 동일 layout). */
+  rotationQuat: Quat4;
+}
+
 export interface LeafletMeshBuildContext {
-  scene: Scene;
   bladeRef: LeafBladeRef;
   leafletSkeletonNodes: ReadonlyArray<SkeletonNode>;
   leafBladeRootNode: SkeletonNode;
@@ -597,43 +648,36 @@ function buildLeafletOutlineWithNoise(
 }
 
 /**
- * Step 3: leaflet pose composition (mesh.position + rotationQuaternion).
+ * Step 3: leaflet pose composition — pure rotation Quat4.
  * F5 maturity envelope + L0-D-1 pitch + per-leaflet noise.
  */
 function applyLeafletPose(
-  mesh: Mesh,
   node: SkeletonNode,
   idSeed: number,
   desc: LeafShapeDescriptor,
-): void {
-  // graph SSOT — mesh.position = leafletSkeletonNode.pos (plant-local).
-  mesh.position = new Vector3(node.pos.x, node.pos.y, node.pos.z);
-
-  // F5 maturity-dependent pose composition.
+): Quat4 {
   const bd = node.leafletRef!.bladeDir;
-  const baseQ = makeLeafQuaternion(bd, WORLD_UP);
-  const baseRotQ = new Quaternion(baseQ.x, baseQ.y, baseQ.z, baseQ.w);
+  const baseQ = makeLeafQuaternion(bd, WORLD_UP);  // Quat4
   const pitchNoise = (((idSeed * 17) % 200 - 100) / 1000);
   const rollNoise  = (((idSeed * 19) % 400 - 200) / 1000);
   const twistNoise = (((idSeed * 13) % 300 - 150) / 1000);
   const pitchRad = (desc.foldDroopDeg * Math.PI / 180 + pitchNoise) * desc.opennessFactor;
   const rollRad  = rollNoise  * desc.opennessFactor;
   const twistRad = twistNoise * desc.opennessFactor;
-  const localQ = Quaternion.RotationYawPitchRoll(twistRad, pitchRad, rollRad);
-  mesh.rotationQuaternion = baseRotQ.multiply(localQ);
-  // SSOT #185 — leafMesh stale worldMatrix trap (Iter 28 fix).
-  mesh.computeWorldMatrix(true);
+  const localQ = quatFromYawPitchRoll(twistRad, pitchRad, rollRad);
+  return quatMultiply(baseQ, localQ);
 }
 
 /**
- * Step 4: per-leaflet patch — profile → Babylon Mesh (vertex + position + rotation).
+ * Step 4: per-leaflet patch — pure data (GeoChunk + meshName + position + rotation).
+ * Babylon Mesh 생성은 LeafGenerator.wrapLeafChunksAsMeshes에서.
  */
 function buildLeafletPatch(
   node: SkeletonNode,
   i: number,
   desc: LeafShapeDescriptor,
   ctx: LeafMeshBuildInput,
-): Mesh | null {
+): LeafMeshPatch | null {
   if (!node.leafletRef) return null;
   const lengthM = node.leafletRef.targetSizeM;
   if (lengthM <= 0) return null;
@@ -659,20 +703,12 @@ function buildLeafletPatch(
   // SSOT #186 — L1-B centroid anchor.
   normalizeLeafMeshVertices(chunk.positions);
 
-  // Babylon Mesh 생성.
-  const meshName = `${ctx.meshNamePrefix}_l${i}_${node.leafletRef.position}`;
-  const mesh = new Mesh(meshName, ctx.scene);
-  const vd = new VertexData();
-  vd.positions = chunk.positions;
-  vd.normals = chunk.normals;
-  vd.uvs = chunk.uvs;
-  vd.indices = chunk.indices;
-  vd.applyToMesh(mesh);
-
-  // Position + rotation composition.
-  applyLeafletPose(mesh, node, idSeed, desc);
-
-  return mesh;
+  return {
+    meshName: `${ctx.meshNamePrefix}_l${i}_${node.leafletRef.position}`,
+    chunk,
+    position: { x: node.pos.x, y: node.pos.y, z: node.pos.z },
+    rotationQuat: applyLeafletPose(node, idSeed, desc),
+  };
 }
 
 /**
@@ -690,7 +726,7 @@ function buildLeafletPatch(
  * Output contract (REFACTOR-PARITY-01): 동일 input + seed → 동일 vertex
  * count / position / bbox / index.
  */
-export function buildLeafMeshFromSkeleton(ctx: LeafMeshBuildInput): Mesh[] {
+export function buildLeafMeshFromSkeleton(ctx: LeafMeshBuildInput): LeafMeshPatch[] {
   if (!ctx.bladeRef) {
     throw new Error('buildLeafMeshFromSkeleton: bladeRef required (mandatory contract)');
   }
@@ -701,10 +737,10 @@ export function buildLeafMeshFromSkeleton(ctx: LeafMeshBuildInput): Mesh[] {
 
   const descriptor = buildLeafShapeDescriptor(ctx);
 
-  const meshes: Mesh[] = [];
+  const patches: LeafMeshPatch[] = [];
   for (let i = 0; i < ctx.leafletSkeletonNodes.length; i++) {
-    const mesh = buildLeafletPatch(ctx.leafletSkeletonNodes[i], i, descriptor, ctx);
-    if (mesh) meshes.push(mesh);
+    const patch = buildLeafletPatch(ctx.leafletSkeletonNodes[i], i, descriptor, ctx);
+    if (patch) patches.push(patch);
   }
-  return meshes;
+  return patches;
 }

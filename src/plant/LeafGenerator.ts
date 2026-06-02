@@ -10,6 +10,9 @@
 //   LeafGenerator.ts   = Babylon Mesh + Material wrapper (이 파일)
 
 import { Scene } from '@babylonjs/core/scene';
+import { Mesh } from '@babylonjs/core/Meshes/mesh';
+import { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData';
+import { Vector3, Quaternion } from '@babylonjs/core/Maths/math.vector';
 import { PBRMaterial } from '@babylonjs/core/Materials/PBR/pbrMaterial';
 import { PBRCustomMaterial } from '@babylonjs/materials/custom/pbrCustomMaterial';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
@@ -17,6 +20,43 @@ import {
   getLeafColorTexture,
   getLeafNormalTexture,
 } from './LeafTexture';
+import type { LeafMeshPatch } from '../scene/leaf-engine';
+
+/**
+ * ★ Iter 39 L3-F (S27) — Babylon Mesh wrapper.
+ *
+ * LeafMeshBuilder가 산출한 LeafMeshPatch[] (pure data, GeoChunk + position +
+ * rotation)를 Babylon Mesh[]로 변환. 책임 분리 (원칙 #39):
+ *   LeafMeshBuilder = pure mesh algorithm (Babylon 의존 0)
+ *   LeafGenerator   = Babylon Mesh / Material wrapper (이 파일)
+ *
+ * 각 Mesh:
+ *   - new Mesh + VertexData(chunk) applyToMesh
+ *   - position (plant-local)
+ *   - rotationQuaternion (Quat4 → Babylon Quaternion)
+ *   - computeWorldMatrix(true) (SSOT #185 stale matrix prevention)
+ */
+export function wrapLeafChunksAsMeshes(patches: LeafMeshPatch[], scene: Scene): Mesh[] {
+  const meshes: Mesh[] = [];
+  for (const patch of patches) {
+    const mesh = new Mesh(patch.meshName, scene);
+    const vd = new VertexData();
+    vd.positions = patch.chunk.positions;
+    vd.normals = patch.chunk.normals;
+    vd.uvs = patch.chunk.uvs;
+    vd.indices = patch.chunk.indices;
+    vd.applyToMesh(mesh);
+
+    mesh.position = new Vector3(patch.position.x, patch.position.y, patch.position.z);
+    mesh.rotationQuaternion = new Quaternion(
+      patch.rotationQuat.x, patch.rotationQuat.y, patch.rotationQuat.z, patch.rotationQuat.w,
+    );
+    mesh.computeWorldMatrix(true);
+
+    meshes.push(mesh);
+  }
+  return meshes;
+}
 
 const cachedLeafMaterial = new WeakMap<Scene, PBRMaterial>();
 const cachedYellowLeafMaterial = new WeakMap<Scene, PBRMaterial>();

@@ -135,14 +135,14 @@ export { AGE_PRESETS } from './LeafMeshBuilder';
 
 // Iter 39 Phase A — per-leaflet plane mesh entry (Skin path).
 // ★ Iter 39 L3-D (S25) — buildLeafletMeshes inline to LeafMeshBuilder.
-//   canonical entry는 buildLeafMeshFromSkeleton (이미 export).
+//   canonical entry는 buildLeafMeshFromSkeleton — 이미 위 export.
 export type { LeafletMeshBuildContext } from './LeafMeshBuilder';
 
 // ★ Iter 39 Phase L2-1 — canonical entry (사용자 v3 Option B refactor).
 //   현재 thin wrapper, L2-3 이후 산식 통합 진입점.
 //   참조: docs/architecture/LEAF_MESH_PIPELINE_AUDIT.md
 export { buildLeafMeshFromSkeleton } from './LeafMeshBuilder';
-export type { LeafMeshBuildInput } from './LeafMeshBuilder';
+export type { LeafMeshBuildInput, LeafMeshPatch } from './LeafMeshBuilder';
 // ★ Iter 39 Phase L2-3 — per-leaflet position profile (visual change).
 export { PROFILE_BY_POSITION, applyPositionProfile } from './LeafMeshBuilder';
 export type { LeafletPosition, LeafletShapeProfile } from './LeafMeshBuilder';

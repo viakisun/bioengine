@@ -82,7 +82,7 @@ import { defaultSkinEngine } from '../plant/skin/defaultSkinEngine';
 // Iter 18B PR 4 — switch to createLeafBladeOnlyMesh. SkinMeshPlant은 SDF
 // skeleton mesh가 petiole tube를 그리므로 leaf mesh 안의 중복 petiole
 // cylinder는 불필요.
-import { getLeafMaterial, getYellowLeafMaterial } from '../plant/LeafGenerator';
+import { getLeafMaterial, getYellowLeafMaterial, wrapLeafChunksAsMeshes } from '../plant/LeafGenerator';
 // Iter 36 v5 Phase C — skeleton 3-tier: get leaflet nodes for compound leaf rendering.
 // Iter 39 Phase B — getLeafletNodesByParentLeaf 제거 (Skin path는 SkeletonNode[] 사용).
 import { getLeafletSkeletonNodesByParentLeaf } from '../plant/skeleton/PlantSkeletonGraph';
@@ -799,8 +799,10 @@ export function createSkinMeshPlant(
             y: lastBone.p1.y - lastBone.p0.y,
             z: lastBone.p1.z - lastBone.p0.z,
           };
-          const leafletMeshes = buildLeafMeshFromSkeleton({
-            scene,
+          // ★ Iter 39 L3-F (S27) — pure LeafMeshPatch[] → Babylon Mesh[] 변환.
+          //   LeafMeshBuilder = pure mesh algorithm (Babylon 의존 0)
+          //   wrapLeafChunksAsMeshes = Babylon Mesh wrapper (LeafGenerator)
+          const leafletPatches = buildLeafMeshFromSkeleton({
             bladeRef,
             leafletSkeletonNodes,
             leafBladeRootNode: meshAnchorNode,
@@ -811,6 +813,7 @@ export function createSkinMeshPlant(
             cultivarOverride: cultivarShapeOverride,
             meshNamePrefix,
           });
+          const leafletMeshes = wrapLeafChunksAsMeshes(leafletPatches, scene);
           // Iter 39 Phase B — defoliation은 leaf 단위 (leaf-blade-root y 기준).
           //   각 leaflet mesh에 metadata.leafBladeRootY 첨부 — defol loop에서 사용.
           const leafBladeRootY = meshAnchorNode.pos.y;
