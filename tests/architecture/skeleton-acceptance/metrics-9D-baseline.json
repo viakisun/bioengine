@@ -1,0 +1,581 @@
+{
+  "aggregate": {
+    "leafCount": 8,
+    "primPetio": {
+      "avg": 0.083551874375,
+      "max": 0.12351801000000003
+    },
+    "interPetio": {
+      "avg": 0.014921875000000005,
+      "max": 0.01750000000000005
+    },
+    "attachUGap": {
+      "avgOfAvg": 0.06416666666666666,
+      "maxOfMax": 0.18999999999999995
+    },
+    "terminalClearance": {
+      "avg": 0.18999999999999995
+    },
+    "hierarchy": {
+      "termOverPrimAvg": 1.8167395719661896,
+      "primOverInterAvg": 3.4318453005839507
+    },
+    "rachis": {
+      "backtrackTotal": 0,
+      "minSegDotOverall": 0.9774601189236832,
+      "minAdjDotOverall": 0.9985458214362548
+    },
+    "compactness": {
+      "maxPetioleAbsM": 0.1395469325883072,
+      "spreadOverRachisAvg": 0.4403678661137545
+    },
+    "closure": {
+      "maxUncoveredUOverall": 0,
+      "maxUncoveredUAvg": 0,
+      "intercalaryFillAvg": 1,
+      "terminalUAvg": 1,
+      "terminalSizeOverPrimAvg": 1.8167395719661896,
+      "terminalClearanceAvg": 0.18999999999999995,
+      "roleSizeRatioAvg": 3.4318453005839507,
+      "roleBranchLenRatioAvg": 5.600585455797099
+    }
+  },
+  "perLeaf": [
+    {
+      "parentTag": "axis0:n10",
+      "rachisLen": 1.2572446429576192,
+      "leafletCount": {
+        "total": 15,
+        "primary": 8,
+        "intercalary": 6,
+        "terminal": 1
+      },
+      "pairCount": 4,
+      "petiolule": {
+        "primary": {
+          "avg": 0.08312759,
+          "max": 0.1103487
+        },
+        "intercalary": {
+          "avg": 0.015000000000000005,
+          "max": 0.01750000000000001
+        }
+      },
+      "attachUGap": {
+        "avg": 0.06285714285714286,
+        "max": 0.13,
+        "n": 14
+      },
+      "terminalClearance": {
+        "lastPrimaryU": 0.81,
+        "termU": 1,
+        "gap": 0.18999999999999995
+      },
+      "hierarchy": {
+        "terminalAvg": 0.4777529643238953,
+        "primaryAvg": 0.25533401569740577,
+        "intercalaryAvg": 0.06789121071971144,
+        "termOverPrim": 1.8710901601535002,
+        "primOverInter": 3.760928888888889
+      },
+      "rachis": {
+        "backtrack": 0,
+        "minSegDot": 0.9825024299905182,
+        "minAdjDot": 0.999024039213316,
+        "segCount": 16,
+        "polylineLen": 1.2647866499751281,
+        "directDist": 1.2572446429576192,
+        "linearityRatio": 1.005998838062071,
+        "midpointSagM": 0.09468358079409953,
+        "relSagPct": 7.531038714260105
+      },
+      "compactness": {
+        "maxPetioleAbsM": 0.13873531193233743,
+        "centroidSpreadM": 0.54321074097249,
+        "spreadOverRachis": 0.43206447051912494
+      },
+      "closure": {
+        "maxUncoveredU": 0,
+        "intercalaryFillRatio": 1,
+        "terminal": {
+          "u": 1,
+          "sizeOverPrim": 1.8710901601535002,
+          "clearance": 0.18999999999999995
+        },
+        "roleSeparation": {
+          "sizeRatio": 3.760928888888889,
+          "branchLenRatio": 5.541839333333332
+        }
+      }
+    },
+    {
+      "parentTag": "axis0:n11",
+      "rachisLen": 1.1452118962541367,
+      "leafletCount": {
+        "total": 15,
+        "primary": 8,
+        "intercalary": 6,
+        "terminal": 1
+      },
+      "pairCount": 4,
+      "petiolule": {
+        "primary": {
+          "avg": 0.08395925000000001,
+          "max": 0.1218525
+        },
+        "intercalary": {
+          "avg": 0.014999999999999994,
+          "max": 0.01749999999999999
+        }
+      },
+      "attachUGap": {
+        "avg": 0.06285714285714286,
+        "max": 0.13,
+        "n": 14
+      },
+      "terminalClearance": {
+        "lastPrimaryU": 0.81,
+        "termU": 1,
+        "gap": 0.18999999999999995
+      },
+      "hierarchy": {
+        "terminalAvg": 0.4351805205765719,
+        "primaryAvg": 0.234908154583441,
+        "intercalaryAvg": 0.06184144239772338,
+        "termOverPrim": 1.8525560398202048,
+        "primOverInter": 3.7985555555555552
+      },
+      "rachis": {
+        "backtrack": 0,
+        "minSegDot": 0.9809805178328294,
+        "minAdjDot": 0.9989626416021898,
+        "segCount": 16,
+        "polylineLen": 1.152886050378244,
+        "directDist": 1.1452118962541364,
+        "linearityRatio": 1.0067010778958976,
+        "midpointSagM": 0.08520506983905896,
+        "relSagPct": 7.440113931557598
+      },
+      "compactness": {
+        "maxPetioleAbsM": 0.1395469325883072,
+        "centroidSpreadM": 0.49369311448263536,
+        "spreadOverRachis": 0.43109324667116344
+      },
+      "closure": {
+        "maxUncoveredU": 0,
+        "intercalaryFillRatio": 1,
+        "terminal": {
+          "u": 1,
+          "sizeOverPrim": 1.8525560398202048,
+          "clearance": 0.18999999999999995
+        },
+        "roleSeparation": {
+          "sizeRatio": 3.7985555555555552,
+          "branchLenRatio": 5.597283333333335
+        }
+      }
+    },
+    {
+      "parentTag": "axis0:n12",
+      "rachisLen": 0.9716698713523175,
+      "leafletCount": {
+        "total": 15,
+        "primary": 8,
+        "intercalary": 6,
+        "terminal": 1
+      },
+      "pairCount": 4,
+      "petiolule": {
+        "primary": {
+          "avg": 0.08312091,
+          "max": 0.1102563
+        },
+        "intercalary": {
+          "avg": 0.015000000000000012,
+          "max": 0.01750000000000005
+        }
+      },
+      "attachUGap": {
+        "avg": 0.06285714285714286,
+        "max": 0.13,
+        "n": 14
+      },
+      "terminalClearance": {
+        "lastPrimaryU": 0.81,
+        "termU": 1,
+        "gap": 0.18999999999999995
+      },
+      "hierarchy": {
+        "terminalAvg": 0.36923455111388065,
+        "primaryAvg": 0.1973207319878211,
+        "intercalaryAvg": 0.05247017305302515,
+        "termOverPrim": 1.871240530045623,
+        "primOverInter": 3.760626666666666
+      },
+      "rachis": {
+        "backtrack": 0,
+        "minSegDot": 0.9802472802216167,
+        "minAdjDot": 0.9989229619906148,
+        "segCount": 16,
+        "polylineLen": 0.9785897996084637,
+        "directDist": 0.9716698713523174,
+        "linearityRatio": 1.0071216865523631,
+        "midpointSagM": 0.07052003602467977,
+        "relSagPct": 7.257612704048732
+      },
+      "compactness": {
+        "maxPetioleAbsM": 0.10713272483678253,
+        "centroidSpreadM": 0.4204639955958688,
+        "spreadOverRachis": 0.4327230965911187
+      },
+      "closure": {
+        "maxUncoveredU": 0,
+        "intercalaryFillRatio": 1,
+        "terminal": {
+          "u": 1,
+          "sizeOverPrim": 1.871240530045623,
+          "clearance": 0.18999999999999995
+        },
+        "roleSeparation": {
+          "sizeRatio": 3.760626666666666,
+          "branchLenRatio": 5.541393999999995
+        }
+      }
+    },
+    {
+      "parentTag": "axis0:n13",
+      "rachisLen": 0.7626537475998079,
+      "leafletCount": {
+        "total": 15,
+        "primary": 8,
+        "intercalary": 6,
+        "terminal": 1
+      },
+      "pairCount": 4,
+      "petiolule": {
+        "primary": {
+          "avg": 0.08395257,
+          "max": 0.12176009999999995
+        },
+        "intercalary": {
+          "avg": 0.015000000000000019,
+          "max": 0.01750000000000003
+        }
+      },
+      "attachUGap": {
+        "avg": 0.06285714285714286,
+        "max": 0.13,
+        "n": 14
+      },
+      "terminalClearance": {
+        "lastPrimaryU": 0.81,
+        "termU": 1,
+        "gap": 0.18999999999999995
+      },
+      "hierarchy": {
+        "terminalAvg": 0.289808424087927,
+        "primaryAvg": 0.15642461550600698,
+        "intercalaryAvg": 0.04118330237038962,
+        "termOverPrim": 1.8527034453653355,
+        "primOverInter": 3.798253333333334
+      },
+      "rachis": {
+        "backtrack": 0,
+        "minSegDot": 0.9806319085711276,
+        "minAdjDot": 0.9989304956178202,
+        "segCount": 16,
+        "polylineLen": 0.7679447586681154,
+        "directDist": 0.7626537475998079,
+        "linearityRatio": 1.0069376320315204,
+        "midpointSagM": 0.05523030830168793,
+        "relSagPct": 7.24185890064875
+      },
+      "compactness": {
+        "maxPetioleAbsM": 0.09286079657312733,
+        "centroidSpreadM": 0.3296066613169538,
+        "spreadOverRachis": 0.4321838873201347
+      },
+      "closure": {
+        "maxUncoveredU": 0,
+        "intercalaryFillRatio": 1,
+        "terminal": {
+          "u": 1,
+          "sizeOverPrim": 1.8527034453653355,
+          "clearance": 0.18999999999999995
+        },
+        "roleSeparation": {
+          "sizeRatio": 3.798253333333334,
+          "branchLenRatio": 5.596837999999991
+        }
+      }
+    },
+    {
+      "parentTag": "axis0:n14",
+      "rachisLen": 0.539908118304902,
+      "leafletCount": {
+        "total": 15,
+        "primary": 8,
+        "intercalary": 6,
+        "terminal": 1
+      },
+      "pairCount": 4,
+      "petiolule": {
+        "primary": {
+          "avg": 0.08311422999999998,
+          "max": 0.1101639
+        },
+        "intercalary": {
+          "avg": 0.015000000000000012,
+          "max": 0.017500000000000005
+        }
+      },
+      "attachUGap": {
+        "avg": 0.06285714285714286,
+        "max": 0.13,
+        "n": 14
+      },
+      "terminalClearance": {
+        "lastPrimaryU": 0.81,
+        "termU": 1,
+        "gap": 0.18999999999999995
+      },
+      "hierarchy": {
+        "terminalAvg": 0.20516508495586278,
+        "primaryAvg": 0.10963240353086003,
+        "intercalaryAvg": 0.02915503838846471,
+        "termOverPrim": 1.871390924108597,
+        "primOverInter": 3.760324444444445
+      },
+      "rachis": {
+        "backtrack": 0,
+        "minSegDot": 0.978787122774897,
+        "minAdjDot": 0.9988865121690353,
+        "segCount": 16,
+        "polylineLen": 0.5442454511970176,
+        "directDist": 0.539908118304902,
+        "linearityRatio": 1.0080334648527476,
+        "midpointSagM": 0.03807991497267164,
+        "relSagPct": 7.0530361892367
+      },
+      "compactness": {
+        "maxPetioleAbsM": 0.059478383954129396,
+        "centroidSpreadM": 0.23640294796633501,
+        "spreadOverRachis": 0.43785773903260944
+      },
+      "closure": {
+        "maxUncoveredU": 0,
+        "intercalaryFillRatio": 1,
+        "terminal": {
+          "u": 1,
+          "sizeOverPrim": 1.871390924108597,
+          "clearance": 0.18999999999999995
+        },
+        "roleSeparation": {
+          "sizeRatio": 3.760324444444445,
+          "branchLenRatio": 5.540948666666661
+        }
+      }
+    },
+    {
+      "parentTag": "axis0:n15",
+      "rachisLen": 0.3252803527380642,
+      "leafletCount": {
+        "total": 15,
+        "primary": 8,
+        "intercalary": 6,
+        "terminal": 1
+      },
+      "pairCount": 4,
+      "petiolule": {
+        "primary": {
+          "avg": 0.084079657,
+          "max": 0.12351801000000003
+        },
+        "intercalary": {
+          "avg": 0.015000000000000006,
+          "max": 0.01749999999999999
+        }
+      },
+      "attachUGap": {
+        "avg": 0.06285714285714286,
+        "max": 0.13,
+        "n": 14
+      },
+      "terminalClearance": {
+        "lastPrimaryU": 0.81,
+        "termU": 1,
+        "gap": 0.18999999999999995
+      },
+      "hierarchy": {
+        "terminalAvg": 0.1236065340404644,
+        "primaryAvg": 0.06681784358514145,
+        "intercalaryAvg": 0.017565139047855467,
+        "termOverPrim": 1.849903070920883,
+        "primOverInter": 3.804003111111111
+      },
+      "rachis": {
+        "backtrack": 0,
+        "minSegDot": 0.9774601189236832,
+        "minAdjDot": 0.9988970814080836,
+        "segCount": 16,
+        "polylineLen": 0.32826006161077315,
+        "directDist": 0.32528035273806416,
+        "linearityRatio": 1.009160432985353,
+        "midpointSagM": 0.02228288979797189,
+        "relSagPct": 6.850364496473431
+      },
+      "compactness": {
+        "maxPetioleAbsM": 0.04017798186230375,
+        "centroidSpreadM": 0.1446310634763664,
+        "spreadOverRachis": 0.4446351040231201
+      },
+      "closure": {
+        "maxUncoveredU": 0,
+        "intercalaryFillRatio": 1,
+        "terminal": {
+          "u": 1,
+          "sizeOverPrim": 1.849903070920883,
+          "clearance": 0.18999999999999995
+        },
+        "roleSeparation": {
+          "sizeRatio": 3.804003111111111,
+          "branchLenRatio": 5.605310466666664
+        }
+      }
+    },
+    {
+      "parentTag": "axis0:n16",
+      "rachisLen": 0.15524035219071913,
+      "leafletCount": {
+        "total": 15,
+        "primary": 8,
+        "intercalary": 6,
+        "terminal": 1
+      },
+      "pairCount": 4,
+      "petiolule": {
+        "primary": {
+          "avg": 0.08298981499999998,
+          "max": 0.10844294999999997
+        },
+        "intercalary": {
+          "avg": 0.01499999999999999,
+          "max": 0.017500000000000033
+        }
+      },
+      "attachUGap": {
+        "avg": 0.06285714285714286,
+        "max": 0.13,
+        "n": 14
+      },
+      "terminalClearance": {
+        "lastPrimaryU": 0.81,
+        "termU": 1,
+        "gap": 0.18999999999999995
+      },
+      "hierarchy": {
+        "terminalAvg": 0.05899133383247327,
+        "primaryAvg": 0.031475534062322105,
+        "intercalaryAvg": 0.008382979018298833,
+        "termOverPrim": 1.8741964382770886,
+        "primOverInter": 3.7546955555555557
+      },
+      "rachis": {
+        "backtrack": 0,
+        "minSegDot": 0.9775049892816958,
+        "minAdjDot": 0.9989750241171215,
+        "segCount": 16,
+        "polylineLen": 0.1567718297733763,
+        "directDist": 0.15524035219071913,
+        "linearityRatio": 1.0098652029645983,
+        "midpointSagM": 0.010243349051417928,
+        "relSagPct": 6.598380451258931
+      },
+      "compactness": {
+        "maxPetioleAbsM": 0.01683472175060054,
+        "centroidSpreadM": 0.07022476103664511,
+        "spreadOverRachis": 0.45236151584074685
+      },
+      "closure": {
+        "maxUncoveredU": 0,
+        "intercalaryFillRatio": 1,
+        "terminal": {
+          "u": 1,
+          "sizeOverPrim": 1.8741964382770886,
+          "clearance": 0.18999999999999995
+        },
+        "roleSeparation": {
+          "sizeRatio": 3.7546955555555557,
+          "branchLenRatio": 5.532654333333338
+        }
+      }
+    },
+    {
+      "parentTag": "axis0:n17",
+      "rachisLen": 0.06203967910863436,
+      "leafletCount": {
+        "total": 13,
+        "primary": 8,
+        "intercalary": 4,
+        "terminal": 1
+      },
+      "pairCount": 4,
+      "petiolule": {
+        "primary": {
+          "avg": 0.08407097299999998,
+          "max": 0.12339789000000013
+        },
+        "intercalary": {
+          "avg": 0.014374999999999999,
+          "max": 0.017500000000000036
+        }
+      },
+      "attachUGap": {
+        "avg": 0.07333333333333333,
+        "max": 0.18999999999999995,
+        "n": 12
+      },
+      "terminalClearance": {
+        "lastPrimaryU": 0.81,
+        "termU": 1,
+        "gap": 0.18999999999999995
+      },
+      "hierarchy": {
+        "terminalAvg": 0.023575078061281056,
+        "primaryAvg": 0.01581332794654508,
+        "intercalaryAvg": 0.015543266044255584,
+        "termOverPrim": 1.490835967038284,
+        "primOverInter": 1.0173748491160457
+      },
+      "rachis": {
+        "backtrack": 0,
+        "minSegDot": 0.9781972121984048,
+        "minAdjDot": 0.9985458214362548,
+        "segCount": 14,
+        "polylineLen": 0.06263312713937025,
+        "directDist": 0.06203967910863436,
+        "linearityRatio": 1.009565620571582,
+        "midpointSagM": 0.003958986508434151,
+        "relSagPct": 6.381378120124996
+      },
+      "compactness": {
+        "maxPetioleAbsM": 0.007655565498282569,
+        "centroidSpreadM": 0.028539733209614074,
+        "spreadOverRachis": 0.460023868912018
+      },
+      "closure": {
+        "maxUncoveredU": 0,
+        "intercalaryFillRatio": 1,
+        "terminal": {
+          "u": 1,
+          "sizeOverPrim": 1.490835967038284,
+          "clearance": 0.18999999999999995
+        },
+        "roleSeparation": {
+          "sizeRatio": 1.0173748491160457,
+          "branchLenRatio": 5.848415513043477
+        }
+      }
+    }
+  ]
+}

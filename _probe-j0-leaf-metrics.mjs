@@ -216,6 +216,69 @@ async function main() {
                   polylineLen, directDist, linearityRatio, midpointSagM,
                   relSagPct: directDist > 0 ? (midpointSagM / directDist * 100) : 0 },
         compactness: { maxPetioleAbsM: maxPetioleAbs, centroidSpreadM: spread, spreadOverRachis: rachisLen > 0 ? spread / rachisLen : 0 },
+        // ★ J0-9D-1 (v21): closure 4 metrics (reporting only)
+        closure: (() => {
+          // (a) Influence radius coverage: rachis [0.15, 0.95]에서 uncovered span
+          const INFLUENCE = { primary: 0.11, intercalary: 0.06, terminal: 0.10 };
+          const covered = grp.leaflets
+            .map(l => {
+              const r = INFLUENCE[l.position] ?? 0;
+              return { lo: l.rachisU - r, hi: l.rachisU + r };
+            })
+            .sort((a, b) => a.lo - b.lo);
+          // [0.15, 0.95] 구간에서 uncovered max
+          let maxUncovered = 0;
+          let cursor = 0.15;
+          for (const c of covered) {
+            if (c.hi < cursor) continue;
+            if (c.lo > cursor) {
+              const gap = Math.min(c.lo, 0.95) - cursor;
+              if (gap > maxUncovered) maxUncovered = gap;
+            }
+            cursor = Math.max(cursor, c.hi);
+            if (cursor >= 0.95) break;
+          }
+          if (cursor < 0.95) {
+            const gap = 0.95 - cursor;
+            if (gap > maxUncovered) maxUncovered = gap;
+          }
+          // (b) Intercalary fill: primary _pair 단위_ macro gap 중 intercalary 존재 비율
+          //   ★ v21 fix: 좌우 stagger (±0.020) 쌍 _내부_ gap은 무시. 같은 pair의
+          //   좌우 leaflet U는 평균값(= pair midpoint)으로 묶기.
+          const primUsRaw = primaries.map(p => p.rachisU).sort((a, b) => a - b);
+          const pairBaseUs = [];
+          for (let pi = 0; pi + 1 < primUsRaw.length; pi += 2) {
+            pairBaseUs.push((primUsRaw[pi] + primUsRaw[pi + 1]) * 0.5);
+          }
+          const intUs = intercalaries.map(it => it.rachisU);
+          let pairGapCount = 0, filledCount = 0;
+          for (let pi = 0; pi < pairBaseUs.length - 1; pi++) {
+            const a = pairBaseUs[pi], b = pairBaseUs[pi + 1];
+            pairGapCount++;
+            if (intUs.some(u => u > a && u < b)) filledCount++;
+          }
+          const primUsSorted = primUsRaw;  // 호환용
+          void primUsSorted;
+          // (c) Terminal emphasis
+          const termU = terminals.length > 0 ? terminals[0].rachisU : 0;
+          const termSize = terminals.length > 0 ? terminals[0].targetSizeM : 0;
+          const termClearance = primUsRaw.length > 0 ? termU - primUsRaw[primUsRaw.length - 1] : 0;
+          // (d) Role separation — size + branch length ratios
+          //   primary branch length 평균 (산식 PRIMARY_BRANCH_LENGTH × sf × rachisLen).
+          //   여기는 graph에서 직접 측정: petioluleLen.
+          const primBranchLens = primPetio.map(r => r * rachisLen);
+          const interBranchLens = interPetio.map(r => r * rachisLen);
+          const avgArr = (a) => a.length === 0 ? 0 : a.reduce((x, y) => x + y, 0) / a.length;
+          return {
+            maxUncoveredU: maxUncovered,
+            intercalaryFillRatio: pairGapCount > 0 ? filledCount / pairGapCount : 0,
+            terminal: { u: termU, sizeOverPrim: primSize > 0 ? termSize / primSize : 0, clearance: termClearance },
+            roleSeparation: {
+              sizeRatio: interSize > 0 ? primSize / interSize : 0,
+              branchLenRatio: avgArr(interBranchLens) > 0 ? avgArr(primBranchLens) / avgArr(interBranchLens) : 0,
+            },
+          };
+        })(),
       });
     }
 
@@ -249,6 +312,17 @@ async function main() {
       compactness: {
         maxPetioleAbsM: aggMax(perLeaf.map(l => l.compactness.maxPetioleAbsM)),
         spreadOverRachisAvg: aggAvg(perLeaf.map(l => l.compactness.spreadOverRachis)),
+      },
+      // ★ J0-9D-1 (v21): closure aggregate (reporting only)
+      closure: {
+        maxUncoveredUOverall: aggMax(perLeaf.map(l => l.closure?.maxUncoveredU ?? 0)),
+        maxUncoveredUAvg: aggAvg(perLeaf.map(l => l.closure?.maxUncoveredU ?? 0)),
+        intercalaryFillAvg: aggAvg(perLeaf.map(l => l.closure?.intercalaryFillRatio ?? 0)),
+        terminalUAvg: aggAvg(perLeaf.map(l => l.closure?.terminal?.u ?? 0)),
+        terminalSizeOverPrimAvg: aggAvg(perLeaf.map(l => l.closure?.terminal?.sizeOverPrim ?? 0)),
+        terminalClearanceAvg: aggAvg(perLeaf.map(l => l.closure?.terminal?.clearance ?? 0)),
+        roleSizeRatioAvg: aggAvg(perLeaf.map(l => l.closure?.roleSeparation?.sizeRatio ?? 0)),
+        roleBranchLenRatioAvg: aggAvg(perLeaf.map(l => l.closure?.roleSeparation?.branchLenRatio ?? 0)),
       },
     };
 
