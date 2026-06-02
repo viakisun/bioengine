@@ -130,7 +130,11 @@ export function buildLeafletMeshes(ctx: LeafletMeshBuildContext): Mesh[] {
     const t = Math.max(0, Math.min(1, (maturity - 0.2) / (0.8 - 0.2)));
     return 0.2 + (1.0 - 0.2) * (t * t * (3 - 2 * t));   // smoothstep 0.2 → 1.0
   })();
-  const foldDroopDeg = -10 + (30 - (-10)) * maturity;    // -10° ~ +30°
+  // ★ L0-D-1 — per-leaflet pitch 약화. 이전 -10°~+30° (mature 30°)는 모든
+  //   leaflet이 같은 방향으로 _과도_ tilt → 전체 잎이 "안쪽 cup" 인상
+  //   (probe normalDotUp p50 0.854 = cos(31°)). 새 -5°~+10° (mature 10°)으로
+  //   pose subtle. opennessFactor는 변경 _없음_ (변수 분리).
+  const foldDroopDeg = -5 + (10 - (-5)) * maturity;    // -5° ~ +10°
 
   const meshes: Mesh[] = [];
 

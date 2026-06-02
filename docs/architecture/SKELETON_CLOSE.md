@@ -21,7 +21,13 @@
 **Critical**: 결정은 1-7 _metrics_ (active 원칙 #21 사용자: graph-native 정량
 기반). 8번은 _참고 reference_ — sanity check.
 
-## ★ 26 Invariants 누적 (H 4 + I 1 + J0-1~9 16 + K0 2 + K1 1 + K3 1 revised — Iter 39 Phase K3)
+## ★ 27 Invariants 누적 (H 4 + I 1 + J0-1~9 16 + K0 2 + K1 1 + K3 1 revised + L0 1 — Iter 39 Phase L0-D-1)
+
+> **L0-D-1 (Per-Leaflet Pitch)**: K3 후에도 close-up "안쪽 cup" 인상 잔존
+> 진단 — `foldDroopDeg = -10 + 40 × maturity` (mature 30°)이 leaflet plane
+> 평균 31° tilt 야기. Track A (vertex cup/droop) baseline 측정으로 _반박_
+> 후 폐기. Root cause = per-leaflet pose. fix: `-5 + 15 × maturity` (mature
+> 10°). normalDotUp p50 0.854 → 0.951. [LEAF_MESH_SHAPE.md](LEAF_MESH_SHAPE.md).
 
 > **K3 (Mesh Anchor 3D)**: K2 후에도 사용자 close-up _수십 mm gap_ 잔존
 > 진단 — `normalizeLeafMeshVertices`가 x만 shift, stem-side vertex y/z offset
@@ -84,6 +90,12 @@
   `truncateBonePathByArcLength` end-anchored 산식 보호. mode A: 현재 graph에
   fraction < 1.0 edge가 있을 시 검증 (K2 후 0개, vacuously PASS). mode B:
   synthetic fixture (6 fractions)로 산식 자체 회귀 catch. 원칙 #35.
+
+### Phase L0-D-1 — Per-Leaflet Pitch (1 신규)
+- `LEAF-LEAFLET-PITCH-01` — `mesh.rotationQuaternion`이 leaflet plane을
+  과도 기울이는 회귀 방지. planeNormalDotUp (= rotated mesh +Y · WORLD_UP)
+  분포 검증: p50 ≥ 0.93 (= cos(22°)), p90 ≥ 0.85, mean ≥ 0.90. L0 이전
+  (foldDroopDeg mature 30°)는 p50 0.854로 자동 fail. 원칙 #37.
 
 ### Phase J0-9 — Grammar Closure (4)
 - `CLOSURE-MAX-UNCOVERED-GAP-01` — influence radius (primary 0.11 / intercalary
