@@ -105,6 +105,12 @@ export interface LeafBuildParams {
   gravityDroopDeg?: number;
 }
 
+/**
+ * @deprecated Iter 39 L2-2a — ShowcasePlant legacy path. LeafGenerator.createLeafMesh
+ *   (호출처 0)에서만 사용 → dead code chain. L2-2c (`S11`)에서 createLeafMesh
+ *   제거와 함께 _legacy/ 이동 또는 삭제. Production canonical은
+ *   `LeafMeshBuilder.buildLeafMeshFromSkeleton` → `buildLeafletPlaneChunk`.
+ */
 export function buildLeafChunkLegacy(paramsArg: LeafBuildParams, rng: SeededRandom): GeoChunk {
   const params = paramsArg.shape ?? DEFAULT_LEAF_PARAMS;
   const stageInfo = paramsArg.stageInfo;
@@ -299,6 +305,11 @@ export function buildLeafChunkLegacy(paramsArg: LeafBuildParams, rng: SeededRand
  *
  * Use this from SkinMeshPlant via createLeafBladeOnlyMesh. ShowcasePlant keeps
  * buildLeafChunkLegacy for backward-compat (byte-perfect mesh count).
+ *
+ * @deprecated Iter 39 L2-2a — fallback path만 사용 (LeafGenerator.buildLeafMeshFromPhytomer).
+ *   LEAF-LIVE-FALLBACK-NEVER-01이 0% live usage 보장. Production canonical은
+ *   `LeafMeshBuilder.buildLeafMeshFromSkeleton` → `buildLeafletPlaneChunk`.
+ *   L2-2c (`S11`)에서 LeafGenerator deprecate와 함께 제거 예정.
  */
 export function buildLeafChunkSkin(paramsArg: LeafBuildParams, rng: SeededRandom): GeoChunk {
   return buildLeafBladeOnly({ ...paramsArg, omitRachis: true, omitPetiolules: true }, rng);

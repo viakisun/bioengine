@@ -95,6 +95,9 @@ function bakeLeafVertexColors(
  * Legacy positional-args wrapper — used by 29 static neighbor plants
  * in GreenhouseScene where there's no NodeState. Group 3 replaces
  * those with GrowthEngine-driven Light LOD plants.
+ *
+ * @deprecated Iter 39 L2-2a — 호출처 0 확인 (LEAF_MESH_PIPELINE_AUDIT Section 3).
+ *   L2-2d (`S12`)에서 _legacy/로 이동 또는 삭제 예정. 사용 X.
  */
 export function createLeafMesh(
   name: string,
@@ -150,6 +153,12 @@ export function createLeafMesh(
  * Visual-only parameters (serration frequency, waviness, petiole length
  * texture) still flow via `genome` for Phase 4; Phase 5 fully migrates
  * those onto `cultivar.visualProfile`.
+ *
+ * @deprecated Iter 39 L2-2a — fallback path (SkinMeshPlant.ts:825 else
+ *   branch). LEAF-LIVE-FALLBACK-NEVER-01이 0% live usage 보장. Canonical
+ *   entry는 `LeafMeshBuilder.buildLeafMeshFromSkeleton` (L2-1, S8).
+ *   L2-2c (`S11`) import migration 시 buildLeafChunkSkin 의존 inline 검토,
+ *   L2-2d (`S12`)에서 제거 또는 _legacy/ 이동.
  *
  * @param leafOrganState  PlantBase-computed canonical leaf state
  * @param visualGenome    shape/texture parameters (Phase 5 → visualProfile)
