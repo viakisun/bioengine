@@ -25,7 +25,8 @@ import type { LeafBladeRef, SkeletonNode } from '../../plant/skeleton/PlantSkele
 import { AGE_PRESETS } from './agePresets';
 import type { ResolvedLeafParams } from './correlationRules';
 import { applyCorrelation } from './correlationRules';
-import { buildShapeProfile, type ShapeProfileSample } from './shapeProfile';
+// ★ Iter 39 L3-C S22 — shapeProfile inline to LeafMeshBuilder.
+import { buildShapeProfile, type ShapeProfileSample } from './LeafMeshBuilder';
 // ★ Iter 39 L3-C S21 — lobeNoise + serrationNoise inline to LeafMeshBuilder.
 import { lobeNoise, serrationNoise } from './LeafMeshBuilder';
 import { computeLeafletPose, type LeafletPose } from './poseVariation';

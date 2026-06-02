@@ -34,7 +34,8 @@ import type {
 } from '../../plant/skeleton/PlantSkeletonGraph';
 import { makeLeafQuaternion } from '../../plant/skeleton/AnchorTransform';
 import { normalizeLeafMeshVertices } from '../../plant/anchors';
-import { buildShapeProfile } from './shapeProfile';
+// ★ Iter 39 L3-C S22 — shapeProfile inline to LeafMeshBuilder.
+import { buildShapeProfile } from './LeafMeshBuilder';
 // ★ Iter 39 L3-C S21 — lobeNoise + serrationNoise inline to LeafMeshBuilder.
 import { lobeNoise, serrationNoise } from './LeafMeshBuilder';
 import { AGE_PRESETS } from './agePresets';

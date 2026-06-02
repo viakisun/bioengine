@@ -66,6 +66,61 @@ export function lobeNoise(u: number, amp: number, seed: number): number {
   return Math.max(0, v) * amp;
 }
 
+// ─── L3-C S22: shapeProfile (inline) ────────────────────────────────────
+// 소엽 outline 생성 산식 (botanical reference §5):
+//   baseWidth(u) = sin(πu)^shapePower (0~1, tip sharpness 결정)
+//   halfWidth ± asymmetryOffset (좌우 비대칭)
+
+export interface ShapeProfileInput {
+  lengthM: number;
+  aspectRatio: number;
+  tipSharpness: number;
+  baseShape: number;
+  asymmetry: number;
+  samples?: number;
+}
+
+export interface ShapeProfileSample {
+  u: number;
+  halfWidthLeft: number;
+  halfWidthRight: number;
+}
+
+/** Base half-width — sin(π × u)^shapePower (0 at endpoints, 1 at mid). */
+function baseWidth(u: number, shapePower: number): number {
+  const s = Math.sin(Math.PI * u);
+  return Math.pow(Math.max(0, s), shapePower);
+}
+
+/**
+ * 소엽 outline 생성 — base shape만 (lobe + serration은 callsite에서 추가).
+ * 사용자 §5 산식 구현.
+ */
+export function buildShapeProfile(input: ShapeProfileInput): ShapeProfileSample[] {
+  const samples = input.samples ?? 16;
+  const widthM = input.lengthM / Math.max(1, input.aspectRatio);
+  const halfWidthBase = widthM / 2;
+  const shapePower = input.tipSharpness;
+
+  const result: ShapeProfileSample[] = [];
+  for (let i = 0; i < samples; i++) {
+    const u = i / (samples - 1);
+    const w = baseWidth(u, shapePower) * halfWidthBase;
+
+    // baseShape: u가 base 근처(0-0.2)일 때 wedge/heart 변형.
+    const baseFactor = u < 0.2 ? 1 - (1 - input.baseShape) * (1 - u / 0.2) : 1;
+    const w2 = w * baseFactor;
+
+    // 좌우 비대칭.
+    const asymmetryOffset = input.asymmetry * w2;
+    const halfWidthLeft = Math.max(0, w2 - asymmetryOffset * 0.5);
+    const halfWidthRight = Math.max(0, w2 + asymmetryOffset * 0.5);
+
+    result.push({ u, halfWidthLeft, halfWidthRight });
+  }
+  return result;
+}
+
 /**
  * Triangle wave — period 1 단위로 톱니 형성. 결과 [0, 1].
  */
