@@ -34,6 +34,17 @@ import { buildLeafletMeshes, type LeafletMeshBuildContext } from './buildLeaflet
 
 export type LeafMeshBuildInput = LeafletMeshBuildContext;
 
+// ─── L2-3: Per-Leaflet Position Profile re-export ──────────────────────────
+// 산식은 leafletPositionProfile.ts (pure module, Babylon 의존 0, unit test 가능).
+export {
+  PROFILE_BY_POSITION,
+  applyPositionProfile,
+} from './leafletPositionProfile';
+export type {
+  LeafletPosition,
+  LeafletShapeProfile,
+} from './leafletPositionProfile';
+
 /**
  * ★ Canonical entry for leaf mesh generation (Phase L2-1).
  *

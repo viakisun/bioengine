@@ -141,6 +141,9 @@ export type { LeafletMeshBuildContext } from './buildLeafletMeshes';
 //   참조: docs/architecture/LEAF_MESH_PIPELINE_AUDIT.md
 export { buildLeafMeshFromSkeleton } from './LeafMeshBuilder';
 export type { LeafMeshBuildInput } from './LeafMeshBuilder';
+// ★ Iter 39 Phase L2-3 — per-leaflet position profile (visual change).
+export { PROFILE_BY_POSITION, applyPositionProfile } from './LeafMeshBuilder';
+export type { LeafletPosition, LeafletShapeProfile } from './LeafMeshBuilder';
 
 // Iter 39 Phase F4 — LeafInstanceProfile (per-compound-leaf macro variation).
 export { computeLeafInstanceProfile } from './leafInstanceProfile';

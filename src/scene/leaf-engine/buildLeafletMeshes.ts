@@ -37,6 +37,7 @@ import { lobeNoise } from './lobeNoise';
 import { serrationNoise } from './serrationNoise';
 import { AGE_PRESETS } from './agePresets';
 import { applyCorrelation } from './correlationRules';
+import { applyPositionProfile, type LeafletPosition } from './leafletPositionProfile';
 import type { CultivarShapeOverride } from './index';
 
 type V3 = { x: number; y: number; z: number };
@@ -153,13 +154,19 @@ export function buildLeafletMeshes(ctx: LeafletMeshBuildContext): Mesh[] {
     const aspectJitter    = 1 + (((idSeed * 23) % 100 - 50) / 1000);  // ±5%
     const sharpnessJitter = 1 + (((idSeed * 29) % 100 - 50) / 1000);
 
+    // ★ Iter 39 Phase L2-3 — per-position profile (LeafMeshBuilder SSOT).
+    //   leafletRef.position (terminal/primary/intercalary/secondary)별 lobe/
+    //   serration/aspectRatio/tipSharpness 차별화. ...resolved fallback 위에
+    //   position fields _덮어쓰기_ (사용자 v3 #3 병합 순서).
+    //   targetSizeM은 _그대로_ — position scale 곱하지 않음 (SSOT).
+    const positioned = applyPositionProfile(resolved, node.leafletRef.position as LeafletPosition);
     // Profile (좌우 halfWidth + lobe + serration) — buildCompoundLeaf와 동일 산식.
     const profile = buildShapeProfile({
       lengthM,
-      aspectRatio:  resolved.aspectRatio  * aspectJitter,
-      tipSharpness: resolved.tipSharpness * sharpnessJitter,
-      baseShape:    resolved.baseShape,
-      asymmetry:    resolved.asymmetry,
+      aspectRatio:  positioned.aspectRatio  * aspectJitter,
+      tipSharpness: positioned.tipSharpness * sharpnessJitter,
+      baseShape:    positioned.baseShape,
+      asymmetry:    positioned.asymmetry,
     });
     // ★ Iter 39 Phase G3 (B4) — noise scale cap.
     //   작은 leaflet (lengthM < 2cm)에 lobe/serration이 _비율적_으로 과대 증폭
@@ -167,9 +174,10 @@ export function buildLeafletMeshes(ctx: LeafletMeshBuildContext): Mesh[] {
     //   = max(lengthM, 0.02)).
     const noiseLengthM = Math.max(lengthM, 0.02);
     for (const sample of profile) {
-      const lobe = lobeNoise(sample.u, resolved.lobeDepth * noiseLengthM, leafletSeed);
+      // ★ L2-3 — position profile에서 가져온 lobeDepth/serrationAmp/Freq 사용.
+      const lobe = lobeNoise(sample.u, positioned.lobeDepth * noiseLengthM, leafletSeed);
       const teeth = serrationNoise(
-        sample.u, resolved.serrationAmp * noiseLengthM, resolved.serrationFreq, leafletSeed,
+        sample.u, positioned.serrationAmp * noiseLengthM, positioned.serrationFreq, leafletSeed,
       );
       sample.halfWidthLeft += lobe + teeth;
       sample.halfWidthRight += lobe * 0.85 + teeth * 1.1;

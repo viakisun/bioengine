@@ -1,0 +1,104 @@
+// SSOT — Per-Leaflet Position Profile (Iter 39 Phase L2-3).
+// See: docs/architecture/LEAF_MESH_PIPELINE_AUDIT.md Section 4
+//
+// _pure module_ — Babylon dependency 0. unit test 가능.
+// LeafMeshBuilder.ts 와 buildLeafletMeshes.ts 가 import.
+//
+// L2-0 audit 진단: leafletRef.position이 _terminal flag만_ 사용. primary/
+// intercalary _shape 차별화 없음_. L2-3 fix: PROFILE_BY_POSITION 도입.
+//
+// 사용자 v3 #3 — targetSizeM SSOT:
+//   leafletRef.targetSizeM = 절대 길이 source of truth (skeleton SSOT)
+//   PROFILE_BY_POSITION = _shape 비율_만 (lengthScale 폐기 — 이중 적용 방지)
+
+export type LeafletPosition = 'terminal' | 'primary' | 'intercalary' | 'secondary';
+
+export interface LeafletShapeProfile {
+  /** length 대비 폭 비율. aspectRatio = 1 / widthRatio. */
+  widthRatio: number;
+  /** outline lobe 깊이 (잎 폭 대비). */
+  lobeDepth: number;
+  /** edge serration 진폭 (잎 폭 대비). */
+  serrationAmp: number;
+  /** edge serration 빈도. */
+  serrationFreq: number;
+  /** sin^shapePower exponent (1.0 round ↔ 2.0 sharp). */
+  tipSharpness: number;
+  /** base taper (L2-4 cap topology에서 사용 예정). */
+  baseTaper: number;
+}
+
+/**
+ * Per-position shape profile.
+ *
+ * 차별화 원칙:
+ *   terminal     = 가장 elaborate (큰 widthRatio, 깊은 lobe, 많은 serration)
+ *   primary      = 중간 (전형적 토마토 leaflet)
+ *   intercalary  = 단순한 보조엽 (얕은 lobe, 적은 serration, round tip)
+ *   secondary    = primary와 비슷 (현재 disabled)
+ */
+export const PROFILE_BY_POSITION: Record<LeafletPosition, LeafletShapeProfile> = {
+  terminal: {
+    widthRatio:    0.42,
+    lobeDepth:     0.14,
+    serrationAmp:  0.05,
+    serrationFreq: 22,
+    tipSharpness:  1.65,
+    baseTaper:     0.65,
+  },
+  primary: {
+    widthRatio:    0.38,
+    lobeDepth:     0.12,
+    serrationAmp:  0.045,
+    serrationFreq: 20,
+    tipSharpness:  1.55,
+    baseTaper:     0.60,
+  },
+  intercalary: {
+    widthRatio:    0.34,
+    lobeDepth:     0.07,
+    serrationAmp:  0.025,
+    serrationFreq: 16,
+    tipSharpness:  1.30,
+    baseTaper:     0.50,
+  },
+  secondary: {
+    widthRatio:    0.36,
+    lobeDepth:     0.10,
+    serrationAmp:  0.04,
+    serrationFreq: 18,
+    tipSharpness:  1.45,
+    baseTaper:     0.55,
+  },
+};
+
+/**
+ * Position profile을 leaf-level resolved에 _덮어쓰기_ (사용자 v3 #3 병합 순서).
+ *
+ *   ...resolved 먼저 (rachisCurvature, baseShape, asymmetry — leaf-level fallback)
+ *   position fields가 _강제 우선순위_ (lobeDepth, serrationAmp 등)
+ *
+ * 절대 크기 (targetSizeM)는 _이 함수 적용 후_ lengthM으로 직접 전달 —
+ * position scale 곱하지 않음 (targetSizeM SSOT, 이중 적용 방지).
+ */
+export function applyPositionProfile<T extends {
+  aspectRatio: number;
+  lobeDepth: number;
+  serrationAmp: number;
+  serrationFreq: number;
+  tipSharpness: number;
+}>(
+  resolved: T,
+  position: LeafletPosition,
+): T {
+  const positional = PROFILE_BY_POSITION[position];
+  // ★ v3 #3 — ...resolved 먼저 (fallback), positional 덮어쓰기.
+  return {
+    ...resolved,
+    aspectRatio:   1 / positional.widthRatio,  // widthRatio → aspectRatio
+    lobeDepth:     positional.lobeDepth,
+    serrationAmp:  positional.serrationAmp,
+    serrationFreq: positional.serrationFreq,
+    tipSharpness:  positional.tipSharpness,
+  };
+}
