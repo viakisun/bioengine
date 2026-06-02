@@ -115,16 +115,46 @@ LeafMeshBuilder.ts (신규)
 - `LeafMeshBuilder` = 잎 생김새 결정 (pure mesh algorithm)
 - `LeafGenerator` = Babylon Mesh / Material / Texture wrapper
 
-## ★ L2-2 deprecate 후보
+## ★ L2-2 deprecate 후보 + 진행 상태
 
-- `LeafGenerator.createLeafMesh` — 호출처 0 → safe removal
-- `LeafGenerator.buildLeafMeshFromPhytomer` — fallback path → `@deprecated` (Section 2)
-- `@farmsim/tomato-geometry/leafChunk.ts` (buildLeafChunkSkin + createOvateLeaflet)
-  → `@deprecated` (fallback 의존만)
-- `@farmsim/tomato-geometry/leafletPlaneChunk.ts` (buildLeafletPlaneChunk) — production
-  의존 → L2-2c import migration 시점 inline 또는 LeafMeshBuilder 내부 흡수
+| 대상 | sub-phase | 상태 |
+|---|---|---|
+| `LeafGenerator.createLeafMesh` | L2-2c (S11) safe removal | ✓ @deprecated (S9) |
+| `LeafGenerator.buildLeafMeshFromPhytomer` | L2-2c (S11) 또는 L2-2d (S12) | ✓ @deprecated (S9) |
+| `tomato-geometry/leafChunk.buildLeafChunkSkin` | L2-2c/d | ✓ @deprecated (S9) |
+| `tomato-geometry/leafChunk.buildLeafChunkLegacy` | L2-2c/d | ✓ @deprecated (S9) |
+| `tomato-geometry/leafletPlaneChunk.buildLeafletPlaneChunk` | _NOT deprecated_ | production canonical 의존 |
+
+## ★ L2-2b: usage 0 confirm (S10)
+
+L2-2a (`S9`) JSDoc `@deprecated` 적용 후 정적 + 동적 검증:
+
+### 정적 (grep 재확인)
+```
+grep "createLeafMesh\b" → LeafGenerator.ts:99 (정의) only
+grep "buildLeafChunkLegacy" → LeafGenerator.ts:111 (createLeafMesh 내부) only
+grep "buildLeafChunkSkin" → LeafGenerator.ts:275 (buildLeafMeshFromPhytomer 내부) only
+grep "buildLeafMeshFromPhytomer" → SkinMeshPlant.ts:825 (else fallback) only
+```
+
+→ **외부 호출처 0**. dead code chain 완전 보장.
+
+### 동적 (existing spec)
+- `LEAF-LIVE-FALLBACK-NEVER-01` (iter33-leaf-render-live.spec.ts): production
+  fallback 진입 시 즉시 fail. 현재 _PASS_ → fallback 0% live.
+- `REFACTOR-PARITY-01` (L2-1): L2-2a `@deprecated` 추가 후에도 metrics 동일
+  (118 leaves × 144 verts). visual change 0.
+
+## ★ L2-2c: Next — import migration / safe removal (S11)
+
+- `LeafGenerator.createLeafMesh` + `buildLeafChunkLegacy` chain — 호출처 0 이므로
+  _바로 제거 안전_.
+- `LeafGenerator.buildLeafMeshFromPhytomer` + `buildLeafChunkSkin` chain —
+  fallback path 0% live 보장이지만 _보존_ (안전 catch용).
+- 단계: S11 = createLeafMesh + buildLeafChunkLegacy 제거 only. fallback path는
+  L2-2d (`S12`)에서 별도 결정.
 
 ## ★ Next
 
-→ L2-1 LeafMeshBuilder.ts 신규 (`S8`). REFACTOR-PARITY-01 tolerance 기반
-검증.
+→ L2-2c (`S11`) safe removal: createLeafMesh + buildLeafChunkLegacy.
+
