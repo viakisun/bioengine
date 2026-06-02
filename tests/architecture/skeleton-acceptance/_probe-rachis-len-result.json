@@ -1,0 +1,134 @@
+{
+  "aggregate": {
+    "visibleN": 8,
+    "rachisLenM": {
+      "n": 8,
+      "min": 0.06203967910863436,
+      "p50": 0.7626537475998079,
+      "p95": 1.2572446429576192,
+      "max": 1.2572446429576192,
+      "avg": 0.6524060825632751
+    },
+    "matureRachisLenM": {
+      "n": 8,
+      "min": 0.06203967910863436,
+      "p50": 0.7626537475998079,
+      "p95": 1.2572446429576192,
+      "max": 1.2572446429576192,
+      "avg": 0.6524060825632751
+    },
+    "rachisOverPetioleRatio": {
+      "n": 8,
+      "min": 2.916666666666665,
+      "p50": 2.916666666666667,
+      "p95": 2.916666666666668,
+      "max": 2.916666666666668,
+      "avg": 2.916666666666667
+    },
+    "inflated": {
+      "count": 5,
+      "ratio": 0.625,
+      "threshold": "> 0.40m"
+    },
+    "botanicalRangeNote": "토마토 mature: 25-30cm, young: 5-15cm. INFLATED > 40cm",
+    "verdict": "FAIL — inflation > 10%, J0가 아닌 engine scale 문제. 별도 phase 권고."
+  },
+  "samples": [
+    {
+      "axisIdx": 0,
+      "nodeIdx": 10,
+      "rachisLenM": 1.2572446429576192,
+      "petioleLenM": 0.431055306156898,
+      "leafLengthM": 1.6882999491145172,
+      "sf": 3.6480285805408856,
+      "visible": true,
+      "ratioRachisOverPetiole": 2.9166666666666665,
+      "inflated": true,
+      "botanicalCategory": "INFLATED"
+    },
+    {
+      "axisIdx": 0,
+      "nodeIdx": 11,
+      "rachisLenM": 1.1452118962541367,
+      "petioleLenM": 0.39264407871570395,
+      "leafLengthM": 1.5378559749698406,
+      "sf": 3.594142901799662,
+      "visible": true,
+      "ratioRachisOverPetiole": 2.916666666666667,
+      "inflated": true,
+      "botanicalCategory": "INFLATED"
+    },
+    {
+      "axisIdx": 0,
+      "nodeIdx": 12,
+      "rachisLenM": 0.9716698713523175,
+      "petioleLenM": 0.3331439558922231,
+      "leafLengthM": 1.3048138272445406,
+      "sf": 3.5037150348144026,
+      "visible": true,
+      "ratioRachisOverPetiole": 2.916666666666667,
+      "inflated": true,
+      "botanicalCategory": "INFLATED"
+    },
+    {
+      "axisIdx": 0,
+      "nodeIdx": 13,
+      "rachisLenM": 0.7626537475998079,
+      "petioleLenM": 0.2614812848913626,
+      "leafLengthM": 1.0241350324911704,
+      "sf": 3.348628630864395,
+      "visible": true,
+      "ratioRachisOverPetiole": 2.916666666666668,
+      "inflated": true,
+      "botanicalCategory": "INFLATED"
+    },
+    {
+      "axisIdx": 0,
+      "nodeIdx": 14,
+      "rachisLenM": 0.539908118304902,
+      "petioleLenM": 0.18511135484739494,
+      "leafLengthM": 0.725019473152297,
+      "sf": 3.0512724192220206,
+      "visible": true,
+      "ratioRachisOverPetiole": 2.9166666666666674,
+      "inflated": true,
+      "botanicalCategory": "INFLATED"
+    },
+    {
+      "axisIdx": 0,
+      "nodeIdx": 15,
+      "rachisLenM": 0.3252803527380642,
+      "petioleLenM": 0.11152469236733631,
+      "leafLengthM": 0.4368050451054005,
+      "sf": 2.4652889335178205,
+      "visible": true,
+      "ratioRachisOverPetiole": 2.9166666666666665,
+      "inflated": false,
+      "botanicalCategory": "mature"
+    },
+    {
+      "axisIdx": 0,
+      "nodeIdx": 16,
+      "rachisLenM": 0.15524035219071913,
+      "petioleLenM": 0.05322526360824659,
+      "leafLengthM": 0.20846561579896572,
+      "sf": 1.555768725219969,
+      "visible": true,
+      "ratioRachisOverPetiole": 2.916666666666665,
+      "inflated": false,
+      "botanicalCategory": "young"
+    },
+    {
+      "axisIdx": 0,
+      "nodeIdx": 17,
+      "rachisLenM": 0.06203967910863436,
+      "petioleLenM": 0.02127074712296035,
+      "leafLengthM": 0.08331042623159471,
+      "sf": 0.7090249040986785,
+      "visible": true,
+      "ratioRachisOverPetiole": 2.916666666666667,
+      "inflated": false,
+      "botanicalCategory": "young"
+    }
+  ]
+}
