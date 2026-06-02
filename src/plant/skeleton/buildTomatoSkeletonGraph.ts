@@ -493,14 +493,15 @@ function uKey(u: number): string {
   return (Math.round(u * 1000) / 1000).toFixed(3);
 }
 
-// ★ J0-4 (v14): terminal clearance 확보 (lastPrimaryU ≤ 0.82, gap ≥ 0.15).
-//   이전 I0-a 분포가 [0.18, 0.35, 0.55, 0.75]로 마지막 primary 0.75 + stagger
-//   0.0125 = 0.7625 — terminal 1.0과 0.24 gap. 새 분포는 응집 균형 + clearance:
+// ★ J0-7B (v16): primary attach U rhythm — 등간격 깨기.
+//   J0-4 분포 `[0.22, 0.40, 0.60, 0.78]` (gap 0.18/0.20/0.18, CV 0.054)는 strict
+//   통과지만 _시각상 등간격_ → fishbone 인상. botanical rhythm은 약한 비등간격.
+//   J0-7B 분포: 3/4쌍 모두 CV ≥ 0.10 (rhythm 명확). TERMINAL-CLEARANCE 유지.
 const PRIMARY_US_BY_PAIR_COUNT: Record<number, readonly number[]> = {
-  1: [0.52],
-  2: [0.36, 0.68],
-  3: [0.28, 0.52, 0.74],
-  4: [0.22, 0.40, 0.60, 0.78],  // last + 0.020 stagger = 0.80 < 0.82 ✓, gap 0.20 ≥ 0.15 ✓
+  1: [0.50],                     // single — rhythm 정의 불가, 중앙
+  2: [0.34, 0.68],               // single gap — CV undefined, exempt
+  3: [0.27, 0.48, 0.74],         // gap 0.21/0.26, CV ≈ 0.108
+  4: [0.22, 0.41, 0.63, 0.79],   // gap 0.19/0.22/0.16, CV ≈ 0.137
 };
 
 function getPrimaryUsForPairCount(primaryPairs: number): readonly number[] {

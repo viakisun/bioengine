@@ -147,6 +147,47 @@ test.describe('Compound Leaf Layout (SSOT #193, Iter 39 Phase J0-4)', () => {
     ).toEqual([]);
   });
 
+  // ★ J0-7B — primary attach U rhythm (등간격 금지). active 원칙 #26.
+  //   pair ≥ 3 (gap ≥ 2개)에서만 검증 — 1, 2쌍은 CV 정의 불가.
+  test('ATTACH-SPACING-CV-01: primary 간격 CV ∈ [0.05, 0.30] (pair ≥ 3)', async ({ page }) => {
+    test.setTimeout(120_000);
+    await enterSkin(page, 45);
+    const leaves = await probeLeaves(page);
+    expect(leaves.length, 'leaves found').toBeGreaterThan(0);
+    const violations: string[] = [];
+    for (const leaf of leaves) {
+      if (leaf.pairCount < 3) continue;  // pair < 3: gap ≤ 1, CV 정의 불가
+      // primary 간 gap (좌우 stagger 평탄화한 _쌍 단위_ gap).
+      // primaryUs는 좌(baseU-0.020), 우(baseU+0.020)로 분리. 쌍의 _중점_ = baseU.
+      // 인접 baseU 평균을 추출하기 위해 정렬 후 2개씩 평균.
+      const sortedUs = leaf.primaryUs.slice().sort((a, b) => a - b);
+      const baseUs: number[] = [];
+      for (let i = 0; i + 1 < sortedUs.length; i += 2) {
+        baseUs.push((sortedUs[i] + sortedUs[i + 1]) * 0.5);
+      }
+      if (baseUs.length < 2) continue;
+      const gaps: number[] = [];
+      for (let i = 1; i < baseUs.length; i++) gaps.push(baseUs[i] - baseUs[i - 1]);
+      const mean = gaps.reduce((a, b) => a + b, 0) / gaps.length;
+      if (mean <= 0) continue;
+      const variance = gaps.reduce((a, b) => a + (b - mean) ** 2, 0) / gaps.length;
+      const cv = Math.sqrt(variance) / mean;
+      if (cv < 0.05) {
+        violations.push(
+          `${leaf.parentTag} (pair=${leaf.pairCount}): CV ${cv.toFixed(4)} < 0.05 (등간격)`,
+        );
+      } else if (cv > 0.30) {
+        violations.push(
+          `${leaf.parentTag} (pair=${leaf.pairCount}): CV ${cv.toFixed(4)} > 0.30 (chaos)`,
+        );
+      }
+    }
+    expect(
+      violations,
+      `ATTACH-SPACING-CV-01 violations:\n${violations.slice(0, 10).join('\n')}`,
+    ).toEqual([]);
+  });
+
   test('TERMINAL-CLEARANCE-01: lastPrimaryU ≤ 0.82 + terminalU − lastPrimaryU ≥ 0.15', async ({ page }) => {
     test.setTimeout(120_000);
     await enterSkin(page, 45);
