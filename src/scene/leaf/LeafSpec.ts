@@ -196,6 +196,12 @@ export const ShapeProfileRulesSchema = z.object({
   // L5-6b: openness factor base range
   opennessBaseMin: Ratio01,                    // current: 0.2
   opennessBaseMax: Ratio01,                    // current: 1.0
+
+  // ★ L6-A-1 (S46) — serration taper floor (base/tip 톱니 보존).
+  //   lobe는 full taper (sin πt), serration은 max(serrationTaperMin, sin πt).
+  //   serrationTaperMin: 0 = 완전 taper (L5 이전 동일), 1 = no taper (끝까지 톱니).
+  //   0.35 권장 — 끝부분 톱니 35% 가시.
+  serrationTaperMin: Ratio01,                  // current: 0.35 (L6-A-1)
 }).refine(
   r => r.maturityEnvelopeStart <= r.maturityEnvelopeEnd,
   { message: 'maturityEnvelopeStart must be <= maturityEnvelopeEnd' },

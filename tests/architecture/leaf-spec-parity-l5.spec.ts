@@ -20,6 +20,10 @@ import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { parseLeafSpec } from '../../src/scene/leaf/LeafSpec';
 import { lobeNoise, computeLeftRightImbalance } from '../../src/scene/leaf/LeafMeshBuilder';
+import {
+  lobeTaperWeight,
+  serrationTaperWeight,
+} from '../../src/scene/leaf/LeafletProfile';
 
 const SPEC_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(SPEC_DIR, '../..');
@@ -216,5 +220,33 @@ test.describe('Iter 39 Phase L5 — Spec migration parity', () => {
       `Audit Section 1 entries must be migrated to spec or removed (원칙 #45).\n` +
         `Found: ${JSON.stringify(offenders, null, 2)}`,
     ).toEqual([]);
+  });
+
+  test('LEAF-SERRATION-TAPER-MIN-01: serrationTaperWeight floor 보존 (L6-A-1)', async () => {
+    // ★ L6-A-1 — lobe와 serration taper 정책 분리.
+    //   lobe: full sin(πt) — 끝에서 0
+    //   serration: max(min, sin(πt)) — 끝에서도 min 만큼 톱니 보존
+    const spec = await loadTomatoSpec();
+    const minWeight = spec.shapeProfileRules.serrationTaperMin;
+    expect(minWeight, 'serrationTaperMin > 0 (base/tip 톱니 보존)').toBeGreaterThan(0);
+    expect(minWeight, 'serrationTaperMin <= 1').toBeLessThanOrEqual(1);
+
+    // 끝쪽 (t=0, t=1)에서 lobe는 0, serration은 minWeight
+    expect(lobeTaperWeight(0)).toBeCloseTo(0, 6);
+    expect(lobeTaperWeight(1)).toBeCloseTo(0, 6);
+    expect(serrationTaperWeight(0, minWeight)).toBeCloseTo(minWeight, 6);
+    expect(serrationTaperWeight(1, minWeight)).toBeCloseTo(minWeight, 6);
+
+    // 가운데 (t=0.5)에서는 둘 다 1
+    expect(lobeTaperWeight(0.5)).toBeCloseTo(1, 6);
+    expect(serrationTaperWeight(0.5, minWeight)).toBeCloseTo(1, 6);
+
+    // 임의 t에서 serration >= lobe (floor 효과 검증)
+    for (const t of [0.05, 0.1, 0.2, 0.8, 0.9, 0.95]) {
+      expect(
+        serrationTaperWeight(t, minWeight),
+        `serrationTaper(${t}) >= lobeTaper(${t})`,
+      ).toBeGreaterThanOrEqual(lobeTaperWeight(t));
+    }
   });
 });

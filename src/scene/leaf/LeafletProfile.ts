@@ -100,21 +100,38 @@ export const PROFILE_BY_POSITION: Record<LeafletPosition, LeafletShapeProfile> =
 };
 
 /**
- * Endpoint taper weight (Iter 39 Phase L2-4a — cap topology).
+ * Endpoint taper weights (Iter 39 Phase L2-4a — cap topology, ★ L6-A-1 분리).
  *
- * LeafletPlaneChunk row 인덱스 t (0=base, 1=tip)에서 lobe/serration noise에
- * 곱할 가중치. sin(πt)는 t=0/1에서 0, t=0.5에서 1 → 끝쪽 noise suppress.
+ * LeafletPlaneChunk row 인덱스 t (0=base, 1=tip)에서 noise에 곱할 가중치.
+ * sin(πt)는 t=0/1에서 0, t=0.5에서 1 → 끝쪽 noise suppress.
  *
- * 효과:
- *   - row=0/row=N의 9 vertices가 profile baseline halfWidth (= 0) + noise 0
- *     → 모두 z ≈ 0에 수렴 → cap에서 vertex 겹침 _깨끗한 cap_
- *   - 가운데 vertices는 그대로 (taper = 1)
+ * ★ L6-A-1 (S46): lobe와 serration의 taper 정책 _분리_:
+ *   - lobe (큰 결각): full sin(πt) — 끝에서 완전 사라짐 (자연스러움)
+ *   - serration (작은 톱니): max(serrationTaperMin, sin(πt)) — 끝에서도 일부 보존
  *
- * Endpoint row collapse to 1 vertex (Option (i))는 uv/normal/index buffer
- * 영향 큼 → high-risk. L2-4a는 _noise taper_ 만 (Option (ii) approach).
+ * 이유: L2-4a 도입 후 _잎 끝 톱니가 완전히 사라짐_ → "잘린 종이" 인상.
+ *   큰 결각은 끝에서 줄어드는 것이 botanical 사실. 작은 톱니는 끝까지 가시.
+ */
+
+/** Lobe taper — full sin(πt). t=0/1에서 0, t=0.5에서 1. */
+export function lobeTaperWeight(t: number): number {
+  return Math.sin(t * Math.PI);
+}
+
+/**
+ * Serration taper — floor 보존. t=0/1에서 minWeight, t=0.5에서 max(minWeight, 1)=1.
+ * minWeight=0이면 lobe와 동일. minWeight=1이면 no taper (끝까지 톱니 full).
  *
- * @param t  row index normalized [0, 1] (0 = base, 0.5 = middle, 1 = tip)
- * @returns  taper weight ∈ [0, 1]
+ * @param t          row index normalized [0, 1]
+ * @param minWeight  spec.shapeProfileRules.serrationTaperMin (0~1)
+ */
+export function serrationTaperWeight(t: number, minWeight: number): number {
+  return Math.max(minWeight, Math.sin(t * Math.PI));
+}
+
+/**
+ * @deprecated L6-A-1 부터 lobe/serration taper 분리. lobeTaperWeight 사용.
+ *   유지: 외부 backward compat (현재 leaf-mesh-cap-taper.spec.ts 외 호출처 0).
  */
 export function endpointTaperWeight(t: number): number {
   return Math.sin(t * Math.PI);

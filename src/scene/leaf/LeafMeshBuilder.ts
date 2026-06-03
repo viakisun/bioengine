@@ -82,7 +82,8 @@ import type {
 } from './LeafSpec';
 import {
   applyPositionProfile,
-  endpointTaperWeight,
+  lobeTaperWeight,
+  serrationTaperWeight,
   LEAF_MESH_RESOLUTION,
   DEFAULT_LEAF_MESH_QUALITY,
   type LeafletPosition,
@@ -559,15 +560,20 @@ function buildLeafletOutlineWithNoise(
   // G3 noise scale cap (작은 leaflet broken mesh shard 방지).
   const noiseLengthM = Math.max(lengthM, 0.02);
   // L2-4a cap topology — endpoint taper.
+  // ★ L6-A-1 (S46) — lobe와 serration의 taper 정책 분리:
+  //   - lobe: full sin(πt) — 큰 결각은 끝에서 사라짐 (자연스러움)
+  //   - serration: max(serrationTaperMin, sin(πt)) — 끝에서도 톱니 일부 보존
   const lengthSegs = profile.length - 1;
+  const serrationTaperMin = spec.shapeProfileRules.serrationTaperMin;
   for (let r = 0; r < profile.length; r++) {
     const sample = profile[r];
     const t = lengthSegs > 0 ? r / lengthSegs : 0;
-    const taper = endpointTaperWeight(t);
-    const lobe = lobeNoise(spec.lobeNoiseRules, sample.u, positioned.lobeDepth * noiseLengthM, leafletSeed) * taper;
+    const lobeTaper = lobeTaperWeight(t);
+    const serrationTaper = serrationTaperWeight(t, serrationTaperMin);
+    const lobe = lobeNoise(spec.lobeNoiseRules, sample.u, positioned.lobeDepth * noiseLengthM, leafletSeed) * lobeTaper;
     const teeth = serrationNoise(
       sample.u, positioned.serrationAmp * noiseLengthM, positioned.serrationFreq, leafletSeed,
-    ) * taper;
+    ) * serrationTaper;
     // ★ L5-6b (S43) — edge asymmetry weights from spec.edgeAsymmetryRules.
     const ea = spec.edgeAsymmetryRules;
     sample.halfWidthLeft += lobe * ea.leftLobeWeight + teeth * ea.leftSerrationWeight;
