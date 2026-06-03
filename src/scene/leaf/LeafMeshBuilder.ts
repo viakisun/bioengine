@@ -761,6 +761,9 @@ interface LeafletPlaneOptions {
   veinSurfaceStrength?: number;
   /** Iter 39 Phase F2.5 — per-leaflet seed (vein 위치 deterministic variation). */
   seed?: number;
+  /** ★ L9-D V2 S95 — Override columns (가로 vertex 수). Default LEAFLET_PLANE_COLS=9.
+   *  V1은 미지정 → byte-identical. V2는 17+ 전달 — 부드러운 shoulder lobe 가로 표현. */
+  cols?: number;
 }
 
 const LEAFLET_PLANE_WIDTH_SEGS = 4;
@@ -786,7 +789,8 @@ export function buildLeafletPlaneChunk(
   const lengthSegs = profile.length - 1;
   if (lengthSegs < 1) return chunk;
 
-  const COLS = LEAFLET_PLANE_COLS;
+  // ★ L9-D V2 S95 — cols override (V1 default 9, V2 17+).
+  const COLS = opts.cols ?? LEAFLET_PLANE_COLS;
   const size = opts.lengthM;
   const ageFrac = opts.ageFrac;
   const curl = opts.curl;

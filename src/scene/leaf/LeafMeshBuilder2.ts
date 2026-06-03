@@ -251,7 +251,7 @@ function buildLeafletPatchV2(
     sample.halfWidthRight = Math.max(0, sample.halfWidthRight + teeth);
   }
 
-  // V1 buildLeafletPlaneChunk 재사용 (vertex grid + cup/droop/z-twist).
+  // V1 buildLeafletPlaneChunk 재사용 + ★ S95 cols 17 (가로 vertex 강화 — 계단식 해소).
   const chunk = buildLeafletPlaneChunk(profileV2, {
     lengthM,
     curl: desc.curl,
@@ -261,6 +261,7 @@ function buildLeafletPatchV2(
     isTerminal: node.leafletRef.position === 'terminal',
     veinSurfaceStrength: 1,
     seed: djb2(node.id),
+    cols: 17,  // V1 default 9 → V2 17 (부드러운 shoulder lobe 가로 곡선)
   });
 
   // SSOT #186 — L1-B centroid anchor (V1 동일).
