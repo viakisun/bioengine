@@ -144,6 +144,16 @@ export interface LeafBladeRef {
   petioleRatioM: number;
   /** rachis 길이 (m). = leafLength × 0.60-0.80. */
   rachisLengthM: number;
+  /**
+   * ★ S114 — Visual maturity (0~1). sf clamp 후 smoothstep ease.
+   *   sf와 명명 분리 (사용자 v3): sf는 area/growth, visualMaturity는 length/visual.
+   */
+  visualMaturity: number;
+  /**
+   * ★ S114 — leaflet 개별 크기 scale (0.35~1.0). visualMaturity 기반 lerp.
+   *   addLeafletNodesForLeaf의 targetSizeM 계산용.
+   */
+  leafletScale: number;
   /** 큰 좌우 소엽 pairs (1-4). */
   primaryPairs: number;
   /** 큰 소엽 사이 작은 소엽 수 (0-10). */

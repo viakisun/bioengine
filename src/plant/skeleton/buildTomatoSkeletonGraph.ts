@@ -497,21 +497,21 @@ function uKey(u: number): string {
   return (Math.round(u * 1000) / 1000).toFixed(3);
 }
 
-// ★ J0-9A (v21): primary attach U zone-rhythm.
-//   J0-7B `[0.22, 0.41, 0.63, 0.79]` (gap 0.19/0.22/0.16)이 시각상 _여전히 단조_.
-//   v21 권장값으로 distal closure 강화 — gap 0.22/0.20/0.17 (base sparse, distal dense).
-//   3쌍/2쌍/1쌍은 v19 그대로 유지.
-//   TERMINAL-CLEARANCE: 4쌍 lastPrimaryU 0.79 + stagger 0.020 = 0.81 ≤ 0.82 ✓
-//                       terminal 1.0 - 0.81 = 0.19 ≥ 0.15 ✓
+// ★ S114 v3 보정 #3 — terminal-clearance 개선 (last primary u ↑).
+//   사용자 v3 지적: "4쌍 leaf가 여전히 많이 나오는데, 0.79는 bare-tip 0.21로 길다".
+//   3쌍: 0.74 → 0.76 (terminal clearance 0.24)
+//   4쌍: 0.79 → 0.84 (terminal clearance 0.16, 목표 0.15 근접)
+//   5쌍: 신규 [0.16, 0.34, 0.52, 0.69, 0.85] — complex preset + 큰 leaf만
 const PRIMARY_US_BY_PAIR_COUNT: Record<number, readonly number[]> = {
-  1: [0.50],                     // single — rhythm 정의 불가, 중앙
-  2: [0.34, 0.68],               // single gap — CV undefined, exempt
-  3: [0.27, 0.48, 0.74],         // gap 0.21/0.26, CV ≈ 0.108
-  4: [0.20, 0.42, 0.62, 0.79],   // ★ J0-9A: gap 0.22/0.20/0.17 (distal closure)
+  1: [0.50],
+  2: [0.34, 0.68],
+  3: [0.27, 0.50, 0.76],                // ★ v3 — 0.74 → 0.76
+  4: [0.18, 0.39, 0.62, 0.84],          // ★ v3 — 0.79 → 0.84 (4쌍 last primary 더 가까이)
+  5: [0.16, 0.34, 0.52, 0.69, 0.85],    // ★ S114 신규 — 5 pairs, terminal-clearance 0.15
 };
 
 function getPrimaryUsForPairCount(primaryPairs: number): readonly number[] {
-  const clamped = Math.max(1, Math.min(4, Math.round(primaryPairs)));
+  const clamped = Math.max(1, Math.min(5, Math.round(primaryPairs)));  // ★ S114 — 5 지원
   return PRIMARY_US_BY_PAIR_COUNT[clamped];
 }
 
@@ -765,35 +765,50 @@ function computeLeafBladeRef(
     secondaryCount = sf > 0.9 ? 6 : 3;
   }
 
-  // ★ Iter 39 Phase F3 — Scale 정정 (사용자 #2 #8 + plan v1 비판 #3 #7).
-  //   이전: leafLengthM = 0.12 × sf (~8cm) — botanical 10-25cm 대비 -40~50% 부족.
-  //   현재: cultivar.referenceRachisLengthM (default 0.30m) + referencePetioleLengthM
-  //   (default 0.10m)을 axisScale (PlantBase.geometryProjection.leafAxisLengthScale,
-  //   여기선 sf를 sub-proxy로 사용) × nodePositionScale (줄기 위치별 gradient)로
-  //   곱함. sf 중복 적용 X — axisScale에 이미 maturity 반영.
+  // ★ S114 — Length-layer surgical fix (sf 면적 성격이라 linear length 1:1 X).
+  //   기존: sf>1 가능 (engine 측정 area scale) → rachis 1.26m까지 폭발 (probe verdict FAIL).
+  //   해결: length-layer만 sf 상한 1.0 + non-linear smoothstep curve.
   //
-  //   plan v1 비판 #3: `rachisLen × sf × MULT` 형식이 sf²를 만들었음 (mature 잎이
-  //   _sub-sub_으로 작아짐). 이번 plan v2에서는 rachisLen 자체에만 sf 적용,
-  //   targetSizeM = rachisLen × POSITION_SIZE_MULT (sf 곱셈 X) — addLeafletNodesForLeaf 참조.
+  //   plan v3 보정:
+  //   #1 명명 분리: sfClamped → lengthSf, smoothstep 결과 → visualMaturity
+  //   #2 rachis 더 강하게 줄임: lerp(0.30, 1.0) vs petiole lerp(0.35, 1.0)
+  //   #5 droopDeg도 visualMaturity 기반 (sf>1 mature 오판정 회피)
   const refRachis  = cultivar?.growthProfile?.referenceRachisLengthM  ?? 0.30;
   const refPetiole = cultivar?.growthProfile?.referencePetioleLengthM ?? 0.10;
-  const sfClamped = Math.max(0.05, sf);
-  const rachisLengthM  = refRachis  * sfClamped * nodePositionScale;
-  const petioleLengthM = refPetiole * sfClamped * nodePositionScale;
+
+  const lengthSf = clamp(sf, 0.05, 1.0);
+  const visualMaturity = smoothstep(0.12, 1.0, lengthSf);
+
+  const petioleScale = lerp(0.35, 1.0, visualMaturity);   // 35% ~ 100%
+  const rachisScale  = lerp(0.30, 1.0, visualMaturity);   // 30% ~ 100% (rachis 더 빠르게 작음)
+  const leafletScale = lerp(0.35, 1.0, visualMaturity);   // per-leaflet 적용용
+
+  const rachisLengthM  = refRachis  * rachisScale  * nodePositionScale;
+  const petioleLengthM = refPetiole * petioleScale * nodePositionScale;
   const leafLengthM = rachisLengthM + petioleLengthM;
   const petioleRatioM = petioleLengthM / leafLengthM;
+
+  // ★ v3 보정 #4 — 5쌍은 보수적 조건 모두 만족 시만.
+  //   sf>0.9 단독은 작은 leaf까지 5쌍 될 위험 (사용자 v3 지적).
+  if (visualMaturity > 0.85 && rachisLengthM > 0.22 && agePreset === 'complex') {
+    primaryPairs = 5;
+  }
+
+  const droopDeg = lerp(-5, 15, visualMaturity);
 
   return {
     leafLengthM,
     petioleRatioM,
     rachisLengthM,
+    visualMaturity,
+    leafletScale,
     primaryPairs,
     intercalaryCount,
     secondaryCount,
-    rachisBendAmp: 0.05,           // 5% leafLength S-curve
+    rachisBendAmp: 0.05,
     agePreset,
-    complexity: sf,                 // 0-1 correlation seed
-    droopDeg: sf > 0.7 ? 15 : -5,  // young 위로, mature 수평, old 처짐
+    complexity: sf,
+    droopDeg,
     twistDeg: 0,
   };
 }
