@@ -53,8 +53,8 @@
       "intercalaryRange": [5, 10],
       "secondaryRange": [3, 8],
       "aspectRatioRange": [2.2, 3.5],
-      "serrationAmpRange": [0.04, 0.06],
-      "lobeDepthRange": [0.14, 0.25],
+      "serrationAmpRange": [0.04, 0.07],
+      "lobeDepthRange": [0.15, 0.30],
       "poseDroopDegRange": [0, 20],
       "color": "green",
       "asymmetry": 0.3,
@@ -83,7 +83,7 @@
     "terminal": {
       "widthRatio": 0.45,
       "lobeDepth": 0.25,
-      "serrationAmp": 0.05,
+      "serrationAmp": 0.065,
       "serrationFreq": 22,
       "tipSharpness": 1.85,
       "baseTaper": 0.65
@@ -91,15 +91,15 @@
     "primary": {
       "widthRatio": 0.38,
       "lobeDepth": 0.20,
-      "serrationAmp": 0.045,
+      "serrationAmp": 0.058,
       "serrationFreq": 20,
       "tipSharpness": 1.70,
       "baseTaper": 0.60
     },
     "intercalary": {
       "widthRatio": 0.30,
-      "lobeDepth": 0.07,
-      "serrationAmp": 0.025,
+      "lobeDepth": 0.05,
+      "serrationAmp": 0.03,
       "serrationFreq": 16,
       "tipSharpness": 1.15,
       "baseTaper": 0.50
@@ -107,7 +107,7 @@
     "secondary": {
       "widthRatio": 0.36,
       "lobeDepth": 0.13,
-      "serrationAmp": 0.04,
+      "serrationAmp": 0.05,
       "serrationFreq": 18,
       "tipSharpness": 1.50,
       "baseTaper": 0.55
