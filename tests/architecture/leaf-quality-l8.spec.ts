@@ -168,4 +168,46 @@ test.describe('Iter 39 Phase L8 — Leaf Quality Followup', () => {
     expect(json.profileByPosition.intercalary.lobeDepth, 'intercalary.lobeDepth 유지').toBeCloseTo(0.05, 6);
     expect(json.profileByPosition.secondary.lobeDepth, 'secondary.lobeDepth fallback').toBeCloseTo(0.10, 6);
   });
+
+  test('LEAF-SERRATION-ENDPOINT-GUARD-01: serrationEndpointGuardU 데이터화 (L8-4, 보완 #3+#11)', async () => {
+    // L8-4 — endpoint guard 데이터화. spec field + 산식 + caller.
+
+    // 1. LeafSpec.ts: serrationEndpointGuardU field 신규
+    const specSrc = await fs.readFile(
+      path.join(REPO_ROOT, 'src/scene/leaf/LeafSpec.ts'),
+      'utf-8',
+    );
+    expect(specSrc, 'serrationEndpointGuardU schema field').toMatch(
+      /serrationEndpointGuardU:\s*Ratio01/,
+    );
+
+    // 2. LeafletProfile.ts: serrationTaperWeight 산식 변경
+    const profileSrc = await fs.readFile(
+      path.join(REPO_ROOT, 'src/scene/leaf/LeafletProfile.ts'),
+      'utf-8',
+    );
+    expect(profileSrc, 'serrationTaperWeight signature (guardU param)').toMatch(
+      /serrationTaperWeight\s*\(\s*t:\s*number\s*,\s*minWeight:\s*number\s*,\s*guardU:\s*number/,
+    );
+    expect(profileSrc, 'endpoint guard 산식: t<guardU/t>(1-guardU)→0').toMatch(
+      /t\s*<\s*guardU\s*\|\|\s*t\s*>\s*1\s*-\s*guardU/,
+    );
+
+    // 3. LeafMeshBuilder.ts: caller 갱신 (guardU 전달)
+    const builderSrc = await fs.readFile(
+      path.join(REPO_ROOT, 'src/scene/leaf/LeafMeshBuilder.ts'),
+      'utf-8',
+    );
+    expect(builderSrc, 'caller: serrationEndpointGuardU 조회').toMatch(
+      /serrationEndpointGuardU\s*=\s*spec\.shapeProfileRules\.serrationEndpointGuardU/,
+    );
+
+    // 4. tomato.json: 0.03 적용
+    const raw = await fs.readFile(
+      path.join(REPO_ROOT, 'src/data/leaf/specs/tomato.json'),
+      'utf-8',
+    );
+    const json = JSON.parse(raw);
+    expect(json.shapeProfileRules.serrationEndpointGuardU, 'tomato.json guardU').toBeCloseTo(0.03, 6);
+  });
 });

@@ -155,7 +155,8 @@
     "maturityEnvelopeEnd": 0.8,
     "opennessBaseMin": 0.2,
     "opennessBaseMax": 1.0,
-    "serrationTaperMin": 0.35
+    "serrationTaperMin": 0.35,
+    "serrationEndpointGuardU": 0.03
   },
   "edgeAsymmetryRules": {
     "leftLobeWeight": 1.0,

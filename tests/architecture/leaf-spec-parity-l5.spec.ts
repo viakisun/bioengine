@@ -38,7 +38,12 @@ async function loadTomatoSpec() {
 }
 
 test.describe('Iter 39 Phase L5 — Spec migration parity', () => {
-  test('LEAF-LOBE-NOISE-PARITY-01: lobeNoise(spec.lobeNoiseRules, ...) byte-identical to pre-L5-3 hardcoded synthesis', async () => {
+  test.skip('LEAF-LOBE-NOISE-PARITY-01: lobeNoise(spec.lobeNoiseRules, ...) byte-identical to pre-L5-3 hardcoded synthesis [L8-3b archived]', async () => {
+    // ★ L8-3b (S72) — tomato.json lobeNoiseRules.mode 'signed' opt-in. L5 시점
+    //   byte-identical (positiveOnly) 검증은 _L5 commits S40에서 보장_, 현재 spec은
+    //   intentional signed mode (사용자 보완 #5).
+    //
+    // 의미 변경: L5 migration parity → L8 다른 spec 적용 (의도된 visual change).
     // L5-3 (S40) 이후 산식:
     //   for wave w in rules.waves:
     //     freq = w.baseFrequency + (seed * w.seedMultiplier) % w.seedFrequencyMod
@@ -223,29 +228,36 @@ test.describe('Iter 39 Phase L5 — Spec migration parity', () => {
     ).toEqual([]);
   });
 
-  test('LEAF-SERRATION-TAPER-MIN-01: serrationTaperWeight floor 보존 (L6-A-1)', async () => {
+  test('LEAF-SERRATION-TAPER-MIN-01 + L8-4 endpoint guard: serrationTaperWeight floor + guard', async () => {
     // ★ L6-A-1 — lobe와 serration taper 정책 분리.
     //   lobe: full sin(πt) — 끝에서 0
-    //   serration: max(min, sin(πt)) — 끝에서도 min 만큼 톱니 보존
+    //   serration: max(min, sin(πt)) — 안쪽에서 min 만큼 톱니 보존
+    // ★ L8-4 (S73) — endpoint guard: u<guardU/u>(1-guardU)에서 serration 0 강제 (cap quality)
     const spec = await loadTomatoSpec();
     const minWeight = spec.shapeProfileRules.serrationTaperMin;
-    expect(minWeight, 'serrationTaperMin > 0 (base/tip 톱니 보존)').toBeGreaterThan(0);
-    expect(minWeight, 'serrationTaperMin <= 1').toBeLessThanOrEqual(1);
+    const guardU = spec.shapeProfileRules.serrationEndpointGuardU;
+    expect(minWeight, 'serrationTaperMin > 0').toBeGreaterThan(0);
+    expect(guardU, 'serrationEndpointGuardU > 0').toBeGreaterThan(0);
+    expect(guardU, 'serrationEndpointGuardU <= 0.1 (양 끝 10% 이하)').toBeLessThanOrEqual(0.1);
 
-    // 끝쪽 (t=0, t=1)에서 lobe는 0, serration은 minWeight
-    expect(lobeTaperWeight(0)).toBeCloseTo(0, 6);
-    expect(lobeTaperWeight(1)).toBeCloseTo(0, 6);
-    expect(serrationTaperWeight(0, minWeight)).toBeCloseTo(minWeight, 6);
-    expect(serrationTaperWeight(1, minWeight)).toBeCloseTo(minWeight, 6);
+    // ★ endpoint guard: t<guardU 또는 t>(1-guardU)에서 serration 0
+    expect(serrationTaperWeight(0, minWeight, guardU)).toBe(0);
+    expect(serrationTaperWeight(1, minWeight, guardU)).toBe(0);
+    expect(serrationTaperWeight(guardU / 2, minWeight, guardU)).toBe(0);
+    expect(serrationTaperWeight(1 - guardU / 2, minWeight, guardU)).toBe(0);
 
-    // 가운데 (t=0.5)에서는 둘 다 1
+    // 가운데 (t=0.5)에서는 lobe + serration 둘 다 1
     expect(lobeTaperWeight(0.5)).toBeCloseTo(1, 6);
-    expect(serrationTaperWeight(0.5, minWeight)).toBeCloseTo(1, 6);
+    expect(serrationTaperWeight(0.5, minWeight, guardU)).toBeCloseTo(1, 6);
 
-    // 임의 t에서 serration >= lobe (floor 효과 검증)
-    for (const t of [0.05, 0.1, 0.2, 0.8, 0.9, 0.95]) {
+    // guardU 이후 (t > guardU + EPS) serration floor 보존
+    const safeT = guardU + 0.05;
+    expect(serrationTaperWeight(safeT, minWeight, guardU)).toBeGreaterThanOrEqual(minWeight);
+
+    // 안쪽 임의 t에서 serration >= lobe (floor 효과)
+    for (const t of [0.1, 0.2, 0.8, 0.9]) {
       expect(
-        serrationTaperWeight(t, minWeight),
+        serrationTaperWeight(t, minWeight, guardU),
         `serrationTaper(${t}) >= lobeTaper(${t})`,
       ).toBeGreaterThanOrEqual(lobeTaperWeight(t));
     }

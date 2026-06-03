@@ -245,6 +245,11 @@ export const ShapeProfileRulesSchema = z.object({
   //   serrationTaperMin: 0 = 완전 taper (L5 이전 동일), 1 = no taper (끝까지 톱니).
   //   0.35 권장 — 끝부분 톱니 35% 가시.
   serrationTaperMin: Ratio01,                  // current: 0.35 (L6-A-1)
+
+  // ★ L8-4 (S73) — endpoint guard (사용자 보완 #3+#11): u<guardU/u>(1-guardU)
+  //   에서 serration 0 강제. cap topology safety (작은 톱니 vertex 가시 방지).
+  //   0.03 권장 = 양 끝 3% 영역 guard.
+  serrationEndpointGuardU: Ratio01,            // current: 0.03 (L8-4)
 }).refine(
   r => r.maturityEnvelopeStart <= r.maturityEnvelopeEnd,
   { message: 'maturityEnvelopeStart must be <= maturityEnvelopeEnd' },

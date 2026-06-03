@@ -644,11 +644,13 @@ function buildLeafletOutlineWithNoise(
   const smoothMargin = desc.resolved.smoothMargin === true;
   const lengthSegs = profile.length - 1;
   const serrationTaperMin = spec.shapeProfileRules.serrationTaperMin;
+  // ★ L8-4 (S73) — endpoint guard 데이터화 (사용자 보완 #11).
+  const serrationEndpointGuardU = spec.shapeProfileRules.serrationEndpointGuardU;
   for (let r = 0; r < profile.length; r++) {
     const sample = profile[r];
     const t = lengthSegs > 0 ? r / lengthSegs : 0;
     const lobeTaper = lobeTaperWeight(t);
-    const serrationTaper = serrationTaperWeight(t, serrationTaperMin);
+    const serrationTaper = serrationTaperWeight(t, serrationTaperMin, serrationEndpointGuardU);
     const lobe = smoothMargin
       ? 0
       : lobeNoise(spec.lobeNoiseRules, sample.u, positioned.lobeDepth * noiseLengthM, leafletSeed) * lobeTaper;

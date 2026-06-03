@@ -138,13 +138,23 @@ export function lobeTaperWeight(t: number): number {
 }
 
 /**
- * Serration taper — floor 보존. t=0/1에서 minWeight, t=0.5에서 max(minWeight, 1)=1.
- * minWeight=0이면 lobe와 동일. minWeight=1이면 no taper (끝까지 톱니 full).
+ * Serration taper — floor 보존 + endpoint guard.
+ *
+ * - t=0/1에서: 0 (★ L8-4 endpoint guard, u<guardU 또는 u>(1-guardU))
+ * - t=guardU/1-guardU 안: minWeight (floor)
+ * - t=0.5: 1 (peak)
+ *
+ * minWeight=0이면 lobe와 동일. minWeight=1이면 no taper.
+ *
+ * ★ L8-4 (S73) — endpoint guard 추가 (사용자 보완 #3): cap 끝 작은 톱니
+ * vertex 가시 방지. guardU = spec.shapeProfileRules.serrationEndpointGuardU.
  *
  * @param t          row index normalized [0, 1]
  * @param minWeight  spec.shapeProfileRules.serrationTaperMin (0~1)
+ * @param guardU     spec.shapeProfileRules.serrationEndpointGuardU (양 끝 영역)
  */
-export function serrationTaperWeight(t: number, minWeight: number): number {
+export function serrationTaperWeight(t: number, minWeight: number, guardU: number): number {
+  if (t < guardU || t > 1 - guardU) return 0;
   return Math.max(minWeight, Math.sin(t * Math.PI));
 }
 
