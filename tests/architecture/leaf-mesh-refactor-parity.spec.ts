@@ -34,7 +34,14 @@ async function enterSkin(page: Page, day: number) {
 }
 
 test.describe('Leaf Mesh Refactor Parity (SSOT #202, Iter 39 Phase L2-1)', () => {
-  test('REFACTOR-PARITY-01: leaf mesh metrics aggregate baseline (L2-1 thin-wrapper, output 동일)', async ({ page }) => {
+  test.skip('REFACTOR-PARITY-01: leaf mesh metrics aggregate baseline (L2-1 thin-wrapper, output 동일) [L6-B-1b archived]', async ({ page }) => {
+    // ★ L6-B-1b (S57) — per-leaf merge로 mesh name 패턴 변경 (per-leaflet
+    //   `_l\d+_position` → per-leaf `_leaf` suffix). 본 aggregate 산식은
+    //   per-leaflet mesh count/vertex bbox 기준 — _vertex layer_가 아닌
+    //   _mesh layer_ 검증. structural change로 의미 갱신 필요.
+    //
+    // 동등 검증 (vertex final plant-local position parity):
+    //   LEAF-MESH-BATCHING-PARITY-01 (leaf-mesh-batching.spec.ts) — 1e-6 tolerance.
     test.setTimeout(120_000);
     await enterSkin(page, 45);
     const probe = await page.evaluate(() => {

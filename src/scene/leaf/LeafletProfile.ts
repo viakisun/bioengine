@@ -25,7 +25,7 @@ export type LeafletPosition = 'terminal' | 'primary' | 'intercalary' | 'secondar
 // 현재 shapeProfile samples만 quality 조정 (lengthSegs = samples - 1).
 // COLS (LeafletPlaneChunk 내부 hardcode 9)는 patkage 변경 필요 → 후속 phase.
 
-export type LeafMeshQuality = 'low' | 'high';
+export type LeafMeshQuality = 'ultra-low' | 'low' | 'high';
 
 export interface LeafMeshResolution {
   /** buildShapeProfile.samples — lengthSegs = samples - 1. */
@@ -33,9 +33,28 @@ export interface LeafMeshResolution {
 }
 
 export const LEAF_MESH_RESOLUTION: Record<LeafMeshQuality, LeafMeshResolution> = {
-  low:  { shapeProfileSamples: 16 },  // ★ default — 현재 production 동일 (lengthSegs 15)
-  high: { shapeProfileSamples: 23 },  // hero/near plant opt-in (lengthSegs 22, +44%)
+  // ★ L6-B-2 (S58) — distance LOD ultra-low (far plant).
+  //   lengthSegs 8 → ~80 vertices/leaflet (vs low 144, high 286).
+  'ultra-low': { shapeProfileSamples: 9 },
+  low:  { shapeProfileSamples: 16 },  // mid distance default (lengthSegs 15)
+  high: { shapeProfileSamples: 23 },  // near distance opt-in (lengthSegs 22, +44%)
 };
+
+/**
+ * Distance-based quality selection (★ L6-B-2 S58).
+ *
+ * Threshold:
+ *   < 5m  → 'high'      (near hero plant)
+ *   < 15m → 'low'       (mid distance, production default)
+ *   ≥ 15m → 'ultra-low' (far background plant)
+ *
+ * @param distanceM  camera ↔ plant root world distance (meters)
+ */
+export function qualityFromDistance(distanceM: number): LeafMeshQuality {
+  if (distanceM < 5) return 'high';
+  if (distanceM < 15) return 'low';
+  return 'ultra-low';
+}
 
 /** Default quality. production 회귀 0 (v3 #5 핵심). */
 export const DEFAULT_LEAF_MESH_QUALITY: LeafMeshQuality = 'low';

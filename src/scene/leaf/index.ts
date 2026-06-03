@@ -48,6 +48,11 @@ export type { LeafletPosition, LeafletShapeProfile } from './LeafMeshBuilder';
 export { computeLeftRightImbalance, computeLeafMacroState } from './LeafMeshBuilder';
 export type { LeafMacroState } from './LeafMeshBuilder';
 
+// L6-B-2 (S58) — LOD distance-based quality selection.
+export { qualityFromDistance } from './LeafletProfile';
+export type { LeafMeshQuality, LeafMeshResolution } from './LeafletProfile';
+export { LEAF_MESH_RESOLUTION } from './LeafletProfile';
+
 // L4-3 LeafSpec + Zod runtime validation.
 export type {
   LeafSpec,

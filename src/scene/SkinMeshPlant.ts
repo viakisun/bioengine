@@ -85,7 +85,7 @@ import { defaultSkinEngine } from '../plant/skin/defaultSkinEngine';
 // ★ Iter 39 Phase L4-7 (S35) — LeafEngine namespace API.
 //   LeafEngine.createLeaf(spec, node, graph, options) → patches → wrapAsMeshes.
 //   참조: docs/architecture/LEAF_MESH_PIPELINE_AUDIT.md
-import { LeafEngine } from './leaf';
+import { LeafEngine, qualityFromDistance } from './leaf';
 // Iter 36 v5 Phase C — skeleton 3-tier: get leaflet nodes for compound leaf rendering.
 import { getLeafletSkeletonNodesByParentLeaf } from '../plant/skeleton/PlantSkeletonGraph';
 // ★ Iter 39 L4 (S35) — application은 'tomato.json' 선택. engine은 spec 받음.
@@ -796,10 +796,19 @@ export function createSkinMeshPlant(
           //   petiole tangent + leaflet collection 등 derivation은 LeafEngine 내부.
           //   leafRng는 ctx에 주입되지 않음 — engine은 deterministic seed만 사용.
           void leafRng;
+          // ★ L6-B-2 (S58) — distance-based LOD quality.
+          //   build 시점에 camera ↔ plant root 거리 측정 → quality 결정.
+          //   day 단위 rebuild라 매 frame 변경 없음 (popping risk 낮음).
+          const cam = scene.activeCamera;
+          const distM = cam
+            ? Vector3.Distance(cam.position, root.absolutePosition)
+            : 10;
+          const lodQuality = qualityFromDistance(distM);
           const leafletPatches = LeafEngine.createLeaf(tomatoLeafSpec, meshAnchorNode, graph, {
             cultivarOverride: cultivarShapeOverride,
             seed: seed * 1009 + axisIdx * 9173 + nodeIdx * 31 + 11,
             meshNamePrefix,
+            quality: lodQuality,
           });
           // ★ Iter 39 Phase L6-B-1b (S57) — per-leaf merge batching.
           //   1 compound leaf = 1 Mesh (이전 leaflet 마다 1 Mesh).
