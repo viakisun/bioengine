@@ -40,7 +40,7 @@ import { buildLeafletPlaneChunk } from './LeafletPlaneChunk';
 
 // ─── Pure quaternion math (Babylon 의존 0) ───────────────────────────────
 
-type Quat4 = { x: number; y: number; z: number; w: number };
+export type Quat4 = { x: number; y: number; z: number; w: number };
 
 /** Quaternion from yaw-pitch-roll (intrinsic Y-X-Z, same as Babylon). */
 function quatFromYawPitchRoll(yaw: number, pitch: number, roll: number): Quat4 {
@@ -66,6 +66,30 @@ function quatMultiply(a: Quat4, b: Quat4): Quat4 {
     y: a.w * b.y - a.x * b.z + a.y * b.w + a.z * b.x,
     z: a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w,
     w: a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z,
+  };
+}
+
+/**
+ * Quaternion → 4×4 rotation Mat4 (translation = 0).
+ *
+ * ★ L6-B-1a (S56) — per-leaf mesh batching에서 `transformChunk` (tomato-geometry)
+ *   재사용 위한 변환. Mat4 column-major layout — Babylon Matrix.m과 동일.
+ *
+ * 표준 quaternion → rotation matrix 산식. byte-identical to Babylon
+ * `Matrix.FromQuaternionToRef`.
+ */
+export function quatToMat4(q: Quat4): { m: Float32Array } {
+  const x2 = q.x + q.x, y2 = q.y + q.y, z2 = q.z + q.z;
+  const xx = q.x * x2, xy = q.x * y2, xz = q.x * z2;
+  const yy = q.y * y2, yz = q.y * z2, zz = q.z * z2;
+  const wx = q.w * x2, wy = q.w * y2, wz = q.w * z2;
+  return {
+    m: new Float32Array([
+      1 - (yy + zz), xy + wz,       xz - wy,       0,
+      xy - wz,       1 - (xx + zz), yz + wx,       0,
+      xz + wy,       yz - wx,       1 - (xx + yy), 0,
+      0,             0,             0,             1,
+    ]),
   };
 }
 import type {

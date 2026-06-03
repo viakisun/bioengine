@@ -32,6 +32,7 @@ import {
 } from './LeafMeshBuilder';
 import {
   wrapLeafChunksAsMeshes,
+  wrapLeafChunksAsLeafBatch,
   getLeafMaterial,
   getYellowLeafMaterial,
 } from './LeafMaterial';
@@ -151,9 +152,33 @@ export const LeafEngine = {
     return buildLeafMeshFromSkeleton(ctx);
   },
 
-  /** Convert pure LeafMeshPatch[] into Babylon Mesh[] (scene attached). */
+  /**
+   * Convert pure LeafMeshPatch[] into Babylon Mesh[] (per-leaflet, debug/legacy).
+   * ★ Production caller는 `wrapAsLeafBatch` 사용 (draw call 30× 감소).
+   */
   wrapAsMeshes(patches: LeafMeshPatch[], scene: Scene): Mesh[] {
     return wrapLeafChunksAsMeshes(patches, scene);
+  },
+
+  /**
+   * ★ L6-B-1a (S56) — Per-leaf merge batching (1 leaf = 1 Mesh).
+   *
+   * 단일 compound leaf의 leaflet patches를 하나의 Babylon Mesh로 merge.
+   * leaflet rotation/translation은 vertex에 baked, mesh.position은 leaf-blade-root.
+   *
+   * @param patches             단일 compound leaf의 leaflet patches
+   * @param leafBladeRootPos    plant-local position of leaf-blade-root node
+   * @param scene               Babylon scene
+   * @param meshName            batched mesh name
+   * @returns                   Mesh, 또는 empty patches 시 null
+   */
+  wrapAsLeafBatch(
+    patches: LeafMeshPatch[],
+    leafBladeRootPos: { x: number; y: number; z: number },
+    scene: Scene,
+    meshName: string,
+  ): Mesh | null {
+    return wrapLeafChunksAsLeafBatch(patches, leafBladeRootPos, scene, meshName);
   },
 
   /** Scene-cached leaf material (PBR with optional shader wind on WebGL2). */

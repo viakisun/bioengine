@@ -15,10 +15,20 @@ import { PBRMaterial } from '@babylonjs/core/Materials/PBR/pbrMaterial';
 import { PBRCustomMaterial } from '@babylonjs/materials/custom/pbrCustomMaterial';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import {
+  type GeoChunk,
+  newChunk,
+  transformChunk,
+  translateChunk,
+  mergeChunks,
+} from '@farmsim/tomato-geometry';
+import {
   getLeafColorTexture,
   getLeafNormalTexture,
 } from './LeafTexture';
+import { quatToMat4 } from './LeafMeshBuilder';
 import type { LeafMeshPatch } from './LeafMeshBuilder';
+
+type V3 = { x: number; y: number; z: number };
 
 /**
  * ★ Iter 39 L3-F (S27) — Babylon Mesh wrapper.
@@ -54,6 +64,91 @@ export function wrapLeafChunksAsMeshes(patches: LeafMeshPatch[], scene: Scene): 
     meshes.push(mesh);
   }
   return meshes;
+}
+
+/**
+ * ★ L6-B-1a (S56) — Per-leaf mesh batching.
+ *
+ * Merge all leaflet patches belonging to a _single compound leaf_ into one
+ * Babylon Mesh. Leaflet rotation/translation은 vertex에 baked, mesh.position은
+ * leaf-blade-root (plant-local).
+ *
+ * 산식 (parity 보장):
+ *   bakedVertex = patch.rotationQuat × localVertex + (patch.position - leafBladeRootPos)
+ *   vertex_plantlocal = mesh.position + bakedVertex
+ *                     = leafBladeRootPos + bakedVertex
+ *                     = patch.position + patch.rotationQuat × localVertex
+ *                     ← per-leaflet (mesh.position=patch.position) 산식과 identical
+ *
+ * 재사용 utility (tomato-geometry):
+ *   - quatToMat4 (LeafMeshBuilder)  → 4×4 rotation Mat4
+ *   - transformChunk                → vertex/normal 변환 + normalize 자동
+ *   - translateChunk                → leafletPos - leafBladeRootPos shift
+ *   - mergeChunks                   → index offset 자동 + colors/uvs/normals merge
+ *
+ * Contract:
+ *   - patches는 _단일 compound leaf_의 leaflet patches (caller 보장)
+ *   - empty patches → null 반환
+ *   - 현재 LeafletPlaneChunk는 vertex color 생성 0 — colors 처리 불필요
+ *     (미래 vertex color 추가 시 mergeChunks + 이 함수 갱신 의무)
+ *
+ * @param patches             단일 compound leaf의 leaflet patches
+ * @param leafBladeRootPos    plant-local position of leaf-blade-root node
+ * @param scene               Babylon scene
+ * @param meshName            batched mesh name
+ * @returns                   Mesh, 또는 patches.length === 0 시 null
+ */
+export function wrapLeafChunksAsLeafBatch(
+  patches: LeafMeshPatch[],
+  leafBladeRootPos: V3,
+  scene: Scene,
+  meshName: string,
+): Mesh | null {
+  if (patches.length === 0) return null;
+
+  // 1. Per-patch bake (rotation + translation), then merge.
+  const bakedChunks: GeoChunk[] = [];
+  for (const patch of patches) {
+    const baked = cloneChunk(patch.chunk);
+    transformChunk(baked, quatToMat4(patch.rotationQuat));
+    translateChunk(
+      baked,
+      patch.position.x - leafBladeRootPos.x,
+      patch.position.y - leafBladeRootPos.y,
+      patch.position.z - leafBladeRootPos.z,
+    );
+    bakedChunks.push(baked);
+  }
+  const merged = mergeChunks(bakedChunks);
+
+  // 2. Babylon Mesh + VertexData.
+  const mesh = new Mesh(meshName, scene);
+  const vd = new VertexData();
+  vd.positions = merged.positions;
+  vd.normals = merged.normals;
+  vd.uvs = merged.uvs;
+  vd.indices = merged.indices;
+  vd.applyToMesh(mesh);
+
+  // 3. mesh.position = leafBladeRootPos (plant-local), rotation = identity.
+  mesh.position = new Vector3(leafBladeRootPos.x, leafBladeRootPos.y, leafBladeRootPos.z);
+  mesh.rotationQuaternion = Quaternion.Identity();
+  mesh.computeWorldMatrix(true);   // SSOT #185 — stale worldMatrix prevention
+  return mesh;
+}
+
+/** Deep-copy GeoChunk (positions/normals/uvs/indices). colors 미지원 (현재 없음). */
+function cloneChunk(chunk: GeoChunk): GeoChunk {
+  const out = newChunk();
+  out.positions = chunk.positions.slice();
+  out.normals = chunk.normals.slice();
+  out.uvs = chunk.uvs.slice();
+  out.indices = chunk.indices.slice();
+  if (chunk.colors !== undefined) {
+    // Future: vertex color migration. 현재 LeafletPlaneChunk가 colors 생성 안 함.
+    out.colors = chunk.colors.slice();
+  }
+  return out;
 }
 
 const cachedLeafMaterial = new WeakMap<Scene, PBRMaterial>();
