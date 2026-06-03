@@ -32,6 +32,10 @@ export type { LeafletMeshBuildContext } from './LeafMeshBuilder';
 export { buildLeafMeshFromSkeleton } from './LeafMeshBuilder';
 export type { LeafMeshBuildInput, LeafMeshPatch } from './LeafMeshBuilder';
 
+// L4-6 (S34) LeafEngine namespace — recommended API.
+export { LeafEngine } from './LeafEngine';
+export type { CreateLeafOptions } from './LeafEngine';
+
 // L2-3 per-leaflet position profile.
 export { PROFILE_BY_POSITION, applyPositionProfile } from './LeafMeshBuilder';
 export type { LeafletPosition, LeafletShapeProfile } from './LeafMeshBuilder';
