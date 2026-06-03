@@ -82,7 +82,7 @@
   "profileByPosition": {
     "terminal": {
       "widthRatio": 0.45,
-      "lobeDepth": 0.25,
+      "lobeDepth": 0.20,
       "serrationAmp": 0.065,
       "serrationFreq": 22,
       "tipSharpness": 1.85,
@@ -90,7 +90,7 @@
     },
     "primary": {
       "widthRatio": 0.38,
-      "lobeDepth": 0.20,
+      "lobeDepth": 0.16,
       "serrationAmp": 0.058,
       "serrationFreq": 20,
       "tipSharpness": 1.70,
@@ -106,7 +106,7 @@
     },
     "secondary": {
       "widthRatio": 0.36,
-      "lobeDepth": 0.13,
+      "lobeDepth": 0.10,
       "serrationAmp": 0.05,
       "serrationFreq": 18,
       "tipSharpness": 1.50,
@@ -130,6 +130,7 @@
     "twistNoiseRangeRad": 0.15
   },
   "lobeNoiseRules": {
+    "mode": "signed",
     "positiveOnly": true,
     "waves": [
       { "baseFrequency": 2.0, "seedFrequencyMod": 1.5, "seedMultiplier": 1, "phaseMultiplier": 0.7, "weight": 0.5 },

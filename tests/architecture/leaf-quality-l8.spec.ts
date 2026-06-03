@@ -148,4 +148,24 @@ test.describe('Iter 39 Phase L8 — Leaf Quality Followup', () => {
       /sample\.halfWidthRight\s*=\s*Math\.max\s*\(\s*0\s*,/,
     );
   });
+
+  test('LEAF-LOBE-NOISE-SIGNED-APPLIED-01: tomato.json signed mode + lobeDepth fallback (L8-3b)', async () => {
+    // L8-3b — tomato.json mode 'signed' opt-in + 1차 fallback lobeDepth (보수적).
+    //   terminal: 0.25 → 0.20, primary: 0.20 → 0.16, secondary: 0.13 → 0.10
+    //   intercalary: 0.05 유지 (보조엽 보존)
+    const raw = await fs.readFile(
+      path.join(REPO_ROOT, 'src/data/leaf/specs/tomato.json'),
+      'utf-8',
+    );
+    const json = JSON.parse(raw);
+
+    // mode 'signed' opt-in
+    expect(json.lobeNoiseRules.mode, "lobeNoiseRules.mode === 'signed'").toBe('signed');
+
+    // fallback lobeDepth (보수적 1차)
+    expect(json.profileByPosition.terminal.lobeDepth, 'terminal.lobeDepth fallback').toBeCloseTo(0.20, 6);
+    expect(json.profileByPosition.primary.lobeDepth, 'primary.lobeDepth fallback').toBeCloseTo(0.16, 6);
+    expect(json.profileByPosition.intercalary.lobeDepth, 'intercalary.lobeDepth 유지').toBeCloseTo(0.05, 6);
+    expect(json.profileByPosition.secondary.lobeDepth, 'secondary.lobeDepth fallback').toBeCloseTo(0.10, 6);
+  });
 });
