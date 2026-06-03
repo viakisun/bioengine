@@ -19,24 +19,17 @@
 //   V1+V2 공존은 _임시_. V2 승격 6 조건 충족 후 _L10-A archive plan_으로 V1 →
 //   `_archive/`. `leaf-builder-v2-coexistence.spec.ts`가 phase 추적.
 
-import { newChunk } from '@farmsim/tomato-geometry';
 import {
   buildLeafShapeDescriptor,
   applyLeafletPose,
   buildLeafletPlaneChunk,
-  serrationNoise,
   djb2,
-  quatFromYawPitchRoll,
-  quatMultiply,
   type LeafMeshBuildInput,
   type LeafMeshPatch,
   type LeafShapeDescriptor,
 } from './LeafMeshBuilder';
 import { normalizeLeafMeshVertices } from './LeafAnchor';
-import {
-  applyPositionProfile,
-  type LeafletPosition,
-} from './LeafletProfile';
+import { type LeafletPosition } from './LeafletProfile';
 import type { LeafSpec, ShoulderLobe, SinusNotch } from './LeafSpec';
 
 // ─── V2 Outline 산식 ───────────────────────────────────────────────────
@@ -90,15 +83,6 @@ function baseWidthV2(
   return Math.max(0, s);
 }
 
-// ★ S111 — Control point polyline (사진에서 _직접 추출_한 (u, halfWidth) 점들).
-// Gaussian 산식 대안 — 뾰족 삼각형 lobe + 깊은 V-notch _진짜_ 자연 잎 모방.
-//   u: rachis 따라 0=base, 1=tip.
-//   halfWidth: halfWidthBase 비율 (0=중심선까지 닿음, 1=full half-width).
-export interface ControlPoint {
-  u: number;
-  halfWidth: number;
-}
-
 export interface ShapeProfileV2Input {
   lengthM: number;
   aspectRatio: number;
@@ -122,28 +106,6 @@ export interface ShapeProfileV2Input {
   /** ★ S107 — 좌우 _다른 lobe set_ (자연 비대칭). undefined 시 좌우 동일 (대칭). */
   shoulderLobesRight?: ReadonlyArray<ShoulderLobe>;
   sinusNotchesRight?: ReadonlyArray<SinusNotch>;
-  /**
-   * ★ S111 — Control point polyline (사진 추출). 지정 시 Gaussian _완전 대체_.
-   *   shoulderLobes/sinusNotches/dripTip* 모두 _무시_, polyline 선형보간으로 outline 생성.
-   */
-  controlPoints?: ReadonlyArray<ControlPoint>;
-  controlPointsRight?: ReadonlyArray<ControlPoint>;
-}
-
-// ★ S111 — Control point polyline 선형 보간.
-function interpolateHalfWidthRatio(u: number, points: ReadonlyArray<ControlPoint>): number {
-  if (points.length === 0) return 0;
-  if (u <= points[0].u) return points[0].halfWidth;
-  if (u >= points[points.length - 1].u) return points[points.length - 1].halfWidth;
-  for (let i = 0; i < points.length - 1; i++) {
-    const a = points[i];
-    const b = points[i + 1];
-    if (u >= a.u && u <= b.u) {
-      const t = (u - a.u) / Math.max(1e-9, b.u - a.u);
-      return a.halfWidth + (b.halfWidth - a.halfWidth) * t;
-    }
-  }
-  return 0;
 }
 
 // ★ S96 — Per-leaflet variation: deterministic signed random ([-1, 1]).
@@ -190,327 +152,6 @@ const VAR_MAX = {
 const GRAVITY_REF_LENGTH_M = 0.25;
 const GRAVITY_MAX_DEG = 90;
 
-// ★ S108 — 자연 토마토 잎 사진에서 추출한 10개 outline sample.
-//   각 sample = 한 자연 leaflet의 _고정_ shape parameters.
-//   idSeed % 10으로 선택 → 10 종류 outline이 자연스럽게 섞임.
-//   다양성: lobe 개수/위치/깊이/asymmetry/dripTip 모두 _제각각_.
-//   S110: debug panel 시각화용으로 export.
-export interface NaturalLeafletSample {
-  aspectRatio: number;
-  tipSharpness: number;
-  shoulderLobes: ShoulderLobe[];
-  sinusNotches: SinusNotch[];
-  shoulderLobesRight?: ShoulderLobe[];   // 좌우 비대칭 sample 용
-  sinusNotchesRight?: SinusNotch[];
-  dripTipUStart: number;
-  dripTipDepth: number;
-  /** ★ S111 — 사진 추출 control point polyline. 지정 시 Gaussian 무시. */
-  controlPoints?: ControlPoint[];
-  controlPointsRight?: ControlPoint[];
-}
-
-export const NATURAL_LEAFLET_SAMPLES: ReadonlyArray<NaturalLeafletSample> = [
-  // 0. Terminal elaborate — 큰 terminal leaflet, 4 sharp lobes 좌우 균등 (이미지 1 right-top)
-  {
-    aspectRatio: 2.2, tipSharpness: 1.05,
-    shoulderLobes: [],
-    sinusNotches: [],
-    dripTipUStart: 0.88, dripTipDepth: 0.35,
-    controlPoints: [
-      { u: 0.00, halfWidth: 0.05 },  // 좁은 base (petiolule 부착)
-      { u: 0.06, halfWidth: 0.35 },
-      { u: 0.13, halfWidth: 0.85 },  // 1st lobe peak
-      { u: 0.20, halfWidth: 0.40 },  // 1st notch (deep)
-      { u: 0.30, halfWidth: 0.95 },  // 2nd lobe peak (largest)
-      { u: 0.38, halfWidth: 0.45 },  // 2nd notch
-      { u: 0.48, halfWidth: 0.90 },  // 3rd lobe
-      { u: 0.56, halfWidth: 0.50 },  // 3rd notch
-      { u: 0.66, halfWidth: 0.75 },  // 4th lobe (smaller)
-      { u: 0.76, halfWidth: 0.40 },  // 4th notch
-      { u: 0.85, halfWidth: 0.45 },  // pre-tip widening
-      { u: 0.94, halfWidth: 0.20 },  // acuminate taper
-      { u: 1.00, halfWidth: 0.00 },  // sharp tip
-    ],
-  },
-  // 1. Primary broad — 넓은 primary leaflet, 3 broad lobes (이미지 1 lower-left)
-  {
-    aspectRatio: 1.8, tipSharpness: 1.10,
-    shoulderLobes: [],
-    sinusNotches: [],
-    dripTipUStart: 0.85, dripTipDepth: 0.30,
-    controlPoints: [
-      { u: 0.00, halfWidth: 0.08 },
-      { u: 0.08, halfWidth: 0.50 },
-      { u: 0.16, halfWidth: 0.90 },
-      { u: 0.26, halfWidth: 0.55 },
-      { u: 0.38, halfWidth: 1.00 },  // 가장 큰 lobe
-      { u: 0.50, halfWidth: 0.55 },
-      { u: 0.62, halfWidth: 0.85 },
-      { u: 0.74, halfWidth: 0.45 },
-      { u: 0.84, halfWidth: 0.40 },
-      { u: 0.93, halfWidth: 0.20 },
-      { u: 1.00, halfWidth: 0.00 },
-    ],
-  },
-  // 2. Sub-lobed (이미지 4 bottom-right) — 매우 깊게 갈라진 lobe, 거의 midrib까지
-  {
-    aspectRatio: 2.0, tipSharpness: 1.05,
-    shoulderLobes: [],
-    sinusNotches: [],
-    dripTipUStart: 0.90, dripTipDepth: 0.30,
-    controlPoints: [
-      { u: 0.00, halfWidth: 0.06 },
-      { u: 0.05, halfWidth: 0.30 },
-      { u: 0.11, halfWidth: 0.85 },  // sub-leaflet 1
-      { u: 0.17, halfWidth: 0.20 },  // 매우 깊은 cleavage
-      { u: 0.24, halfWidth: 0.95 },  // sub-leaflet 2
-      { u: 0.31, halfWidth: 0.18 },
-      { u: 0.39, halfWidth: 1.00 },  // sub-leaflet 3 (largest)
-      { u: 0.47, halfWidth: 0.22 },
-      { u: 0.55, halfWidth: 0.85 },  // sub-leaflet 4
-      { u: 0.63, halfWidth: 0.25 },
-      { u: 0.71, halfWidth: 0.70 },  // sub-leaflet 5
-      { u: 0.80, halfWidth: 0.30 },
-      { u: 0.88, halfWidth: 0.40 },
-      { u: 0.95, halfWidth: 0.15 },
-      { u: 1.00, halfWidth: 0.00 },
-    ],
-  },
-  // 3. Long pointed (이미지 3) — 길고 뾰족, 가는 elongated leaflet
-  {
-    aspectRatio: 2.8, tipSharpness: 1.15,
-    shoulderLobes: [],
-    sinusNotches: [],
-    dripTipUStart: 0.78, dripTipDepth: 0.55,
-    controlPoints: [
-      { u: 0.00, halfWidth: 0.05 },
-      { u: 0.10, halfWidth: 0.55 },
-      { u: 0.22, halfWidth: 0.90 },  // 1st lobe peak
-      { u: 0.35, halfWidth: 0.50 },  // notch
-      { u: 0.50, halfWidth: 0.85 },  // 2nd lobe (mid)
-      { u: 0.65, halfWidth: 0.50 },  // notch
-      { u: 0.78, halfWidth: 0.55 },  // small bulge near tip
-      { u: 0.88, halfWidth: 0.30 },
-      { u: 0.96, halfWidth: 0.12 },  // long acuminate
-      { u: 1.00, halfWidth: 0.00 },
-    ],
-  },
-  // 4. Asymmetric left-heavy — 좌측 3 deep lobe, 우측 2 shallow (이미지 1 lower-right)
-  {
-    aspectRatio: 2.0, tipSharpness: 1.05,
-    shoulderLobes: [],
-    sinusNotches: [],
-    dripTipUStart: 0.85, dripTipDepth: 0.35,
-    controlPoints: [
-      { u: 0.00, halfWidth: 0.05 },
-      { u: 0.08, halfWidth: 0.45 },
-      { u: 0.18, halfWidth: 0.95 },
-      { u: 0.27, halfWidth: 0.40 },
-      { u: 0.38, halfWidth: 0.90 },
-      { u: 0.50, halfWidth: 0.45 },
-      { u: 0.62, halfWidth: 0.75 },
-      { u: 0.74, halfWidth: 0.40 },
-      { u: 0.85, halfWidth: 0.35 },
-      { u: 0.94, halfWidth: 0.18 },
-      { u: 1.00, halfWidth: 0.00 },
-    ],
-    controlPointsRight: [
-      { u: 0.00, halfWidth: 0.05 },
-      { u: 0.12, halfWidth: 0.40 },
-      { u: 0.30, halfWidth: 0.70 },  // 약한 lobe
-      { u: 0.45, halfWidth: 0.50 },  // shallow notch
-      { u: 0.62, halfWidth: 0.65 },
-      { u: 0.78, halfWidth: 0.45 },
-      { u: 0.90, halfWidth: 0.25 },
-      { u: 1.00, halfWidth: 0.00 },
-    ],
-  },
-  // 5. Asymmetric right-heavy — sample 4 좌우 swap (다른 leaflet 같은 plant)
-  {
-    aspectRatio: 2.0, tipSharpness: 1.05,
-    shoulderLobes: [],
-    sinusNotches: [],
-    dripTipUStart: 0.85, dripTipDepth: 0.35,
-    controlPoints: [
-      { u: 0.00, halfWidth: 0.05 },
-      { u: 0.12, halfWidth: 0.40 },
-      { u: 0.30, halfWidth: 0.70 },
-      { u: 0.45, halfWidth: 0.50 },
-      { u: 0.62, halfWidth: 0.65 },
-      { u: 0.78, halfWidth: 0.45 },
-      { u: 0.90, halfWidth: 0.25 },
-      { u: 1.00, halfWidth: 0.00 },
-    ],
-    controlPointsRight: [
-      { u: 0.00, halfWidth: 0.05 },
-      { u: 0.08, halfWidth: 0.45 },
-      { u: 0.18, halfWidth: 0.95 },
-      { u: 0.27, halfWidth: 0.40 },
-      { u: 0.38, halfWidth: 0.90 },
-      { u: 0.50, halfWidth: 0.45 },
-      { u: 0.62, halfWidth: 0.75 },
-      { u: 0.74, halfWidth: 0.40 },
-      { u: 0.85, halfWidth: 0.35 },
-      { u: 0.94, halfWidth: 0.18 },
-      { u: 1.00, halfWidth: 0.00 },
-    ],
-  },
-  // 6. Simple small — 작은 intercalary leaflet, 부드러운 ovate + mild teeth (이미지 1 중앙 소형)
-  {
-    aspectRatio: 1.7, tipSharpness: 1.05,
-    shoulderLobes: [],
-    sinusNotches: [],
-    dripTipUStart: 0.92, dripTipDepth: 0.20,
-    controlPoints: [
-      { u: 0.00, halfWidth: 0.10 },
-      { u: 0.12, halfWidth: 0.60 },
-      { u: 0.28, halfWidth: 0.90 },
-      { u: 0.40, halfWidth: 0.70 },  // 약한 notch
-      { u: 0.52, halfWidth: 0.85 },
-      { u: 0.66, halfWidth: 0.65 },
-      { u: 0.80, halfWidth: 0.50 },
-      { u: 0.92, halfWidth: 0.25 },
-      { u: 1.00, halfWidth: 0.00 },
-    ],
-  },
-  // 7. Deep cleavage — sub-leaflet 거의 분리될 정도 깊은 갈라짐 (이미지 4 top-left)
-  {
-    aspectRatio: 2.0, tipSharpness: 1.05,
-    shoulderLobes: [],
-    sinusNotches: [],
-    dripTipUStart: 0.88, dripTipDepth: 0.30,
-    controlPoints: [
-      { u: 0.00, halfWidth: 0.06 },
-      { u: 0.07, halfWidth: 0.45 },
-      { u: 0.16, halfWidth: 1.00 },  // 매우 큰 sub-leaflet
-      { u: 0.24, halfWidth: 0.15 },  // 거의 0까지 깊은 갈라짐
-      { u: 0.34, halfWidth: 0.95 },
-      { u: 0.43, halfWidth: 0.18 },  // 또 거의 0
-      { u: 0.54, halfWidth: 0.85 },
-      { u: 0.64, halfWidth: 0.22 },
-      { u: 0.74, halfWidth: 0.65 },
-      { u: 0.84, halfWidth: 0.35 },
-      { u: 0.93, halfWidth: 0.20 },
-      { u: 1.00, halfWidth: 0.00 },
-    ],
-  },
-  // 8. Apex emphasis — 좁은 base + 큰 mid-apex lobe (이미지 2 top-right)
-  {
-    aspectRatio: 2.2, tipSharpness: 1.10,
-    shoulderLobes: [],
-    sinusNotches: [],
-    dripTipUStart: 0.90, dripTipDepth: 0.40,
-    controlPoints: [
-      { u: 0.00, halfWidth: 0.04 },
-      { u: 0.10, halfWidth: 0.30 },
-      { u: 0.22, halfWidth: 0.45 },  // small base lobe
-      { u: 0.34, halfWidth: 0.35 },
-      { u: 0.46, halfWidth: 0.80 },  // mid lobe
-      { u: 0.56, halfWidth: 0.45 },
-      { u: 0.68, halfWidth: 1.00 },  // big apex-side lobe
-      { u: 0.78, halfWidth: 0.50 },
-      { u: 0.87, halfWidth: 0.55 },
-      { u: 0.95, halfWidth: 0.22 },
-      { u: 1.00, halfWidth: 0.00 },
-    ],
-  },
-  // 9. Mid-bulged — 가운데 가장 넓은 단순 형태 (이미지 4 top-right)
-  {
-    aspectRatio: 1.9, tipSharpness: 1.05,
-    shoulderLobes: [],
-    sinusNotches: [],
-    dripTipUStart: 0.85, dripTipDepth: 0.30,
-    controlPoints: [
-      { u: 0.00, halfWidth: 0.08 },
-      { u: 0.12, halfWidth: 0.55 },
-      { u: 0.24, halfWidth: 0.85 },
-      { u: 0.35, halfWidth: 0.65 },  // mild notch
-      { u: 0.46, halfWidth: 0.95 },  // widest
-      { u: 0.58, halfWidth: 0.65 },  // mild notch
-      { u: 0.70, halfWidth: 0.70 },
-      { u: 0.82, halfWidth: 0.45 },
-      { u: 0.92, halfWidth: 0.22 },
-      { u: 1.00, halfWidth: 0.00 },
-    ],
-  },
-];
-
-// ★ S112 — Procedural sample 생성기 (multi-generator 시스템).
-//   10 photo sample _외에_ 절차적 polyline 생성. 동일 polyline 메커니즘 사용.
-//   사용자: "여러 함수 만들어서 랜덤으로 돌려도 돼" → 10 sample + 무한 procedural 혼합.
-function generateProceduralSample(idSeed: number): NaturalLeafletSample {
-  // lobe 3~6개 (idSeed 결정)
-  const lobeCount = 3 + ((Math.abs(idSeed * 7) % 4));
-
-  // lobe u 범위 (base/tip 여유)
-  const lobeRangeStart = 0.13 + signedRand(idSeed, 41) * 0.02;
-  const lobeRangeEnd = 0.85 + signedRand(idSeed, 43) * 0.03;
-  const step = (lobeRangeEnd - lobeRangeStart) / (lobeCount * 2);
-
-  const buildSide = (sideSalt: number): ControlPoint[] => {
-    const pts: ControlPoint[] = [];
-    // base (좁음)
-    pts.push({ u: 0, halfWidth: 0.05 + Math.abs(signedRand(idSeed, sideSalt + 51)) * 0.04 });
-    // pre-base ramp
-    pts.push({ u: 0.08, halfWidth: 0.35 + Math.abs(signedRand(idSeed, sideSalt + 53)) * 0.20 });
-    // alternating peak/valley
-    for (let i = 0; i < lobeCount; i++) {
-      const lobeU = lobeRangeStart + step * (2 * i + 1)
-        + signedRand(idSeed, sideSalt + 61 + i * 3) * step * 0.25;
-      const lobeHW = 0.70 + Math.abs(signedRand(idSeed, sideSalt + 67 + i * 5)) * 0.30;
-      pts.push({ u: Math.max(0.10, Math.min(0.95, lobeU)), halfWidth: lobeHW });
-
-      if (i < lobeCount - 1) {
-        const notchU = lobeRangeStart + step * (2 * i + 2)
-          + signedRand(idSeed, sideSalt + 71 + i * 7) * step * 0.25;
-        const notchHW = 0.20 + Math.abs(signedRand(idSeed, sideSalt + 73 + i * 11)) * 0.30;
-        pts.push({ u: Math.max(0.10, Math.min(0.95, notchU)), halfWidth: notchHW });
-      }
-    }
-    // post-lobe taper
-    pts.push({ u: 0.93, halfWidth: 0.15 + Math.abs(signedRand(idSeed, sideSalt + 81)) * 0.10 });
-    pts.push({ u: 1.0, halfWidth: 0 });
-    return pts;
-  };
-
-  // 30% 비대칭 (좌우 _완전 다른 set_)
-  const asymmetric = ((Math.abs(idSeed) >>> 3) % 10) < 3;
-  const aspectRatio = 1.7 + Math.abs(signedRand(idSeed, 91)) * 0.7;
-  const tipSharpness = 1.05 + Math.abs(signedRand(idSeed, 101)) * 0.10;
-
-  return {
-    aspectRatio,
-    tipSharpness,
-    shoulderLobes: [],
-    sinusNotches: [],
-    dripTipUStart: 0.85,
-    dripTipDepth: 0.30,
-    controlPoints: buildSide(0),
-    controlPointsRight: asymmetric ? buildSide(503) : undefined,
-  };
-}
-
-// ★ S112 — Generator dispatch. idSeed 기반 deterministic 선택.
-//   60% photo sample (10개 중 하나), 40% procedural (무한 가짓수).
-export function selectLeafletSample(idSeed: number): NaturalLeafletSample {
-  const useProc = ((Math.abs(idSeed) >>> 4) % 10) < 4;
-  if (useProc) return generateProceduralSample(idSeed);
-  return NATURAL_LEAFLET_SAMPLES[Math.abs(idSeed) % NATURAL_LEAFLET_SAMPLES.length];
-}
-
-// ★ S110 — debug panel 라벨용 sample 이름 (NATURAL_LEAFLET_SAMPLES 순서 일치).
-export const NATURAL_LEAFLET_SAMPLE_NAMES: ReadonlyArray<string> = [
-  '0. Terminal elaborate',
-  '1. Primary broad',
-  '2. Sub-lobed (6 lobes)',
-  '3. Long pointed',
-  '4. Asym left-heavy',
-  '5. Asym right-heavy',
-  '6. Simple small',
-  '7. Deep cleavage',
-  '8. Apex emphasis',
-  '9. Mid-bulged',
-];
 
 /**
  * ★ L9-D V2 S107 — Per-leaflet lobe perturbation (좌/우 _다른 set_ 위해 saltBase 분리).
@@ -557,34 +198,6 @@ export interface ShapeProfileV2Sample {
 export function buildShapeProfileV2(input: ShapeProfileV2Input): ShapeProfileV2Sample[] {
   const samples = Math.max(12, input.samples);
   const halfWidthBase = input.lengthM / Math.max(1, input.aspectRatio) / 2;
-
-  // ★ S111 — Control points polyline 경로 (Gaussian _완전 대체_).
-  //   사진에서 직접 추출한 (u, halfWidth) 점들의 선형 보간으로 outline 생성.
-  //   _뾰족 삼각형_ lobe + _깊은 V-notch_ 자연 형태.
-  if (input.controlPoints && input.controlPoints.length >= 2 && !input.smoothMargin) {
-    const expansion = Math.max(0, Math.min(1, input.expansionProgress));
-    const ageFrac = Math.max(0, Math.min(1, input.ageFrac));
-    const expansionLobeScale = Math.min(1.0, Math.max(0.2, (expansion - 0.1) / 0.6));
-    const senescenceLobeScale = Math.max(0.6, 1 - ageFrac * 0.4);
-    const finalLobeScale = expansionLobeScale * senescenceLobeScale;
-
-    const pointsLeft = input.controlPoints;
-    const pointsRight = input.controlPointsRight ?? input.controlPoints;
-
-    // 폴리라인 ±5% size jitter (per-leaflet, deterministic).
-    const sizeJitter = 1 + signedRand(input.idSeed, 31) * 0.05;
-
-    const result: ShapeProfileV2Sample[] = [];
-    for (let i = 0; i < samples; i++) {
-      const u = i / (samples - 1);
-      const hwL = interpolateHalfWidthRatio(u, pointsLeft) * finalLobeScale * sizeJitter;
-      const hwR = interpolateHalfWidthRatio(u, pointsRight) * finalLobeScale * sizeJitter;
-      const halfWidthLeft = Math.max(0, hwL * halfWidthBase);
-      const halfWidthRight = Math.max(0, hwR * halfWidthBase);
-      result.push({ u, halfWidthLeft, halfWidthRight });
-    }
-    return result;
-  }
 
   // ★ Expansion + Senescence scaling 분리 (Plan v5 보완 #11).
   const expansion = Math.max(0, Math.min(1, input.expansionProgress));
@@ -664,6 +277,250 @@ const LEAF_MESH_RESOLUTION_V2 = {
   high: 56,
 } as const;
 
+// ─── V2 BGT (Beta × Gaussian × Triangle) — S113 ────────────────────────
+//
+// 사용자 reference 코드 (generateTomatoLeafletOutline) 이식.
+// _완전 동일_ outline 보장 (n_internal=900 + serrFreq 16~28 + xCenter 모두 유지).
+// Mesh는 box-average decimation으로 alias 차단.
+
+/** ★ S113 — Mulberry32 deterministic RNG (사용자 reference 동일). */
+function createBgtRng(seed: number) {
+  let t = seed >>> 0;
+  const next = () => {
+    t += 0x6d2b79f5;
+    let r = Math.imul(t ^ (t >>> 15), 1 | t);
+    r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
+  return {
+    next,
+    uniform: (min: number, max: number) => min + (max - min) * next(),
+    int: (min: number, max: number) => Math.floor(min + (max - min) * next()),
+  };
+}
+
+/** ★ S113 — Beta peak max value (정규화용 closed-form). */
+function bgtBetaPeakNorm(a: number, b: number): number {
+  if (a <= 1 || b <= 1) return 1;
+  const peakU = (a - 1) / (a + b - 2);
+  return Math.pow(peakU, a - 1) * Math.pow(1 - peakU, b - 1);
+}
+
+/** ★ S113 — Beta-like base shape, normalized max=1. */
+function bgtBetaLikeProfile(u: number, a: number, b: number, peakNorm: number): number {
+  // u^(a-1) * (1-u)^(b-1) — pow(0, 0) issue 방지 위해 endpoint clamp.
+  if (u <= 0 || u >= 1) return 0;
+  return (Math.pow(u, a - 1) * Math.pow(1 - u, b - 1)) / peakNorm;
+}
+
+/** ★ S113 — Lobe envelope: tip/base에서 lobe 자연 fade. */
+function bgtLobeEnvelope(u: number): number {
+  return Math.pow(Math.sin(Math.PI * u), 0.88)
+       * (0.75 + 0.25 * Math.exp(-Math.pow((u - 0.55) / 0.28, 2)));
+}
+
+/** ★ S113 — Triangle wave (arcsin(sin) trick, reference 동일). */
+function bgtTriangleWave(x: number): number {
+  return (2 / Math.PI) * Math.asin(Math.sin(x));
+}
+
+/** ★ S113 — Serration envelope (tip 쪽 미세 톱니 강함). */
+function bgtSerrationEnvelope(u: number): number {
+  return Math.pow(Math.sin(Math.PI * u), 0.9)
+       * (0.55 + 0.45 * Math.exp(-Math.pow((u - 0.62) / 0.24, 2)));
+}
+
+interface BgtSideParams {
+  centers: number[];
+  amps: number[];
+  widths: number[];
+  wavFreq: number;
+  wavPhase: number;
+  serrFreq: number;
+  serrPhase: number;
+  asymScale: number;
+}
+
+interface BgtConfig {
+  a: number;
+  b: number;
+  peakNorm: number;
+  widthScale: number;
+  wavAmp: number;
+  serrAmp: number;
+  bend: number;
+  tipHook: number;
+  bendPhase2: number;
+  left: BgtSideParams;
+  right: BgtSideParams;
+}
+
+/** ★ S113 — Per-leaflet BGT config (idSeed + deepCut deterministic). */
+function buildBgtConfig(idSeed: number, deepCut: boolean): BgtConfig {
+  const rng = createBgtRng(idSeed);
+  const a = rng.uniform(1.7, 2.5);
+  const b = rng.uniform(1.7, 2.4);
+  const widthScale = deepCut ? rng.uniform(0.24, 0.36) : rng.uniform(0.22, 0.34);
+  const wavAmp = deepCut ? rng.uniform(0.05, 0.10) : rng.uniform(0.03, 0.07);
+  // ★ Reference 동일: n_internal=900에서 표현 충분, mesh box-average로 alias 차단.
+  const serrAmp = deepCut ? rng.uniform(0.012, 0.028) : rng.uniform(0.010, 0.024);
+  // ★ Midrib bend (reference 동일) — asymmetric halfWidth shift로 encoding.
+  const bend = rng.uniform(-0.05, 0.05);
+  const tipHook = rng.uniform(-0.02, 0.035);
+  const bendPhase2 = rng.uniform(-0.8, 0.8);
+
+  const buildSide = (): BgtSideParams => {
+    const k = deepCut ? rng.int(6, 11) : rng.int(5, 10);
+    const centers = Array.from({ length: k }, () => rng.uniform(0.14, 0.88))
+                          .sort((x, y) => x - y);
+    const widths = Array.from({ length: k }, () => rng.uniform(0.022, 0.07));
+    const amps = Array.from({ length: k }, () =>
+      deepCut ? rng.uniform(-0.30, 0.14) : rng.uniform(-0.18, 0.16));
+    return {
+      centers, amps, widths,
+      wavFreq: rng.uniform(4.5, 6.5),
+      wavPhase: rng.uniform(0, 2 * Math.PI),
+      serrFreq: rng.int(16, 28),                // ★ Reference 동일 16~27
+      serrPhase: rng.uniform(0, 2 * Math.PI),
+      asymScale: 1.0,
+    };
+  };
+
+  const left = buildSide();
+  const right = buildSide();
+  left.asymScale = 1 + rng.uniform(0, 0.12);
+  right.asymScale = 1 - rng.uniform(0, 0.10);
+
+  return {
+    a, b, peakNorm: bgtBetaPeakNorm(a, b),
+    widthScale, wavAmp, serrAmp,
+    bend, tipHook, bendPhase2,
+    left, right,
+  };
+}
+
+/** ★ S113 — Midrib xCenter offset (reference 동일 산식). */
+function bgtXCenterAtU(u: number, cfg: BgtConfig): number {
+  return cfg.bend * Math.sin(Math.PI * u)
+       + 0.4 * cfg.bend * Math.sin(2 * Math.PI * u + cfg.bendPhase2)
+       + cfg.tipHook * u * u;
+}
+
+/** ★ S113 — BGT side half-width (ratio of lengthM). smoothMargin path 별도. */
+function bgtSideHalfWidth(
+  u: number, cfg: BgtConfig, side: BgtSideParams,
+  expansionLobeScale: number, senescenceLobeScale: number,
+): number {
+  const base = bgtBetaLikeProfile(u, cfg.a, cfg.b, cfg.peakNorm);
+  const env = bgtLobeEnvelope(u);
+
+  let gauss = 0;
+  for (let i = 0; i < side.centers.length; i++) {
+    const d = (u - side.centers[i]) / side.widths[i];
+    gauss += side.amps[i] * Math.exp(-0.5 * d * d);
+  }
+  const lobeMod = 1 + gauss * env * expansionLobeScale * senescenceLobeScale;
+
+  const wavMod = 1 + cfg.wavAmp * Math.sin(Math.PI * side.wavFreq * u + side.wavPhase);
+
+  const serrEnv = bgtSerrationEnvelope(u);
+  const serrMod = 1 + cfg.serrAmp * serrEnv
+                    * bgtTriangleWave(side.serrFreq * Math.PI * u + side.serrPhase);
+
+  const w = base * lobeMod * wavMod * serrMod * side.asymScale * cfg.widthScale;
+  return Math.max(0, w);
+}
+
+/**
+ * ★ S113 — BGT 메인 entry: per-leaflet half-width 시퀀스.
+ *
+ * - Reference 산식/parameter _완전 동일_ (a/b/Gaussian set/wav/serr/asym/xCenter).
+ * - Internal n=900에서 outline 계산 → mesh sample 수로 box-average (alias 차단).
+ * - xCenter는 _asymmetric halfWidth shift_ 로 encoding.
+ * - smoothMargin=true 시 Beta base만 (V1 L8-1 potato-leaf 정책 보존).
+ */
+export function buildLeafletShapeBGT(input: {
+  lengthM: number;
+  idSeed: number;
+  deepCut: boolean;
+  samples: number;
+  expansionProgress: number;
+  ageFrac: number;
+  smoothMargin?: boolean;
+  internalN?: number;
+}): ShapeProfileV2Sample[] {
+  const meshSamples = Math.max(24, input.samples);
+  const N = input.internalN ?? 900;
+  const cfg = buildBgtConfig(input.idSeed, input.deepCut);
+
+  const expansion = Math.max(0, Math.min(1, input.expansionProgress));
+  const ageFrac = Math.max(0, Math.min(1, input.ageFrac));
+  const expansionLobeScale = Math.min(1.0, Math.max(0.2, (expansion - 0.1) / 0.6));
+  const senescenceLobeScale = Math.max(0.6, 1 - ageFrac * 0.4);
+
+  // ★ smoothMargin (potato-leaf): Beta base만, lobe/serr 0 강제.
+  const smooth = input.smoothMargin === true;
+
+  // 1) n=900 high-res outline 계산 — xCenter 포함.
+  const hwLRaw = new Float64Array(N);
+  const hwRRaw = new Float64Array(N);
+  for (let i = 0; i < N; i++) {
+    const u = i / (N - 1);
+    if (smooth) {
+      const base = bgtBetaLikeProfile(u, cfg.a, cfg.b, cfg.peakNorm) * cfg.widthScale;
+      hwLRaw[i] = base; hwRRaw[i] = base;
+    } else {
+      const xc = bgtXCenterAtU(u, cfg);
+      const hwL = bgtSideHalfWidth(u, cfg, cfg.left,
+                                   expansionLobeScale, senescenceLobeScale);
+      const hwR = bgtSideHalfWidth(u, cfg, cfg.right,
+                                   expansionLobeScale, senescenceLobeScale);
+      // xCenter encoding: 좌측 줄임, 우측 늘임 → outline 굽음 (midline 직선)
+      hwLRaw[i] = Math.max(0, hwL - xc);
+      hwRRaw[i] = Math.max(0, hwR + xc);
+    }
+  }
+
+  // 2) mesh sample 수로 box-average decimation (alias 차단).
+  const out: ShapeProfileV2Sample[] = [];
+  const bucketSize = N / meshSamples;
+  for (let m = 0; m < meshSamples; m++) {
+    const u = m / (meshSamples - 1);
+    const lo = Math.floor(m * bucketSize);
+    const hi = Math.min(N, Math.floor((m + 1) * bucketSize));
+    let sumL = 0, sumR = 0, cnt = 0;
+    for (let k = lo; k < hi; k++) {
+      sumL += hwLRaw[k]; sumR += hwRRaw[k]; cnt++;
+    }
+    const avgL = cnt > 0 ? sumL / cnt : hwLRaw[Math.min(lo, N - 1)];
+    const avgR = cnt > 0 ? sumR / cnt : hwRRaw[Math.min(lo, N - 1)];
+    out.push({
+      u,
+      halfWidthLeft: avgL * input.lengthM,
+      halfWidthRight: avgR * input.lengthM,
+    });
+  }
+  return out;
+}
+
+/**
+ * ★ S113 — Debug panel용 _고밀도_ entry (decimation X, n=900 그대로).
+ *  사용자 reference의 generateTomatoLeafletOutline(seed, deepCut, 900) _동일 결과_.
+ */
+export function buildLeafletOutlineBGTHighRes(input: {
+  lengthM: number;
+  idSeed: number;
+  deepCut: boolean;
+}): ShapeProfileV2Sample[] {
+  return buildLeafletShapeBGT({
+    ...input,
+    samples: 900,
+    internalN: 900,
+    expansionProgress: 1.0,
+    ageFrac: 0,
+  });
+}
+
 // ─── V2 per-leaflet pipeline ───────────────────────────────────────────
 
 function buildLeafletPatchV2(
@@ -676,118 +533,39 @@ function buildLeafletPatchV2(
   const lengthM = node.leafletRef.targetSizeM;
   if (lengthM <= 0) return null;
 
-  const leafletSeed = djb2(node.id) * 0.7919 + i * 31;
   const idSeed = djb2(node.id);
 
-  // ★ L9-D V2 S90 — V2 outline profile.
-  const position = node.leafletRef.position as LeafletPosition;
-  // per-position profile (V1 applyPositionProfile 재사용)
-  const positioned = applyPositionProfile(
-    ctx.spec.profileByPosition,
-    desc.resolved,
-    position,
-  );
-  const positionedProfile = ctx.spec.profileByPosition[position];
-
   // V2 samples (LOD V2)
+  const position = node.leafletRef.position as LeafletPosition;
+  const positionedProfile = ctx.spec.profileByPosition[position];
   const samplesV2 = positionedProfile.samplesV2 ?? LEAF_MESH_RESOLUTION_V2[ctx.quality ?? 'low'];
 
-  // jitter (V1 동일 산식)
-  const jitterDivisor = 5000 / ctx.spec.poseRules.leafletJitterPercent;
-  const aspectJitter = 1 + (((idSeed * 23) % 100 - 50) / jitterDivisor);
-  const sharpnessJitter = 1 + (((idSeed * 29) % 100 - 50) / jitterDivisor);
-
-  // ★ S103 — outline variation 모두 비활성 (strength=0).
-  //   사용자 "하나씩만 하자" — 중력 4 카테고리만 적용.
-  const s = LEAF_VARIATION_STRENGTH;  // 0 → 모든 jitter 0
-  const aspectJitterV2 = 1;
-  const asymVariation = 0;
-  const dripDepthBase = positionedProfile.dripTipDepth ?? 0.6;
-  const dripUStartBase = positionedProfile.dripTipUStart ?? 0.85;
-  const dripDepthJitter = 1;
-  const dripUShift = 0;
-  const lengthV2 = lengthM;
-  const curlMult = 1;
-  void s;  // unused (strength=0)
-
   // ★ S104 — gravityDroopDeg = (lengthM / 0.25)² × 90 (cantilever bending).
-  //   잎 길이에 비례 (자연 물리). 4 랜덤 카테고리 제거.
   const sizeRatio = Math.min(1, lengthM / GRAVITY_REF_LENGTH_M);
   const overrideGravityDroopDeg = sizeRatio * sizeRatio * GRAVITY_MAX_DEG;
 
-  // ★ S108 → S112 — Natural sample 선택 + procedural 혼합.
-  //   사용자: "여러 함수 만들어서 랜덤" — 60% photo (10 sample), 40% procedural (무한).
-  const sample = selectLeafletSample(idSeed);
-
-  // S105 lobeDepthMult (잎 길이 비례) — sample depth × mult
-  const lobeDepthMult = Math.max(0.2, Math.min(1.0, lengthM / 0.20));
-  const scaledShoulderLobes = sample.shoulderLobes.map(lobe => ({
-    ...lobe,
-    depth: lobe.depth * lobeDepthMult,
-  }));
-  const scaledSinusNotches = sample.sinusNotches.map(notch => ({
-    ...notch,
-    depth: notch.depth * lobeDepthMult,
-  }));
-  // 좌우 비대칭 sample (Sample 4/5는 right 따로)
-  const scaledShoulderLobesRight = sample.shoulderLobesRight
-    ? sample.shoulderLobesRight.map(lobe => ({ ...lobe, depth: lobe.depth * lobeDepthMult }))
-    : undefined;
-  const scaledSinusNotchesRight = sample.sinusNotchesRight
-    ? sample.sinusNotchesRight.map(notch => ({ ...notch, depth: notch.depth * lobeDepthMult }))
-    : undefined;
-
-  // ★ S108 — sample 값 _완전 override_ (자연 모방). spec의 aspect/sharpness/dripTip 무시.
-  // ★ S111 — sample.controlPoints 지정 시 polyline 경로 사용 (Gaussian _완전 대체_).
-  const profileV2 = buildShapeProfileV2({
-    lengthM: lengthV2,
-    aspectRatio: sample.aspectRatio * aspectJitter,  // sample 기준 + V1 ±5% jitter
-    tipSharpness: sample.tipSharpness * sharpnessJitter,
-    baseShape: positioned.baseShape,
-    asymmetry: positioned.asymmetry,
+  // ★ S113 — BGT (Beta × Gaussian × Triangle) 단일 경로.
+  //   사용자 reference 산식 EXACT (n_internal=900 + serrFreq 16~28 + xCenter 포함).
+  //   mesh sample 수는 box-average decimation으로 alias 차단.
+  //   deepCut = idSeed 홀짝 50/50 deterministic (사용자 선택).
+  //   V1 serrationNoise post-process _제거_ — BGT triangle wave가 미세 톱니 자체 합성.
+  const deepCut = (Math.abs(idSeed) & 1) === 1;
+  const profileV2 = buildLeafletShapeBGT({
+    lengthM,
+    idSeed,
+    deepCut,
     samples: samplesV2,
-    baseTransitionEndU: ctx.spec.shapeProfileRules.baseTransitionEndU,
-    shoulderLobes: scaledShoulderLobes,
-    sinusNotches: scaledSinusNotches,
-    shoulderLobesRight: scaledShoulderLobesRight,
-    sinusNotchesRight: scaledSinusNotchesRight,
-    dripTipUStart: sample.dripTipUStart,
-    dripTipDepth: sample.dripTipDepth,
     expansionProgress: desc.maturity,
     ageFrac: desc.ageFrac,
     smoothMargin: desc.resolved.smoothMargin === true,
-    idSeed,
-    controlPoints: sample.controlPoints,
-    controlPointsRight: sample.controlPointsRight,
   });
 
-  // V2 serration 후처리 — V1 serrationNoise 재사용 (micro-serration)
-  // shoulder/notch는 _구조_, serration은 _가장자리 톱니_ (성격 다름)
-  const noiseLengthM = Math.max(lengthM, 0.02);
-  const serrationTaperMin = ctx.spec.shapeProfileRules.serrationTaperMin;
-  const serrationEndpointGuardU = ctx.spec.shapeProfileRules.serrationEndpointGuardU;
-  const smoothMargin = desc.resolved.smoothMargin === true;
-  const lengthSegs = profileV2.length - 1;
-
-  for (let r = 0; r < profileV2.length; r++) {
-    const sample = profileV2[r];
-    const t = lengthSegs > 0 ? r / lengthSegs : 0;
-    // V1 endpoint guard + taper 산식 동일 (in-place 적용)
-    const inGuard = t < serrationEndpointGuardU || t > 1 - serrationEndpointGuardU;
-    const taper = inGuard ? 0 : Math.max(serrationTaperMin, Math.sin(t * Math.PI));
-    const teeth = smoothMargin
-      ? 0
-      : serrationNoise(sample.u, positioned.serrationAmp * noiseLengthM, positioned.serrationFreq, leafletSeed) * taper;
-    sample.halfWidthLeft = Math.max(0, sample.halfWidthLeft + teeth);
-    sample.halfWidthRight = Math.max(0, sample.halfWidthRight + teeth);
-  }
-
-  // V1 buildLeafletPlaneChunk 재사용 + ★ S95 cols 17 + ★ S103 gravityDroopDeg 4 카테고리.
+  // V1 buildLeafletPlaneChunk 재사용 + ★ S95 cols 17 + ★ S103 gravityDroopDeg.
   const chunk = buildLeafletPlaneChunk(profileV2, {
-    lengthM: lengthV2,
-    curl: desc.curl * curlMult,
+    lengthM,
+    curl: desc.curl,
     ageFrac: desc.ageFrac,
-    gravityDroopDeg: overrideGravityDroopDeg,  // ★ S103 per-leaflet 4 카테고리 강제
+    gravityDroopDeg: overrideGravityDroopDeg,
     waviness: 0,
     isTerminal: node.leafletRef.position === 'terminal',
     veinSurfaceStrength: 1,
@@ -839,7 +617,5 @@ export function buildLeafMeshFromSkeletonV2(ctx: LeafMeshBuildInput): LeafMeshPa
   return patches;
 }
 
-// _newChunk_ import 보존 — 미래 V2 자체 vertex grid 작성 시 사용.
-void newChunk;
 // _LeafSpec_ import 보존
 void (null as unknown as LeafSpec);

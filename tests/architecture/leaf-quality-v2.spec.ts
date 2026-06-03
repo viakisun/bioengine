@@ -12,7 +12,11 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 
-import { buildShapeProfileV2, type ShapeProfileV2Input } from '../../src/scene/leaf/LeafMeshBuilder2';
+import {
+  buildShapeProfileV2,
+  buildLeafletShapeBGT,
+  type ShapeProfileV2Input,
+} from '../../src/scene/leaf/LeafMeshBuilder2';
 import { parseLeafSpec } from '../../src/scene/leaf/LeafSpec';
 
 const SPEC_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -177,6 +181,51 @@ test.describe('L9-D V2 — Outline quality invariants (Plan v5 정량)', () => {
       maxOld,
       `old shoulder peak depth ≥ 0.6 × fresh (완전 소멸 X)`,
     ).toBeGreaterThanOrEqual(0.6 * maxFresh);
+  });
+
+  // ★ S113 — BGT (Beta × Gaussian × Triangle) pipeline invariants.
+
+  test('V2-BGT-SMOOTH-01: BGT outline 2nd-derivative bounded (polyline corner 없음)', () => {
+    // 사용자 reference 동일 산식 — n_internal=900으로 계산.
+    // BGT outline은 C∞ smooth → 2nd diff max < 0.5 × maxHalfWidth.
+    // (polyline 산식이라면 1.0+ 도달, BGT는 base*lobe*serr 곱 합성으로 부드러움)
+    const profile = buildLeafletShapeBGT({
+      lengthM: 0.15,
+      idSeed: 12345,
+      deepCut: false,
+      samples: 80,
+      expansionProgress: 1.0,
+      ageFrac: 0,
+    });
+    const hws = profile.map(s => (s.halfWidthLeft + s.halfWidthRight) / 2);
+    const maxHW = Math.max(...hws);
+    let maxD2 = 0;
+    for (let i = 1; i < hws.length - 1; i++) {
+      const d2 = Math.abs(hws[i + 1] - 2 * hws[i] + hws[i - 1]);
+      maxD2 = Math.max(maxD2, d2);
+    }
+    expect(maxD2, `BGT 2nd diff (${maxD2.toFixed(5)}m) < 0.5 × maxHW (${maxHW.toFixed(4)}m)`)
+      .toBeLessThan(0.5 * maxHW);
+  });
+
+  test('V2-BGT-ASYMMETRY-01: 좌/우 독립 Gaussian set + asymScale → outline 비대칭 가시', () => {
+    // BGT는 left/right 독립 Gaussian set + asymL/asymR scalar → 자연 비대칭.
+    // 50%+ sample에서 |hwL - hwR| > 2% (mean(hwL,hwR))
+    const profile = buildLeafletShapeBGT({
+      lengthM: 0.15,
+      idSeed: 7777,  // deepCut=true (홀수)
+      deepCut: true,
+      samples: 80,
+      expansionProgress: 1.0,
+      ageFrac: 0,
+    });
+    const asymCount = profile.filter(s => {
+      const mean = (s.halfWidthLeft + s.halfWidthRight) / 2;
+      if (mean < 1e-6) return false;  // endpoints 제외
+      return Math.abs(s.halfWidthLeft - s.halfWidthRight) > 0.02 * mean;
+    }).length;
+    expect(asymCount, `좌우 비대칭 sample 수 ${asymCount}/${profile.length} > 50%`)
+      .toBeGreaterThan(profile.length * 0.5);
   });
 
   test('V2-AGEPRESETS-V2-NO-OVERLAP-01: agePresets/V2 spec 역할 분리 (보완 #7)', async () => {

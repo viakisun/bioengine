@@ -1,81 +1,39 @@
 // ★ L9-D V2 — Outline debug panel (?outlineDebug=1).
 //
-// S110: NATURAL_LEAFLET_SAMPLES 10개 _실제_ outline 시각화.
+// S113: BGT (Beta × Gaussian × Triangle) — 사용자 reference 동일 산식.
+//   사용자 reference의 generateTomatoLeafletOutline(300+i, deepCut, 900)
+//   _완전 동일_ 결과 10개 표시.
 // 사용: localhost:8090?outlineDebug=1
 
 import { useMemo, useState } from 'react';
-import {
-  buildShapeProfileV2,
-  NATURAL_LEAFLET_SAMPLES,
-  NATURAL_LEAFLET_SAMPLE_NAMES,
-  selectLeafletSample,
-  type ShapeProfileV2Input,
-  type NaturalLeafletSample,
-} from '../scene/leaf/LeafMeshBuilder2';
+import { buildLeafletOutlineBGTHighRes } from '../scene/leaf/LeafMeshBuilder2';
 
 const PLOT_WIDTH = 220;
 const PLOT_HEIGHT = 380;
 
-function plotFromSample(sample: NaturalLeafletSample, lengthCm: number, idSeed: number) {
-  const lengthM = lengthCm / 100;
-  const lobeDepthMult = Math.max(0.2, Math.min(1.0, lengthM / 0.20));
-
-  const scaledShoulderLobes = sample.shoulderLobes.map(lobe => ({
-    ...lobe,
-    depth: lobe.depth * lobeDepthMult,
-  }));
-  const scaledSinusNotches = sample.sinusNotches.map(notch => ({
-    ...notch,
-    depth: notch.depth * lobeDepthMult,
-  }));
-  const scaledShoulderLobesRight = sample.shoulderLobesRight
-    ? sample.shoulderLobesRight.map(lobe => ({ ...lobe, depth: lobe.depth * lobeDepthMult }))
-    : undefined;
-  const scaledSinusNotchesRight = sample.sinusNotchesRight
-    ? sample.sinusNotchesRight.map(notch => ({ ...notch, depth: notch.depth * lobeDepthMult }))
-    : undefined;
-
-  const input: ShapeProfileV2Input = {
-    lengthM,
-    aspectRatio: sample.aspectRatio,
-    tipSharpness: sample.tipSharpness,
-    baseShape: 0.85,
-    asymmetry: 0,
-    samples: 80,  // ★ S111 debug 표시용 고밀도 (polyline 각 corner 잘 보이게)
-    baseTransitionEndU: 0.25,
-    shoulderLobes: scaledShoulderLobes,
-    sinusNotches: scaledSinusNotches,
-    shoulderLobesRight: scaledShoulderLobesRight,
-    sinusNotchesRight: scaledSinusNotchesRight,
-    dripTipUStart: sample.dripTipUStart,
-    dripTipDepth: sample.dripTipDepth,
-    expansionProgress: 1.0,
-    ageFrac: 0,
-    smoothMargin: false,
-    idSeed,
-    controlPoints: sample.controlPoints,
-    controlPointsRight: sample.controlPointsRight,
-  };
-
-  return buildShapeProfileV2(input);
-}
+// ★ Reference의 generateTenTomatoLeaflets와 동일:
+//   seed = 300+i, deepCut = (i % 2 === 1)
+const REF_SEEDS = [300, 301, 302, 303, 304, 305, 306, 307, 308, 309];
+const REF_DEEPCUT = [false, true, false, true, false, true, false, true, false, true];
 
 function SamplePlot({
-  sample,
-  label,
+  seed,
+  deepCut,
   hueIdx,
   lengthCm,
-  idSeed,
 }: {
-  sample: NaturalLeafletSample;
-  label: string;
+  seed: number;
+  deepCut: boolean;
   hueIdx: number;
   lengthCm: number;
-  idSeed: number;
 }) {
   const profile = useMemo(
-    () => plotFromSample(sample, lengthCm, idSeed),
-    [sample, lengthCm, idSeed],
+    () => buildLeafletOutlineBGTHighRes({
+      lengthM: lengthCm / 100,
+      idSeed: seed,
+      deepCut,
+    }),
+    [seed, deepCut, lengthCm],
   );
 
   const pts: Array<[number, number]> = [];
@@ -91,6 +49,7 @@ function SamplePlot({
 
   const hue = (hueIdx * 36) % 360;
   const maxHWCm = maxHW * 100;
+  const label = `v${hueIdx + 1}${deepCut ? ' (deep)' : ''}  seed=${seed}`;
 
   return (
     <div style={{ background: '#1e1e1e', padding: 6, borderRadius: 4 }}>
@@ -116,7 +75,6 @@ function SamplePlot({
 
 export function LeafOutlineDebugPanel() {
   const [lengthCm, setLengthCm] = useState(15);
-  const [idSeed, setIdSeed] = useState(1001);
 
   return (
     <div
@@ -136,7 +94,7 @@ export function LeafOutlineDebugPanel() {
       }}
     >
       <div style={{ fontWeight: 'bold', marginBottom: 8 }}>
-        S108 10 Natural Samples (jitter idSeed={idSeed})
+        S113 BGT — 사용자 reference 10 leaflet (seed 300-309, n=900)
       </div>
       <div style={{ marginBottom: 8 }}>
         <label>
@@ -153,51 +111,19 @@ export function LeafOutlineDebugPanel() {
           {' '}{lengthCm}cm
         </label>
       </div>
-      <div style={{ marginBottom: 8 }}>
-        <label>
-          jitter seed:{' '}
-          <input
-            type="range"
-            min={1000}
-            max={1020}
-            step={1}
-            value={idSeed}
-            onChange={e => setIdSeed(parseInt(e.target.value, 10))}
-            style={{ verticalAlign: 'middle' }}
-          />
-          {' '}{idSeed}
-        </label>
-      </div>
-      <div style={{ color: '#888', fontSize: 10, marginBottom: 4 }}>Photo samples (10):</div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, auto)', gap: 6 }}>
-        {NATURAL_LEAFLET_SAMPLES.map((s, idx) => (
+        {REF_SEEDS.map((seed, idx) => (
           <SamplePlot
-            key={`p-${idx}`}
-            sample={s}
-            label={NATURAL_LEAFLET_SAMPLE_NAMES[idx]}
+            key={seed}
+            seed={seed}
+            deepCut={REF_DEEPCUT[idx]}
             hueIdx={idx}
             lengthCm={lengthCm}
-            idSeed={idSeed}
           />
         ))}
       </div>
-      <div style={{ color: '#888', fontSize: 10, margin: '10px 0 4px' }}>
-        Procedural samples (5 random seeds):
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, auto)', gap: 6 }}>
-        {[0, 1, 2, 3, 4].map(i => {
-          const procSeed = idSeed * 17 + i * 37 + 12345;
-          return (
-            <SamplePlot
-              key={`proc-${i}`}
-              sample={selectLeafletSample(procSeed)}
-              label={`Proc seed=${procSeed % 9999}`}
-              hueIdx={i + 10}
-              lengthCm={lengthCm}
-              idSeed={procSeed}
-            />
-          );
-        })}
+      <div style={{ marginTop: 8, color: '#888', fontSize: 10 }}>
+        ↑ Reference의 generateTomatoLeafletOutline(300+i, deepCut, 900) 결과와 _bit-for-bit 동일_
       </div>
     </div>
   );
