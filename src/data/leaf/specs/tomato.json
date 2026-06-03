@@ -90,16 +90,16 @@
       "tipSharpness": 1.30,
       "baseTaper": 0.65,
       "shoulderLobes": [
-        { "u": 0.30, "depth": 0.18, "sigma": 0.06 },
-        { "u": 0.55, "depth": 0.14, "sigma": 0.07 },
-        { "u": 0.75, "depth": 0.08, "sigma": 0.05 }
+        { "u": 0.30, "depth": 0.32, "sigma": 0.045 },
+        { "u": 0.55, "depth": 0.25, "sigma": 0.045 },
+        { "u": 0.75, "depth": 0.15, "sigma": 0.043 }
       ],
       "sinusNotches": [
-        { "u": 0.42, "depth": 0.10, "sigma": 0.05 },
-        { "u": 0.66, "depth": 0.08, "sigma": 0.05 }
+        { "u": 0.42, "depth": 0.20, "sigma": 0.045 },
+        { "u": 0.66, "depth": 0.16, "sigma": 0.043 }
       ],
-      "dripTipUStart": 0.85,
-      "dripTipDepth": 0.6
+      "dripTipUStart": 0.82,
+      "dripTipDepth": 0.7
     },
     "primary": {
       "widthRatio": 0.38,
@@ -109,14 +109,14 @@
       "tipSharpness": 1.25,
       "baseTaper": 0.60,
       "shoulderLobes": [
-        { "u": 0.35, "depth": 0.15, "sigma": 0.06 },
-        { "u": 0.62, "depth": 0.10, "sigma": 0.06 }
+        { "u": 0.35, "depth": 0.26, "sigma": 0.045 },
+        { "u": 0.62, "depth": 0.18, "sigma": 0.045 }
       ],
       "sinusNotches": [
-        { "u": 0.48, "depth": 0.08, "sigma": 0.05 }
+        { "u": 0.48, "depth": 0.16, "sigma": 0.045 }
       ],
-      "dripTipUStart": 0.85,
-      "dripTipDepth": 0.5
+      "dripTipUStart": 0.82,
+      "dripTipDepth": 0.6
     },
     "intercalary": {
       "widthRatio": 0.30,
@@ -137,13 +137,13 @@
       "tipSharpness": 1.15,
       "baseTaper": 0.55,
       "shoulderLobes": [
-        { "u": 0.40, "depth": 0.12, "sigma": 0.06 }
+        { "u": 0.40, "depth": 0.20, "sigma": 0.045 }
       ],
       "sinusNotches": [
-        { "u": 0.55, "depth": 0.06, "sigma": 0.05 }
+        { "u": 0.55, "depth": 0.12, "sigma": 0.045 }
       ],
-      "dripTipUStart": 0.88,
-      "dripTipDepth": 0.4
+      "dripTipUStart": 0.85,
+      "dripTipDepth": 0.5
     }
   },
   "correlationRules": {
