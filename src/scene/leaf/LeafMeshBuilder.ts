@@ -118,7 +118,8 @@ type V3 = { x: number; y: number; z: number };
 
 const WORLD_UP: V3 = { x: 0, y: 1, z: 0 };
 
-function djb2(s: string): number {
+// ★ L9-D V2 S90 — V2 builder가 재사용. export 추가, 산식 변경 0.
+export function djb2(s: string): number {
   let h = 5381;
   for (let i = 0; i < s.length; i++) h = ((h << 5) + h) ^ s.charCodeAt(i);
   return Math.abs(h);
@@ -513,8 +514,11 @@ export type {
 // ─── L3-E (S26) — 사용자 v3 sketch 함수 분해 ────────────────────────────
 // monolithic for-loop를 단일 책임 함수로 분해.
 
-/** Leaf-level descriptor — resolved params + maturity envelope. */
-interface LeafShapeDescriptor {
+/** Leaf-level descriptor — resolved params + maturity envelope.
+ *
+ * ★ L9-D V2 S90 — V2 builder가 재사용. export 추가, 산식 변경 0.
+ */
+export interface LeafShapeDescriptor {
   resolved: ResolvedLeafParams;
   ageFrac: number;
   curl: number;
@@ -530,7 +534,8 @@ interface LeafShapeDescriptor {
  * spec.agePresets + applyCorrelation + cultivar override + maturity envelope.
  * ★ L4-5 (S33) — spec.agePresets / correlationRules / poseRules 주입.
  */
-function buildLeafShapeDescriptor(ctx: LeafMeshBuildInput): LeafShapeDescriptor {
+// ★ L9-D V2 S90 — V2 builder가 재사용. 산식 변경 0 — visibility만.
+export function buildLeafShapeDescriptor(ctx: LeafMeshBuildInput): LeafShapeDescriptor {
   const preset = ctx.spec.agePresets[ctx.bladeRef.agePreset] as AgePresetParams;
   const resolved = applyCorrelation(
     ctx.spec.correlationRules,
@@ -684,8 +689,10 @@ function buildLeafletOutlineWithNoise(
 /**
  * Step 3: leaflet pose composition — pure rotation Quat4.
  * F5 maturity envelope + L0-D-1 pitch + per-leaflet noise.
+ *
+ * ★ L9-D V2 S90 — V2 builder가 재사용. export 추가, 산식 변경 0.
  */
-function applyLeafletPose(
+export function applyLeafletPose(
   poseRules: PoseRules,
   node: SkeletonNode,
   idSeed: number,
@@ -770,7 +777,8 @@ const LEAFLET_PLANE_COLS = LEAFLET_PLANE_WIDTH_SEGS * 2 + 1;  // 9 columns
  *   - y = transverseCup(curl × col² × size) − longitudinalDroop(t²·size)
  *         + midribBump + waviness
  */
-function buildLeafletPlaneChunk(
+// ★ L9-D V2 S90 — V2 builder가 재사용. export 추가, 산식 변경 0.
+export function buildLeafletPlaneChunk(
   profile: ReadonlyArray<ShapeProfileSampleLite>,
   opts: LeafletPlaneOptions,
 ): GeoChunk {
