@@ -83,11 +83,11 @@
   },
   "profileByPosition": {
     "terminal": {
-      "widthRatio": 0.45,
+      "widthRatio": 0.62,
       "lobeDepth": 0.28,
       "serrationAmp": 0.040,
       "serrationFreq": 28,
-      "tipSharpness": 1.30,
+      "tipSharpness": 1.05,
       "baseTaper": 0.65,
       "shoulderLobes": [
         { "u": 0.30, "depth": 0.32, "sigma": 0.045 },
@@ -98,15 +98,15 @@
         { "u": 0.42, "depth": 0.20, "sigma": 0.045 },
         { "u": 0.66, "depth": 0.16, "sigma": 0.043 }
       ],
-      "dripTipUStart": 0.82,
-      "dripTipDepth": 0.7
+      "dripTipUStart": 0.88,
+      "dripTipDepth": 0.35
     },
     "primary": {
-      "widthRatio": 0.38,
+      "widthRatio": 0.55,
       "lobeDepth": 0.22,
       "serrationAmp": 0.034,
       "serrationFreq": 26,
-      "tipSharpness": 1.25,
+      "tipSharpness": 1.05,
       "baseTaper": 0.60,
       "shoulderLobes": [
         { "u": 0.35, "depth": 0.26, "sigma": 0.045 },
@@ -115,8 +115,8 @@
       "sinusNotches": [
         { "u": 0.48, "depth": 0.16, "sigma": 0.045 }
       ],
-      "dripTipUStart": 0.82,
-      "dripTipDepth": 0.6
+      "dripTipUStart": 0.88,
+      "dripTipDepth": 0.30
     },
     "intercalary": {
       "widthRatio": 0.30,
@@ -130,11 +130,11 @@
       "dripTipDepth": 0
     },
     "secondary": {
-      "widthRatio": 0.36,
+      "widthRatio": 0.50,
       "lobeDepth": 0.14,
       "serrationAmp": 0.028,
       "serrationFreq": 24,
-      "tipSharpness": 1.15,
+      "tipSharpness": 1.05,
       "baseTaper": 0.55,
       "shoulderLobes": [
         { "u": 0.40, "depth": 0.20, "sigma": 0.045 }
@@ -142,8 +142,8 @@
       "sinusNotches": [
         { "u": 0.55, "depth": 0.12, "sigma": 0.045 }
       ],
-      "dripTipUStart": 0.85,
-      "dripTipDepth": 0.5
+      "dripTipUStart": 0.88,
+      "dripTipDepth": 0.30
     }
   },
   "correlationRules": {
