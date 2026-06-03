@@ -56,4 +56,32 @@ test.describe('Iter 39 Phase L8 — Leaf Quality Followup', () => {
     );
     expect(presetsDoc, 'PRESETS §E: cultivars 인용').toMatch(/Brandywine.*Pruden|Pruden.*Brandywine/);
   });
+
+  test('LEAF-SMOOTH-MARGIN-APPLIED-01: smoothMargin → lobe + serration 0 강제 (L8-1, 보완 #7)', async () => {
+    // potato-leaf preset에서 smoothMargin: true → mesh 산식에 실제 적용.
+    // L7 이전: smoothMargin 정의만, mesh 산식 미사용 (dead field).
+    // L8-1 (S69) 후: buildLeafletOutlineWithNoise에서 lobe/serration 강제 0.
+    const src = await fs.readFile(
+      path.join(REPO_ROOT, 'src/scene/leaf/LeafMeshBuilder.ts'),
+      'utf-8',
+    );
+
+    // smoothMargin 사용 — desc.resolved.smoothMargin 분기
+    expect(src, 'smoothMargin = desc.resolved.smoothMargin').toMatch(
+      /smoothMargin\s*=\s*desc\.resolved\.smoothMargin/,
+    );
+    // lobe 0 강제 분기
+    expect(src, 'lobe = smoothMargin ? 0 : lobeNoise(...)').toMatch(
+      /lobe\s*=\s*smoothMargin\s*\?\s*0\s*:\s*lobeNoise/,
+    );
+    // teeth 0 강제 분기
+    expect(src, 'teeth = smoothMargin ? 0 : serrationNoise(...)').toMatch(
+      /teeth\s*=\s*smoothMargin\s*\?\s*0\s*:\s*serrationNoise/,
+    );
+
+    // L8-1 명시 comment
+    expect(src, 'L8-1 (S69) — smoothMargin override 실 적용 comment').toMatch(
+      /L8-1\s*\(S69\).*smoothMargin/,
+    );
+  });
 });

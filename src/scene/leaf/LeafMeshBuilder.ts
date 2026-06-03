@@ -634,6 +634,10 @@ function buildLeafletOutlineWithNoise(
   // ★ L6-A-1 (S46) — lobe와 serration의 taper 정책 분리:
   //   - lobe: full sin(πt) — 큰 결각은 끝에서 사라짐 (자연스러움)
   //   - serration: max(serrationTaperMin, sin(πt)) — 끝에서도 톱니 일부 보존
+  // ★ L8-1 (S69) — smoothMargin override 실 적용 (사용자 보완 #7):
+  //   potato-leaf preset (smooth-margin tomato cultivar) — lobe + serration 0 강제.
+  //   tomato.json agePresets.potato-leaf.smoothMargin: true → 매끈한 leaflet.
+  const smoothMargin = desc.resolved.smoothMargin === true;
   const lengthSegs = profile.length - 1;
   const serrationTaperMin = spec.shapeProfileRules.serrationTaperMin;
   for (let r = 0; r < profile.length; r++) {
@@ -641,10 +645,14 @@ function buildLeafletOutlineWithNoise(
     const t = lengthSegs > 0 ? r / lengthSegs : 0;
     const lobeTaper = lobeTaperWeight(t);
     const serrationTaper = serrationTaperWeight(t, serrationTaperMin);
-    const lobe = lobeNoise(spec.lobeNoiseRules, sample.u, positioned.lobeDepth * noiseLengthM, leafletSeed) * lobeTaper;
-    const teeth = serrationNoise(
-      sample.u, positioned.serrationAmp * noiseLengthM, positioned.serrationFreq, leafletSeed,
-    ) * serrationTaper;
+    const lobe = smoothMargin
+      ? 0
+      : lobeNoise(spec.lobeNoiseRules, sample.u, positioned.lobeDepth * noiseLengthM, leafletSeed) * lobeTaper;
+    const teeth = smoothMargin
+      ? 0
+      : serrationNoise(
+        sample.u, positioned.serrationAmp * noiseLengthM, positioned.serrationFreq, leafletSeed,
+      ) * serrationTaper;
     // ★ L5-6b (S43) — edge asymmetry weights from spec.edgeAsymmetryRules.
     const ea = spec.edgeAsymmetryRules;
     sample.halfWidthLeft += lobe * ea.leftLobeWeight + teeth * ea.leftSerrationWeight;
