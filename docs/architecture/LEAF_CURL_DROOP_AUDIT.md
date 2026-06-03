@@ -224,8 +224,44 @@ tipDroopY (apex, t=1) [LeafletPlaneChunk.ts:96-98]:
 적정 또는 _과함_으로 보일 수 있음. S80 시각 checkpoint에서 Q4/Q5 답 따라 _droop
 조정 여부_ 결정. 무작정 droop 강화 X.
 
+## §7. S80 Applied (적용 결과)
+
+`tomato.json` `shapeProfileRules.senescenceCurlWeight: 0.5 → 0.1` 적용.
+
+`agePresets.*.curl`은 **dead 확정** → 변경 안 함 (mesh 영향 0 — L8-5와
+동일 패턴 — 향후 별 phase에서 deprecated JSDoc 추가 후보).
+
+예상 정량 (15cm primary 기준 재계산):
+
+| Maturity | 변경 전 curl_final | 변경 후 curl_final | 변경 후 edgeCupY (mm) | 변경 전 → 후 |
+|---|---|---|---|---|
+| Young | 0 | 0 | 0 | 적정 ✓ |
+| Mature 새 잎 (posture=0.05, sen=0) | 0.05 | 0.05 | 6.5 | _변화 없음_ (senescence=0이라 weight 영향 0) |
+| Mature 약간 (posture=0.10, sen=0.20) | 0.20 | (0.10 + 0.20×0.1)×1.0 = **0.12** | 14.6 | 24.3 → 14.6 (40% 감소) |
+| Old (posture=0.20, sen=0.30) | 0.35 | (0.20 + 0.30×0.1)×1.0 = **0.23** | 22.4 | 34.1 → 22.4 (34% 감소) |
+| Old senescent (posture=0.30, sen=0.40) | 0.50 | (0.30 + 0.40×0.1)×1.0 = **0.34** | 29.7 | 43.7 → 29.7 (32% 감소) |
+
+**잔존 gap (시각 평가 입력 대기)**:
+- runtime `posture.curl`이 dominant — senescenceCurlWeight 조정만으로
+  young/mature 새 잎 영향 0 (senescence=0). 사용자 캡처가 _young 잎_의
+  fold도 보였다면 _L9-B 필요_.
+- mature/old는 30-40% 감소 — 시각적으로 _가시적 차이_ 있을 듯. 그러나
+  목표 5-8mm까지는 _3-5× 거리 잔존_.
+
+**Decision flow** (사용자 시각 checkpoint Q1~Q5 답에 따라):
+
+| Outcome | 다음 |
+|---|---|
+| Q1/Q3 yes + Q2 no + Q4/Q5 yes | _L9-A 완료_, visual gap은 outline/surface 영역 (L9-D/E) |
+| Q1 yes + Q2 yes | _L9-B 진입_ — `transverseCup pow(absCol,2)×0.9 → pow(absCol,3)×0.3` 또는 runtime curl path 약화 |
+| Q4 yes (droop _과함_) | _L9-C 진입_ — age component 상수 `0.10` → `0.05` 약화 |
+| Q5 no (droop _부족_) | 우선 _L9-B로 curl 더 약화_ → curl 가린 droop 드러나는지 재확인 |
+
 ## Related
 
 - Plan: `/Users/adminvia/.claude/plans/smooth-prancing-starfish.md` (L9-A v3)
 - S78a 로그 추가: 327baf9
-- 다음: S78c 로그 제거 → S79 LeafletPlaneChunk inline → S80 spec-side curl 완화
+- S78b audit doc: c3161f6
+- S78c 로그 제거: 4910b1f
+- S79 LeafletPlaneChunk inline: a60e79b
+- S80 senescenceCurlWeight 0.5 → 0.1: (이 commit)

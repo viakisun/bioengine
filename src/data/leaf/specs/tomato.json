@@ -152,7 +152,7 @@
     "baseTransitionEndU": 0.25,
     "baseShapeClamp": [0.7, 1.0],
     "tipSharpnessClamp": [1.0, 2.0],
-    "senescenceCurlWeight": 0.5,
+    "senescenceCurlWeight": 0.1,
     "maturityEnvelopeStart": 0.2,
     "maturityEnvelopeEnd": 0.8,
     "opennessBaseMin": 0.2,
