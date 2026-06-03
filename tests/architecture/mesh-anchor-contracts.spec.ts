@@ -13,7 +13,7 @@
 // - ATTACHMENT-GAP-01: visible leaflet base와 attachNode 거리 ≤ targetSizeM × 0.08 또는 5mm
 
 import { test, expect, type Page } from '@playwright/test';
-import { normalizeLeafMeshVertices } from '../../src/plant/anchors';
+import { normalizeLeafMeshVertices } from '../../src/scene/leaf/LeafAnchor';
 
 async function enterSkin(page: Page, day: number) {
   await page.goto('/', { waitUntil: 'networkidle' });

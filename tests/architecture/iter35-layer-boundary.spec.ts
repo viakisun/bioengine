@@ -57,16 +57,12 @@ async function babylonImportFiles(absDir: string): Promise<string[]> {
 //   본 list 외 _새 파일_ 추가 시 spec fail — 즉 _regression 금지_.
 const KNOWN_C_VIOLATORS = new Set([
   // root level
-  'src/plant/LeafGenerator.ts',
-  'src/plant/LeafTexture.ts',
   'src/plant/TrussGenerator.ts',
+  // ★ Iter 39 L4-1/L4-2 (S29/S30) — LeafGenerator/LeafTexture/leafAnchor.ts
+  //   src/scene/leaf/{LeafMaterial,LeafTexture,LeafAnchor}.ts로 이동 완료.
   // subdirs
-  'src/plant/anchors/leafAnchor.ts',
   'src/plant/coordinates/transforms.ts',
   'src/plant/coordinates/types.ts',
-  // Iter 36 v5 Phase C — src/plant/leaf/ 전체 archive (외부 호출처 0 audit 후).
-  //   SkinMesh path는 LeafGenerator + buildLeafChunkSkin (@farmsim/tomato-geometry)으로 단일화.
-  //   기존 violators (buildLeafBladeMesh, devHook, material/) → src/_archive/plant/leaf/
   'src/plant/skeleton/buildTomatoSkeletonGraph.ts',
   'src/plant/skin/SkinEngine.ts',
   'src/plant/skin/StemFamilyTubeNetworkBuilder.ts',

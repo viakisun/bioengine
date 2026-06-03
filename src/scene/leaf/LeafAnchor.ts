@@ -5,8 +5,8 @@
 // 본 utility로 추출. byte-identical to LeafGenerator.ts acfad71 inline code.
 
 import type { Mesh } from '@babylonjs/core/Meshes/mesh';
-import type { PlantLocalV3 } from '../coordinates';
-import type { LeafAnchor } from './types';
+import type { PlantLocalV3 } from '../../plant/coordinates';
+import type { LeafAnchor } from '../../plant/anchors/types';
 
 /**
  * Iter 39 Phase K3 — 3D anchor (Iter 24 acfad71 contract _확장_).

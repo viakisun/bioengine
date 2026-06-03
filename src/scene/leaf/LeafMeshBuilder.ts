@@ -73,7 +73,7 @@ import type {
   LeafBladeRef,
 } from '../../plant/skeleton/PlantSkeletonGraph';
 import { makeLeafQuaternion } from '../../plant/skeleton/AnchorTransform';
-import { normalizeLeafMeshVertices } from '../../plant/anchors';
+import { normalizeLeafMeshVertices } from './LeafAnchor';
 import {
   applyPositionProfile,
   endpointTaperWeight,
