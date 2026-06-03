@@ -26,6 +26,8 @@ import {
   buildLeafletPlaneChunk,
   serrationNoise,
   djb2,
+  quatFromYawPitchRoll,
+  quatMultiply,
   type LeafMeshBuildInput,
   type LeafMeshPatch,
   type LeafShapeDescriptor,
@@ -116,33 +118,62 @@ function signedRand(seed: number, salt: number): number {
   return ((h % 2000) / 1000) - 1;  // [-1, 1]
 }
 
+// ★ L9-D V2 S99 — 사용자 핵심 결정 (variation function 단 하나):
+//   _전체_ variation 강도를 하나의 multiplier로 통제.
+//   0 = 완전 고정 (stereo type), 1 = 과격 (실험), 0.5 = 중간 (default).
+//   사용자가 값 조정해서 시각 _중간점_ 찾기.
+//
+// 적용 영역 7가지 (사용자 명시):
+//   Outline 2D:
+//     1. lobe depth (깊은 갈라짐 / 뭉툭)
+//     2. asymmetry (좌/우 면적)
+//     3. dripTip depth (apex 뭉툭 / 뾰족)
+//     4. aspectRatio (가로/세로 비율)
+//   3D pose:
+//     5. roll (좌/우 휘어짐)
+//     6. pitch (앞으로 말림)
+//   3D curl:
+//     7. curl multiplier (말림 강도)
+//
+// 각 영역의 max range는 _과격_ 기준 (strength=1 시).
+// strength=0.5 (default) → 모든 range × 0.5 (중간 자연 variation).
+const LEAF_VARIATION_STRENGTH = 0.5;
+
+// 각 영역 max range (strength=1.0 시 최대값)
+const VAR_MAX = {
+  aspect: 0.25,           // ±25% aspectRatio (1, 4번 영역)
+  depth: 0.50,            // ±50% lobe depth (1번)
+  asymmetry: 0.40,        // ±0.40 asymmetry offset (2번)
+  dripDepth: 0.40,        // ±40% dripTipDepth (3번)
+  rollRad: 0.40,          // ±0.40 rad ≈ ±23° (5번)
+  pitchRad: 0.30,         // ±0.30 rad ≈ ±17° (6번)
+  curlMult: 0.60,         // ±60% curl 강도 (7번)
+} as const;
+
 /**
- * ★ S98 — Per-leaflet lobe perturbation _최소화_ (사용자 진단: variation = 마름모 변형).
+ * ★ L9-D V2 S99 — Per-leaflet lobe perturbation (단일 strength multiplier).
  *
- * S96/S97 과격 perturbation은 _기본 ovate 형태_를 변형 → 마름모 등 기형 발생.
- * 진짜 자연 variation은 _engine layer_에 (size/position/maturity). mesh는
- * _기본 형태 보존_ + _미세 noise_만.
+ * 영역 1: lobe depth (깊은 갈라짐 / 뭉툭).
+ * strength=0 → 고정, strength=1 → ±50%, strength=0.5 → ±25%.
  *
- * 같은 spec lobe 배열에서 leaflet마다:
- *   - u position: ±0.015 shift (자연 micro)
- *   - depth: ×0.92~1.08 (±8%)
- *   - sigma: 고정 (기본 형태 보존)
- *   - drop 없음 (구조 보존)
+ * sigma는 _절대 하한_ 보장 (1/samples 미만 X — peak miss 방지).
+ * u shift는 _작은 micro_만 (기본 형태 보존, 위치 약간 이동).
  */
 function perturbLobes<T extends { u: number; depth: number; sigma?: number }>(
   lobes: ReadonlyArray<T>,
   idSeed: number,
   saltBase: number,
   samples: number,
+  strength: number,
 ): Array<{ u: number; depth: number; sigma: number }> {
   const minSigma = 1 / samples;
   return lobes.map((lobe, i) => {
-    const uShift = signedRand(idSeed, saltBase + i * 7) * 0.015;        // ±0.015 micro
-    const depthMult = 1 + signedRand(idSeed, saltBase + i * 11 + 3) * 0.08;  // ±8%
+    const uShift = signedRand(idSeed, saltBase + i * 7) * 0.02 * strength;
+    const depthMult = 1 + signedRand(idSeed, saltBase + i * 11 + 3) * VAR_MAX.depth * strength;
     return {
       u: Math.max(0.05, Math.min(0.95, lobe.u + uShift)),
       depth: Math.max(0, lobe.depth * depthMult),
-      sigma: Math.max(minSigma, lobe.sigma ?? 0.06),  // sigma 고정 (기본 형태)
+      sigma: Math.max(minSigma, lobe.sigma ?? 0.06),
     };
   });
 }
@@ -176,13 +207,13 @@ export function buildShapeProfileV2(input: ShapeProfileV2Input): ShapeProfileV2S
   // smoothMargin (potato-leaf preset): lobe + notch 완전 0 (V1 L8-1 동일 정책).
   const useStructured = !input.smoothMargin;
 
-  // ★ S96 — Per-leaflet variation: lobe/notch u position + depth + sigma perturb.
-  //   leaflet마다 _같은 spec_이라도 _다른 outline_ — stereo type 해소.
+  // ★ S99 — Per-leaflet variation (단일 strength): 영역 1 lobe depth.
+  const strength = LEAF_VARIATION_STRENGTH;
   const effectiveLobes = useStructured
-    ? perturbLobes(input.shoulderLobes, input.idSeed, 101, samples)
+    ? perturbLobes(input.shoulderLobes, input.idSeed, 101, samples, strength)
     : [];
   const effectiveNotches = useStructured
-    ? perturbLobes(input.sinusNotches, input.idSeed, 211, samples)
+    ? perturbLobes(input.sinusNotches, input.idSeed, 211, samples, strength)
     : [];
 
   const result: ShapeProfileV2Sample[] = [];
@@ -259,24 +290,34 @@ function buildLeafletPatchV2(
   const aspectJitter = 1 + (((idSeed * 23) % 100 - 50) / jitterDivisor);
   const sharpnessJitter = 1 + (((idSeed * 29) % 100 - 50) / jitterDivisor);
 
-  // ★ S98 — V2 jitter _최소화_ (사용자 진단: variation = 마름모 변형).
-  //   기본 ovate 형태 보존. 자연 variation은 engine layer (size/position/maturity).
-  //   mesh layer는 V1 jitterPercent ±5% (이미 적용) + 미세 추가만.
-  const aspectJitterV2 = 1 + signedRand(idSeed, 19) * 0.04;       // ±4% micro
-  const sharpnessJitterV2 = 1 + signedRand(idSeed, 23) * 0.04;    // ±4%
-  // dripTip 미세 variation
+  // ★ L9-D V2 S99 — 단일 strength multiplier로 모든 7 영역 통제.
+  //   사용자: "배리에이션 function은 단 하나면 충분".
+  //   LEAF_VARIATION_STRENGTH 조정 = 전체 variation 강도 조정.
+  const s = LEAF_VARIATION_STRENGTH;
+
+  // ─── Outline 2D (영역 1, 2, 3, 4) ─────────────────────────────
+  // 영역 4: aspectRatio variation (가로/세로 비율 차이)
+  const aspectJitterV2 = 1 + signedRand(idSeed, 19) * VAR_MAX.aspect * s;
+  // (영역 1 lobe depth는 perturbLobes에서 적용됨)
+  // 영역 2: asymmetry variation (좌/우 면적)
+  const asymVariation = signedRand(idSeed, 23) * VAR_MAX.asymmetry * s;
+  // 영역 3: dripTip depth variation (apex 뭉툭/뾰족)
   const dripDepthBase = positionedProfile.dripTipDepth ?? 0.6;
   const dripUStartBase = positionedProfile.dripTipUStart ?? 0.85;
-  const dripDepthJitter = 1 + signedRand(idSeed, 29) * 0.06;      // ±6%
-  const dripUShift = signedRand(idSeed, 31) * 0.01;               // ±0.01
-  const lengthV2 = lengthM;  // size variation 제거 — leafletRef.targetSizeM이 이미 다름
+  const dripDepthJitter = 1 + signedRand(idSeed, 29) * VAR_MAX.dripDepth * s;
+  const dripUShift = signedRand(idSeed, 31) * 0.03 * s;
+  const lengthV2 = lengthM;  // size는 targetSizeM이 이미 다름
+
+  // ─── 3D curl (영역 7) ───────────────────────────────────────
+  // 영역 6: 옆 말림 + 영역 7: 말림 강도 (per-leaflet curl multiplier)
+  const curlMult = Math.max(0, 1 + signedRand(idSeed, 47) * VAR_MAX.curlMult * s);
 
   const profileV2 = buildShapeProfileV2({
     lengthM: lengthV2,
     aspectRatio: positioned.aspectRatio * aspectJitter * aspectJitterV2,
-    tipSharpness: positioned.tipSharpness * sharpnessJitter * sharpnessJitterV2,
+    tipSharpness: positioned.tipSharpness * sharpnessJitter,  // sharpness는 V1 only
     baseShape: positioned.baseShape,
-    asymmetry: positioned.asymmetry,
+    asymmetry: positioned.asymmetry + asymVariation,  // ★ S99 영역 2
     samples: samplesV2,
     baseTransitionEndU: ctx.spec.shapeProfileRules.baseTransitionEndU,
     shoulderLobes: positionedProfile.shoulderLobes ?? [],
@@ -286,7 +327,7 @@ function buildLeafletPatchV2(
     expansionProgress: desc.maturity,
     ageFrac: desc.ageFrac,
     smoothMargin: desc.resolved.smoothMargin === true,
-    idSeed,  // ★ S96 — per-leaflet lobe/notch perturbation
+    idSeed,
   });
 
   // V2 serration 후처리 — V1 serrationNoise 재사용 (micro-serration)
@@ -310,28 +351,35 @@ function buildLeafletPatchV2(
     sample.halfWidthRight = Math.max(0, sample.halfWidthRight + teeth);
   }
 
-  // V1 buildLeafletPlaneChunk 재사용 + ★ S95 cols 17 (가로 vertex 강화 — 계단식 해소).
-  // ★ S97 — lengthV2 (size variation) 사용
+  // V1 buildLeafletPlaneChunk 재사용 + ★ S95 cols 17 + ★ S99 curl per-leaflet (영역 6,7).
   const chunk = buildLeafletPlaneChunk(profileV2, {
     lengthM: lengthV2,
-    curl: desc.curl,
+    curl: desc.curl * curlMult,  // ★ S99 영역 6,7 — per-leaflet curl 강도
     ageFrac: desc.ageFrac,
     gravityDroopDeg: desc.gravityDroopDeg,
     waviness: 0,
     isTerminal: node.leafletRef.position === 'terminal',
     veinSurfaceStrength: 1,
     seed: djb2(node.id),
-    cols: 17,  // V1 default 9 → V2 17 (부드러운 shoulder lobe 가로 곡선)
+    cols: 17,
   });
 
   // SSOT #186 — L1-B centroid anchor (V1 동일).
   normalizeLeafMeshVertices(chunk.positions);
 
+  // ★ S99 영역 5,6 — V2 자체 추가 pose (V1 applyLeafletPose 위에 곱).
+  //   roll (좌/우 휘어짐) + pitch (앞으로 말림)
+  const baseQuat = applyLeafletPose(ctx.spec.poseRules, node, idSeed, desc);
+  const extraPitch = signedRand(idSeed, 53) * VAR_MAX.pitchRad * s;
+  const extraRoll = signedRand(idSeed, 59) * VAR_MAX.rollRad * s;
+  const extraQuat = quatFromYawPitchRoll(0, extraPitch, extraRoll);
+  const finalQuat = quatMultiply(baseQuat, extraQuat);
+
   return {
     meshName: `${ctx.meshNamePrefix}_l${i}_${node.leafletRef.position}_v2`,
     chunk,
     position: { x: node.pos.x, y: node.pos.y, z: node.pos.z },
-    rotationQuat: applyLeafletPose(ctx.spec.poseRules, node, idSeed, desc),
+    rotationQuat: finalQuat,
   };
 }
 

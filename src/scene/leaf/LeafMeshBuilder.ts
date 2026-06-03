@@ -41,8 +41,10 @@ import { newChunk, type GeoChunk } from '@farmsim/tomato-geometry';
 
 export type Quat4 = { x: number; y: number; z: number; w: number };
 
-/** Quaternion from yaw-pitch-roll (intrinsic Y-X-Z, same as Babylon). */
-function quatFromYawPitchRoll(yaw: number, pitch: number, roll: number): Quat4 {
+/** Quaternion from yaw-pitch-roll (intrinsic Y-X-Z, same as Babylon).
+ *  ★ L9-D V2 S99 — V2 builder가 추가 pose variation에 재사용. export 추가.
+ */
+export function quatFromYawPitchRoll(yaw: number, pitch: number, roll: number): Quat4 {
   // Babylon Quaternion.RotationYawPitchRoll uses Y (yaw) * X (pitch) * Z (roll).
   const halfRoll  = roll  * 0.5;
   const halfPitch = pitch * 0.5;
@@ -58,8 +60,10 @@ function quatFromYawPitchRoll(yaw: number, pitch: number, roll: number): Quat4 {
   };
 }
 
-/** Quaternion multiply (a × b). */
-function quatMultiply(a: Quat4, b: Quat4): Quat4 {
+/** Quaternion multiply (a × b).
+ *  ★ L9-D V2 S99 — V2 builder가 추가 pose에 재사용. export 추가.
+ */
+export function quatMultiply(a: Quat4, b: Quat4): Quat4 {
   return {
     x: a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y,
     y: a.w * b.y - a.x * b.z + a.y * b.w + a.z * b.x,
