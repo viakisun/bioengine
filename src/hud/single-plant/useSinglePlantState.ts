@@ -62,6 +62,12 @@ export function getSinglePlantSkinMesh(index: number = 0): SkinMeshPlantHandle |
   return skinMeshPlants[index] ?? null;
 }
 
+/** ★ S126 — multi-plant 지원: 전체 등록된 plant 핸들 반환.
+ *  SinglePlantOverlay가 모든 plant에 대해 update(day) 호출하기 위함. */
+export function getAllSinglePlantSkinMeshes(): SkinMeshPlantHandle[] {
+  return skinMeshPlants.slice();
+}
+
 /** Iter 35 PR 2: ShowcasePlant 제거 — SkinMesh가 plant. getSinglePlantPlant alias.
  *  기존 호출처 호환 위해 보존 (구 getSinglePlantShowcase 대체). */
 export function getSinglePlantPlant(index: number = 0): SkinMeshPlantHandle | null {

@@ -235,7 +235,11 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
   try {
     greenhouse = await buildSceneInfrastructure(scene);
     setSinglePlantEngineRef(greenhouse.growthEngine);
-    setSinglePlantSkinMeshRef(greenhouse.skinMeshPlant);
+    setSinglePlantSkinMeshRef(greenhouse.skinMeshPlant, 0);
+    // ★ S126 — extra plants도 등록 (index 1+). SinglePlantOverlay에서 update 받음.
+    for (let i = 0; i < greenhouse.extraPlants.length; i++) {
+      setSinglePlantSkinMeshRef(greenhouse.extraPlants[i], i + 1);
+    }
   } catch (err) {
     log.error('buildSceneInfrastructure failed:', err);
     notify.error('Scene 빌드 실패', err instanceof Error ? err : String(err));

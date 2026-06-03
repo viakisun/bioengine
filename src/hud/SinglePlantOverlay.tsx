@@ -26,6 +26,7 @@ import { SHOWCASE_SEED } from '../scene/SceneInfrastructure';
 import {
   getSinglePlantEngine,
   getSinglePlantSkinMesh,
+  getAllSinglePlantSkinMeshes,
   subscribeSinglePlantRefs,
 } from '../hud/single-plant/useSinglePlantState';
 
@@ -55,14 +56,22 @@ export function SinglePlantOverlay() {
 
   // Drive the live simulation as the user scrubs the timeline.
   // Iter 35 PR 2: SkinMesh가 유일 plant renderer — useImplicitMesh toggle 부재.
+  // ★ S126 — multi-plant 지원: 모든 plant에 대해 update(day) 호출.
+  //   index 0 (showcase): physiology 적용 (truss/fruit overlay).
+  //   index 1+ (extras): physiology 없이 update — computeState만으로 build.
   useEffect(() => {
     const engine = getSinglePlantEngine();
-    log.debug(`effect: minute=${minute} refsReady=${refsReady} defoliation=${defoliationHeightCm} engine=${!!engine} skin=${!!getSinglePlantSkinMesh()}`);
+    const skins = getAllSinglePlantSkinMeshes();
+    log.debug(`effect: minute=${minute} refsReady=${refsReady} defoliation=${defoliationHeightCm} engine=${!!engine} plants=${skins.length}`);
     if (!engine) return;
-    const physiology = engine.simulatePlantToMinute(SHOWCASE_SEED, minute);
     const day = Math.floor(minute / 1440);
-    const skin = getSinglePlantSkinMesh();
-    if (skin) skin.update(day, physiology);
+    // Showcase (index 0): full physiology.
+    const physiology = engine.simulatePlantToMinute(SHOWCASE_SEED, minute);
+    if (skins[0]) skins[0].update(day, physiology);
+    // Extras (index 1+): update without physiology (computeState only).
+    for (let i = 1; i < skins.length; i++) {
+      skins[i].update(day);
+    }
   }, [minute, refsReady, defoliationHeightCm]);
 
   // Playback loop — rAF, scales minute by speed × elapsed.
