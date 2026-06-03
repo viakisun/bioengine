@@ -39,7 +39,8 @@ export type VisibilityReason =
   | 'senescent'
   | 'pruned'
   | 'aborted'
-  | 'harvested';
+  | 'harvested'
+  | 'apex_proximity';  // ★ S115 — apex 거리 게이트 hidden
 
 export interface OrganVisibility {
   visible: boolean;
@@ -391,13 +392,20 @@ function buildAxisBase(
     leaves.push(buildLeafBase(node, leafAttachPos, genome, apexPos));
 
     if (node.truss) {
+      // ★ S115 — Truss apex-distance gating: 자기 axis 마지막 stem node = apex.
+      //   0 = apex 자체, 위→아래로 증가 (loop i 0=base 인 경우 N-1-i).
+      const nodeFromApex = (axis.nodes.length - 1) - i;
+
       // trussOrderIdx = 0-based emergence order on this axis (main only
       // supplies physiology — side shoots get visual fallback).
       const trussOrderIdx = nextTrussOrder();
       const physTruss = physiologyState
         ? physiologyState.trusses.find((t) => t.index === trussOrderIdx)
         : undefined;
-      trusses.push(buildTrussBase(node, stemCenter, genome, physTruss, physiologyState?.TT ?? 0));
+      trusses.push(buildTrussBase(
+        node, stemCenter, genome, physTruss, physiologyState?.TT ?? 0,
+        apexPos, nodeFromApex,
+      ));
     }
 
     // Iter 37 Q1.1 — bud = petiole-root와 _동일 stem surface_ 지점.
@@ -610,12 +618,62 @@ function parabolicArc(start: V3, end: V3, sagFrac = 0.06): V3[] {
   return [start, p1, p2, end];
 }
 
+// ★ S115 — Reproductive organ apex-distance visibility gate (사용자 STRONG_FIX).
+//   visual 전용 — engine cohort state 보존, visibility/diameter cap만 적용.
+//   v3 보정 #1: magic number 상수화 (후속 phase에서 cultivar별 조정 용이).
+//   v3 보정 #5: maxFruitDiameter는 cultivar/genome 기반 파라미터.
+const REPRODUCTIVE_APEX_GATE = {
+  trussStartM:     0.08,
+  flowerStartM:    0.16,
+  fruitStartM:     0.26,
+  fullFruitStartM: 0.55,
+  minNodeFromApexForTruss:  3,
+  minNodeFromApexForFlower: 4,
+  minNodeFromApexForFruit:  5,
+  minFruitDiameterMm:        4,
+  defaultMaxFruitDiameterMm: 60,
+} as const;
+
+interface ApexReproductiveGate {
+  trussVisible: boolean;
+  flowerAllowed: boolean;
+  fruitAllowed: boolean;
+  /** Cultivar-aware fruit diameter cap. fruitAllowed=false 시 0. */
+  maxFruitDiameterMm: number;
+}
+
+function gateReproductiveByApex(
+  distanceFromApexM: number,
+  nodeFromApex: number,
+  /** ★ v3 보정 #5 — cultivar/genome max diameter (없을 시 default 60mm). */
+  cultivarMaxFruitDiameterMm: number = REPRODUCTIVE_APEX_GATE.defaultMaxFruitDiameterMm,
+): ApexReproductiveGate {
+  const G = REPRODUCTIVE_APEX_GATE;
+  const trussVisible  = distanceFromApexM >= G.trussStartM  && nodeFromApex >= G.minNodeFromApexForTruss;
+  const flowerAllowed = distanceFromApexM >= G.flowerStartM && nodeFromApex >= G.minNodeFromApexForFlower;
+  const fruitAllowed  = distanceFromApexM >= G.fruitStartM  && nodeFromApex >= G.minNodeFromApexForFruit;
+
+  // smoothstep ease — 26cm→4mm, 55cm→full diameter.
+  const _raw = (distanceFromApexM - G.fruitStartM) / (G.fullFruitStartM - G.fruitStartM);
+  const t = Math.max(0, Math.min(1, _raw));
+  const fruitFactor = t * t * (3 - 2 * t);
+  const maxFruitDiameterMm = fruitAllowed
+    ? G.minFruitDiameterMm + (cultivarMaxFruitDiameterMm - G.minFruitDiameterMm) * fruitFactor
+    : 0;
+
+  return { trussVisible, flowerAllowed, fruitAllowed, maxFruitDiameterMm };
+}
+
 function buildTrussBase(
   node: NodeState,
   attachPos: { x: number; y: number; z: number },
   genome: PlantGenome,
   physTruss: import('@farmsim/tomato-engine').TrussCohort | undefined,
   currentTT: number,
+  /** ★ S115 — axis-local apex 좌표 (main + side-shoot 동일 로직, v3 보정 #6). */
+  apexPos: { x: number; y: number; z: number } = { x: 0, y: 0, z: 0 },
+  /** ★ S115 — apex로부터 노드 번호 (0=apex, 위→아래로 증가). */
+  nodeFromApex: number = 99,
 ): TrussBase {
   const truss = node.truss!;
   const azimuthRad = (node.phyllotaxisAngle * Math.PI) / 180 + Math.PI;
@@ -626,6 +684,38 @@ function buildTrussBase(
     y: attachPos.y + TRUSS_ATTACH_Y_OFFSET_M,
     z: attachPos.z,
   };
+
+  // ★ S115 — Apex-distance reproductive gate (engine cohort _read-only_).
+  //   거리 계산 (S114-E 패턴 재사용).
+  const _dxA = attachPos.x - apexPos.x;
+  const _dyA = attachPos.y - apexPos.y;
+  const _dzA = attachPos.z - apexPos.z;
+  const distanceFromApexM = Math.sqrt(_dxA * _dxA + _dyA * _dyA + _dzA * _dzA);
+  // ★ v3 보정 #5 — genome.fruit.maxDiameterMm 없으면 default 60mm.
+  const cultivarMaxDiameter =
+    ((genome as unknown) as { fruit?: { maxDiameterMm?: number } }).fruit?.maxDiameterMm
+    ?? REPRODUCTIVE_APEX_GATE.defaultMaxFruitDiameterMm;
+  const apexGate = gateReproductiveByApex(distanceFromApexM, nodeFromApex, cultivarMaxDiameter);
+
+  // ★ v3 보정 #3 — truss 자체 invisible 시 early-return (rendering 전용).
+  //   ⚠️ Analytics/probe consumers는 _절대_ truss.floralSites.length로
+  //   "화방 존재 여부" 판단 X. engine cohort (physTruss.fruits[]) 직접 참조.
+  //   visibility.reason='apex_proximity' 로 _왜 hidden인지_ 추적 가능.
+  if (!apexGate.trussVisible) {
+    return {
+      nodeIdx: node.index,
+      visibility: { visible: false, reason: 'apex_proximity' },
+      worldOrigin,
+      azimuthRad,
+      // v4.0 legacy fields (empty — TrussLayout shape per TrussGenerator.ts)
+      layout: { peduncleLen: 0, totalDroop: 0, rachisControlPoints: [], items: [] },
+      rachisCurveWorld: [],
+      fruits: [],
+      flowers: [],
+      floralSites: [],
+      initialSiteCount: 0,
+    } satisfies TrussBase;
+  }
 
   // ── v4.1 — cymose geometry from ACTIVE_MODEL.trussAnatomy ─────────
   const anatomy = ACTIVE_MODEL.trussAnatomy;
@@ -801,6 +891,44 @@ function buildTrussBase(
         else stage = 'petal-drop';
         flowerState = { bloomProgress: bloom, petalDrop: Math.max(0, (bloom - 0.7) / 0.3), ovarySwell: 0 };
       }
+    }
+
+    // ★ S115 — Apex gate site-level downgrade (v3 보정 #4 decision-first).
+    //   engine cohort _read-only_, visual stage만 downgrade.
+    //   maxVisualStage = !flowerAllowed → 'bud', !fruitAllowed → 'flowering', else 'fruit'.
+    type MaxVisualStage = 'bud' | 'flowering' | 'fruit';
+    const maxVisualStage: MaxVisualStage =
+      !apexGate.flowerAllowed ? 'bud'
+      : !apexGate.fruitAllowed ? 'flowering'
+      : 'fruit';
+
+    if (maxVisualStage === 'bud') {
+      if (stage !== 'bud') {
+        stage = 'bud';
+        fruitState = undefined;
+        flowerState = { bloomProgress: 0.1, petalDrop: 0, ovarySwell: 0 };
+      }
+    } else if (maxVisualStage === 'flowering') {
+      if (stage === 'fruit-set' || stage === 'fruit-growing' || stage === 'ripening') {
+        stage = 'flowering';
+        fruitState = undefined;
+        flowerState = flowerState ?? { bloomProgress: 0.5, petalDrop: 0, ovarySwell: 0 };
+      }
+    }
+
+    // ★ S115 — Fruit diameter cap (smoothstep 26cm→4mm, 55cm→full).
+    //   engine이 더 큰 fruit 만들어도 visual cap 적용. fruitCenter도 비례 축소.
+    if (fruitState && fruitState.diameterMm > apexGate.maxFruitDiameterMm) {
+      const ratio = apexGate.maxFruitDiameterMm / fruitState.diameterMm;
+      fruitState = {
+        ...fruitState,
+        diameterMm: apexGate.maxFruitDiameterMm,
+        fruitCenter: {
+          x: knuckle.x + (fruitState.fruitCenter.x - knuckle.x) * ratio,
+          y: knuckle.y + (fruitState.fruitCenter.y - knuckle.y) * ratio,
+          z: knuckle.z + (fruitState.fruitCenter.z - knuckle.z) * ratio,
+        },
+      };
     }
 
     floralSites.push({
