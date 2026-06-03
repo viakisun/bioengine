@@ -30,6 +30,8 @@ import {
   type LeafMeshPatch,
   type LeafletMeshBuildContext,
 } from './LeafMeshBuilder';
+// ★ L9-D V2 S86 — V2 outline builder dispatch (opt-in, default 'v1').
+import { buildLeafMeshFromSkeletonV2 } from './LeafMeshBuilder2';
 import {
   wrapLeafChunksAsMeshes,
   wrapLeafChunksAsLeafBatch,
@@ -57,6 +59,16 @@ export interface CreateLeafOptions {
   quality?: LeafMeshQuality;
   /** Mesh name prefix. Default = `leaf_${nodeId}`. */
   meshNamePrefix?: string;
+  /**
+   * ★ L9-D V2 S86 — Outline builder version. Default `'v1'` (production).
+   *
+   *   - `'v1'` (default): LeafMeshBuilder.ts — `sin(πu)^shapePower` 단일 bell curve.
+   *   - `'v2'`: LeafMeshBuilder2.ts — Gaussian shoulder lobe + sinus notch +
+   *     drip tip + Expansion/Senescence scaling (S90부터 산식 활성, S86은 골격).
+   *
+   * Caller dispatch via URL `?leafBuilder=v2` (SkinMeshPlant.ts에서 격리).
+   */
+  builderVersion?: 'v1' | 'v2';
 }
 
 /** Required internal context derived from skeleton + graph. */
@@ -150,7 +162,11 @@ export const LeafEngine = {
       leafMacro,
     };
 
-    return buildLeafMeshFromSkeleton(ctx);
+    // ★ L9-D V2 S86 — Dispatch by builderVersion (default 'v1').
+    //   S85에서 V2는 V1 단순 위임 (byte-identical). S90에서 V2 자체 산식 활성.
+    return options.builderVersion === 'v2'
+      ? buildLeafMeshFromSkeletonV2(ctx)
+      : buildLeafMeshFromSkeleton(ctx);
   },
 
   /**

@@ -86,4 +86,51 @@ test.describe('L9-D V2 — Builder coexistence phase (Active 원칙 #56)', () =>
       'V2 파일에 V1 단순 위임 phase 명시 (S85)',
     ).toMatch(/S85|위임|delegat/i);
   });
+
+  test('LEAF-BUILDER-V2-DISPATCH-01: LeafEngine.createLeaf builderVersion field + dispatch', async () => {
+    // S86 — CreateLeafOptions에 builderVersion 추가 + dispatch.
+    const engineSrc = await fs.readFile(
+      path.join(REPO_ROOT, 'src/scene/leaf/LeafEngine.ts'),
+      'utf-8',
+    );
+
+    // CreateLeafOptions에 builderVersion field
+    expect(
+      engineSrc,
+      "CreateLeafOptions.builderVersion?: 'v1' | 'v2' field",
+    ).toMatch(/builderVersion\?\:\s*['"]v1['"]\s*\|\s*['"]v2['"]/);
+
+    // V2 import (multiline 허용)
+    expect(
+      engineSrc,
+      'LeafMeshBuilder2 import (buildLeafMeshFromSkeletonV2)',
+    ).toMatch(/import[^;]*buildLeafMeshFromSkeletonV2[^;]*from\s+['"]\.\/LeafMeshBuilder2['"]/s);
+
+    // createLeaf 안 dispatch 산식
+    expect(
+      engineSrc,
+      'dispatch: options.builderVersion === \'v2\' 분기',
+    ).toMatch(/options\.builderVersion\s*===\s*['"]v2['"]/);
+  });
+
+  test('LEAF-BUILDER-V2-DEFAULT-V1-01: builderVersion 미지정 시 V1 default (production 안정성)', async () => {
+    // S86 보완 #11 — default 'v2' 강제 방지. CreateLeafOptions field가
+    // _optional_이고 dispatch가 ===  'v2' 명시 비교일 때만 V2.
+    const engineSrc = await fs.readFile(
+      path.join(REPO_ROOT, 'src/scene/leaf/LeafEngine.ts'),
+      'utf-8',
+    );
+
+    // optional ? (default undefined → V1)
+    expect(
+      engineSrc,
+      'builderVersion은 optional (default undefined → V1)',
+    ).toMatch(/builderVersion\?\:/);
+
+    // 명시 'v2' 비교 (default 분기 X)
+    expect(
+      engineSrc,
+      'dispatch 산식이 명시 ===  \'v2\' (default v2 강제 X)',
+    ).toMatch(/options\.builderVersion\s*===\s*['"]v2['"][^:]*\?[^:]*V2/);
+  });
 });
