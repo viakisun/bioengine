@@ -144,23 +144,21 @@ function signedRand(seed: number, salt: number): number {
 //   - outline (1,2,3,4): _보수_ (마름모/기형 회피)
 //   - 3D 회전 (5,6): _크게_ (outline 영향 0, 안전)
 //   - curl (7): _크게_ (말림 강도 자연 다양)
-// ★ S102 — 사용자 결정:
-//   "pitch/roll 부착지점 회전은 말이 안 됨" → 원복 (작은 noise만)
-//   "잎의 모양에만 집중" → outline 영역만 과격
-const LEAF_VARIATION_STRENGTH = 1.0;
+// ★ S103 — 사용자 "하나씩만 하자". 다른 variation _모두 0_, 중력만 4 카테고리.
+const LEAF_VARIATION_STRENGTH = 0.0;  // 모든 VAR_MAX 비활성
 
 const VAR_MAX = {
-  // Outline 2D (사용자 집중 영역, 과격 유지)
-  aspect: 0.45,           // ±45% aspectRatio
-  depth: 0.80,            // ±80% lobe depth
-  asymmetry: 0.60,        // ±0.60 좌/우 면적
-  dripDepth: 0.70,        // ±70% apex 뭉툭/뾰족
-  // 3D 회전 (원복 — 부착지점 회전 부자연)
-  rollRad: 0.0,           // ★ S102 원복 — V1 noise만 적용 (extra 0)
-  pitchRad: 0.0,          // ★ S102 원복
-  // 3D curl (작은 변동만)
-  curlMult: 0.30,         // ±30% — base curl이 이미 작음
+  aspect: 0.0, depth: 0.0, asymmetry: 0.0, dripDepth: 0.0,
+  rollRad: 0.0, pitchRad: 0.0, curlMult: 0.0,
 } as const;
+
+// ★ S103 — Per-leaflet gravity 4 카테고리 (각 25% 분배):
+//   category 0: 0% gravity → 0° (수평, 빳빳)
+//   category 1: 20% → 18°
+//   category 2: 50% → 45°
+//   category 3: 100% → 90° (수직 급격히 꺾어짐)
+const GRAVITY_BASE_DEG_MAX = 90;
+const GRAVITY_CATEGORY_PCT = [0, 0.20, 0.50, 1.0] as const;
 
 /**
  * ★ L9-D V2 S99 — Per-leaflet lobe perturbation (단일 strength multiplier).
@@ -302,38 +300,24 @@ function buildLeafletPatchV2(
   const aspectJitter = 1 + (((idSeed * 23) % 100 - 50) / jitterDivisor);
   const sharpnessJitter = 1 + (((idSeed * 29) % 100 - 50) / jitterDivisor);
 
-  // ★ L9-D V2 S99 — 단일 strength multiplier로 모든 영역 통제.
-  // ★ S102 — outline만 집중. pitch/roll 원복.
-  const s = LEAF_VARIATION_STRENGTH;
-
-  // ★ S102 DIAGNOSTIC — variation이 _진짜 적용 중인지_ 확인 위해 3 categories
-  //   강제 분기 (signedRand 우회). 보이면 코드 OK, 안 보이면 코드 안 들어감.
-  //   결과: 잎 3종류 (긴/중간/짧)이 _명백히 다른 모양_으로 나와야.
-  const category = Math.abs(idSeed) % 3;
-  const aspectCategoryMult =
-    category === 0 ? 0.6   // 짧고 넓음
-    : category === 1 ? 1.0  // 중간 (default)
-    : 1.7;                  // 길고 좁음
-  const depthCategoryMult =
-    category === 0 ? 0.5
-    : category === 1 ? 1.0
-    : 1.5;
-
-  // ─── Outline 2D (영역 1, 2, 3, 4) ─────────────────────────────
-  const aspectJitterV2 = aspectCategoryMult * (1 + signedRand(idSeed, 19) * VAR_MAX.aspect * s * 0.3);
-  const asymVariation = signedRand(idSeed, 23) * VAR_MAX.asymmetry * s;
+  // ★ S103 — outline variation 모두 비활성 (strength=0).
+  //   사용자 "하나씩만 하자" — 중력 4 카테고리만 적용.
+  const s = LEAF_VARIATION_STRENGTH;  // 0 → 모든 jitter 0
+  const aspectJitterV2 = 1;
+  const asymVariation = 0;
   const dripDepthBase = positionedProfile.dripTipDepth ?? 0.6;
   const dripUStartBase = positionedProfile.dripTipUStart ?? 0.85;
-  const dripDepthJitter = 1 + signedRand(idSeed, 29) * VAR_MAX.dripDepth * s;
-  const dripUShift = signedRand(idSeed, 31) * 0.03 * s;
+  const dripDepthJitter = 1;
+  const dripUShift = 0;
   const lengthV2 = lengthM;
+  const curlMult = 1;
+  void s;  // unused (strength=0)
 
-  // ─── 3D curl (영역 7, 작은 변동) ─────────────────────────────
-  const curlMult = Math.max(0, 1 + signedRand(idSeed, 47) * VAR_MAX.curlMult * s);
-
-  // ★ S102 — depth category multiplier perturbLobes에 전달 위해
-  //   inline 추가 perturbation (perturbLobes signature 변경 회피).
-  void depthCategoryMult;  // TODO: perturbLobes에 통합
+  // ★ S103 — Per-leaflet gravityDroopDeg 4 카테고리 (각 25% 분배):
+  //   abs(idSeed) % 4 → 0/20/50/100% × 90° = 0°/18°/45°/90°
+  const gravityCategory = Math.abs(idSeed) % 4;
+  const gravityPct = GRAVITY_CATEGORY_PCT[gravityCategory];
+  const overrideGravityDroopDeg = GRAVITY_BASE_DEG_MAX * gravityPct;
 
   const profileV2 = buildShapeProfileV2({
     lengthM: lengthV2,
@@ -374,12 +358,12 @@ function buildLeafletPatchV2(
     sample.halfWidthRight = Math.max(0, sample.halfWidthRight + teeth);
   }
 
-  // V1 buildLeafletPlaneChunk 재사용 + ★ S95 cols 17 + ★ S99 curl per-leaflet (영역 6,7).
+  // V1 buildLeafletPlaneChunk 재사용 + ★ S95 cols 17 + ★ S103 gravityDroopDeg 4 카테고리.
   const chunk = buildLeafletPlaneChunk(profileV2, {
     lengthM: lengthV2,
-    curl: desc.curl * curlMult,  // ★ S99 영역 6,7 — per-leaflet curl 강도
+    curl: desc.curl * curlMult,
     ageFrac: desc.ageFrac,
-    gravityDroopDeg: desc.gravityDroopDeg,
+    gravityDroopDeg: overrideGravityDroopDeg,  // ★ S103 per-leaflet 4 카테고리 강제
     waviness: 0,
     isTerminal: node.leafletRef.position === 'terminal',
     veinSurfaceStrength: 1,
