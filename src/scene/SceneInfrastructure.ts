@@ -59,8 +59,7 @@ export interface SceneInfrastructureHandle {
   extraPlants: SkinMeshPlantHandle[];
 }
 
-/** ★ S128 — extras에 lowQuality 적용 (ultra-low LOD + truss skip).
- *  build 시간 단축 (~10배) — default 작물 4 → 14 (15 plants).
+/** ★ S130 (사용자 "2그루만 해볼까?") — default 작물 14 → 1 (2 plants total).
  *  URL `?extraPlants=N` (0~89) override. */
 function resolveExtraPlantCount(): number {
   if (typeof location !== 'undefined') {
@@ -70,7 +69,7 @@ function resolveExtraPlantCount(): number {
       if (Number.isFinite(n) && n >= 0 && n <= 89) return n;
     }
   }
-  return 14;  // default — showcase (high) + 14 extras (ultra-low) = 15 plants
+  return 1;  // default — showcase + 1 extra = 2 plants total
 }
 
 function resolveActiveBedCount(): number {
