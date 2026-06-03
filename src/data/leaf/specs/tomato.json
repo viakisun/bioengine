@@ -82,7 +82,7 @@
   "profileByPosition": {
     "terminal": {
       "widthRatio": 0.42,
-      "lobeDepth": 0.14,
+      "lobeDepth": 0.20,
       "serrationAmp": 0.05,
       "serrationFreq": 22,
       "tipSharpness": 1.65,
@@ -90,7 +90,7 @@
     },
     "primary": {
       "widthRatio": 0.38,
-      "lobeDepth": 0.12,
+      "lobeDepth": 0.17,
       "serrationAmp": 0.045,
       "serrationFreq": 20,
       "tipSharpness": 1.55,
@@ -106,7 +106,7 @@
     },
     "secondary": {
       "widthRatio": 0.36,
-      "lobeDepth": 0.10,
+      "lobeDepth": 0.13,
       "serrationAmp": 0.04,
       "serrationFreq": 18,
       "tipSharpness": 1.45,
@@ -115,8 +115,8 @@
   },
   "correlationRules": {
     "intercalaryComplexityExponent": 2,
-    "serrationFreqBase": 10,
-    "serrationFreqSlope": 18,
+    "serrationFreqBase": 12,
+    "serrationFreqSlope": 24,
     "asymmetryBase": 0.02,
     "asymmetrySlope": 0.06,
     "correlationJitterScale": 0.10
