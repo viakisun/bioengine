@@ -149,10 +149,11 @@ test.describe('Iter 39 Phase L8 — Leaf Quality Followup', () => {
     );
   });
 
-  test('LEAF-LOBE-NOISE-SIGNED-APPLIED-01: tomato.json signed mode + lobeDepth fallback (L8-3b)', async () => {
-    // L8-3b — tomato.json mode 'signed' opt-in + 1차 fallback lobeDepth (보수적).
-    //   terminal: 0.25 → 0.20, primary: 0.20 → 0.16, secondary: 0.13 → 0.10
-    //   intercalary: 0.05 유지 (보조엽 보존)
+  test('LEAF-LOBE-NOISE-SIGNED-APPLIED-01: tomato.json signed mode + lobeDepth (L8-3b → S84 자연 outline)', async () => {
+    // L8-3b — tomato.json mode 'signed' opt-in + lobeDepth.
+    // ★ S84 (자연 토마토 outline 1차) — lobeDepth 증가 (다이아몬드 stencil
+    //   해소): terminal 0.20→0.28, primary 0.16→0.22, secondary 0.10→0.14.
+    //   intercalary 0.05 유지 (보조엽 단순). 검증: 'signed' + lobeDepth 범위.
     const raw = await fs.readFile(
       path.join(REPO_ROOT, 'src/data/leaf/specs/tomato.json'),
       'utf-8',
@@ -162,11 +163,18 @@ test.describe('Iter 39 Phase L8 — Leaf Quality Followup', () => {
     // mode 'signed' opt-in
     expect(json.lobeNoiseRules.mode, "lobeNoiseRules.mode === 'signed'").toBe('signed');
 
-    // fallback lobeDepth (보수적 1차)
-    expect(json.profileByPosition.terminal.lobeDepth, 'terminal.lobeDepth fallback').toBeCloseTo(0.20, 6);
-    expect(json.profileByPosition.primary.lobeDepth, 'primary.lobeDepth fallback').toBeCloseTo(0.16, 6);
-    expect(json.profileByPosition.intercalary.lobeDepth, 'intercalary.lobeDepth 유지').toBeCloseTo(0.05, 6);
-    expect(json.profileByPosition.secondary.lobeDepth, 'secondary.lobeDepth fallback').toBeCloseTo(0.10, 6);
+    // ★ S84 — 자연 outline lobeDepth (범위 검증, 정확값 cycle 가능):
+    expect(json.profileByPosition.terminal.lobeDepth, 'terminal.lobeDepth in [0.20, 0.35]')
+      .toBeGreaterThanOrEqual(0.20);
+    expect(json.profileByPosition.terminal.lobeDepth).toBeLessThanOrEqual(0.35);
+    expect(json.profileByPosition.primary.lobeDepth, 'primary.lobeDepth in [0.16, 0.30]')
+      .toBeGreaterThanOrEqual(0.16);
+    expect(json.profileByPosition.primary.lobeDepth).toBeLessThanOrEqual(0.30);
+    expect(json.profileByPosition.intercalary.lobeDepth, 'intercalary.lobeDepth 유지')
+      .toBeCloseTo(0.05, 6);
+    expect(json.profileByPosition.secondary.lobeDepth, 'secondary.lobeDepth in [0.10, 0.18]')
+      .toBeGreaterThanOrEqual(0.10);
+    expect(json.profileByPosition.secondary.lobeDepth).toBeLessThanOrEqual(0.18);
   });
 
   test('LEAF-SERRATION-ENDPOINT-GUARD-01: serrationEndpointGuardU 데이터화 (L8-4, 보완 #3+#11)', async () => {
