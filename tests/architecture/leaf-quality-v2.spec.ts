@@ -45,6 +45,7 @@ async function matureTerminalFixture(): Promise<ShapeProfileV2Input> {
     expansionProgress: 1.0,
     ageFrac: 0,
     smoothMargin: false,
+    idSeed: 12345,  // ★ S96 — deterministic test fixture
   };
 }
 

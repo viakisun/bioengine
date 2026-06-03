@@ -106,6 +106,43 @@ export interface ShapeProfileV2Input {
   ageFrac: number;
   /** smoothMargin override (potato-leaf). shoulderLobes/sinusNotches 0 강제. */
   smoothMargin: boolean;
+  /** ★ S96 — Per-leaflet seed (leaflet마다 다른 lobe/notch perturbation 위해). */
+  idSeed: number;
+}
+
+// ★ S96 — Per-leaflet variation: deterministic signed random ([-1, 1]).
+function signedRand(seed: number, salt: number): number {
+  const h = (seed * 7919 + salt * 31 + 49297) >>> 0;
+  return ((h % 2000) / 1000) - 1;  // [-1, 1]
+}
+
+/**
+ * ★ S96 — Per-leaflet lobe perturbation (자연 variation).
+ *
+ * 같은 spec lobe 배열에서 leaflet마다:
+ *   - u position: ±0.04 shift (peak 위치 약간 이동)
+ *   - depth: ×0.7~1.3 (깊이 ±30%)
+ *   - sigma: ×0.85~1.15 (폭 ±15%)
+ *
+ * sigma는 _절대 하한_ 보장 (1/samples 미만 X — peak miss 방지).
+ */
+function perturbLobes<T extends { u: number; depth: number; sigma?: number }>(
+  lobes: ReadonlyArray<T>,
+  idSeed: number,
+  saltBase: number,
+  samples: number,
+): Array<{ u: number; depth: number; sigma: number }> {
+  const minSigma = 1 / samples;
+  return lobes.map((lobe, i) => {
+    const uShift = signedRand(idSeed, saltBase + i * 7) * 0.04;
+    const depthMult = 1 + signedRand(idSeed, saltBase + i * 11 + 3) * 0.30;
+    const sigmaMult = 1 + signedRand(idSeed, saltBase + i * 13 + 5) * 0.15;
+    return {
+      u: Math.max(0.05, Math.min(0.95, lobe.u + uShift)),  // 안전 clamp
+      depth: Math.max(0, lobe.depth * depthMult),
+      sigma: Math.max(minSigma, (lobe.sigma ?? 0.06) * sigmaMult),
+    };
+  });
 }
 
 export interface ShapeProfileV2Sample {
@@ -136,8 +173,15 @@ export function buildShapeProfileV2(input: ShapeProfileV2Input): ShapeProfileV2S
 
   // smoothMargin (potato-leaf preset): lobe + notch 완전 0 (V1 L8-1 동일 정책).
   const useStructured = !input.smoothMargin;
-  const effectiveLobes = useStructured ? input.shoulderLobes : [];
-  const effectiveNotches = useStructured ? input.sinusNotches : [];
+
+  // ★ S96 — Per-leaflet variation: lobe/notch u position + depth + sigma perturb.
+  //   leaflet마다 _같은 spec_이라도 _다른 outline_ — stereo type 해소.
+  const effectiveLobes = useStructured
+    ? perturbLobes(input.shoulderLobes, input.idSeed, 101, samples)
+    : [];
+  const effectiveNotches = useStructured
+    ? perturbLobes(input.sinusNotches, input.idSeed, 211, samples)
+    : [];
 
   const result: ShapeProfileV2Sample[] = [];
   for (let i = 0; i < samples; i++) {
@@ -213,21 +257,32 @@ function buildLeafletPatchV2(
   const aspectJitter = 1 + (((idSeed * 23) % 100 - 50) / jitterDivisor);
   const sharpnessJitter = 1 + (((idSeed * 29) % 100 - 50) / jitterDivisor);
 
+  // ★ S96 — V2 자체 jitter 강화 (V1 jitterPercent=5 → V2 ±15% aspect, ±10% sharpness).
+  //   per-leaflet seed로 deterministic. 같은 seed → 같은 leaflet (재현 가능).
+  const aspectJitterV2 = 1 + signedRand(idSeed, 19) * 0.15;       // ±15%
+  const sharpnessJitterV2 = 1 + signedRand(idSeed, 23) * 0.10;    // ±10%
+  // dripTip per-leaflet variation: depth ±25%, uStart ±0.03
+  const dripDepthBase = positionedProfile.dripTipDepth ?? 0.6;
+  const dripUStartBase = positionedProfile.dripTipUStart ?? 0.85;
+  const dripDepthJitter = 1 + signedRand(idSeed, 29) * 0.25;
+  const dripUShift = signedRand(idSeed, 31) * 0.03;
+
   const profileV2 = buildShapeProfileV2({
     lengthM,
-    aspectRatio: positioned.aspectRatio * aspectJitter,
-    tipSharpness: positioned.tipSharpness * sharpnessJitter,
+    aspectRatio: positioned.aspectRatio * aspectJitter * aspectJitterV2,
+    tipSharpness: positioned.tipSharpness * sharpnessJitter * sharpnessJitterV2,
     baseShape: positioned.baseShape,
     asymmetry: positioned.asymmetry,
     samples: samplesV2,
     baseTransitionEndU: ctx.spec.shapeProfileRules.baseTransitionEndU,
     shoulderLobes: positionedProfile.shoulderLobes ?? [],
     sinusNotches: positionedProfile.sinusNotches ?? [],
-    dripTipUStart: positionedProfile.dripTipUStart ?? 0.85,
-    dripTipDepth: positionedProfile.dripTipDepth ?? 0.6,
+    dripTipUStart: Math.max(0.7, Math.min(0.95, dripUStartBase + dripUShift)),
+    dripTipDepth: Math.max(0, dripDepthBase * dripDepthJitter),
     expansionProgress: desc.maturity,
     ageFrac: desc.ageFrac,
     smoothMargin: desc.resolved.smoothMargin === true,
+    idSeed,  // ★ S96 — per-leaflet lobe/notch perturbation
   });
 
   // V2 serration 후처리 — V1 serrationNoise 재사용 (micro-serration)
