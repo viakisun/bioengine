@@ -117,15 +117,17 @@ function signedRand(seed: number, salt: number): number {
 }
 
 /**
- * ★ S97 — Per-leaflet lobe perturbation 과격 강화 (사용자: "이래도 되나 싶을정도로").
+ * ★ S98 — Per-leaflet lobe perturbation _최소화_ (사용자 진단: variation = 마름모 변형).
+ *
+ * S96/S97 과격 perturbation은 _기본 ovate 형태_를 변형 → 마름모 등 기형 발생.
+ * 진짜 자연 variation은 _engine layer_에 (size/position/maturity). mesh는
+ * _기본 형태 보존_ + _미세 noise_만.
  *
  * 같은 spec lobe 배열에서 leaflet마다:
- *   - u position: ±0.08 shift (S96 0.04 → 0.08, 2배)
- *   - depth: ×0.4~1.6 (S96 ±30% → ±60%, 2배)
- *   - sigma: ×0.75~1.25 (±25%)
- *   - **lobe drop**: salt 별로 30% 확률 _아예 제거_ (일부 잎 부분 lobe)
- *
- * sigma는 _절대 하한_ 보장 (1/samples 미만 X — peak miss 방지).
+ *   - u position: ±0.015 shift (자연 micro)
+ *   - depth: ×0.92~1.08 (±8%)
+ *   - sigma: 고정 (기본 형태 보존)
+ *   - drop 없음 (구조 보존)
  */
 function perturbLobes<T extends { u: number; depth: number; sigma?: number }>(
   lobes: ReadonlyArray<T>,
@@ -134,23 +136,15 @@ function perturbLobes<T extends { u: number; depth: number; sigma?: number }>(
   samples: number,
 ): Array<{ u: number; depth: number; sigma: number }> {
   const minSigma = 1 / samples;
-  const out: Array<{ u: number; depth: number; sigma: number }> = [];
-  for (let i = 0; i < lobes.length; i++) {
-    const lobe = lobes[i];
-    // ★ 30% skip: 일부 leaflet에서 이 lobe 자체 제거 (구조 variation)
-    const dropRand = signedRand(idSeed, saltBase + i * 17 + 91);
-    if (dropRand < -0.4) continue;  // [-1, -0.4]는 _drop_ → 약 30% skip
-
-    const uShift = signedRand(idSeed, saltBase + i * 7) * 0.08;          // ±0.08
-    const depthMult = 1 + signedRand(idSeed, saltBase + i * 11 + 3) * 0.60;  // ±60%
-    const sigmaMult = 1 + signedRand(idSeed, saltBase + i * 13 + 5) * 0.25;  // ±25%
-    out.push({
+  return lobes.map((lobe, i) => {
+    const uShift = signedRand(idSeed, saltBase + i * 7) * 0.015;        // ±0.015 micro
+    const depthMult = 1 + signedRand(idSeed, saltBase + i * 11 + 3) * 0.08;  // ±8%
+    return {
       u: Math.max(0.05, Math.min(0.95, lobe.u + uShift)),
       depth: Math.max(0, lobe.depth * depthMult),
-      sigma: Math.max(minSigma, (lobe.sigma ?? 0.06) * sigmaMult),
-    });
-  }
-  return out;
+      sigma: Math.max(minSigma, lobe.sigma ?? 0.06),  // sigma 고정 (기본 형태)
+    };
+  });
 }
 
 export interface ShapeProfileV2Sample {
@@ -265,18 +259,17 @@ function buildLeafletPatchV2(
   const aspectJitter = 1 + (((idSeed * 23) % 100 - 50) / jitterDivisor);
   const sharpnessJitter = 1 + (((idSeed * 29) % 100 - 50) / jitterDivisor);
 
-  // ★ S97 — V2 자체 jitter _과격 강화_ (사용자: "이래도 되나 싶을정도로").
-  //   S96: aspect ±15%, sharpness ±10%, dripDepth ±25%, dripUStart ±0.03
-  //   S97: aspect ±35%, sharpness ±25%, dripDepth ±50%, dripUStart ±0.06, lengthM ±25%
-  const aspectJitterV2 = 1 + signedRand(idSeed, 19) * 0.35;       // ±35%
-  const sharpnessJitterV2 = 1 + signedRand(idSeed, 23) * 0.25;    // ±25%
-  const lengthJitterV2 = 1 + signedRand(idSeed, 37) * 0.25;       // ±25% size 자체
-  // dripTip per-leaflet variation: depth ±50%, uStart ±0.06
+  // ★ S98 — V2 jitter _최소화_ (사용자 진단: variation = 마름모 변형).
+  //   기본 ovate 형태 보존. 자연 variation은 engine layer (size/position/maturity).
+  //   mesh layer는 V1 jitterPercent ±5% (이미 적용) + 미세 추가만.
+  const aspectJitterV2 = 1 + signedRand(idSeed, 19) * 0.04;       // ±4% micro
+  const sharpnessJitterV2 = 1 + signedRand(idSeed, 23) * 0.04;    // ±4%
+  // dripTip 미세 variation
   const dripDepthBase = positionedProfile.dripTipDepth ?? 0.6;
   const dripUStartBase = positionedProfile.dripTipUStart ?? 0.85;
-  const dripDepthJitter = 1 + signedRand(idSeed, 29) * 0.50;
-  const dripUShift = signedRand(idSeed, 31) * 0.06;
-  const lengthV2 = lengthM * lengthJitterV2;
+  const dripDepthJitter = 1 + signedRand(idSeed, 29) * 0.06;      // ±6%
+  const dripUShift = signedRand(idSeed, 31) * 0.01;               // ±0.01
+  const lengthV2 = lengthM;  // size variation 제거 — leafletRef.targetSizeM이 이미 다름
 
   const profileV2 = buildShapeProfileV2({
     lengthM: lengthV2,

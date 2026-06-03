@@ -83,7 +83,7 @@
   },
   "profileByPosition": {
     "terminal": {
-      "widthRatio": 0.48,
+      "widthRatio": 0.50,
       "lobeDepth": 0.28,
       "serrationAmp": 0.040,
       "serrationFreq": 28,
