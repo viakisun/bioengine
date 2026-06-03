@@ -170,10 +170,14 @@ export function buildShapeProfileV2(input: ShapeProfileV2Input): ShapeProfileV2S
 
 // ─── V2 LOD ────────────────────────────────────────────────────────────
 
+// ★ S94 — V2 LOD 강화. 사용자 지적: "엣지 갯수가 다른데 메시 자체가 너무 단조로와".
+//   shoulder/notch Gaussian peak이 _부드럽게_ 표현되려면 sample 밀도 ↑ 필요.
+//   1차 강화 (samples 67% ↑): 17/24/32 → 28/40/56
+//   sigma validation: 1/40 = 0.025, 모든 lobe sigma 0.043~0.045 안전.
 const LEAF_MESH_RESOLUTION_V2 = {
-  'ultra-low': 17,
-  low: 24,
-  high: 32,
+  'ultra-low': 28,
+  low: 40,
+  high: 56,
 } as const;
 
 // ─── V2 per-leaflet pipeline ───────────────────────────────────────────
