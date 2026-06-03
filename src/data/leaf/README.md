@@ -35,7 +35,11 @@ runtime validation을 통과해야 함. 잘못 편집 시 `getLeafSpec()` 호출
 | `agePresets` | 5종 (young/mature/old/complex/potato-leaf) — 각 morphology range 묶음 |
 | `profileByPosition` | terminal / primary / intercalary / secondary 별 leaflet shape 비율 |
 | `correlationRules` | §8 산식 계수 (complexity → 산출물 mapping) |
-| `poseRules` | leaflet 회전 noise + L0-D-1 fold droop 계수 |
+| `poseRules` | leaflet 회전 noise (rad) + L0-D-1 fold droop (deg) + per-leaflet jitter % |
+| `lobeNoiseRules` (★ L5) | 큰 결각 sin 합성 — `positiveOnly` + `waves[]` (freq/phase/weight) |
+| `leafInstanceRules` (★ L5) | leaf-level macro — leftRightImbalance range + apex boost |
+| `shapeProfileRules` (★ L5) | base wedge transition + cultivar clamps + maturity envelope + openness |
+| `edgeAsymmetryRules` (★ L5) | 좌우 lobe/serration weight (leaf 자연 비대칭) |
 
 ### Optional
 
@@ -43,6 +47,11 @@ runtime validation을 통과해야 함. 잘못 편집 시 `getLeafSpec()` 호출
 |---|---|
 | `cultivars` | cherry/beefsteak/roma 등 cultivar별 shape multiplier/bias |
 | `extends` | 미래 base spec composition hook (현재 unused) |
+
+### schemaVersion 정책
+
+- v1.1 (L5 이후, 현재): 모든 botanical parameter JSON 이관
+- v1.0 (L4): _deprecated_ — runtime은 1.1만 허용
 
 ### Cross-field constraint
 

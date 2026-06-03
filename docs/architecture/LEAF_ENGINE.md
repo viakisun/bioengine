@@ -185,3 +185,43 @@ REFACTOR-PARITY-01 + 25 leaf invariants 회귀 PASS.
 - **L2-5** (S16/S17) — variation reporting + threshold
 - **L3-A~F** (S18~S27) — 산식 inline + monolithic LeafMeshBuilder + GeoChunk 분리
 - **L4-0~9** (S28~S37) — engine purity + data layer + Zod + LeafEngine namespace
+- **L5-0~8** (S38~S45) — Full LeafSpec parameterization (botanical magic 0 in engine):
+  - L5-0 audit doc + computeLeafInstanceProfile dead path 발견 (4 dead fields + 1 live)
+  - L5-1+2 schema v1.1 atomic (lobeNoise/leafInstance/shapeProfile/edgeAsymmetry sections)
+  - L5-3 lobeNoise spec migration (10 magic → spec)
+  - L5-4 computeLeafInstanceProfile 분해 + computeLeafletPose 제거
+  - L5-6a shape profile + cultivar clamps + senescence
+  - L5-6b maturity envelope + edge asymmetry
+  - L5-7 AGE_PRESETS 제거 + COVERAGE-01 + SCHEMA-V11-01
+  - L5-8 docs
+
+## ★ L5 후 추가 원칙 (#45-46)
+
+45. **Code = formula structure, Data = all values** — 산식 _구조_만 코드,
+    _모든 botanical 수치_는 JSON. allowlist (수학 상수/EPS/index/hash) 외 0.
+46. **Migration phase ≠ Tuning phase** — L5 (값 이관, REFACTOR-PARITY strict) ≠
+    L6 (값 조정, visual change). bisect 가능성 보존.
+
+## ★ 연구자 워크플로 (L5 완료 후)
+
+JSON 한 줄 수정으로 실험 가능:
+
+```bash
+# "큰 결각 더 거칠게"
+"lobeNoiseRules": { "waves": [{ "baseFrequency": 1.5, ... }, ...] }
+
+# "intercalary를 더 단순하게"
+"profileByPosition": { "intercalary": { "lobeDepth": 0.04, ... } }
+
+# "Beef 계열 더 길쭉"
+"cultivars": { "beefsteak": { "aspectRatioMultiplier": 1.30, ... } }
+
+# "잎 macro 비대칭 강하게"
+"leafInstanceRules": { "leftRightImbalanceRange": 0.35, ... }
+
+# "maturity envelope을 더 일찍 시작"
+"shapeProfileRules": { "maturityEnvelopeStart": 0.1, ... }
+```
+
+자세한 가이드: [src/data/leaf/README.md](../../src/data/leaf/README.md).
+parameter 의미 + 전체 audit: [LEAF_SPEC_PARAMETER_AUDIT.md](LEAF_SPEC_PARAMETER_AUDIT.md).

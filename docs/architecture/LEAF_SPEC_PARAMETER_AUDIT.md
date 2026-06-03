@@ -227,3 +227,23 @@ L5-4 처리:
 3. 35/35 leaf architecture invariants PASS
 4. REFACTOR-PARITY-01 strict (vertex byte-identical)
 5. Section 3 dead path 정리 — `computeLeafletPose` 제거, `computeLeafInstanceProfile` 분해
+
+## ★ L5 완료 status (S38~S45)
+
+| Phase | Commit | Status |
+|---|---|---|
+| L5-0 audit | S38 `87a73b4` | ✅ |
+| L5-1+2 schema v1.1 + JSON atomic | S39 `b4f31b0` | ✅ |
+| L5-3 lobeNoise migration | S40 `b124f54` | ✅ |
+| L5-4 computeLeafInstanceProfile 분해 + computeLeafletPose 제거 | S41 `63c7c35` | ✅ |
+| L5-5 pose Rad rename | (S39에 atomic 포함) | ✅ |
+| L5-6a shape + cultivar clamp + senescence | S42 `e5f5cb5` | ✅ |
+| L5-6b envelope + edge asymmetry | S43 `d34fe16` | ✅ |
+| L5-7 AGE_PRESETS 제거 + COVERAGE + SCHEMA-V11 | S44 `102cad5` | ✅ |
+| L5-8 docs | S45 | ✅ |
+
+검증:
+- 4 신규 L5 invariants PASS (LOBE-NOISE-PARITY, INSTANCE-PROFILE-PARITY, SCHEMA-V11, COVERAGE)
+- 30 기존 leaf invariants 회귀 PASS (refactor-parity strict, position-profile, anchor 5, layer 5, L4 5, etc.)
+- REFACTOR-PARITY-01 strict 모든 commit 유지 (mesh byte-identical)
+- typecheck PASS
