@@ -169,6 +169,17 @@ test.describe('Iter 39 Phase L7 — Fruit data-driven architecture', () => {
     expect(parsed.materialRules.subsurfaceTranslucency.tintColor).toBe('#8b1a14');
   });
 
+  test('FRUIT-ENGINE-API-01: FruitEngine namespace 1 method (createFruit) (S65)', async () => {
+    const src = await fs.readFile(
+      path.join(REPO_ROOT, 'src/scene/fruit/FruitEngine.ts'),
+      'utf-8',
+    );
+    // FruitEngine object literal에 createFruit method 존재 의무
+    expect(src, 'createFruit method').toMatch(/createFruit\s*\(/);
+    expect(src, 'FruitEngine 객체 export').toMatch(/export\s+const\s+FruitEngine\s*=/);
+    expect(src, 'CreateFruitOptions interface export').toMatch(/export\s+interface\s+CreateFruitOptions/);
+  });
+
   test('FRUIT-COLOR-PARITY-01: blossomEndAdvanceFrac fallback 0.4 (S64, 보완 #11)', async () => {
     // 보완 #11 — vertex color array가 _없는_ 경우 stage color output 비교.
     //   FruitGenerator는 vertex color baked (chunk.colors 사용).
