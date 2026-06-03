@@ -137,17 +137,26 @@ function signedRand(seed: number, salt: number): number {
 //
 // 각 영역의 max range는 _과격_ 기준 (strength=1 시).
 // strength=0.5 (default) → 모든 range × 0.5 (중간 자연 variation).
-const LEAF_VARIATION_STRENGTH = 0.5;
+// ★ S100 — VAR_MAX 재조정 + strength=1.0 시작점.
+//   이전 (S99) VAR_MAX/strength 너무 작아 시각 X. 사용자 "과격하게 시도 → 조절".
+//
+//   원칙:
+//   - outline (1,2,3,4): _보수_ (마름모/기형 회피)
+//   - 3D 회전 (5,6): _크게_ (outline 영향 0, 안전)
+//   - curl (7): _크게_ (말림 강도 자연 다양)
+const LEAF_VARIATION_STRENGTH = 1.0;  // 과격 시작 — 사용자 보고 조정
 
-// 각 영역 max range (strength=1.0 시 최대값)
 const VAR_MAX = {
-  aspect: 0.25,           // ±25% aspectRatio (1, 4번 영역)
-  depth: 0.50,            // ±50% lobe depth (1번)
-  asymmetry: 0.40,        // ±0.40 asymmetry offset (2번)
-  dripDepth: 0.40,        // ±40% dripTipDepth (3번)
-  rollRad: 0.40,          // ±0.40 rad ≈ ±23° (5번)
-  pitchRad: 0.30,         // ±0.30 rad ≈ ±17° (6번)
-  curlMult: 0.60,         // ±60% curl 강도 (7번)
+  // Outline 2D (보수, 마름모 회피)
+  aspect: 0.15,           // ±15% aspectRatio
+  depth: 0.40,            // ±40% lobe depth
+  asymmetry: 0.30,        // ±0.30 asymmetry offset (좌/우 면적)
+  dripDepth: 0.35,        // ±35% dripTipDepth (apex 뭉툭/뾰족)
+  // 3D 회전 (과격, 안전 — outline 영향 X)
+  rollRad: 0.80,          // ±0.80 rad ≈ ±46° (좌/우 휘어짐 명확)
+  pitchRad: 0.50,         // ±0.50 rad ≈ ±29° (앞으로 말림)
+  // 3D curl (크게)
+  curlMult: 1.0,          // ±100% curl 강도 (평평~강한 cup)
 } as const;
 
 /**
