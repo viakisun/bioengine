@@ -59,20 +59,19 @@ export interface SceneInfrastructureHandle {
   extraPlants: SkinMeshPlantHandle[];
 }
 
-/** ★ S119/S122 — multi-plant config (성능 trade).
- *  S123 (사용자: "작물 수 늘려보자") — default 7 → 23 plants extra.
- *    + 다중 active bed 분산 배치 (round-robin).
- *  URL `?extraPlants=N` override. N=0 시 single plant. 최대 90 (3 bed × 30 plant/bed).
- *  베드 수도 함께 — `?activeBeds=N` (N=1~13, default 3). 작물 active bed에 분산. */
+/** ★ S119/S122/S123/S124 → S125 — multi-plant config (default 작물 적정).
+ *  S124에서 default 89 (=90 plants total)로 너무 늘려 browser overload — "안나오는데".
+ *  S125 사용자 의도 (기본으로 적당 수): default 14 (15 plants total, 3 bed × 5).
+ *  URL `?extraPlants=N` (0~89) override. */
 function resolveExtraPlantCount(): number {
   if (typeof location !== 'undefined') {
     const param = new URLSearchParams(location.search).get('extraPlants');
     if (param !== null) {
       const n = Number.parseInt(param, 10);
-      if (Number.isFinite(n) && n >= 0 && n <= 90) return n;
+      if (Number.isFinite(n) && n >= 0 && n <= 89) return n;
     }
   }
-  return 23;  // default — showcase + 23 extra = 24 plants total (8 per bed × 3 bed)
+  return 14;  // default — showcase + 14 extra = 15 plants (3 bed × 5 plants)
 }
 
 function resolveActiveBedCount(): number {
