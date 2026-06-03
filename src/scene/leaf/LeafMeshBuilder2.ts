@@ -144,19 +144,21 @@ function signedRand(seed: number, salt: number): number {
 //   - outline (1,2,3,4): _보수_ (마름모/기형 회피)
 //   - 3D 회전 (5,6): _크게_ (outline 영향 0, 안전)
 //   - curl (7): _크게_ (말림 강도 자연 다양)
-const LEAF_VARIATION_STRENGTH = 1.0;  // 과격 시작 — 사용자 보고 조정
+// ★ S101 — _말도 안 될 정도로_ 과격 (사용자: "이래도 되나 싶을정도로").
+//   S100도 시각 X. 안 보이면 → 코드 안 들어감 진단. 보이면 → 거기서 줄임.
+const LEAF_VARIATION_STRENGTH = 1.0;
 
 const VAR_MAX = {
-  // Outline 2D (보수, 마름모 회피)
-  aspect: 0.15,           // ±15% aspectRatio
-  depth: 0.40,            // ±40% lobe depth
-  asymmetry: 0.30,        // ±0.30 asymmetry offset (좌/우 면적)
-  dripDepth: 0.35,        // ±35% dripTipDepth (apex 뭉툭/뾰족)
-  // 3D 회전 (과격, 안전 — outline 영향 X)
-  rollRad: 0.80,          // ±0.80 rad ≈ ±46° (좌/우 휘어짐 명확)
-  pitchRad: 0.50,         // ±0.50 rad ≈ ±29° (앞으로 말림)
-  // 3D curl (크게)
-  curlMult: 1.0,          // ±100% curl 강도 (평평~강한 cup)
+  // Outline 2D (마름모 위험 무시, 과격 시도)
+  aspect: 0.45,           // ±45% aspectRatio (S100 0.15 → 3배)
+  depth: 0.80,            // ±80% lobe depth (2배)
+  asymmetry: 0.60,        // ±0.60 (2배)
+  dripDepth: 0.70,        // ±70% (2배)
+  // 3D 회전 (말도 안 되는 회전)
+  rollRad: 1.60,          // ±1.60 rad ≈ ±92° (S100 0.80 → 2배, 완전 뒤집힘 수준)
+  pitchRad: 1.20,         // ±1.20 rad ≈ ±69° (앞으로 거의 수직)
+  // 3D curl (말도 안 되는 변동)
+  curlMult: 2.0,          // ±200% — 0~3× base curl
 } as const;
 
 /**
