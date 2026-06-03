@@ -74,7 +74,12 @@ import type {
 } from '../../plant/skeleton/PlantSkeletonGraph';
 import { makeLeafQuaternion } from '../../plant/skeleton/AnchorTransform';
 import { normalizeLeafMeshVertices } from './LeafAnchor';
-import type { LeafSpec, CorrelationRules, PoseRules } from './LeafSpec';
+import type {
+  LeafSpec,
+  CorrelationRules,
+  PoseRules,
+  LobeNoiseRules,
+} from './LeafSpec';
 import {
   applyPositionProfile,
   endpointTaperWeight,
@@ -148,27 +153,30 @@ export type LeafMeshBuildInput = LeafletMeshBuildContext;
  * Lobe noise — 잎 outline에 추가될 큰 갈라짐 (낮은 빈도, 큰 진폭).
  * sin 합성 (deterministic + 가벼움, Perlin 대신 단순 Fourier).
  *
- * @param u 잎 길이 0-1 (base → tip).
- * @param amp lobe 진폭 (잎 폭 대비, ResolvedLeafParams.lobeDepth).
+ * ★ L5-3 (S40) — rules.waves에서 frequency/phase/weight 주입. 산식 동일.
+ *   For wave w: freq = w.baseFrequency + (seed * w.seedMultiplier) % w.seedFrequencyMod
+ *               phase = (seed * w.phaseMultiplier) % (2π)
+ *               out += sin(2π * freq * u + phase) * w.weight
+ *   rules.positiveOnly → max(0, sum).
+ *
+ * @param rules spec.lobeNoiseRules (botanical parameter).
+ * @param u    잎 길이 0-1 (base → tip).
+ * @param amp  lobe 진폭 (잎 폭 대비, ResolvedLeafParams.lobeDepth).
  * @param seed deterministic seed (per leaf instance ID).
  */
-export function lobeNoise(u: number, amp: number, seed: number): number {
-  const freq1 = 2.0 + (seed % 1.5);    // 2.0-3.5 Hz
-  const freq2 = 3.7 + ((seed * 7) % 1.2); // 3.7-4.9 Hz
-  const freq3 = 5.1 + ((seed * 13) % 1.0); // 5.1-6.1 Hz
-
-  const phase1 = (seed * 0.7) % (Math.PI * 2);
-  const phase2 = (seed * 1.3) % (Math.PI * 2);
-  const phase3 = (seed * 2.1) % (Math.PI * 2);
-
-  const v = (
-    Math.sin(2 * Math.PI * freq1 * u + phase1) * 0.5 +
-    Math.sin(2 * Math.PI * freq2 * u + phase2) * 0.3 +
-    Math.sin(2 * Math.PI * freq3 * u + phase3) * 0.2
-  );
-
-  // [-1, 1] → [0, amp] (잎 outline은 항상 _바깥쪽으로_ 갈라짐).
-  return Math.max(0, v) * amp;
+export function lobeNoise(
+  rules: LobeNoiseRules,
+  u: number,
+  amp: number,
+  seed: number,
+): number {
+  let v = 0;
+  for (const wave of rules.waves) {
+    const freq = wave.baseFrequency + ((seed * wave.seedMultiplier) % wave.seedFrequencyMod);
+    const phase = (seed * wave.phaseMultiplier) % (Math.PI * 2);
+    v += Math.sin(2 * Math.PI * freq * u + phase) * wave.weight;
+  }
+  return (rules.positiveOnly ? Math.max(0, v) : v) * amp;
 }
 
 // ─── L3-C S24: leafInstanceProfile + poseVariation (inline) ─────────────
@@ -661,7 +669,7 @@ function buildLeafletOutlineWithNoise(
     const sample = profile[r];
     const t = lengthSegs > 0 ? r / lengthSegs : 0;
     const taper = endpointTaperWeight(t);
-    const lobe = lobeNoise(sample.u, positioned.lobeDepth * noiseLengthM, leafletSeed) * taper;
+    const lobe = lobeNoise(spec.lobeNoiseRules, sample.u, positioned.lobeDepth * noiseLengthM, leafletSeed) * taper;
     const teeth = serrationNoise(
       sample.u, positioned.serrationAmp * noiseLengthM, positioned.serrationFreq, leafletSeed,
     ) * taper;
