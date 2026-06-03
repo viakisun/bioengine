@@ -568,9 +568,13 @@ function buildLeafShapeDescriptor(ctx: LeafMeshBuildInput): LeafShapeDescriptor 
     + ctx.leafOrganState.senescence.curl * ctx.spec.shapeProfileRules.senescenceCurlWeight;
   const gravityDroopDeg = ctx.leafOrganState.posture.gravityDroopDeg ?? 0;
   const maturity = Math.max(0, Math.min(1, ctx.leafOrganState.expansionProgress));
-  // Iter 39 Phase F5 — maturity-driven pose envelope.
-  const t = Math.max(0, Math.min(1, (maturity - 0.2) / (0.8 - 0.2)));
-  const opennessFactor = 0.2 + (1.0 - 0.2) * (t * t * (3 - 2 * t));   // smoothstep
+  // ★ L5-6b (S43) — Phase F5 maturity-driven pose envelope from spec.shapeProfileRules.
+  const envStart = ctx.spec.shapeProfileRules.maturityEnvelopeStart;
+  const envEnd = ctx.spec.shapeProfileRules.maturityEnvelopeEnd;
+  const oMin = ctx.spec.shapeProfileRules.opennessBaseMin;
+  const oMax = ctx.spec.shapeProfileRules.opennessBaseMax;
+  const t = Math.max(0, Math.min(1, (maturity - envStart) / (envEnd - envStart)));
+  const opennessFactor = oMin + (oMax - oMin) * (t * t * (3 - 2 * t));   // smoothstep
   // L0-D-1 per-leaflet pitch — spec.poseRules.foldDroopDeg{Base,Slope}.
   const foldDroopDeg =
     ctx.spec.poseRules.foldDroopDegBase + ctx.spec.poseRules.foldDroopDegSlope * maturity;
@@ -637,8 +641,10 @@ function buildLeafletOutlineWithNoise(
     const teeth = serrationNoise(
       sample.u, positioned.serrationAmp * noiseLengthM, positioned.serrationFreq, leafletSeed,
     ) * taper;
-    sample.halfWidthLeft += lobe + teeth;
-    sample.halfWidthRight += lobe * 0.85 + teeth * 1.1;
+    // ★ L5-6b (S43) — edge asymmetry weights from spec.edgeAsymmetryRules.
+    const ea = spec.edgeAsymmetryRules;
+    sample.halfWidthLeft += lobe * ea.leftLobeWeight + teeth * ea.leftSerrationWeight;
+    sample.halfWidthRight += lobe * ea.rightLobeWeight + teeth * ea.rightSerrationWeight;
   }
   return profile;
 }
