@@ -13,8 +13,22 @@ import { SCENARIO } from '../data/mockScenario';
 import { logBoot, updateStageDetail } from '../state/notify';
 import { createSkinMeshPlant, type SkinMeshPlantHandle } from './SkinMeshPlant';
 
-/** Showcase seed — Iter 33 V1 baseline tomato plant. */
-export const SHOWCASE_SEED = 20260520;
+/** Showcase seed — Iter 33 V1 baseline tomato plant.
+ *  ★ S116 — URL `?seed=N` override 지원. 사용자: 동일 seed 매 view → "main stem 하드코딩 인상".
+ *  Override 시 different genome → different sway phase/amp → different stem curve.
+ *  e.g. localhost:8090?seed=42, ?seed=999 비교 가능. Test/snapshot은 default 그대로. */
+const SHOWCASE_SEED_DEFAULT = 20260520;
+function resolveShowcaseSeed(): number {
+  if (typeof location !== 'undefined') {
+    const param = new URLSearchParams(location.search).get('seed');
+    if (param !== null) {
+      const n = Number.parseInt(param, 10);
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+  }
+  return SHOWCASE_SEED_DEFAULT;
+}
+export const SHOWCASE_SEED = resolveShowcaseSeed();
 
 /**
  * Substrate top Y — 기존 CocopeatBags 모듈의 `SUBSTRATE_TOP_Y` 상수.
