@@ -242,82 +242,9 @@ export interface AgePresetParams {
   tipSharpnessBaseline?: number;
 }
 
-/** 5 age presets (botanical reference §7). */
-export const AGE_PRESETS = {
-  young: {
-    leafLengthCmRange: [2, 8],
-    majorLeafletPairsRange: [1, 2],
-    intercalaryRange: [0, 2],
-    aspectRatioRange: [1.2, 1.8],
-    serrationAmpRange: [0.005, 0.015],
-    lobeDepthRange: [0.03, 0.08],
-    poseDroopDegRange: [-15, -5],
-    color: 'bright-light-green',
-    aspectRatioBaseline: 1.5,
-    baseShapeBaseline: 0.92,
-    tipSharpnessBaseline: 1.2,
-  },
-  mature: {
-    leafLengthCmRange: [10, 25],
-    majorLeafletPairsRange: [2, 4],
-    intercalaryRange: [2, 6],
-    aspectRatioRange: [1.8, 3.0],
-    serrationAmpRange: [0.02, 0.04],
-    lobeDepthRange: [0.07, 0.14],
-    poseDroopDegRange: [-5, 15],
-    color: 'green',
-    aspectRatioBaseline: 2.4,
-    baseShapeBaseline: 0.85,
-    tipSharpnessBaseline: 1.5,
-  },
-  old: {
-    leafLengthCmRange: [14, 28],
-    majorLeafletPairsRange: [3, 4],
-    intercalaryRange: [3, 8],
-    aspectRatioRange: [2.0, 3.5],
-    serrationAmpRange: [0.03, 0.06],
-    lobeDepthRange: [0.10, 0.20],
-    poseDroopDegRange: [15, 35],
-    color: 'green-with-yellowing',
-    curl: 0.4,
-    aspectRatioBaseline: 2.8,
-    baseShapeBaseline: 0.80,
-    tipSharpnessBaseline: 1.7,
-  },
-  complex: {
-    leafLengthCmRange: [16, 30],
-    majorLeafletPairsRange: [4, 4],
-    intercalaryRange: [5, 10],
-    secondaryRange: [3, 8],
-    aspectRatioRange: [2.2, 3.5],
-    serrationAmpRange: [0.04, 0.06],
-    lobeDepthRange: [0.14, 0.25],
-    poseDroopDegRange: [0, 20],
-    color: 'green',
-    asymmetry: 0.3,
-    aspectRatioBaseline: 2.9,
-    baseShapeBaseline: 0.75,
-    tipSharpnessBaseline: 1.8,
-  },
-  'potato-leaf': {
-    leafLengthCmRange: [12, 28],
-    majorLeafletPairsRange: [2, 3],
-    intercalaryRange: [0, 1],
-    aspectRatioRange: [1.3, 2.2],
-    serrationAmpRange: [0.0, 0.01],
-    lobeDepthRange: [0.0, 0.03],
-    poseDroopDegRange: [-5, 15],
-    color: 'green',
-    smoothMargin: true,
-    leafLengthFactor: 1.2,
-    leafletCountFactor: 0.7,
-    aspectRatioBaseline: 1.7,
-    baseShapeBaseline: 0.95,
-    tipSharpnessBaseline: 1.1,
-  },
-} as const satisfies Record<string, AgePresetParams>;
-
-export type AgePresetKey = keyof typeof AGE_PRESETS;
+// ★ L5-7 (S44) — AGE_PRESETS 상수 + AgePresetKey type 제거.
+//   tomato.json의 agePresets와 100% 중복이었음. engine은 ctx.spec.agePresets 사용.
+//   AgePresetParams interface는 type 정의로 유지 (LeafSpec inference 의존).
 
 export interface ResolvedLeafParams {
   leafLengthM: number;

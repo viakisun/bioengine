@@ -25,7 +25,7 @@ export interface CultivarShapeOverride {
 // ─── Re-exports — engine entry ─────────────────────────────────────────────
 
 export type { ResolvedLeafParams } from './LeafMeshBuilder';
-export { AGE_PRESETS } from './LeafMeshBuilder';
+// ★ L5-7 (S44) — AGE_PRESETS 제거 (tomato.json 중복). caller는 getLeafSpec.
 export type { LeafletMeshBuildContext } from './LeafMeshBuilder';
 
 // ★ Canonical entry — buildLeafMeshFromSkeleton{spec, ctx}.
