@@ -560,10 +560,21 @@ function buildLeafShapeDescriptor(ctx: LeafMeshBuildInput): LeafShapeDescriptor 
   // ★ L5-6a (S42) — senescence curl weight from spec.
   // ★ L6-A-7 (S52) — per-leaf macro curlMultiplier 주입 (baseline=1.0).
   const curlMultiplier = ctx.leafMacro?.curlMultiplier ?? 1.0;
-  const curl = (
+  const curlRaw = (
     ctx.leafOrganState.posture.curl
     + ctx.leafOrganState.senescence.curl * ctx.spec.shapeProfileRules.senescenceCurlWeight
   ) * curlMultiplier;
+  // ★ L9-DIAG-CURL (TEMPORARY, S81) — 잎 V자 fold 원인 검증 테스트.
+  //   'zero'   = curl 완전 해소 (산식이 진짜 fold 원인인지)
+  //   'invert' = curl 반대 방향 (잎이 _아래로_ 접히는지 — 산식 정상 작동)
+  //   'normal' = 정상 (production)
+  //   ★ 측정 후 _이 코드 블록 전체 삭제 + curl = curlRaw_로 revert!
+  //   Marker for grep: 'L9-DIAG-CURL'.
+  const L9_DIAG_CURL_MODE: 'normal' | 'zero' | 'invert' = 'zero';
+  const curl =
+    L9_DIAG_CURL_MODE === 'zero' ? 0
+    : L9_DIAG_CURL_MODE === 'invert' ? -curlRaw
+    : curlRaw;
   const gravityDroopDeg = ctx.leafOrganState.posture.gravityDroopDeg ?? 0;
   const maturity = Math.max(0, Math.min(1, ctx.leafOrganState.expansionProgress));
   // ★ L5-6b (S43) — Phase F5 maturity-driven pose envelope from spec.shapeProfileRules.
