@@ -1,5 +1,7 @@
 {
   "schemaVersion": "1.0",
+  "layer": "visual.fruit",
+  "crop": "tomato",
   "taxonomy": {
     "family": "Solanaceae",
     "genus": "Solanum",

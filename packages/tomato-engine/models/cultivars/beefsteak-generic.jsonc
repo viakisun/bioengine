@@ -2,6 +2,8 @@
 // Large ~280g, ~7 locules, strongly oblate + deep ribbing.
 
 {
+  "layer": "cultivar",
+  "crop": "tomato",
   "metadata": {
     "name": "beefsteak-generic",
     "type": "beefsteak",

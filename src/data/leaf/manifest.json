@@ -1,5 +1,7 @@
 {
   "schemaVersion": "1.0",
+  "crop": "tomato",
+  "linkedDataIndex": "../../../packages/tomato-engine/models/INDEX.jsonc",
   "specs": [
     {
       "file": "tomato.json",

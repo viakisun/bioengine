@@ -2,6 +2,8 @@
 // ~80g, 2 locules, *elongated* (H:W > 1) — unique among the 5 baselines.
 
 {
+  "layer": "cultivar",
+  "crop": "tomato",
   "metadata": {
     "name": "roma-generic",
     "type": "roma",

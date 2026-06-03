@@ -3,6 +3,22 @@
 토마토 시뮬레이션 (Babylon.js + React). 본 문서는 AI 코딩 시 따라야 할
 시스템 룰 SSOT.
 
+## 토마토 데이터 카탈로그 (5 layer 14 파일)
+
+토마토 관련 JSON/JSONC 데이터는 5 layer (visual / physiology / botanical /
+cultivar / training / calibration / diagnostic / audit)에 걸쳐 3 root에 분산.
+물리 단편화는 의도 (engine purity 원칙 #42 + DDD aggregate boundary + lifecycle
+차이). _논리적_으로는 단일 진입점:
+
+- **Machine-readable index (SSOT)**: [`packages/tomato-engine/models/INDEX.jsonc`](packages/tomato-engine/models/INDEX.jsonc)
+- **Human-readable map**: [`docs/architecture/TOMATO_DATA_MAP.md`](docs/architecture/TOMATO_DATA_MAP.md)
+- **Drift 방어선**: [`tests/architecture/tomato-data-index.spec.ts`](tests/architecture/tomato-data-index.spec.ts)
+
+각 데이터 파일은 `"layer": "<key>"` field 필수 (singular: visual.leaf,
+visual.fruit, physiology, botanical, cultivar, training, calibration,
+diagnostic). 신규 layer 추가 시 INDEX.jsonc + TOMATO_DATA_MAP.md + spec
+동시 갱신.
+
 ## 좌표 / Mesh Anchor 작업 시 (필수)
 
 **다음 docs 먼저 읽기**:

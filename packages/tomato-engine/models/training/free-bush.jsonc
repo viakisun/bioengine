@@ -3,6 +3,8 @@
 // commercial single-stem regime.
 
 {
+  "layer": "training",
+  "crop": "tomato",
   "metadata": {
     "id": "free-bush",
     "label": "Free-bush (lateral shoots retained)",

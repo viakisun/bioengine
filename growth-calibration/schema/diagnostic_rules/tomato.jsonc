@@ -3,6 +3,8 @@
 // tomato_{cultivar}_{day}.jsonc layered on top of this.
 {
   "schemaVersion": "growthCalibration.v1",
+  "layer": "diagnostic",
+  "crop": "tomato",
   "rules": [
     {
       "ruleId": "tomato_lower_canopy_too_dense",

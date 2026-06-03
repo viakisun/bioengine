@@ -9,6 +9,8 @@
 // Reference Pack is source of truth; this file mirrors for engine consumption.
 {
   "schemaVersion": "growthCalibration.v1",
+  "layer": "diagnostic",
+  "crop": "tomato",
   "sourceFile": "growth-calibration/reference/tomato/tomato_tomimaru_reference_v0.1/06_day33_diagnostic_target.json",
   "rules": [
     {

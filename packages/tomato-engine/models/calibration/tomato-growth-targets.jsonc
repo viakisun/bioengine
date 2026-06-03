@@ -11,6 +11,8 @@
 
 {
   "schemaVersion": "calibrationPack.v0.1",
+  "layer": "calibration",
+  "crop": "tomato",
   "metadata": {
     "name": "tomato-growth-targets-v0.1",
     "crop": "tomato",

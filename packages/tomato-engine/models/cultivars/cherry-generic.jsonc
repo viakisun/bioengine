@@ -2,6 +2,8 @@
 // Small ~18g, ~2 locules, near-spherical, smooth surface.
 
 {
+  "layer": "cultivar",
+  "crop": "tomato",
   "metadata": {
     "name": "cherry-generic",
     "type": "cherry",

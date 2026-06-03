@@ -27,6 +27,7 @@
 
 {
   "schemaVersion": "botanical.v1",
+  "layer": "botanical",
   "crop": "tomato",
 
   "provenance": {

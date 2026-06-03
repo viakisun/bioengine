@@ -2,6 +2,8 @@
 // Mid-size ~130g, ~4 locules, mildly oblate.
 
 {
+  "layer": "cultivar",
+  "crop": "tomato",
   "metadata": {
     "name": "round-generic",
     "type": "round",
