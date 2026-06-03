@@ -804,11 +804,26 @@ export function createSkinMeshPlant(
             ? Vector3.Distance(cam.position, root.absolutePosition)
             : 10;
           const lodQuality = qualityFromDistance(distM);
+          // ★ L9-D V2 S87 — URL flag 격리 (engine 순수성 보존, 처리는 caller).
+          //   ?leafBuilder=v2          → V2 outline builder (S90 산식 활성)
+          //   ?leafPlane=flat          → V1+V2 postureOverride (outline 단독 평가)
+          //   둘 다 _임시 진단_. V2 acceptance Q1-a/Q3-a 평가 후 제거 의무.
+          const urlParams = typeof location !== 'undefined'
+            ? new URLSearchParams(location.search)
+            : null;
+          const builderVersion: 'v1' | 'v2' =
+            urlParams?.get('leafBuilder') === 'v2' ? 'v2' : 'v1';
+          const postureOverride =
+            urlParams?.get('leafPlane') === 'flat'
+              ? { curl: 0, gravityDroopDeg: 0 }
+              : undefined;
           const leafletPatches = LeafEngine.createLeaf(tomatoLeafSpec, meshAnchorNode, graph, {
             cultivarOverride: cultivarShapeOverride,
             seed: seed * 1009 + axisIdx * 9173 + nodeIdx * 31 + 11,
             meshNamePrefix,
             quality: lodQuality,
+            builderVersion,
+            postureOverride,
           });
           // ★ Iter 39 Phase L6-B-1b (S57) — per-leaf merge batching.
           //   1 compound leaf = 1 Mesh (이전 leaflet 마다 1 Mesh).

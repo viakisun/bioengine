@@ -69,6 +69,20 @@ export interface CreateLeafOptions {
    * Caller dispatch via URL `?leafBuilder=v2` (SkinMeshPlant.ts에서 격리).
    */
   builderVersion?: 'v1' | 'v2';
+
+  /**
+   * ★ L9-D V2 S87 — Diagnostic posture override (TEMPORARY).
+   *
+   * outline 단독 평가용 (curl/droop/z-twist OFF). `?leafPlane=flat`로 활성.
+   * V1+V2 모두 적용. _phase 종료 시 (V2 acceptance Q1-a/Q3-a 평가 후) 제거 의무_.
+   *
+   * 산식 효과: LeafShapeDescriptor에서 ctx.leafOrganState.posture.curl/
+   * gravityDroopDeg 대신 override 값 사용 → transverseCup/z-twist/longitudinalDroop 0.
+   */
+  postureOverride?: {
+    curl?: number;
+    gravityDroopDeg?: number;
+  };
 }
 
 /** Required internal context derived from skeleton + graph. */
@@ -147,13 +161,29 @@ export const LeafEngine = {
     const leafNodeIdx = leafBladeRootNode.phytomer.index;
     const leafMacro = computeLeafMacroState(spec.leafInstanceRules, leafNodeIdx, seed);
 
+    // ★ L9-D V2 S87 — postureOverride (TEMPORARY diagnostic, ?leafPlane=flat).
+    //   outline 단독 평가용. 산식 효과: transverseCup/z-twist/longitudinalDroop 0.
+    //   phytomer.leaf.posture는 gravityDroopDeg가 없을 수 있음 (optional in ctx type).
+    const rawPosture = leafBladeRootNode.phytomer.leaf.posture as typeof leafBladeRootNode.phytomer.leaf.posture & { gravityDroopDeg?: number };
+    const effectiveLeafOrganState = options.postureOverride
+      ? {
+          ...leafBladeRootNode.phytomer.leaf,
+          posture: {
+            ...rawPosture,
+            curl: options.postureOverride.curl ?? rawPosture.curl,
+            gravityDroopDeg:
+              options.postureOverride.gravityDroopDeg ?? rawPosture.gravityDroopDeg ?? 0,
+          },
+        }
+      : leafBladeRootNode.phytomer.leaf;
+
     const ctx: LeafletMeshBuildContext = {
       spec,
       bladeRef: leafBladeRootNode.leafBladeRef,
       leafletSkeletonNodes: leafletNodes,
       leafBladeRootNode,
       petioleTipTangent,
-      leafOrganState: leafBladeRootNode.phytomer.leaf,
+      leafOrganState: effectiveLeafOrganState,
       rng,
       seed,
       cultivarOverride,
