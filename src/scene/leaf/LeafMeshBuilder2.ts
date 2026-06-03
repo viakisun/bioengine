@@ -320,6 +320,19 @@ function buildLeafletPatchV2(
   const sizeRatio = Math.min(1, lengthM / GRAVITY_REF_LENGTH_M);
   const overrideGravityDroopDeg = sizeRatio * sizeRatio * GRAVITY_MAX_DEG;
 
+  // ★ S105 — lobe depth = 잎 길이 비례 (어린/작은 잎은 얕은 lobe).
+  //   산식: max(0.2, min(1.0, lengthM / 0.20)) — 20cm 이상 full depth.
+  //   2cm intercalary → 0.20 (거의 매끈), 10cm → 0.50, 20cm+ → 1.00.
+  const lobeDepthMult = Math.max(0.2, Math.min(1.0, lengthM / 0.20));
+  const scaledShoulderLobes = (positionedProfile.shoulderLobes ?? []).map(lobe => ({
+    ...lobe,
+    depth: lobe.depth * lobeDepthMult,
+  }));
+  const scaledSinusNotches = (positionedProfile.sinusNotches ?? []).map(notch => ({
+    ...notch,
+    depth: notch.depth * lobeDepthMult,
+  }));
+
   const profileV2 = buildShapeProfileV2({
     lengthM: lengthV2,
     aspectRatio: positioned.aspectRatio * aspectJitter * aspectJitterV2,
@@ -328,8 +341,8 @@ function buildLeafletPatchV2(
     asymmetry: positioned.asymmetry + asymVariation,  // ★ S99 영역 2
     samples: samplesV2,
     baseTransitionEndU: ctx.spec.shapeProfileRules.baseTransitionEndU,
-    shoulderLobes: positionedProfile.shoulderLobes ?? [],
-    sinusNotches: positionedProfile.sinusNotches ?? [],
+    shoulderLobes: scaledShoulderLobes,
+    sinusNotches: scaledSinusNotches,
     dripTipUStart: Math.max(0.7, Math.min(0.95, dripUStartBase + dripUShift)),
     dripTipDepth: Math.max(0, dripDepthBase * dripDepthJitter),
     expansionProgress: desc.maturity,
