@@ -207,7 +207,11 @@ export function lobeNoise(
     const phase = (seed * wave.phaseMultiplier) % (Math.PI * 2);
     v += Math.sin(2 * Math.PI * freq * u + phase) * wave.weight;
   }
-  return (rules.positiveOnly ? Math.max(0, v) : v) * amp;
+  // ★ L8-3a (S71) — mode field 지원 (보완 #5):
+  //   - 'positive' (default) 또는 positiveOnly=true: [0, amp] clamp (legacy)
+  //   - 'signed': [-amp, amp] (깊은 갈라짐)
+  const isPositive = rules.mode === 'signed' ? false : (rules.mode === 'positive' || rules.positiveOnly);
+  return (isPositive ? Math.max(0, v) : v) * amp;
 }
 
 // ─── L5-4 (S41) — Leaf-instance macro variation (분해) ─────────────────────
@@ -667,8 +671,11 @@ function buildLeafletOutlineWithNoise(
     const rightLobeW = swap ? ea.leftLobeWeight  : ea.rightLobeWeight;
     const leftSerrW  = swap ? ea.rightSerrationWeight : ea.leftSerrationWeight;
     const rightSerrW = swap ? ea.leftSerrationWeight  : ea.rightSerrationWeight;
-    sample.halfWidthLeft += lobe * leftLobeW + teeth * leftSerrW;
-    sample.halfWidthRight += lobe * rightLobeW + teeth * rightSerrW;
+    // ★ L8-3a (S71) — width clamp (signed lobe mode 시 음수 방지):
+    sample.halfWidthLeft = Math.max(0,
+      sample.halfWidthLeft + lobe * leftLobeW + teeth * leftSerrW);
+    sample.halfWidthRight = Math.max(0,
+      sample.halfWidthRight + lobe * rightLobeW + teeth * rightSerrW);
   }
   return profile;
 }

@@ -115,4 +115,37 @@ test.describe('Iter 39 Phase L8 — Leaf Quality Followup', () => {
       /leftLobeW\s*=\s*swap\s*\?\s*ea\.rightLobeWeight\s*:\s*ea\.leftLobeWeight/,
     );
   });
+
+  test('LEAF-LOBE-NOISE-MODE-01: mode field 지원 (positive/signed) + width clamp (L8-3a, 보완 #5+#8)', async () => {
+    // L8-3a — schema에 mode field 추가 + 산식 분기 + caller width clamp.
+    //   default 'positive' (positiveOnly 호환) — visual change 0.
+    //   'signed' 모드는 L8-3b에서 tomato.json opt-in.
+
+    // 1. LeafSpec.ts: mode enum field
+    const specSrc = await fs.readFile(
+      path.join(REPO_ROOT, 'src/scene/leaf/LeafSpec.ts'),
+      'utf-8',
+    );
+    expect(specSrc, "mode: z.enum(['positive', 'signed']).optional()").toMatch(
+      /mode:\s*z\.enum\s*\(\s*\[\s*['"]positive['"]\s*,\s*['"]signed['"]\s*\]\s*\)\.optional/,
+    );
+    expect(specSrc, '@deprecated positiveOnly').toMatch(/@deprecated.*positiveOnly|positiveOnly.*@deprecated/s);
+
+    // 2. LeafMeshBuilder.ts: 산식 분기
+    const builderSrc = await fs.readFile(
+      path.join(REPO_ROOT, 'src/scene/leaf/LeafMeshBuilder.ts'),
+      'utf-8',
+    );
+    // mode 분기 사용
+    expect(builderSrc, 'isPositive = mode signed/positive 분기').toMatch(
+      /isPositive\s*=\s*rules\.mode\s*===\s*['"]signed['"]/,
+    );
+    // width clamp (Math.max(0, ...))
+    expect(builderSrc, 'sample.halfWidthLeft Math.max(0, ...)').toMatch(
+      /sample\.halfWidthLeft\s*=\s*Math\.max\s*\(\s*0\s*,/,
+    );
+    expect(builderSrc, 'sample.halfWidthRight Math.max(0, ...)').toMatch(
+      /sample\.halfWidthRight\s*=\s*Math\.max\s*\(\s*0\s*,/,
+    );
+  });
 });

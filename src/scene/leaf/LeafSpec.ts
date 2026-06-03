@@ -149,11 +149,19 @@ export const LobeNoiseWaveSchema = z.object({
 
 /**
  * Lobe noise — 잎 outline에 추가될 큰 결각 (낮은 빈도, 큰 진폭).
- * Multi-wave Fourier synthesis (sin 합성). `positiveOnly: true`면 [0, amp]
- * 클램프 (outline 항상 _바깥쪽으로_).
+ * Multi-wave Fourier synthesis (sin 합성).
+ *
+ * ★ L8-3a (S71) — `mode` field 신규 (사용자 보완 #5):
+ *   - 'positive' (default, backward compat): [0, amp] clamp — outline 바깥쪽만
+ *   - 'signed': [-amp, amp] — outline 안쪽/바깥쪽 둘 다 (깊은 갈라짐 표현)
+ *
+ * @deprecated `positiveOnly` field — 'positive' mode와 동일 (backward compat 유지).
+ *   미래 phase에서 제거 + `mode`만 사용 권장.
  */
 export const LobeNoiseRulesSchema = z.object({
-  positiveOnly: z.boolean(),                // current: true
+  // ★ L8-3a (S71) — mode field 신규 (default 'positive', visual change 0).
+  mode: z.enum(['positive', 'signed']).optional(),
+  positiveOnly: z.boolean(),                // @deprecated, 'positive' mode와 동일
   waves: z.array(LobeNoiseWaveSchema).min(1),
 });
 
