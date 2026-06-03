@@ -11,6 +11,11 @@ import { BootOverlay } from '../hud/BootOverlay';
 import { NotificationCenter } from '../hud/NotificationCenter';
 import { ErrorModal } from '../hud/ErrorModal';
 import { ErrorBoundary } from '../hud/ErrorBoundary';
+// ★ L9-D V2 — Outline debug panel (?outlineDebug=1)
+import { LeafOutlineDebugPanel } from '../dev/LeafOutlineDebugPanel';
+
+const outlineDebug = typeof location !== 'undefined' &&
+  new URLSearchParams(location.search).get('outlineDebug') === '1';
 
 export function App() {
   return (
@@ -25,6 +30,9 @@ export function App() {
 
       {/* Single-plant overlay — canvas 위에 분석 UI */}
       <SinglePlantOverlay />
+
+      {/* ★ Outline debug panel (?outlineDebug=1) */}
+      {outlineDebug && <LeafOutlineDebugPanel />}
     </ErrorBoundary>
   );
 }

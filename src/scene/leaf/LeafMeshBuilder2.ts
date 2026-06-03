@@ -110,6 +110,9 @@ export interface ShapeProfileV2Input {
   smoothMargin: boolean;
   /** ★ S96 — Per-leaflet seed (leaflet마다 다른 lobe/notch perturbation 위해). */
   idSeed: number;
+  /** ★ S107 — 좌우 _다른 lobe set_ (자연 비대칭). undefined 시 좌우 동일 (대칭). */
+  shoulderLobesRight?: ReadonlyArray<ShoulderLobe>;
+  sinusNotchesRight?: ReadonlyArray<SinusNotch>;
 }
 
 // ★ S96 — Per-leaflet variation: deterministic signed random ([-1, 1]).
@@ -163,29 +166,31 @@ const GRAVITY_REF_LENGTH_M = 0.25;  // 25cm = 100% reference
 const GRAVITY_MAX_DEG = 90;
 
 /**
- * ★ L9-D V2 S99 — Per-leaflet lobe perturbation (단일 strength multiplier).
+ * ★ L9-D V2 S107 — Per-leaflet lobe perturbation (좌/우 _다른 set_ 위해 saltBase 분리).
  *
- * 영역 1: lobe depth (깊은 갈라짐 / 뭉툭).
- * strength=0 → 고정, strength=1 → ±50%, strength=0.5 → ±25%.
+ * 사용자 진단: "너무 규칙적". 자연 lobe는 u/depth/sigma _제각각_ + 좌우 _비대칭_.
+ * 호출자가 _left_/_right_ 다른 saltBase 전달 → 좌우 다른 outline.
  *
- * sigma는 _절대 하한_ 보장 (1/samples 미만 X — peak miss 방지).
- * u shift는 _작은 micro_만 (기본 형태 보존, 위치 약간 이동).
+ * 고정 jitter (strength 무관):
+ *   - u ±0.04 (위치 불규칙)
+ *   - depth ±25%
+ *   - sigma ±15% (폭 제각각)
  */
 function perturbLobes<T extends { u: number; depth: number; sigma?: number }>(
   lobes: ReadonlyArray<T>,
   idSeed: number,
   saltBase: number,
   samples: number,
-  strength: number,
 ): Array<{ u: number; depth: number; sigma: number }> {
   const minSigma = 1 / samples;
   return lobes.map((lobe, i) => {
-    const uShift = signedRand(idSeed, saltBase + i * 7) * 0.02 * strength;
-    const depthMult = 1 + signedRand(idSeed, saltBase + i * 11 + 3) * VAR_MAX.depth * strength;
+    const uShift = signedRand(idSeed, saltBase + i * 7) * 0.04;
+    const depthMult = 1 + signedRand(idSeed, saltBase + i * 11 + 3) * 0.25;
+    const sigmaMult = 1 + signedRand(idSeed, saltBase + i * 13 + 5) * 0.15;
     return {
       u: Math.max(0.05, Math.min(0.95, lobe.u + uShift)),
       depth: Math.max(0, lobe.depth * depthMult),
-      sigma: Math.max(minSigma, lobe.sigma ?? 0.06),
+      sigma: Math.max(minSigma, (lobe.sigma ?? 0.06) * sigmaMult),
     };
   });
 }
@@ -219,13 +224,26 @@ export function buildShapeProfileV2(input: ShapeProfileV2Input): ShapeProfileV2S
   // smoothMargin (potato-leaf preset): lobe + notch 완전 0 (V1 L8-1 동일 정책).
   const useStructured = !input.smoothMargin;
 
-  // ★ S99 — Per-leaflet variation (단일 strength): 영역 1 lobe depth.
-  const strength = LEAF_VARIATION_STRENGTH;
-  const effectiveLobes = useStructured
-    ? perturbLobes(input.shoulderLobes, input.idSeed, 101, samples, strength)
+  // ★ S107 — 좌우 비대칭: 좌/우 _다른 saltBase_로 perturbLobes 두 번 호출.
+  //   같은 leaflet이라도 좌/우 outline _제각각_ → 자연 인상.
+  //   input.shoulderLobesRight 지정 시 _완전 다른 set_, 미지정 시 같은 lobes를
+  //   _다른 salt_로 perturb (좌우 jitter 다름).
+  const lobesLeft = input.shoulderLobes;
+  const lobesRight = input.shoulderLobesRight ?? input.shoulderLobes;
+  const notchesLeft = input.sinusNotches;
+  const notchesRight = input.sinusNotchesRight ?? input.sinusNotches;
+
+  const effectiveLobesLeft = useStructured
+    ? perturbLobes(lobesLeft, input.idSeed, 101, samples)
     : [];
-  const effectiveNotches = useStructured
-    ? perturbLobes(input.sinusNotches, input.idSeed, 211, samples, strength)
+  const effectiveLobesRight = useStructured
+    ? perturbLobes(lobesRight, input.idSeed, 313, samples)  // 다른 saltBase
+    : [];
+  const effectiveNotchesLeft = useStructured
+    ? perturbLobes(notchesLeft, input.idSeed, 211, samples)
+    : [];
+  const effectiveNotchesRight = useStructured
+    ? perturbLobes(notchesRight, input.idSeed, 419, samples)  // 다른 saltBase
     : [];
 
   const result: ShapeProfileV2Sample[] = [];
@@ -235,22 +253,24 @@ export function buildShapeProfileV2(input: ShapeProfileV2Input): ShapeProfileV2S
     // base ovate + drip tip
     const base = baseWidthV2(u, input.tipSharpness, input.dripTipUStart, input.dripTipDepth);
 
-    // Expansion + Senescence scale 적용
-    const outward = shoulderLobeBumps(u, effectiveLobes) * finalLobeScale;
-    const inward = notchDents(u, effectiveNotches) * finalLobeScale;
-
     // base wedge (heart shape) — V1 동일 산식
     const baseFactor = u < input.baseTransitionEndU
       ? 1 - (1 - input.baseShape) * (1 - u / Math.max(1e-6, input.baseTransitionEndU))
       : 1;
 
-    // 합산 + clamp (음수 방지)
-    const w = Math.max(0, (base + outward - inward) * halfWidthBase * baseFactor);
+    // ★ S107 — 좌/우 _다른 outline_ (자연 비대칭).
+    const outwardLeft = shoulderLobeBumps(u, effectiveLobesLeft) * finalLobeScale;
+    const outwardRight = shoulderLobeBumps(u, effectiveLobesRight) * finalLobeScale;
+    const inwardLeft = notchDents(u, effectiveNotchesLeft) * finalLobeScale;
+    const inwardRight = notchDents(u, effectiveNotchesRight) * finalLobeScale;
 
-    // 좌우 비대칭 (V1 동일)
-    const asymOffset = input.asymmetry * w;
-    const halfWidthLeft = Math.max(0, w - asymOffset * 0.5);
-    const halfWidthRight = Math.max(0, w + asymOffset * 0.5);
+    const wLeft = Math.max(0, (base + outwardLeft - inwardLeft) * halfWidthBase * baseFactor);
+    const wRight = Math.max(0, (base + outwardRight - inwardRight) * halfWidthBase * baseFactor);
+
+    // asymmetry offset (V1 동일 정책)
+    const asymOffset = input.asymmetry * Math.max(wLeft, wRight);
+    const halfWidthLeft = Math.max(0, wLeft - asymOffset * 0.5);
+    const halfWidthRight = Math.max(0, wRight + asymOffset * 0.5);
 
     result.push({ u, halfWidthLeft, halfWidthRight });
   }
