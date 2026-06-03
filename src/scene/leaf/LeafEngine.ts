@@ -35,6 +35,7 @@ import {
   wrapLeafChunksAsLeafBatch,
   getLeafMaterial,
   getYellowLeafMaterial,
+  getSimpleLeafMaterial,
 } from './LeafMaterial';
 import type { LeafMeshQuality } from './LeafletProfile';
 
@@ -189,6 +190,15 @@ export const LeafEngine = {
   /** Scene-cached yellow (senescent) leaf material. */
   getYellowMaterial(scene: Scene): PBRMaterial {
     return getYellowLeafMaterial(scene);
+  },
+
+  /**
+   * ★ L6-B-3 (S59) — Simple leaf material (no clearcoat/subsurface/wind).
+   *   Use case: far LOD background plant (ultra-low quality). ~25% fragment
+   *   cost reduction vs full PBR.
+   */
+  getSimpleMaterial(scene: Scene): PBRMaterial {
+    return getSimpleLeafMaterial(scene);
   },
 };
 

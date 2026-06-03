@@ -275,6 +275,50 @@ test.describe('Iter 39 Phase L6-B-1a — Per-leaf mesh batching parity', () => {
     expect(activeMeshesCalls, 'wrapAsMeshes calls in active code').toEqual([]);
   });
 
+  test('LEAF-MATERIAL-LOD-01: far LOD (ultra-low) uses simple material (S59)', async () => {
+    // ★ L6-B-3 — far plant background는 clearcoat/subsurface/wind off.
+    //   yellowing은 우선 (senescent always yellow).
+    //   non-yellow + far → simple PBR.
+    const fs = await import('fs/promises');
+    const path = await import('path');
+    const { fileURLToPath } = await import('url');
+    const SPEC_DIR = path.dirname(fileURLToPath(import.meta.url));
+    const REPO_ROOT = path.resolve(SPEC_DIR, '../..');
+
+    // SkinMeshPlant가 LOD 분기 사용
+    const skinSrc = await fs.readFile(
+      path.join(REPO_ROOT, 'src/scene/SkinMeshPlant.ts'),
+      'utf-8',
+    );
+    expect(skinSrc, 'lodQuality === ultra-low check').toMatch(
+      /lodQuality\s*===\s*['"]ultra-low['"]/,
+    );
+    expect(skinSrc, 'LeafEngine.getSimpleMaterial 호출').toMatch(
+      /LeafEngine\.getSimpleMaterial\s*\(\s*scene\s*\)/,
+    );
+
+    // LeafMaterial.ts simple material 정의 (no clearcoat / no subsurface / no wind)
+    const matSrc = await fs.readFile(
+      path.join(REPO_ROOT, 'src/scene/leaf/LeafMaterial.ts'),
+      'utf-8',
+    );
+    expect(matSrc, 'getSimpleLeafMaterial export').toMatch(
+      /export function getSimpleLeafMaterial/,
+    );
+    // simple material function body는 clearCoat / subSurface 활성화 없음
+    const fnMatch = matSrc.match(
+      /export function getSimpleLeafMaterial[\s\S]*?return mat;\s*\n\}/,
+    );
+    expect(fnMatch, 'simple material function body').toBeTruthy();
+    const fnBody = fnMatch![0];
+    expect(fnBody, 'simple: no clearCoat.isEnabled').not.toMatch(
+      /clearCoat\.isEnabled\s*=\s*true/,
+    );
+    expect(fnBody, 'simple: no subSurface.isTranslucencyEnabled').not.toMatch(
+      /subSurface\.isTranslucencyEnabled\s*=\s*true/,
+    );
+  });
+
   test('LEAF-COORD-HIERARCHY-01: leaf mesh.parent = lushGroup (원칙 #49)', async () => {
     // ★ 보완 + 원칙 #49 — Coordinate hierarchy 단일 책임.
     //   per-leaf merge 후에도 mesh.parent = lushGroup (변경 X).

@@ -822,7 +822,15 @@ export function createSkinMeshPlant(
           );
           if (leafMesh !== null) {
             leafMesh.parent = lushGroup;
-            leafMesh.material = yellowing > 0.4 ? yellowLeafMat : leafMat;
+            // ★ L6-B-3 (S59) — far LOD plant (ultra-low quality)는 simple material 사용.
+            //   yellowing이 우선 (senescent leaf는 항상 yellow material).
+            //   far + non-yellow → simple PBR (clearcoat/subsurface/wind off).
+            const useSimpleMat = lodQuality === 'ultra-low';
+            leafMesh.material = yellowing > 0.4
+              ? yellowLeafMat
+              : useSimpleMat
+                ? LeafEngine.getSimpleMaterial(scene)
+                : leafMat;
             const leafBladeRootY = meshAnchorNode.pos.y;
             leafMesh.metadata = { ...(leafMesh.metadata ?? {}), leafBladeRootY };
             currentMeshes.push(leafMesh);

@@ -306,3 +306,37 @@ export function getYellowLeafMaterial(scene: Scene): PBRMaterial {
   }
   return mat;
 }
+
+const cachedSimpleLeafMaterial = new WeakMap<Scene, PBRMaterial>();
+
+/**
+ * ★ L6-B-3 (S59) — Simplified leaf material for far LOD (background plant).
+ *
+ * vs `getLeafMaterial` (full):
+ *   - clearCoat: _off_   (was 0.35 intensity, 0.25 roughness)
+ *   - subSurface translucency: _off_ (was 0.75 intensity)
+ *   - shader wind: _off_ (uses plain PBRMaterial — no GLSL injection)
+ *   - environmentIntensity: 0.65 (was 0.85)
+ *
+ * Use case: ultra-low quality plant (>15m from camera) — fragment cost
+ * reduction ~25% vs full PBR. visual 차이 minimal at distance.
+ */
+export function getSimpleLeafMaterial(scene: Scene): PBRMaterial {
+  let mat = cachedSimpleLeafMaterial.get(scene);
+  if (!mat) {
+    mat = new PBRMaterial('leafMatSimple', scene);
+    mat.albedoColor = new Color3(1, 1, 1);
+    mat.albedoTexture = getLeafColorTexture(scene);
+    mat.bumpTexture = getLeafNormalTexture(scene);
+    mat.invertNormalMapY = false;
+    mat.invertNormalMapX = false;
+    mat.metallic = 0.0;
+    mat.roughness = 0.55;
+    mat.backFaceCulling = false;
+    mat.twoSidedLighting = true;
+    mat.environmentIntensity = 0.65;
+    // No clearcoat, no subsurface, no shader wind — perf 우선.
+    cachedSimpleLeafMaterial.set(scene, mat);
+  }
+  return mat;
+}
