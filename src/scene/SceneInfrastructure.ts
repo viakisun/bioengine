@@ -59,18 +59,20 @@ export interface SceneInfrastructureHandle {
   extraPlants: SkinMeshPlantHandle[];
 }
 
-/** ★ S119/S122 — multi-plant config (성능 trade). default 8 plants (showcase + 7 extra).
- *  URL `?extraPlants=N` override. N=0 시 single plant 동작.
- *  베드 수도 함께 — `?activeBeds=N` (N=1~13, default 3). 작물은 main bed에만. */
+/** ★ S119/S122 — multi-plant config (성능 trade).
+ *  S123 (사용자: "작물 수 늘려보자") — default 7 → 23 plants extra.
+ *    + 다중 active bed 분산 배치 (round-robin).
+ *  URL `?extraPlants=N` override. N=0 시 single plant. 최대 90 (3 bed × 30 plant/bed).
+ *  베드 수도 함께 — `?activeBeds=N` (N=1~13, default 3). 작물 active bed에 분산. */
 function resolveExtraPlantCount(): number {
   if (typeof location !== 'undefined') {
     const param = new URLSearchParams(location.search).get('extraPlants');
     if (param !== null) {
       const n = Number.parseInt(param, 10);
-      if (Number.isFinite(n) && n >= 0 && n <= 30) return n;
+      if (Number.isFinite(n) && n >= 0 && n <= 90) return n;
     }
   }
-  return 7;  // default — showcase + 7 extra = 8 plants total
+  return 23;  // default — showcase + 23 extra = 24 plants total (8 per bed × 3 bed)
 }
 
 function resolveActiveBedCount(): number {
@@ -177,20 +179,31 @@ export async function buildSceneInfrastructure(scene: Scene): Promise<SceneInfra
   const skinMeshPlant = createSkinMeshPlant(scene, growthEngine, SHOWCASE_SEED, skinPos);
   skinMeshPlant.setVisible(true);
 
-  // ★ S122 — Extra plants. SCENARIO.plants 좌표 = 자동 1구 건너 hole 배치.
-  //   default 7 extras (총 8 plants), URL `?extraPlants=N`로 변경.
+  // ★ S122 → S123 — Extra plants 다중 active bed 분산 배치.
+  //   round-robin: plant i → activeBedIndices[i % activeBedIndices.length].
+  //   같은 bed 내 같은 hole 충돌 방지 — SCENARIO.plants 90개 좌표 순환 사용.
+  //   default 23 extras (총 24 plants), URL `?extraPlants=N`로 변경.
   const extraN = resolveExtraPlantCount();
   const extraPlants: SkinMeshPlantHandle[] = [];
+  // Per-bed counter — bed당 SCENARIO.plants 순서대로 (showcase는 main bed slot 0 점유).
+  const perBedNext = new Map<number, number>();
+  perBedNext.set(mainBedIdx, 1);  // showcase가 slot 0 사용 중
+  for (const bedIdx of activeBedIndices) {
+    if (!perBedNext.has(bedIdx)) perBedNext.set(bedIdx, 0);
+  }
   for (let i = 0; i < extraN; i++) {
-    const spec = SCENARIO.plants[i + 1];
+    const bedIdx = activeBedIndices[i % activeBedIndices.length];
+    const slot = perBedNext.get(bedIdx)!;
+    perBedNext.set(bedIdx, slot + 1);
+    const spec = SCENARIO.plants[slot];
     if (!spec) break;
-    const seed = SHOWCASE_SEED + (i + 1) * 1009;
+    const seed = SHOWCASE_SEED + bedIdx * 100000 + slot * 1009;
     growthEngine.addPlant({ seed, cultivarName: 'tomimaru-muchoo' });
-    const pos = new Vector3(spec.position[0], SUBSTRATE_TOP_Y, bedZPositions[mainBedIdx]);
+    const pos = new Vector3(spec.position[0], SUBSTRATE_TOP_Y, bedZPositions[bedIdx]);
     const plant = createSkinMeshPlant(scene, growthEngine, seed, pos);
     plant.setVisible(true);
     extraPlants.push(plant);
-    if (i % 2 === 0) {
+    if (i % 4 === 0) {
       updateStageDetail(`extra plants ${i + 1}/${extraN}`, 0.65 + 0.3 * (i / extraN));
       await new Promise((r) => setTimeout(r, 0));
     }
