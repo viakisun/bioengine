@@ -40,9 +40,10 @@ export type { CreateLeafOptions } from './LeafEngine';
 export { PROFILE_BY_POSITION, applyPositionProfile } from './LeafMeshBuilder';
 export type { LeafletPosition, LeafletShapeProfile } from './LeafMeshBuilder';
 
-// LeafInstanceProfile (per-compound-leaf macro variation).
-export { computeLeafInstanceProfile } from './LeafMeshBuilder';
-export type { LeafInstanceProfile } from './LeafMeshBuilder';
+// ★ L5-4 (S41) — leaf-instance macro 분해. LeafInstanceProfile 6-field 폐기,
+//   live 1-field만 보존하는 `computeLeftRightImbalance`로 대체. computeLeafletPose
+//   (deg-based, 호출처 0) 완전 제거.
+export { computeLeftRightImbalance } from './LeafMeshBuilder';
 
 // L4-3 LeafSpec + Zod runtime validation.
 export type {

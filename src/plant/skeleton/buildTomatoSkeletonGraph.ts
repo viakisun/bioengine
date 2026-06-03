@@ -59,9 +59,11 @@ import type {
 import { populateNodeTypes } from './populator/populateNodeTypes';
 import { populateAnchorMorphology } from './populator/populateAnchorMorphology';
 import { populateEdgePolicies } from './populator/populateEdgePolicies';
-// ★ Iter 39 Phase F4 — LeafInstanceProfile (leaf-level macro variation).
-// ★ Iter 39 L3-C S24 — leafInstanceProfile inline to LeafMeshBuilder.
-import { computeLeafInstanceProfile } from '../../scene/leaf/LeafMeshBuilder';
+// ★ Iter 39 L5-4 (S41) — leaf-instance macro 분해. 6-field profile은 1 live
+//   field (leftRightImbalance)만 유지 — skeleton size factor 영향. spec.leafInstanceRules 주입.
+import { computeLeftRightImbalance } from '../../scene/leaf/LeafMeshBuilder';
+import { getLeafSpec } from '../../data/leaf';
+const _tomatoLeafSpec = getLeafSpec('tomato.json');
 
 type V3 = { x: number; y: number; z: number };
 
@@ -380,11 +382,11 @@ function addLeavesForAxis(
       leaf.nodeIdx, axis.stemCurve.length,
     );
     const leafBladeRef = computeLeafBladeRef(leaf, cultivar, nodePositionScale);
-    // ★ Iter 39 Phase F4 — LeafInstanceProfile (leaf-level macro variation).
-    //   sf를 maturity proxy로 사용 (PlantBase가 expansion 반영). plant seed는
-    //   axisIdx/leafIdx 기반 deterministic.
-    const leafProfile = computeLeafInstanceProfile(
-      leaf.nodeIdx, leaf.sizeFactor, nodePositionT, axisIdx * 1009,
+    // ★ L5-4 (S41) — leaf-instance macro 분해. leftRightImbalance만 skeleton
+    //   size factor에 영향 (다른 5 fields는 dead — audit Section 3 참조).
+    const leftRightImbalance = computeLeftRightImbalance(
+      _tomatoLeafSpec.leafInstanceRules,
+      leaf.nodeIdx, nodePositionT, axisIdx * 1009,
     );
     nodes.set(tipNodeId, {
       id: tipNodeId,
@@ -404,8 +406,9 @@ function addLeavesForAxis(
     addLeafletNodesForLeaf(
       axisIdx, leaf.nodeIdx, tipNodeId, tipPos, leaf.sizeFactor, leafBladeRef,
       petioleEdgeId, bones, axis.leaves.length, nodes, edges,
-      // ★ Iter 39 Phase F4 — leaf-level macro profile (asymmetry, spacing).
-      { leftRightImbalance: leafProfile.leftRightImbalance, spacingBias: leafProfile.spacingBias },
+      // ★ L5-4 (S41) — leaf-level macro: leftRightImbalance만 live (skeleton
+      //   size factor). spacingBias는 H3 명시 제약으로 void — 0 전달.
+      { leftRightImbalance, spacingBias: 0 },
       // ★ Iter 39 Phase G3 — leaf.sizeFactor를 maturity proxy로 사용.
       leaf.sizeFactor,
       // ★ Iter 39 Phase H1 — stem 위치 0(base)~1(apex) 전달 (사용자 #4: leafNodeIdx/totalLeafCount 단위 mismatch fix).

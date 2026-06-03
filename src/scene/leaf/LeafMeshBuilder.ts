@@ -179,91 +179,44 @@ export function lobeNoise(
   return (rules.positiveOnly ? Math.max(0, v) : v) * amp;
 }
 
-// ─── L3-C S24: leafInstanceProfile + poseVariation (inline) ─────────────
-// 잎 1장당 1번 산출되는 macro-level traits + per-leaflet pose.
+// ─── L5-4 (S41) — Leaf-instance macro variation (분해) ─────────────────────
+//
+// L4 후 _부분 dead_ 발견 (audit Section 3):
+//   - 6 fields 중 leftRightImbalance 1개만 live (skeleton size factor 영향)
+//   - spacingBias는 `void` (사용 안 함)
+//   - rachisCurvature/leafDroopDeg/opennessFactor/overallTwist 완전 dead
+//
+// L5-4: function 분해 — `computeLeafInstanceProfile` 폐기, 단일 책임 함수로
+// 대체. spec.leafInstanceRules 주입.
+//
+// Formula (이전과 byte-identical):
+//   seed = (globalSeed * 1009 + leafNodeIdx * 31) >>> 0
+//   h(i) = ((seed * (i * 7919 + 1) + 49297) % 1000) / 1000
+//   signed(i) = h(i) * 2 - 1
+//   apexBoost = nodePositionT > rules.apexImbalanceThreshold ? rules.apexImbalanceBoost : 1.0
+//   leftRightImbalance = signed(3) * rules.leftRightImbalanceRange * apexBoost
+//
+// `computeLeafletPose` (deg-based) — _완전 dead_ (호출처 0), 제거.
 
-import type { LeafletPosition as SkeletonLeafletPosition } from '../../plant/skeleton/PlantSkeletonGraph';
-
-export interface LeafInstanceProfile {
-  rachisCurvature: number;
-  leafDroopDeg: number;
-  leftRightImbalance: number;
-  spacingBias: number;
-  opennessFactor: number;
-  overallTwist: number;
-}
-
-function smoothstep(edge0: number, edge1: number, x: number): number {
-  const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
-  return t * t * (3 - 2 * t);
-}
-
-function lerpScalar(a: number, b: number, t: number): number {
-  return a + (b - a) * Math.max(0, Math.min(1, t));
-}
+import type { LeafInstanceRules } from './LeafSpec';
 
 /**
- * Compute leaf-level variation profile.
- * Deterministic: leafNodeIdx + globalSeed 기반 — same plant seed → same profile.
+ * Compute leaf-level left/right imbalance (skeleton size factor 영향).
+ * Deterministic: leafNodeIdx + globalSeed 기반.
  */
-export function computeLeafInstanceProfile(
+export function computeLeftRightImbalance(
+  rules: LeafInstanceRules,
   leafNodeIdx: number,
-  maturity: number,
   nodePositionT: number,
   globalSeed: number,
-): LeafInstanceProfile {
+): number {
   const seed = (globalSeed * 1009 + leafNodeIdx * 31) >>> 0;
   const h = (i: number): number => ((seed * (i * 7919 + 1) + 49297) % 1000) / 1000;
   const signed = (i: number): number => h(i) * 2 - 1;
-
-  const rachisCurvature = signed(1) * 0.15;
-  const droopBase = lerpScalar(-10, 30, maturity);
-  const leafDroopDeg = droopBase + signed(2) * 8;
-  const apexBoost = nodePositionT > 0.85 ? 1.3 : 1.0;
-  const leftRightImbalance = signed(3) * 0.20 * apexBoost;
-  const spacingBias = signed(4) * 0.05;
-  const opennessBase = lerpScalar(0.25, 1.0, smoothstep(0.15, 0.85, maturity));
-  const opennessFactor = Math.max(0.25, Math.min(1.05, opennessBase + signed(5) * 0.1));
-  const overallTwist = signed(6) * 0.10;
-
-  return {
-    rachisCurvature,
-    leafDroopDeg,
-    leftRightImbalance,
-    spacingBias,
-    opennessFactor,
-    overallTwist,
-  };
-}
-
-export interface LeafletPose {
-  attachAngleDeg: number;
-  pitchDeg: number;
-  rollDeg: number;
-  twistDeg: number;
-}
-
-/** Leaflet pose 산출 — botanical model 기반 deterministic noise. */
-export function computeLeafletPose(
-  position: SkeletonLeafletPosition,
-  rachisU: number,
-  poseDroopDeg: number,
-  seed: number,
-): LeafletPose {
-  let attachAngleDeg: number;
-  switch (position) {
-    case 'terminal':    attachAngleDeg = 0; break;
-    case 'primary':     attachAngleDeg = 60 + (seed % 10) - 5; break;
-    case 'secondary':   attachAngleDeg = 70 + (seed % 15); break;
-    case 'intercalary': attachAngleDeg = 75 + (seed % 10); break;
-  }
-
-  const pitchNoise = (Math.sin(seed * 1.3 + rachisU * 6) * 5);
-  const pitchDeg = poseDroopDeg + pitchNoise;
-  const rollDeg = (Math.sin(seed * 2.7) * 18);
-  const twistDeg = (Math.sin(seed * 3.1 + rachisU * 4) * 12);
-
-  return { attachAngleDeg, pitchDeg, rollDeg, twistDeg };
+  const apexBoost = nodePositionT > rules.apexImbalanceThreshold
+    ? rules.apexImbalanceBoost
+    : 1.0;
+  return signed(3) * rules.leftRightImbalanceRange * apexBoost;
 }
 
 // ─── L3-C S23: agePresets + correlationRules (inline) ───────────────────

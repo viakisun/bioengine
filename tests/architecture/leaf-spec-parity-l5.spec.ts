@@ -15,7 +15,7 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { parseLeafSpec } from '../../src/scene/leaf/LeafSpec';
-import { lobeNoise } from '../../src/scene/leaf/LeafMeshBuilder';
+import { lobeNoise, computeLeftRightImbalance } from '../../src/scene/leaf/LeafMeshBuilder';
 
 const SPEC_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(SPEC_DIR, '../..');
@@ -74,6 +74,47 @@ test.describe('Iter 39 Phase L5 — Spec migration parity', () => {
           expect(
             actual,
             `lobeNoise mismatch at seed=${seed} u=${u} amp=${amp}: expected=${expected} actual=${actual}`,
+          ).toBeCloseTo(expected, 10);
+        }
+      }
+    }
+  });
+
+  test('LEAF-INSTANCE-PROFILE-PARITY-01: computeLeftRightImbalance byte-identical to pre-L5-4 산식', async () => {
+    // Pre-L5-4 산식 (LeafMeshBuilder.ts:201-229 originally):
+    //   seed = (globalSeed * 1009 + leafNodeIdx * 31) >>> 0
+    //   h(i) = ((seed * (i * 7919 + 1) + 49297) % 1000) / 1000
+    //   signed(i) = h(i) * 2 - 1
+    //   apexBoost = nodePositionT > 0.85 ? 1.3 : 1.0
+    //   leftRightImbalance = signed(3) * 0.20 * apexBoost
+    //
+    // tomato.json 값:
+    //   leftRightImbalanceRange: 0.20
+    //   apexImbalanceThreshold: 0.85
+    //   apexImbalanceBoost: 1.3
+    function computeLRIPreL5(
+      leafNodeIdx: number, nodePositionT: number, globalSeed: number,
+    ): number {
+      const seed = (globalSeed * 1009 + leafNodeIdx * 31) >>> 0;
+      const h = (i: number) => ((seed * (i * 7919 + 1) + 49297) % 1000) / 1000;
+      const signed = (i: number) => h(i) * 2 - 1;
+      const apexBoost = nodePositionT > 0.85 ? 1.3 : 1.0;
+      return signed(3) * 0.20 * apexBoost;
+    }
+
+    const spec = await loadTomatoSpec();
+    const leafNodeIdxs = [0, 1, 5, 10, 25, 50];
+    const positionTs = [0.0, 0.3, 0.5, 0.8, 0.85, 0.9, 1.0];
+    const globalSeeds = [0, 1009, 4131, 100_000];
+
+    for (const idx of leafNodeIdxs) {
+      for (const t of positionTs) {
+        for (const gs of globalSeeds) {
+          const expected = computeLRIPreL5(idx, t, gs);
+          const actual = computeLeftRightImbalance(spec.leafInstanceRules, idx, t, gs);
+          expect(
+            actual,
+            `leftRightImbalance mismatch at idx=${idx} t=${t} gs=${gs}: expected=${expected} actual=${actual}`,
           ).toBeCloseTo(expected, 10);
         }
       }
