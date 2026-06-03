@@ -57,6 +57,30 @@ runtime validation을 통과해야 함. 잘못 편집 시 `getLeafSpec()` 호출
   대비되는 토마토 leaf type 분류. 실 cultivars: Brandywine, Pruden's
   Purple, Mortgage Lifter. 자세한 사항: [LEAF_PRESETS.md §E](../../../docs/architecture/LEAF_PRESETS.md).
 
+### Dead fields (L8-5, S74 보완 #2)
+
+`agePresets.*` 안 다음 fields는 **mesh 산식에 영향 0** — `applyPositionProfile`
+이 `profileByPosition.*` 값으로 _완전 덮어쓰기_:
+
+| field | 덮어쓰기 source | 실제 mesh source |
+|---|---|---|
+| `aspectRatioRange` | `applyPositionProfile` | `profileByPosition.{position}.widthRatio` |
+| `serrationAmpRange` | `applyPositionProfile` | `profileByPosition.{position}.serrationAmp` |
+| `lobeDepthRange` | `applyPositionProfile` | `profileByPosition.{position}.lobeDepth` |
+| `aspectRatioBaseline` | `applyPositionProfile` | `profileByPosition.{position}.widthRatio` |
+| `tipSharpnessBaseline` | `applyPositionProfile` | `profileByPosition.{position}.tipSharpness` |
+
+★ 이 fields를 `tomato.json`에서 변경해도 **mesh 변화 없음**. 실제 잎 비율/
+톱니/결각/끝 sharpness 변경은 `profileByPosition.*` 값에서.
+
+L9 multiplier refactor 후 의미 부활 예정 — agePreset range가 _position
+profile multiplier_로 작용하여 maturity별 변화 표현.
+
+LIVE fields (mesh 영향 있음): `leafLengthCmRange`, `majorLeafletPairsRange`,
+`intercalaryRange`, `secondaryRange`, `poseDroopDegRange`, `color`, `curl`,
+`asymmetry`, `smoothMargin`, `leafLengthFactor`, `leafletCountFactor`,
+`baseShapeBaseline`.
+
 ### schemaVersion 정책
 
 - v1.1 (L5 이후, 현재): 모든 botanical parameter JSON 이관

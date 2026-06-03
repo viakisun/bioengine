@@ -210,4 +210,46 @@ test.describe('Iter 39 Phase L8 — Leaf Quality Followup', () => {
     const json = JSON.parse(raw);
     expect(json.shapeProfileRules.serrationEndpointGuardU, 'tomato.json guardU').toBeCloseTo(0.03, 6);
   });
+
+  test('LEAF-AGE-PRESETS-DEAD-FIELDS-01: agePresets dead field JSDoc + README 명시 (L8-5, 보완 #2)', async () => {
+    // L8-5 — agePresets fields 중 applyPositionProfile 덮어쓰기로 mesh 영향 0인
+    //   5 fields: aspectRatioRange / serrationAmpRange / lobeDepthRange /
+    //   aspectRatioBaseline / tipSharpnessBaseline.
+    //
+    // 연구자 혼동 방지를 위해 LeafSpec.ts JSDoc + README.md에 명시.
+
+    const deadFields = [
+      'aspectRatioRange',
+      'serrationAmpRange',
+      'lobeDepthRange',
+      'aspectRatioBaseline',
+      'tipSharpnessBaseline',
+    ];
+
+    // 1. LeafSpec.ts: 각 field에 @deprecated L8-5 JSDoc
+    const specSrc = await fs.readFile(
+      path.join(REPO_ROOT, 'src/scene/leaf/LeafSpec.ts'),
+      'utf-8',
+    );
+    for (const f of deadFields) {
+      const pattern = new RegExp(
+        `@deprecated[^\\n]*L8-5[^\\n]*\\n\\s*${f}:`,
+      );
+      expect(specSrc, `${f}에 @deprecated L8-5 JSDoc`).toMatch(pattern);
+    }
+    expect(specSrc, 'AgePresetSchema L8-5 dead field 설명').toMatch(
+      /L8-5.*dead field 명시|applyPositionProfile.*완전 덮어쓰기/s,
+    );
+
+    // 2. README.md: dead fields 섹션 + 5 fields 명시
+    const readme = await fs.readFile(
+      path.join(REPO_ROOT, 'src/data/leaf/README.md'),
+      'utf-8',
+    );
+    expect(readme, 'README dead fields 섹션 heading').toMatch(/Dead\s*fields/i);
+    for (const f of deadFields) {
+      expect(readme, `README에 ${f} 명시`).toContain(f);
+    }
+    expect(readme, 'README: mesh 변화 없음 설명').toMatch(/mesh 변화 없음|mesh 영향 0/);
+  });
 });

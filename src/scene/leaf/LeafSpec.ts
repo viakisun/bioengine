@@ -40,14 +40,27 @@ const RatioPositive = z.number().positive();
  *     (scalloped)와 대비되는 토마토 leaf type 분류. 실 cultivars:
  *     Brandywine, Pruden's Purple, Mortgage Lifter.
  *     참조: docs/architecture/LEAF_PRESETS.md §E
+ *
+ * ★ L8-5 (S74) — dead field 명시 (사용자 보완 #2):
+ *   `aspectRatioRange` / `serrationAmpRange` / `lobeDepthRange` /
+ *   `aspectRatioBaseline` / `tipSharpnessBaseline` field는 `applyCorrelation`
+ *   산출에는 사용되나, 이후 `applyPositionProfile`이 _profileByPosition_으로
+ *   _완전 덮어쓰기_ → mesh 산식에 **영향 0**.
+ *
+ *   값 변경해도 mesh 변화 없음. 실제 mesh 영향은 `profileByPosition.*`
+ *   값에서. L9 multiplier refactor 후 의미 부활 예정 (preset range가
+ *   position profile에 _multiplier_로 작용하도록).
  */
 export const AgePresetSchema = z.object({
   leafLengthCmRange: Range2,
   majorLeafletPairsRange: Range2,
   intercalaryRange: Range2,
   secondaryRange: Range2.optional(),
+  /** @deprecated L8-5 — applyPositionProfile override로 mesh 영향 0. L9 multiplier refactor 예정. */
   aspectRatioRange: Range2,
+  /** @deprecated L8-5 — applyPositionProfile override로 mesh 영향 0. L9 multiplier refactor 예정. */
   serrationAmpRange: Range2,
+  /** @deprecated L8-5 — applyPositionProfile override로 mesh 영향 0. L9 multiplier refactor 예정. */
   lobeDepthRange: Range2,
   poseDroopDegRange: Range2,
   color: z.enum(['bright-light-green', 'green', 'green-with-yellowing']),
@@ -57,8 +70,10 @@ export const AgePresetSchema = z.object({
   // Hybrid baseline anchors (Iter 38 S3) — preset-mean for sampleHybrid.
   leafLengthFactor: RatioPositive.optional(),
   leafletCountFactor: RatioPositive.optional(),
+  /** @deprecated L8-5 — applyPositionProfile override로 mesh 영향 0. L9 multiplier refactor 예정. */
   aspectRatioBaseline: RatioPositive.optional(),
   baseShapeBaseline: Ratio01.optional(),
+  /** @deprecated L8-5 — applyPositionProfile override로 mesh 영향 0. L9 multiplier refactor 예정. */
   tipSharpnessBaseline: RatioPositive.optional(),
 });
 
