@@ -17,7 +17,11 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 
-import { FruitSpecSchema, parseFruitSpec } from '../../src/scene/fruit/FruitSpec';
+import {
+  FruitSpecSchema,
+  parseFruitSpec,
+  qualityFromFruitDistance,
+} from '../../src/scene/fruit/FruitSpec';
 
 const SPEC_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(SPEC_DIR, '../..');
@@ -178,6 +182,23 @@ test.describe('Iter 39 Phase L7 — Fruit data-driven architecture', () => {
     expect(src, 'createFruit method').toMatch(/createFruit\s*\(/);
     expect(src, 'FruitEngine 객체 export').toMatch(/export\s+const\s+FruitEngine\s*=/);
     expect(src, 'CreateFruitOptions interface export').toMatch(/export\s+interface\s+CreateFruitOptions/);
+  });
+
+  test('FRUIT-LOD-SWITCH-01: qualityFromFruitDistance threshold (L7-B-1 S66, leaf 일관)', () => {
+    // near < 5m → 'high'
+    expect(qualityFromFruitDistance(0)).toBe('high');
+    expect(qualityFromFruitDistance(2.5)).toBe('high');
+    expect(qualityFromFruitDistance(4.99)).toBe('high');
+
+    // mid 5~15m → 'low'
+    expect(qualityFromFruitDistance(5)).toBe('low');
+    expect(qualityFromFruitDistance(10)).toBe('low');
+    expect(qualityFromFruitDistance(14.99)).toBe('low');
+
+    // far >= 15m → 'ultraLow' (camelCase, FruitSpec key 일관)
+    expect(qualityFromFruitDistance(15)).toBe('ultraLow');
+    expect(qualityFromFruitDistance(30)).toBe('ultraLow');
+    expect(qualityFromFruitDistance(100)).toBe('ultraLow');
   });
 
   test('FRUIT-COLOR-PARITY-01: blossomEndAdvanceFrac fallback 0.4 (S64, 보완 #11)', async () => {

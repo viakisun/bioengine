@@ -179,6 +179,26 @@ export function resolveFruitCultivar(
   return cultivar;
 }
 
+// ─── LOD distance-based quality (★ L7-B-1 S66, leaf 일관) ──────────────────
+
+/**
+ * Distance-based fruit LOD quality selection.
+ *
+ * Threshold (leaf 일관, 원칙 #51):
+ *   < 5m  → 'high'      (near hero plant)
+ *   < 15m → 'low'       (mid distance, production default)
+ *   ≥ 15m → 'ultraLow' (far background plant)
+ *
+ * fruit는 'ultraLow' (camelCase) 사용 (FruitSpec.meshResolution key 일관).
+ *
+ * @param distanceM  camera ↔ plant root world distance (meters)
+ */
+export function qualityFromFruitDistance(distanceM: number): 'high' | 'low' | 'ultraLow' {
+  if (distanceM < 5) return 'high';
+  if (distanceM < 15) return 'low';
+  return 'ultraLow';
+}
+
 // ─── Cultivar layered application (audit Section 3) ────────────────────────
 
 /**

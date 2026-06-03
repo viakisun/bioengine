@@ -10,6 +10,7 @@ import { createLogger } from '../utils/logger';
 
 const log = createLogger('plant');
 import { createFruitNode } from '../scene/fruit/FruitGenerator';
+import { qualityFromFruitDistance } from '../scene/fruit';
 import { getFruitSpec } from '../data/fruit';
 const tomatoFruitSpec = getFruitSpec('tomato.json');
 import { computeTrussDroop } from '@farmsim/tomato-engine';
@@ -353,10 +354,16 @@ export function createTrussNodeFromBase(
             age: 0,
             cultivarGenome: site.fruit.cultivarGenome,
           };
+          // ★ L7-B-1 (S66) — distance-based LOD.
+          const fruitCam = scene.activeCamera;
+          const fruitDistM = fruitCam
+            ? Vector3.Distance(fruitCam.position, toV3(site.fruit.fruitCenter))
+            : 10;
+          const fruitLod = qualityFromFruitDistance(fruitDistM);
           const fruitNode = createFruitNode(
             `${name}_fruit_${site.index}`, scene, fruitState, rng.fork(site.index + 1),
             tomatoFruitSpec,
-            { skipCalyxAndStem: true },
+            { skipCalyxAndStem: true, lod: fruitLod },
           );
           fruitNode.parent = root;
           fruitNode.position = toV3(site.fruit.fruitCenter);
@@ -617,10 +624,16 @@ export function createTrussFruitOrgansOnly(
             age: 0,
             cultivarGenome: site.fruit.cultivarGenome,
           };
+          // ★ L7-B-1 (S66) — distance-based LOD.
+          const fruitCam = scene.activeCamera;
+          const fruitDistM = fruitCam
+            ? Vector3.Distance(fruitCam.position, toV3(site.fruit.fruitCenter))
+            : 10;
+          const fruitLod = qualityFromFruitDistance(fruitDistM);
           const fruitNode = createFruitNode(
             `${name}_fruit_${site.index}`, scene, fruitState, rng.fork(site.index + 1),
             tomatoFruitSpec,
-            { skipCalyxAndStem: true },
+            { skipCalyxAndStem: true, lod: fruitLod },
           );
           fruitNode.parent = root;
           fruitNode.position = toV3(site.fruit.fruitCenter);

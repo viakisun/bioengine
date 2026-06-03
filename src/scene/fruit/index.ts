@@ -4,6 +4,7 @@
 
 export { FruitEngine } from './FruitEngine';
 export type { CreateFruitOptions } from './FruitEngine';
+export { qualityFromFruitDistance } from './FruitSpec';
 
 export type {
   FruitSpec,
