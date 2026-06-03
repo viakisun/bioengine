@@ -59,9 +59,13 @@ export interface SceneInfrastructureHandle {
   extraPlants: SkinMeshPlantHandle[];
 }
 
-/** ★ S119/S122/S123/S124 → S125 — multi-plant config (default 작물 적정).
- *  S124에서 default 89 (=90 plants total)로 너무 늘려 browser overload — "안나오는데".
- *  S125 사용자 의도 (기본으로 적당 수): default 14 (15 plants total, 3 bed × 5).
+/** ★ S119~S126 → S127 — multi-plant config (renderer 무게 제약).
+ *  S126에서 default 14 (15 plants) 시 SkinMeshPlant heavy renderer × 15 = 로딩 실패.
+ *  SkinMeshPlant는 _showcase 전용_ heavy renderer (1066 lines, 잎+stem+fruit 풀-LOD).
+ *  Archive에 경량 SupportingPlant (386 lines, 29 plants용)가 있었으나 _S127 복원 안 됨_.
+ *
+ *  S127 (사용자 "15개도 못 띄운단 말이야"): default 4 (5 plants) — 안정 로딩.
+ *  TODO: SupportingPlant 복원 후 default 늘리기 (별도 phase).
  *  URL `?extraPlants=N` (0~89) override. */
 function resolveExtraPlantCount(): number {
   if (typeof location !== 'undefined') {
@@ -71,7 +75,7 @@ function resolveExtraPlantCount(): number {
       if (Number.isFinite(n) && n >= 0 && n <= 89) return n;
     }
   }
-  return 14;  // default — showcase + 14 extra = 15 plants (3 bed × 5 plants)
+  return 4;  // default — showcase + 4 extra = 5 plants (안정 로딩, SkinMeshPlant heavy 제약)
 }
 
 function resolveActiveBedCount(): number {
