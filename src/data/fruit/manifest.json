@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "1.0",
+  "specs": [
+    {
+      "file": "tomato.json",
+      "taxonomy": {
+        "family": "Solanaceae",
+        "genus": "Solanum",
+        "species": "lycopersicum",
+        "commonName": "tomato"
+      },
+      "cultivars": []
+    }
+  ]
+}

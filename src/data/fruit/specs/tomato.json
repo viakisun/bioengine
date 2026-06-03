@@ -1,0 +1,34 @@
+{
+  "schemaVersion": "1.0",
+  "taxonomy": {
+    "family": "Solanaceae",
+    "genus": "Solanum",
+    "species": "lycopersicum",
+    "commonName": "tomato"
+  },
+  "morphologyRules": {
+    "crownRecession": 0.18,
+    "shoulderBulge": 0.05,
+    "ribAmp": 1.0,
+    "asymmetryAmp": 1.0
+  },
+  "meshResolution": {
+    "high":     { "segments": 36, "rings": 22 },
+    "low":      { "segments": 14, "rings": 10 },
+    "ultraLow": { "segments": 8,  "rings": 6  }
+  },
+  "ripeningRules": {
+    "stageCount": 6,
+    "blossomEndAdvanceFrac": 0.4
+  },
+  "materialRules": {
+    "stageRoughness":          [0.42, 0.395, 0.37,  0.345, 0.32,  0.295],
+    "stageClearcoatIntensity": [0.0,  0.0,   0.30,  0.42,  0.54,  0.66 ],
+    "stageClearcoatRoughness": [0.18, 0.168, 0.156, 0.144, 0.132, 0.120],
+    "subsurfaceTranslucency": {
+      "fromStage": 3,
+      "intensity": 0.15,
+      "tintColor": "#8b1a14"
+    }
+  }
+}
