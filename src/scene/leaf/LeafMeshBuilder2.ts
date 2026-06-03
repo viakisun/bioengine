@@ -117,12 +117,13 @@ function signedRand(seed: number, salt: number): number {
 }
 
 /**
- * ★ S96 — Per-leaflet lobe perturbation (자연 variation).
+ * ★ S97 — Per-leaflet lobe perturbation 과격 강화 (사용자: "이래도 되나 싶을정도로").
  *
  * 같은 spec lobe 배열에서 leaflet마다:
- *   - u position: ±0.04 shift (peak 위치 약간 이동)
- *   - depth: ×0.7~1.3 (깊이 ±30%)
- *   - sigma: ×0.85~1.15 (폭 ±15%)
+ *   - u position: ±0.08 shift (S96 0.04 → 0.08, 2배)
+ *   - depth: ×0.4~1.6 (S96 ±30% → ±60%, 2배)
+ *   - sigma: ×0.75~1.25 (±25%)
+ *   - **lobe drop**: salt 별로 30% 확률 _아예 제거_ (일부 잎 부분 lobe)
  *
  * sigma는 _절대 하한_ 보장 (1/samples 미만 X — peak miss 방지).
  */
@@ -133,16 +134,23 @@ function perturbLobes<T extends { u: number; depth: number; sigma?: number }>(
   samples: number,
 ): Array<{ u: number; depth: number; sigma: number }> {
   const minSigma = 1 / samples;
-  return lobes.map((lobe, i) => {
-    const uShift = signedRand(idSeed, saltBase + i * 7) * 0.04;
-    const depthMult = 1 + signedRand(idSeed, saltBase + i * 11 + 3) * 0.30;
-    const sigmaMult = 1 + signedRand(idSeed, saltBase + i * 13 + 5) * 0.15;
-    return {
-      u: Math.max(0.05, Math.min(0.95, lobe.u + uShift)),  // 안전 clamp
+  const out: Array<{ u: number; depth: number; sigma: number }> = [];
+  for (let i = 0; i < lobes.length; i++) {
+    const lobe = lobes[i];
+    // ★ 30% skip: 일부 leaflet에서 이 lobe 자체 제거 (구조 variation)
+    const dropRand = signedRand(idSeed, saltBase + i * 17 + 91);
+    if (dropRand < -0.4) continue;  // [-1, -0.4]는 _drop_ → 약 30% skip
+
+    const uShift = signedRand(idSeed, saltBase + i * 7) * 0.08;          // ±0.08
+    const depthMult = 1 + signedRand(idSeed, saltBase + i * 11 + 3) * 0.60;  // ±60%
+    const sigmaMult = 1 + signedRand(idSeed, saltBase + i * 13 + 5) * 0.25;  // ±25%
+    out.push({
+      u: Math.max(0.05, Math.min(0.95, lobe.u + uShift)),
       depth: Math.max(0, lobe.depth * depthMult),
       sigma: Math.max(minSigma, (lobe.sigma ?? 0.06) * sigmaMult),
-    };
-  });
+    });
+  }
+  return out;
 }
 
 export interface ShapeProfileV2Sample {
@@ -257,18 +265,21 @@ function buildLeafletPatchV2(
   const aspectJitter = 1 + (((idSeed * 23) % 100 - 50) / jitterDivisor);
   const sharpnessJitter = 1 + (((idSeed * 29) % 100 - 50) / jitterDivisor);
 
-  // ★ S96 — V2 자체 jitter 강화 (V1 jitterPercent=5 → V2 ±15% aspect, ±10% sharpness).
-  //   per-leaflet seed로 deterministic. 같은 seed → 같은 leaflet (재현 가능).
-  const aspectJitterV2 = 1 + signedRand(idSeed, 19) * 0.15;       // ±15%
-  const sharpnessJitterV2 = 1 + signedRand(idSeed, 23) * 0.10;    // ±10%
-  // dripTip per-leaflet variation: depth ±25%, uStart ±0.03
+  // ★ S97 — V2 자체 jitter _과격 강화_ (사용자: "이래도 되나 싶을정도로").
+  //   S96: aspect ±15%, sharpness ±10%, dripDepth ±25%, dripUStart ±0.03
+  //   S97: aspect ±35%, sharpness ±25%, dripDepth ±50%, dripUStart ±0.06, lengthM ±25%
+  const aspectJitterV2 = 1 + signedRand(idSeed, 19) * 0.35;       // ±35%
+  const sharpnessJitterV2 = 1 + signedRand(idSeed, 23) * 0.25;    // ±25%
+  const lengthJitterV2 = 1 + signedRand(idSeed, 37) * 0.25;       // ±25% size 자체
+  // dripTip per-leaflet variation: depth ±50%, uStart ±0.06
   const dripDepthBase = positionedProfile.dripTipDepth ?? 0.6;
   const dripUStartBase = positionedProfile.dripTipUStart ?? 0.85;
-  const dripDepthJitter = 1 + signedRand(idSeed, 29) * 0.25;
-  const dripUShift = signedRand(idSeed, 31) * 0.03;
+  const dripDepthJitter = 1 + signedRand(idSeed, 29) * 0.50;
+  const dripUShift = signedRand(idSeed, 31) * 0.06;
+  const lengthV2 = lengthM * lengthJitterV2;
 
   const profileV2 = buildShapeProfileV2({
-    lengthM,
+    lengthM: lengthV2,
     aspectRatio: positioned.aspectRatio * aspectJitter * aspectJitterV2,
     tipSharpness: positioned.tipSharpness * sharpnessJitter * sharpnessJitterV2,
     baseShape: positioned.baseShape,
@@ -307,8 +318,9 @@ function buildLeafletPatchV2(
   }
 
   // V1 buildLeafletPlaneChunk 재사용 + ★ S95 cols 17 (가로 vertex 강화 — 계단식 해소).
+  // ★ S97 — lengthV2 (size variation) 사용
   const chunk = buildLeafletPlaneChunk(profileV2, {
-    lengthM,
+    lengthM: lengthV2,
     curl: desc.curl,
     ageFrac: desc.ageFrac,
     gravityDroopDeg: desc.gravityDroopDeg,

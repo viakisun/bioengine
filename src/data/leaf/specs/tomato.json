@@ -83,7 +83,7 @@
   },
   "profileByPosition": {
     "terminal": {
-      "widthRatio": 0.62,
+      "widthRatio": 0.48,
       "lobeDepth": 0.28,
       "serrationAmp": 0.040,
       "serrationFreq": 28,
@@ -106,7 +106,7 @@
       "dripTipDepth": 0.35
     },
     "primary": {
-      "widthRatio": 0.55,
+      "widthRatio": 0.42,
       "lobeDepth": 0.22,
       "serrationAmp": 0.034,
       "serrationFreq": 26,
@@ -138,7 +138,7 @@
       "dripTipDepth": 0
     },
     "secondary": {
-      "widthRatio": 0.50,
+      "widthRatio": 0.40,
       "lobeDepth": 0.14,
       "serrationAmp": 0.028,
       "serrationFreq": 24,
