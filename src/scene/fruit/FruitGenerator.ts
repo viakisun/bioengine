@@ -168,7 +168,8 @@ function buildFruitBodyVertexData(
         const fromStage2 = (fruit.ripenStage - 2) + fruit.ripenFraction;
         stageStrength = Math.max(0, 1 - Math.abs(fromStage2 - 1) * 0.7);
       }
-      const advanceFrac = genome.blossomEndAdvanceFrac ?? 0.4;
+      // ★ L7-A-3c (S64) — blossomEndAdvanceFrac fallback from spec.ripeningRules.
+      const advanceFrac = genome.blossomEndAdvanceFrac ?? spec.ripeningRules.blossomEndAdvanceFrac;
       // stem-end green retention frac — body 상단 (cosP > 0) 영역에 적용.
       // 실제 토마토의 shoulder 가 가장 오래 green 유지하는 관찰 일치.
       // 미래 task: cultivar genome 별 분배 (beefsteak 더 강하게 등).
@@ -288,10 +289,10 @@ function buildCalyxVertexData(): VertexData {
 
 /** Per-scene cache of fruit body materials, keyed by ripening stage (0-5). */
 const cachedBodyMaterials: WeakMap<Scene, PBRMaterial[]> = new WeakMap();
-function getBodyMaterial(scene: Scene, stage: number): PBRMaterial {
+function getBodyMaterial(scene: Scene, stage: number, spec: FruitSpec): PBRMaterial {
   let bucket = cachedBodyMaterials.get(scene);
   if (!bucket) {
-    bucket = new Array<PBRMaterial>(6);
+    bucket = new Array<PBRMaterial>(spec.ripeningRules.stageCount);
     cachedBodyMaterials.set(scene, bucket);
   }
   if (bucket[stage]) return bucket[stage];
@@ -299,14 +300,18 @@ function getBodyMaterial(scene: Scene, stage: number): PBRMaterial {
   // White albedo → vertex color fully drives surface color.
   mat.albedoColor = new Color3(1, 1, 1);
   mat.metallic = 0;
-  mat.roughness = 0.42 - stage * 0.025;
-  mat.clearCoat.isEnabled = stage >= 2;
-  mat.clearCoat.intensity = stage < 2 ? 0 : 0.30 + (stage - 2) * 0.12;
-  mat.clearCoat.roughness = 0.18 - stage * 0.012;
-  if (stage >= 3) {
+  // ★ L7-A-3c (S64) — PBR coefficients from spec.materialRules (산식 → 배열).
+  const matRules = spec.materialRules;
+  mat.roughness = matRules.stageRoughness[stage];
+  const cc = matRules.stageClearcoatIntensity[stage];
+  mat.clearCoat.isEnabled = cc > 0;
+  mat.clearCoat.intensity = cc;
+  mat.clearCoat.roughness = matRules.stageClearcoatRoughness[stage];
+  const ss = matRules.subsurfaceTranslucency;
+  if (stage >= ss.fromStage) {
     mat.subSurface.isTranslucencyEnabled = true;
-    mat.subSurface.translucencyIntensity = 0.15;
-    mat.subSurface.tintColor = Color3.FromHexString('#8b1a14');
+    mat.subSurface.translucencyIntensity = ss.intensity;
+    mat.subSurface.tintColor = Color3.FromHexString(ss.tintColor);
     mat.subSurface.minimumThickness = 0.5;
     mat.subSurface.maximumThickness = 1.5;
   }
@@ -437,7 +442,7 @@ export function createFruitNode(
   // wedge the renderer for tens of seconds. Cache one material per
   // (scene, stage) — per-fruit color variation already lives in the
   // vertex-color buffer.
-  body.material = getBodyMaterial(scene, stage);
+  body.material = getBodyMaterial(scene, stage, spec);
 
   // ---------- Calyx + stem stub (visible-size fruits only) ----------
   // Skip on `low` LOD to keep the supporting-canopy mesh count

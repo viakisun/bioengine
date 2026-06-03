@@ -132,4 +132,52 @@ test.describe('Iter 39 Phase L7 — Fruit data-driven architecture', () => {
     );
     expect(shoulderConstDefs, 'SHOULDER_BULGE hardcoded const 정의 0').toEqual([]);
   });
+
+  test('FRUIT-MATERIAL-PARITY-01: spec.materialRules 값이 hardcoded 산식과 동일 (S64)', async () => {
+    // L7-A-3c (S64) — material 산식 → spec 배열 변환 byte-identical 검증.
+    //
+    // Pre-L7-A-3c 산식 (FruitGenerator.ts:299-302 originally):
+    //   roughness = 0.42 - stage * 0.025
+    //   clearcoat: stage<2→0, else 0.30 + (stage-2)*0.12
+    //   clearcoat roughness = 0.18 - stage * 0.012
+    //   subsurface: stage>=3 → 0.15 intensity, tint '#8b1a14'
+    const raw = await readTomatoFruitJson();
+    const parsed = parseFruitSpec(raw);
+
+    for (let stage = 0; stage < parsed.ripeningRules.stageCount; stage++) {
+      const expectedRoughness = 0.42 - stage * 0.025;
+      const expectedClearcoatIntensity = stage < 2 ? 0 : 0.30 + (stage - 2) * 0.12;
+      const expectedClearcoatRoughness = 0.18 - stage * 0.012;
+
+      expect(
+        parsed.materialRules.stageRoughness[stage],
+        `stage ${stage} roughness`,
+      ).toBeCloseTo(expectedRoughness, 6);
+      expect(
+        parsed.materialRules.stageClearcoatIntensity[stage],
+        `stage ${stage} clearcoat intensity`,
+      ).toBeCloseTo(expectedClearcoatIntensity, 6);
+      expect(
+        parsed.materialRules.stageClearcoatRoughness[stage],
+        `stage ${stage} clearcoat roughness`,
+      ).toBeCloseTo(expectedClearcoatRoughness, 6);
+    }
+
+    // subsurface
+    expect(parsed.materialRules.subsurfaceTranslucency.fromStage).toBe(3);
+    expect(parsed.materialRules.subsurfaceTranslucency.intensity).toBeCloseTo(0.15, 6);
+    expect(parsed.materialRules.subsurfaceTranslucency.tintColor).toBe('#8b1a14');
+  });
+
+  test('FRUIT-COLOR-PARITY-01: blossomEndAdvanceFrac fallback 0.4 (S64, 보완 #11)', async () => {
+    // 보완 #11 — vertex color array가 _없는_ 경우 stage color output 비교.
+    //   FruitGenerator는 vertex color baked (chunk.colors 사용).
+    //   spec 산식 byte-identical 검증으로 동등 검증.
+    const raw = await readTomatoFruitJson();
+    const parsed = parseFruitSpec(raw);
+    expect(
+      parsed.ripeningRules.blossomEndAdvanceFrac,
+      'blossomEndAdvanceFrac fallback === pre-spec 0.4',
+    ).toBeCloseTo(0.4, 6);
+  });
 });
