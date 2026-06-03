@@ -37,10 +37,6 @@
 import type { SeededRandom } from '@farmsim/tomato-engine';
 import type { GeoChunk } from '@farmsim/tomato-geometry';
 import { buildLeafletPlaneChunk } from './LeafletPlaneChunk';
-// ★ L9-A v3 S78a (TEMPORARY) — runtime curl/droop measurement logger.
-// REMOVAL: S78c sub-commit. Grep marker: 'leaf-curl-audit'.
-import { createLogger } from '../../utils/logger';
-const leafCurlAuditLog = createLogger('leaf');  // opt-in via ?debug=leaf
 
 // ─── Pure quaternion math (Babylon 의존 0) ───────────────────────────────
 
@@ -752,41 +748,6 @@ function buildLeafletPatch(
 
   // SSOT #186 — L1-B centroid anchor.
   normalizeLeafMeshVertices(chunk.positions);
-
-  // ★ L9-A v3 S78a (TEMPORARY) — leaf-curl-audit runtime measurement.
-  //   Grep marker: 'leaf-curl-audit'. REMOVAL: S78c sub-commit.
-  //   산식 정확값 (curl source + ageComponent + gravityComponent):
-  //   - edgeCupY = curl_final × pow(1,2) × max(0, 1-ageFrac×0.5) × size × 0.9 × 1000 [mm]
-  //   - tipDroopY = ((0.10 + ageFrac×0.30) × size + sin(gravityRad) × size) × 1000 [mm]
-  {
-    const sizeM = lengthM;
-    const gravRad = (desc.gravityDroopDeg * Math.PI) / 180;
-    const edgeCupY_mm =
-      desc.curl * Math.max(0, 1 - desc.ageFrac * 0.5) * sizeM * 0.9 * 1000;
-    const tipDroopY_mm =
-      ((0.10 + desc.ageFrac * 0.30) * sizeM + Math.sin(gravRad) * sizeM) * 1000;
-    leafCurlAuditLog.debug('leaf-curl-audit', {
-      leafId: node.id,
-      position: node.leafletRef.position,
-      targetSizeM: sizeM,
-      targetSizeCm: Math.round(sizeM * 1000) / 10,
-      // curl 4 source (LeafMeshBuilder.ts:564-567)
-      posture_curl: ctx.leafOrganState.posture.curl,
-      senescence_curl: ctx.leafOrganState.senescence.curl,
-      senescence_progress: ctx.leafOrganState.senescence.progress,
-      senescenceCurlWeight: ctx.spec.shapeProfileRules.senescenceCurlWeight,
-      curlMultiplier: ctx.leafMacro?.curlMultiplier ?? 1.0,
-      // ★ preset.curl path 확정용 — resolved.curl이 curl_final에 안 들어가면 dead
-      resolved_curl: desc.resolved.curl,
-      // droop sources (LeafletPlaneChunk.ts:96-97)
-      gravityDroopDeg: ctx.leafOrganState.posture.gravityDroopDeg ?? 0,
-      ageFrac: desc.ageFrac,
-      // computed
-      curl_final: desc.curl,
-      edgeCupY_mm: Math.round(edgeCupY_mm * 100) / 100,
-      tipDroopY_mm: Math.round(tipDroopY_mm * 100) / 100,
-    });
-  }
 
   return {
     meshName: `${ctx.meshNamePrefix}_l${i}_${node.leafletRef.position}`,
