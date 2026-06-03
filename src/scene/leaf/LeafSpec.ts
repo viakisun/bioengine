@@ -30,7 +30,16 @@ const RatioPositive = z.number().positive();
 
 /**
  * Age preset — leaf morphology range bundle for a phenological age class.
+ *
  * Researcher tweaks: leaf size, leaflet count, serration depth, etc.
+ *
+ * ★ Tomato age preset keys (tomato.json `agePresets`):
+ *   - 'young', 'mature', 'old', 'complex' — 토마토 잎 성숙도/복잡도 단계
+ *   - **'potato-leaf'** — _토마토_ cultivar 중 **smooth-margin variant**
+ *     (UC ANR 학명). ★ 감자 잎이 아닙니다 — 'regular leaf tomato'
+ *     (scalloped)와 대비되는 토마토 leaf type 분류. 실 cultivars:
+ *     Brandywine, Pruden's Purple, Mortgage Lifter.
+ *     참조: docs/architecture/LEAF_PRESETS.md §E
  */
 export const AgePresetSchema = z.object({
   leafLengthCmRange: Range2,

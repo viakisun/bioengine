@@ -69,19 +69,29 @@ asymmetry           큼 (0.3 baseline + correlation)
 
 토마토 잎 특유의 "복잡한 덤불 같은 느낌".
 
-### E. potato-leaf — 감자 잎 타입
+### E. potato-leaf — _토마토_ potato-leaf trait (smooth-margin tomato leaf)
+
+★ **_감자 잎이 아닙니다_** (★ L8-0 명명 명확화).
+
+`potato-leaf`는 _토마토_ cultivar 중 **smooth-margin variant** 학명입니다.
+UC ANR (University of California Agriculture and Natural Resources)에서
+'regular leaf tomato' (scalloped/serrated edge)와 대비되는 토마토 leaf type
+분류로 등록.
+
+실 cultivars: **Brandywine, Pruden's Purple, Mortgage Lifter** 등.
 
 ```
 leafLength          보통보다 1.1~1.4배 (leafLengthFactor 1.2)
 leafletCount        적게 (leafletCountFactor 0.7)
 aspectRatio         1.3~2.2
-serrationAmp        거의 없음 (smoothMargin = true)
+serrationAmp        거의 없음 (smoothMargin = true) ★ L8-1 실제 적용
 lobeDepth           낮음
 surfaceWrinkle      품종에 따라 중간~강함
 ```
 
-UC ANR: regular leaf는 scalloped/serrated edge가 특징이고, potato-leaf tomato는
-smooth margin과 더 큰 잎.
+botanical reference (UC ANR):
+- regular leaf tomato — scalloped/serrated edge
+- potato-leaf tomato — smooth margin + 더 큰 잎
 
 ---
 

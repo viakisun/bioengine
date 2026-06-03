@@ -32,7 +32,7 @@ runtime validation을 통과해야 함. 잘못 편집 시 `getLeafSpec()` 호출
 |---|---|
 | `schemaVersion` | `"1.0"` literal — 미래 migration entrypoint |
 | `taxonomy` | family / genus / species / commonName (botanical classification) |
-| `agePresets` | 5종 (young/mature/old/complex/potato-leaf) — 각 morphology range 묶음 |
+| `agePresets` | 5종 (young/mature/old/complex/potato-leaf) — 각 morphology range 묶음 (★ `potato-leaf` botanical 명시 ↓) |
 | `profileByPosition` | terminal / primary / intercalary / secondary 별 leaflet shape 비율 |
 | `correlationRules` | §8 산식 계수 (complexity → 산출물 mapping) |
 | `poseRules` | leaflet 회전 noise (rad) + L0-D-1 fold droop (deg) + per-leaflet jitter % |
@@ -47,6 +47,15 @@ runtime validation을 통과해야 함. 잘못 편집 시 `getLeafSpec()` 호출
 |---|---|
 | `cultivars` | cherry/beefsteak/roma 등 cultivar별 shape multiplier/bias |
 | `extends` | 미래 base spec composition hook (현재 unused) |
+
+### ★ `agePresets` keys botanical 명시 (L8-0)
+
+- `young`, `mature`, `old`, `complex` — 토마토 잎 _성숙도/복잡도_ 단계
+- **`potato-leaf`** — _토마토_ cultivar 중 **smooth-margin variant**
+  (UC ANR 학명).
+  **★ _감자 잎이 아닙니다_.** 'regular leaf tomato' (scalloped/serrated)와
+  대비되는 토마토 leaf type 분류. 실 cultivars: Brandywine, Pruden's
+  Purple, Mortgage Lifter. 자세한 사항: [LEAF_PRESETS.md §E](../../../docs/architecture/LEAF_PRESETS.md).
 
 ### schemaVersion 정책
 
