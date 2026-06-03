@@ -141,6 +141,12 @@ export interface LeafletMeshBuildContext {
   meshNamePrefix: string;
   /** ★ L2-4b — leaf mesh resolution quality. Default 'low'. */
   quality?: LeafMeshQuality;
+  /**
+   * ★ L6-A-7 (S52) — per-leaf macro variation state (optional).
+   * 산출: `computeLeafMacroState(spec.leafInstanceRules, leafNodeIdx, globalSeed)`.
+   * 부재 시 baseline 사용 (curlMultiplier=1.0, opennessOffset=0).
+   */
+  leafMacro?: LeafMacroState;
 }
 
 export type LeafMeshBuildInput = LeafletMeshBuildContext;
@@ -525,8 +531,12 @@ function buildLeafShapeDescriptor(ctx: LeafMeshBuildInput): LeafShapeDescriptor 
 
   const ageFrac = Math.min(1, ctx.leafOrganState.senescence.progress);
   // ★ L5-6a (S42) — senescence curl weight from spec.
-  const curl = ctx.leafOrganState.posture.curl
-    + ctx.leafOrganState.senescence.curl * ctx.spec.shapeProfileRules.senescenceCurlWeight;
+  // ★ L6-A-7 (S52) — per-leaf macro curlMultiplier 주입 (baseline=1.0).
+  const curlMultiplier = ctx.leafMacro?.curlMultiplier ?? 1.0;
+  const curl = (
+    ctx.leafOrganState.posture.curl
+    + ctx.leafOrganState.senescence.curl * ctx.spec.shapeProfileRules.senescenceCurlWeight
+  ) * curlMultiplier;
   const gravityDroopDeg = ctx.leafOrganState.posture.gravityDroopDeg ?? 0;
   const maturity = Math.max(0, Math.min(1, ctx.leafOrganState.expansionProgress));
   // ★ L5-6b (S43) — Phase F5 maturity-driven pose envelope from spec.shapeProfileRules.
@@ -535,7 +545,11 @@ function buildLeafShapeDescriptor(ctx: LeafMeshBuildInput): LeafShapeDescriptor 
   const oMin = ctx.spec.shapeProfileRules.opennessBaseMin;
   const oMax = ctx.spec.shapeProfileRules.opennessBaseMax;
   const t = Math.max(0, Math.min(1, (maturity - envStart) / (envEnd - envStart)));
-  const opennessFactor = oMin + (oMax - oMin) * (t * t * (3 - 2 * t));   // smoothstep
+  // ★ L6-A-7 (S52) — per-leaf macro opennessOffset 주입 (baseline=0).
+  //   결과를 [oMin, oMax] 안에 clamp — overshoot 방지.
+  const opennessOffset = ctx.leafMacro?.opennessOffset ?? 0;
+  const opennessRaw = oMin + (oMax - oMin) * (t * t * (3 - 2 * t)) + opennessOffset;  // smoothstep + offset
+  const opennessFactor = Math.max(oMin, Math.min(oMax, opennessRaw));
   // L0-D-1 per-leaflet pitch — spec.poseRules.foldDroopDeg{Base,Slope}.
   const foldDroopDeg =
     ctx.spec.poseRules.foldDroopDegBase + ctx.spec.poseRules.foldDroopDegSlope * maturity;

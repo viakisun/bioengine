@@ -26,6 +26,7 @@ import type { LeafSpec, CultivarOverride } from './LeafSpec';
 import { resolveCultivar } from './LeafSpec';
 import {
   buildLeafMeshFromSkeleton,
+  computeLeafMacroState,
   type LeafMeshPatch,
   type LeafletMeshBuildContext,
 } from './LeafMeshBuilder';
@@ -127,6 +128,11 @@ export const LeafEngine = {
     const rng = new SeededRandom(seed);
     const meshNamePrefix = options.meshNamePrefix ?? `leaf_${leafBladeRootNode.id}`;
 
+    // ★ L6-A-7 (S52) — per-leaf macro state 자동 산출. phytomer.index를
+    //   leafNodeIdx로 사용 (deterministic per leaf).
+    const leafNodeIdx = leafBladeRootNode.phytomer.index;
+    const leafMacro = computeLeafMacroState(spec.leafInstanceRules, leafNodeIdx, seed);
+
     const ctx: LeafletMeshBuildContext = {
       spec,
       bladeRef: leafBladeRootNode.leafBladeRef,
@@ -139,6 +145,7 @@ export const LeafEngine = {
       cultivarOverride,
       meshNamePrefix,
       quality: options.quality,
+      leafMacro,
     };
 
     return buildLeafMeshFromSkeleton(ctx);

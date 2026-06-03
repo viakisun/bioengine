@@ -273,4 +273,39 @@ test.describe('Iter 39 Phase L5 — Spec migration parity', () => {
     expect(a.curlMultiplier).toBeGreaterThanOrEqual(spec.leafInstanceRules.curlMultiplier.baseline - spec.leafInstanceRules.curlMultiplier.range);
     expect(a.curlMultiplier).toBeLessThanOrEqual(spec.leafInstanceRules.curlMultiplier.baseline + spec.leafInstanceRules.curlMultiplier.range);
   });
+
+  test('LEAF-MACRO-VARIATION-CONNECTED-01: mesh path가 leafMacro 사용 (L6-A-7 step 2)', async () => {
+    // L6-A-7 — buildLeafShapeDescriptor에서 ctx.leafMacro 참조 + LeafEngine.createLeaf에서
+    // 자동 산출. source code grep으로 _연결 사실_ 검증.
+    const builder = await fs.readFile(
+      path.join(REPO_ROOT, 'src/scene/leaf/LeafMeshBuilder.ts'),
+      'utf-8',
+    );
+    const engine = await fs.readFile(
+      path.join(REPO_ROOT, 'src/scene/leaf/LeafEngine.ts'),
+      'utf-8',
+    );
+
+    // LeafEngine.createLeaf가 computeLeafMacroState 호출
+    expect(engine, 'LeafEngine.createLeaf calls computeLeafMacroState').toMatch(
+      /computeLeafMacroState\s*\(/,
+    );
+    // LeafEngine.createLeaf가 ctx에 leafMacro 전달
+    expect(engine, 'LeafEngine.createLeaf ctx에 leafMacro').toMatch(
+      /leafMacro[,\s]/,
+    );
+
+    // LeafMeshBuilder.buildLeafShapeDescriptor가 ctx.leafMacro 사용
+    expect(builder, 'buildLeafShapeDescriptor reads ctx.leafMacro').toMatch(
+      /ctx\.leafMacro/,
+    );
+    // curlMultiplier mesh path 적용
+    expect(builder, 'curlMultiplier applied to curl').toMatch(
+      /curlMultiplier/,
+    );
+    // opennessOffset mesh path 적용
+    expect(builder, 'opennessOffset applied to opennessFactor').toMatch(
+      /opennessOffset/,
+    );
+  });
 });
