@@ -654,9 +654,21 @@ function buildLeafletOutlineWithNoise(
         sample.u, positioned.serrationAmp * noiseLengthM, positioned.serrationFreq, leafletSeed,
       ) * serrationTaper;
     // ★ L5-6b (S43) — edge asymmetry weights from spec.edgeAsymmetryRules.
+    // ★ L8-2 (S70) — leaf-level + leaflet-level XOR seed-flip (사용자 보완 #6 + #10):
+    //   기존: 모든 leaflet 같은 좌우 방향 (right always heavier) → procedural 인상
+    //   현재: leaf-level base direction (parentLeafSeed % 2) XOR leaflet variation (idSeed % 5 === 0)
+    //         → 한 잎 전체 _기본 방향_ + 일부 leaflet (~20%) _반전_으로 자연스러운 분포
     const ea = spec.edgeAsymmetryRules;
-    sample.halfWidthLeft += lobe * ea.leftLobeWeight + teeth * ea.leftSerrationWeight;
-    sample.halfWidthRight += lobe * ea.rightLobeWeight + teeth * ea.rightSerrationWeight;
+    const parentLeafSeed = djb2(node.leafletRef!.parentLeafNodeId);
+    const leafBaseSwap = (parentLeafSeed % 2 === 0);
+    const leafletVariation = (idSeed % 5 === 0);  // 20% leaflet 반전
+    const swap = leafBaseSwap !== leafletVariation;  // XOR
+    const leftLobeW  = swap ? ea.rightLobeWeight : ea.leftLobeWeight;
+    const rightLobeW = swap ? ea.leftLobeWeight  : ea.rightLobeWeight;
+    const leftSerrW  = swap ? ea.rightSerrationWeight : ea.leftSerrationWeight;
+    const rightSerrW = swap ? ea.leftSerrationWeight  : ea.rightSerrationWeight;
+    sample.halfWidthLeft += lobe * leftLobeW + teeth * leftSerrW;
+    sample.halfWidthRight += lobe * rightLobeW + teeth * rightSerrW;
   }
   return profile;
 }

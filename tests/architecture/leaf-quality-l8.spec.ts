@@ -84,4 +84,35 @@ test.describe('Iter 39 Phase L8 — Leaf Quality Followup', () => {
       /L8-1\s*\(S69\).*smoothMargin/,
     );
   });
+
+  test('LEAF-ASYMMETRY-SEED-FLIP-01: leaf-level + leaflet-level XOR seed-flip (L8-2, 보완 #6+#10)', async () => {
+    // L8-2 — edgeAsymmetry 모든 leaflet 같은 방향 → procedural 인상 해소.
+    //   leaf-level base direction (parentLeafSeed % 2) XOR leaflet variation (idSeed % 5 === 0)
+    //   잎 한 장 전체 _기본 방향_ + 일부 leaflet 반전.
+    const src = await fs.readFile(
+      path.join(REPO_ROOT, 'src/scene/leaf/LeafMeshBuilder.ts'),
+      'utf-8',
+    );
+
+    // parentLeafSeed 산출 (parentLeafNodeId hash)
+    expect(src, 'parentLeafSeed = djb2(parentLeafNodeId)').toMatch(
+      /parentLeafSeed\s*=\s*djb2\s*\(\s*node\.leafletRef!\.parentLeafNodeId\s*\)/,
+    );
+    // leafBaseSwap = parentLeafSeed % 2 === 0
+    expect(src, 'leafBaseSwap = parentLeafSeed % 2').toMatch(
+      /leafBaseSwap\s*=\s*\(\s*parentLeafSeed\s*%\s*2\s*===\s*0\s*\)/,
+    );
+    // leafletVariation = idSeed % 5 === 0
+    expect(src, 'leafletVariation = idSeed % 5 === 0 (20% 반전)').toMatch(
+      /leafletVariation\s*=\s*\(\s*idSeed\s*%\s*5\s*===\s*0\s*\)/,
+    );
+    // swap = XOR (leafBaseSwap !== leafletVariation)
+    expect(src, 'swap = XOR (leafBaseSwap !== leafletVariation)').toMatch(
+      /swap\s*=\s*leafBaseSwap\s*!==\s*leafletVariation/,
+    );
+    // 좌우 weight swap 적용
+    expect(src, 'leftLobeW = swap ? rightLobeWeight : leftLobeWeight').toMatch(
+      /leftLobeW\s*=\s*swap\s*\?\s*ea\.rightLobeWeight\s*:\s*ea\.leftLobeWeight/,
+    );
+  });
 });
