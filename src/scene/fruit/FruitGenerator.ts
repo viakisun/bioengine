@@ -289,6 +289,37 @@ function buildCalyxVertexData(): VertexData {
 
 /** Per-scene cache of fruit body materials, keyed by ripening stage (0-5). */
 const cachedBodyMaterials: WeakMap<Scene, PBRMaterial[]> = new WeakMap();
+/** ★ L7-B-2 (S67) — Per-scene cache of _simple_ fruit body materials (no clearcoat/subsurface). */
+const cachedSimpleBodyMaterials: WeakMap<Scene, PBRMaterial[]> = new WeakMap();
+
+/**
+ * Stage-based simple body material (★ L7-B-2 S67, 보완 #5).
+ *
+ * vs full `getBodyMaterial`:
+ *   - stage color (vertex color baked, albedo white passthrough) _유지_
+ *   - clearcoat: _off_
+ *   - subsurface translucency: _off_
+ *   - shader wind: 산식 변화 0 (fruit는 wind 미적용)
+ *
+ * Use case: far LOD (ultraLow). fragment 비용 감소 (~25%).
+ */
+function getSimpleBodyMaterial(scene: Scene, stage: number, spec: FruitSpec): PBRMaterial {
+  let bucket = cachedSimpleBodyMaterials.get(scene);
+  if (!bucket) {
+    bucket = new Array<PBRMaterial>(spec.ripeningRules.stageCount);
+    cachedSimpleBodyMaterials.set(scene, bucket);
+  }
+  if (bucket[stage]) return bucket[stage];
+  const mat = new PBRMaterial(`fruitBodyMatSimple_stage${stage}`, scene);
+  // White albedo → vertex color fully drives surface color (stage color 유지).
+  mat.albedoColor = new Color3(1, 1, 1);
+  mat.metallic = 0;
+  // Roughness만 spec (clearcoat/subsurface 모두 off).
+  mat.roughness = spec.materialRules.stageRoughness[stage];
+  bucket[stage] = mat;
+  return mat;
+}
+
 function getBodyMaterial(scene: Scene, stage: number, spec: FruitSpec): PBRMaterial {
   let bucket = cachedBodyMaterials.get(scene);
   if (!bucket) {
@@ -442,7 +473,10 @@ export function createFruitNode(
   // wedge the renderer for tens of seconds. Cache one material per
   // (scene, stage) — per-fruit color variation already lives in the
   // vertex-color buffer.
-  body.material = getBodyMaterial(scene, stage, spec);
+  // ★ L7-B-2 (S67) — far LOD (ultraLow) → simple material (clearcoat/subsurface off).
+  body.material = lod === 'ultraLow'
+    ? getSimpleBodyMaterial(scene, stage, spec)
+    : getBodyMaterial(scene, stage, spec);
 
   // ---------- Calyx + stem stub (visible-size fruits only) ----------
   // Skip on `low` LOD to keep the supporting-canopy mesh count

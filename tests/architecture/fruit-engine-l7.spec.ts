@@ -201,6 +201,41 @@ test.describe('Iter 39 Phase L7 — Fruit data-driven architecture', () => {
     expect(qualityFromFruitDistance(100)).toBe('ultraLow');
   });
 
+  test('FRUIT-MATERIAL-LOD-01: ultraLow → simple material (no clearcoat/subsurface, stage 색 유지, 보완 #5)', async () => {
+    // ★ L7-B-2 — far LOD (ultraLow) → getSimpleBodyMaterial (clearcoat/subsurface off).
+    //   stage 색은 vertex color + albedo white passthrough로 _유지_ — fixed red 아님.
+    const src = await fs.readFile(
+      path.join(REPO_ROOT, 'src/scene/fruit/FruitGenerator.ts'),
+      'utf-8',
+    );
+    // 산식 — ultraLow LOD 분기 + simple material 호출
+    expect(src, 'lod === ultraLow 분기').toMatch(/lod\s*===\s*['"]ultraLow['"]/);
+    expect(src, 'getSimpleBodyMaterial 호출').toMatch(
+      /getSimpleBodyMaterial\s*\(\s*scene\s*,\s*stage\s*,\s*spec\s*\)/,
+    );
+
+    // simple material function body — clearcoat/subsurface 활성화 없음
+    const fnMatch = src.match(
+      /function getSimpleBodyMaterial[\s\S]*?return mat;\s*\n\}/,
+    );
+    expect(fnMatch, 'getSimpleBodyMaterial function body').toBeTruthy();
+    const fnBody = fnMatch![0];
+    expect(fnBody, 'simple: no clearCoat.isEnabled = true').not.toMatch(
+      /clearCoat\.isEnabled\s*=\s*true/,
+    );
+    expect(fnBody, 'simple: no subSurface.isTranslucencyEnabled = true').not.toMatch(
+      /subSurface\.isTranslucencyEnabled\s*=\s*true/,
+    );
+    // stage 색은 유지 (albedo white passthrough — vertex color)
+    expect(fnBody, 'simple: albedoColor white (vertex color passthrough)').toMatch(
+      /albedoColor\s*=\s*new\s+Color3\s*\(\s*1\s*,\s*1\s*,\s*1\s*\)/,
+    );
+    // roughness는 spec.materialRules.stageRoughness 사용 (stage 색 유지)
+    expect(fnBody, 'simple: stage roughness from spec').toMatch(
+      /spec\.materialRules\.stageRoughness\[stage\]/,
+    );
+  });
+
   test('FRUIT-COLOR-PARITY-01: blossomEndAdvanceFrac fallback 0.4 (S64, 보완 #11)', async () => {
     // 보완 #11 — vertex color array가 _없는_ 경우 stage color output 비교.
     //   FruitGenerator는 vertex color baked (chunk.colors 사용).
