@@ -299,3 +299,67 @@ packages/tomato-geometry/
 → L3-A (`S19`) dead code 제거 진행.
 
 
+
+---
+
+# L4 — Multi-Crop Data-Driven Engine (Iter 39 Phase L4 v4, commits S28~S37)
+
+> L3 산식 SSOT 완성 후, _연구자 JSON 실험_ 요구로 진행. Engine purity +
+> data layer 분리 + Zod + LeafEngine namespace + 5 신규 invariants.
+
+## ★ L4 후 디렉터리 (최종)
+
+```
+src/scene/leaf/           ← Engine (plant-agnostic — 'tomato' 단어 0)
+  LeafEngine.ts             ← createLeaf + wrapAsMeshes + materials (facade)
+  LeafSpec.ts               ← Zod schema + parseLeafSpec + resolveCultivar
+  LeafMeshBuilder.ts        ← mesh 산식 SSOT (spec parameter 주입)
+  LeafletPlaneChunk.ts      ← vertex grid
+  LeafletProfile.ts         ← position profile (signature change: profileByPosition param)
+  LeafAnchor.ts             ← L1-B centroid (이동 from src/plant/anchors)
+  LeafMaterial.ts           ← Babylon wrapper (이름 LeafGenerator → LeafMaterial)
+  LeafTexture.ts            ← 이동 from src/plant + dead code -23줄
+  index.ts                  ← barrel
+
+src/data/leaf/            ← Data layer (botanical JSON + registry)
+  index.ts                  ← getLeafSpec(name) + cache
+  manifest.json             ← registry meta
+  specs/
+    tomato.json             ← Solanum lycopersicum + 5 agePresets + 4 profileByPosition + correlation/pose/cultivar
+  README.md                 ← 연구자 가이드
+```
+
+## ★ L4 commit summary (S28~S37)
+
+- **S28 L4-0** (`08a5e76`) folder rename + PascalCase + sed import migration
+- **S29 L4-1** (`aeac01e`) LeafGenerator → LeafMaterial + LeafTexture 이동 (dead code -23줄)
+- **S30 L4-2** (`1d20dbe`) leafAnchor.ts → LeafAnchor.ts (engine 폴더로)
+- **S31 L4-3** (`023470a`) npm i zod + LeafSpec.ts (강화 schemas)
+- **S32 L4-4** (`b84c90c`) src/data/leaf/specs/tomato.json + registry index.ts + README
+- **S33 L4-5** (`5709eda`) ★ 산식 spec parameter — `applyCorrelation(rules, ...)`,
+  `applyPositionProfile(profileByPosition, ...)`, `applyLeafletPose(poseRules, ...)`,
+  buildLeafShapeDescriptor reads ctx.spec
+- **S34 L4-6** (`807f4c5`) LeafEngine namespace facade (createLeaf/wrapAsMeshes/getMaterial)
+- **S35 L4-7** (`b36b410`) Caller migration — SkinMeshPlant → LeafEngine.createLeaf API
+- **S36 L4-8** (`eced824`) 5 신규 architecture invariants
+- **S37 L4-9** docs (LEAF_ENGINE.md + manifest 갱신)
+
+REFACTOR-PARITY-01 strict — 모든 commit. visual change 0.
+
+## ★ L4 후 호출 그래프 (data-driven)
+
+```
+SkinMeshPlant.ts
+  └─ const spec = getLeafSpec('tomato.json')          ← data layer (Zod 검증)
+  └─ LeafEngine.createLeaf(spec, node, graph, options)
+     └─ resolveCultivar(spec, options.cultivar)        ← spec.cultivars lookup
+     └─ buildLeafMeshFromSkeleton({spec, ...ctx})      ← engine 진입
+        └─ ctx.spec.agePresets[bladeRef.agePreset]
+        └─ ctx.spec.correlationRules (intercalaryComplexityExponent, serrationFreqBase/Slope, asymmetryBase/Slope, jitter)
+        └─ ctx.spec.profileByPosition (terminal/primary/intercalary/secondary)
+        └─ ctx.spec.poseRules (foldDroopDeg{Base,Slope}, leafletJitterPercent, pitch/roll/twistNoiseRange)
+        → pure LeafMeshPatch[] (Babylon 의존 0)
+  └─ LeafEngine.wrapAsMeshes(patches, scene) → Babylon Mesh[]
+```
+
+→ 연구자가 `src/data/leaf/specs/tomato.json` 수정만으로 실험 가능. Engine 변경 0.
