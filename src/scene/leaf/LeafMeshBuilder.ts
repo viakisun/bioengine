@@ -74,6 +74,7 @@ import type {
 } from '../../plant/skeleton/PlantSkeletonGraph';
 import { makeLeafQuaternion } from '../../plant/skeleton/AnchorTransform';
 import { normalizeLeafMeshVertices } from './LeafAnchor';
+import type { LeafSpec, CorrelationRules, PoseRules } from './LeafSpec';
 import {
   applyPositionProfile,
   endpointTaperWeight,
@@ -116,6 +117,8 @@ export interface LeafMeshPatch {
 }
 
 export interface LeafletMeshBuildContext {
+  /** ★ L4-5 (S33) — botanical parameter spec. caller loads via getLeafSpec(name). */
+  spec: LeafSpec;
   bladeRef: LeafBladeRef;
   leafletSkeletonNodes: ReadonlyArray<SkeletonNode>;
   leafBladeRootNode: SkeletonNode;
@@ -379,12 +382,12 @@ function lerp(range: readonly [number, number], t: number): number {
   return range[0] + (range[1] - range[0]) * clamped;
 }
 
-/** Hybrid sampling: baseline + ±jitter (default ±10% of range). */
+/** Hybrid sampling: baseline + ±jitter (jitterScale from spec.correlationRules). */
 function sampleHybrid(
   range: readonly [number, number],
   baseline: number,
   seed: number,
-  jitterScale = 0.10,
+  jitterScale: number,
 ): number {
   const jitterRange = (range[1] - range[0]) * jitterScale;
   const jitterNorm = ((seed * 13) % 200 - 100) / 100;  // [-1, 1]
@@ -394,9 +397,10 @@ function sampleHybrid(
 
 /**
  * Correlation 산식 적용 — complexity seed 0-1을 _묶음 변화_로 변환.
- * 사용자 §8 직접 매핑.
+ * 사용자 §8 매핑. ★ L4-5 (S33) — coefficients from spec.correlationRules.
  */
 export function applyCorrelation(
+  rules: CorrelationRules,
   complexity: number,
   preset: AgePresetParams,
   seed = 0,
@@ -409,29 +413,33 @@ export function applyCorrelation(
 
   const leafletFactor = preset.leafletCountFactor ?? 1.0;
   const primaryPairs = Math.floor(lerp(preset.majorLeafletPairsRange, c) * leafletFactor);
-  const intercalaryCount = Math.floor(lerp(preset.intercalaryRange, c * c) * leafletFactor);
+  const intercalaryCount = Math.floor(
+    lerp(preset.intercalaryRange, Math.pow(c, rules.intercalaryComplexityExponent)) * leafletFactor,
+  );
   const secondaryRange = preset.secondaryRange ?? [0, 0];
   const secondaryCount = Math.floor(lerp(secondaryRange, c) * leafletFactor);
 
+  const jitterScale = rules.correlationJitterScale;
+
   const aspectRatioBaseline = preset.aspectRatioBaseline
     ?? (preset.aspectRatioRange[0] + preset.aspectRatioRange[1]) / 2;
-  const aspectRatio = sampleHybrid(preset.aspectRatioRange, aspectRatioBaseline, seed);
+  const aspectRatio = sampleHybrid(preset.aspectRatioRange, aspectRatioBaseline, seed, jitterScale);
 
   const serrationAmpBaseline = (preset.serrationAmpRange[0] + preset.serrationAmpRange[1]) / 2;
-  const serrationAmp = sampleHybrid(preset.serrationAmpRange, serrationAmpBaseline, seed * 7);
+  const serrationAmp = sampleHybrid(preset.serrationAmpRange, serrationAmpBaseline, seed * 7, jitterScale);
 
-  const serrationFreq = Math.floor(10 + c * 18);
+  const serrationFreq = Math.floor(rules.serrationFreqBase + c * rules.serrationFreqSlope);
 
   const lobeDepthBaseline = (preset.lobeDepthRange[0] + preset.lobeDepthRange[1]) / 2;
-  const lobeDepth = sampleHybrid(preset.lobeDepthRange, lobeDepthBaseline, seed * 11);
+  const lobeDepth = sampleHybrid(preset.lobeDepthRange, lobeDepthBaseline, seed * 11, jitterScale);
 
   const baseShapeBaseline = preset.baseShapeBaseline ?? 0.85;
-  const baseShape = sampleHybrid([0.70, 1.00], baseShapeBaseline, seed * 17);
+  const baseShape = sampleHybrid([0.70, 1.00], baseShapeBaseline, seed * 17, jitterScale);
 
   const tipSharpnessBaseline = preset.tipSharpnessBaseline ?? 1.5;
-  const tipSharpness = sampleHybrid([1.00, 2.00], tipSharpnessBaseline, seed * 19);
+  const tipSharpness = sampleHybrid([1.00, 2.00], tipSharpnessBaseline, seed * 19, jitterScale);
 
-  const asymmetry = (preset.asymmetry ?? 0) + 0.02 + c * 0.06;
+  const asymmetry = (preset.asymmetry ?? 0) + rules.asymmetryBase + c * rules.asymmetrySlope;
   const poseDroopDeg = lerp(preset.poseDroopDegRange, c);
 
   return {
@@ -559,11 +567,17 @@ interface LeafShapeDescriptor {
 
 /**
  * Step 1: leaf-level descriptor 산출.
- * AGE_PRESETS + applyCorrelation + cultivar override + maturity envelope.
+ * spec.agePresets + applyCorrelation + cultivar override + maturity envelope.
+ * ★ L4-5 (S33) — spec.agePresets / correlationRules / poseRules 주입.
  */
 function buildLeafShapeDescriptor(ctx: LeafMeshBuildInput): LeafShapeDescriptor {
-  const preset = AGE_PRESETS[ctx.bladeRef.agePreset];
-  const resolved = applyCorrelation(ctx.bladeRef.complexity, preset, ctx.seed);
+  const preset = ctx.spec.agePresets[ctx.bladeRef.agePreset] as AgePresetParams;
+  const resolved = applyCorrelation(
+    ctx.spec.correlationRules,
+    ctx.bladeRef.complexity,
+    preset,
+    ctx.seed,
+  );
 
   // Cultivar shape override (Iter 38 S4).
   if (ctx.cultivarOverride) {
@@ -586,8 +600,9 @@ function buildLeafShapeDescriptor(ctx: LeafMeshBuildInput): LeafShapeDescriptor 
   // Iter 39 Phase F5 — maturity-driven pose envelope.
   const t = Math.max(0, Math.min(1, (maturity - 0.2) / (0.8 - 0.2)));
   const opennessFactor = 0.2 + (1.0 - 0.2) * (t * t * (3 - 2 * t));   // smoothstep
-  // L0-D-1 per-leaflet pitch.
-  const foldDroopDeg = -5 + 15 * maturity;    // -5° ~ +10°
+  // L0-D-1 per-leaflet pitch — spec.poseRules.foldDroopDeg{Base,Slope}.
+  const foldDroopDeg =
+    ctx.spec.poseRules.foldDroopDegBase + ctx.spec.poseRules.foldDroopDegSlope * maturity;
   // L2-4b quality.
   const qualityRes = LEAF_MESH_RESOLUTION[ctx.quality ?? DEFAULT_LEAF_MESH_QUALITY];
 
@@ -608,17 +623,26 @@ function buildLeafShapeDescriptor(ctx: LeafMeshBuildInput): LeafShapeDescriptor 
  * L2-3 position profile + L2-4a endpoint taper 통합.
  */
 function buildLeafletOutlineWithNoise(
+  spec: LeafSpec,
   node: SkeletonNode,
   leafletSeed: number,
   idSeed: number,
   desc: LeafShapeDescriptor,
 ): ReturnType<typeof buildShapeProfile> {
   const lengthM = node.leafletRef!.targetSizeM;
-  // Per-leaflet shape jitter (G4: ±5%).
-  const aspectJitter    = 1 + (((idSeed * 23) % 100 - 50) / 1000);
-  const sharpnessJitter = 1 + (((idSeed * 29) % 100 - 50) / 1000);
-  // L2-3 per-position profile.
-  const positioned = applyPositionProfile(desc.resolved, node.leafletRef!.position as LeafletPosition);
+  // ★ L4-5 (S33) — per-leaflet shape jitter (±jitterPercent/100 from spec.poseRules).
+  //   원본 산식: ((seed*N) % 100 - 50) / 1000 = ±0.05 = ±5%.
+  //   일반화: numerator max abs = 50, divisor = 5000 / jitterPercent → ±(jitterPercent/100).
+  //   jitterPercent=5 → divisor=1000 → byte-identical.
+  const jitterDivisor = 5000 / spec.poseRules.leafletJitterPercent;
+  const aspectJitter    = 1 + (((idSeed * 23) % 100 - 50) / jitterDivisor);
+  const sharpnessJitter = 1 + (((idSeed * 29) % 100 - 50) / jitterDivisor);
+  // L2-3 per-position profile — spec.profileByPosition 주입.
+  const positioned = applyPositionProfile(
+    spec.profileByPosition,
+    desc.resolved,
+    node.leafletRef!.position as LeafletPosition,
+  );
 
   const profile = buildShapeProfile({
     lengthM,
@@ -652,15 +676,26 @@ function buildLeafletOutlineWithNoise(
  * F5 maturity envelope + L0-D-1 pitch + per-leaflet noise.
  */
 function applyLeafletPose(
+  poseRules: PoseRules,
   node: SkeletonNode,
   idSeed: number,
   desc: LeafShapeDescriptor,
 ): Quat4 {
   const bd = node.leafletRef!.bladeDir;
   const baseQ = makeLeafQuaternion(bd, WORLD_UP);  // Quat4
-  const pitchNoise = (((idSeed * 17) % 200 - 100) / 1000);
-  const rollNoise  = (((idSeed * 19) % 400 - 200) / 1000);
-  const twistNoise = (((idSeed * 13) % 300 - 150) / 1000);
+  // ★ L4-5 (S33) — pitch/roll/twist noise from spec.poseRules (default 0.1/0.2/0.15 rad).
+  //   원본 산식: (... % 200 - 100) / 1000 = ±0.1 rad. 일반화:
+  //   numerator max abs = (range×10×100/2) when modular = 2×100×range, divisor = 1000 / range.
+  //   pitchNoiseRange=0.1 → divisor=10000 → numerator (% 200 - 100) → ±0.01. WRONG.
+  //   재정렬: original `% 200 - 100` gives [-100, 99] / 1000 = [-0.1, 0.099].
+  //   want = ±range. divisor = 100 / range (because max abs num 100).
+  //   pitchNoiseRange=0.1 → divisor = 1000 → ✓ byte-identical.
+  const pitchDivisor = 100 / poseRules.pitchNoiseRange;
+  const rollDivisor  = 200 / poseRules.rollNoiseRange;   // num: % 400 - 200 → max 200 → div 200/range
+  const twistDivisor = 150 / poseRules.twistNoiseRange;  // num: % 300 - 150 → max 150 → div 150/range
+  const pitchNoise = (((idSeed * 17) % 200 - 100) / pitchDivisor);
+  const rollNoise  = (((idSeed * 19) % 400 - 200) / rollDivisor);
+  const twistNoise = (((idSeed * 13) % 300 - 150) / twistDivisor);
   const pitchRad = (desc.foldDroopDeg * Math.PI / 180 + pitchNoise) * desc.opennessFactor;
   const rollRad  = rollNoise  * desc.opennessFactor;
   const twistRad = twistNoise * desc.opennessFactor;
@@ -685,8 +720,8 @@ function buildLeafletPatch(
   const leafletSeed = djb2(node.id) * 0.7919 + i * 31;
   const idSeed = djb2(node.id);
 
-  // outline (profile + lobe + serration with taper)
-  const profile = buildLeafletOutlineWithNoise(node, leafletSeed, idSeed, desc);
+  // outline (profile + lobe + serration with taper) — spec.profileByPosition/poseRules 주입.
+  const profile = buildLeafletOutlineWithNoise(ctx.spec, node, leafletSeed, idSeed, desc);
 
   // Plane geometry chunk (mesh-local).
   const chunk = buildLeafletPlaneChunk(profile, {
@@ -707,7 +742,7 @@ function buildLeafletPatch(
     meshName: `${ctx.meshNamePrefix}_l${i}_${node.leafletRef.position}`,
     chunk,
     position: { x: node.pos.x, y: node.pos.y, z: node.pos.z },
-    rotationQuat: applyLeafletPose(node, idSeed, desc),
+    rotationQuat: applyLeafletPose(ctx.spec.poseRules, node, idSeed, desc),
   };
 }
 

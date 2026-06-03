@@ -62,7 +62,7 @@ test.describe('Per-Leaflet Position Profile (SSOT #203, Iter 39 Phase L2-3)', ()
       asymmetry:     0.1,   // leaf-level fallback
     };
 
-    const terminal = applyPositionProfile(baseLeaf, 'terminal');
+    const terminal = applyPositionProfile(PROFILE_BY_POSITION, baseLeaf, 'terminal');
 
     // ★ v3 #3 — position fields가 덮어쓰기.
     expect(terminal.lobeDepth).toBe(PROFILE_BY_POSITION.terminal.lobeDepth);
@@ -88,8 +88,8 @@ test.describe('Per-Leaflet Position Profile (SSOT #203, Iter 39 Phase L2-3)', ()
       asymmetry:     0.1,
     };
 
-    const terminal    = applyPositionProfile(baseLeaf, 'terminal');
-    const intercalary = applyPositionProfile(baseLeaf, 'intercalary');
+    const terminal    = applyPositionProfile(PROFILE_BY_POSITION, baseLeaf, 'terminal');
+    const intercalary = applyPositionProfile(PROFILE_BY_POSITION, baseLeaf, 'intercalary');
 
     expect(terminal.lobeDepth).toBeGreaterThan(intercalary.lobeDepth);
     expect(terminal.tipSharpness).toBeGreaterThan(intercalary.tipSharpness);

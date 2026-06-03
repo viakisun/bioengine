@@ -1,15 +1,18 @@
-// SSOT — Per-Leaflet Position Profile (Iter 39 Phase L2-3).
+// SSOT — Per-Leaflet Position Profile (Iter 39 Phase L2-3, L4-5).
 // See: docs/architecture/LEAF_MESH_PIPELINE_AUDIT.md Section 4
 //
 // _pure module_ — Babylon dependency 0. unit test 가능.
-// LeafMeshBuilder.ts 와 buildLeafletMeshes.ts 가 import.
+//
+// ★ Iter 39 L4-5 (S33) — applyPositionProfile은 spec.profileByPosition 받음
+//   (PROFILE_BY_POSITION 상수 deprecated). botanical data는 src/data/leaf/
+//   specs/*.json SSOT.
 //
 // L2-0 audit 진단: leafletRef.position이 _terminal flag만_ 사용. primary/
-// intercalary _shape 차별화 없음_. L2-3 fix: PROFILE_BY_POSITION 도입.
+// intercalary _shape 차별화 없음_. L2-3 fix: profileByPosition 도입.
 //
 // 사용자 v3 #3 — targetSizeM SSOT:
 //   leafletRef.targetSizeM = 절대 길이 source of truth (skeleton SSOT)
-//   PROFILE_BY_POSITION = _shape 비율_만 (lengthScale 폐기 — 이중 적용 방지)
+//   profileByPosition = _shape 비율_만 (lengthScale 폐기 — 이중 적용 방지)
 
 export type LeafletPosition = 'terminal' | 'primary' | 'intercalary' | 'secondary';
 
@@ -125,6 +128,9 @@ export function endpointTaperWeight(t: number): number {
  *
  * 절대 크기 (targetSizeM)는 _이 함수 적용 후_ lengthM으로 직접 전달 —
  * position scale 곱하지 않음 (targetSizeM SSOT, 이중 적용 방지).
+ *
+ * ★ L4-5 (S33) — profileByPosition은 spec.profileByPosition 주입. PROFILE_BY_POSITION
+ * 상수는 reference + 호환성 보존용으로 남김 (engine은 spec 우선).
  */
 export function applyPositionProfile<T extends {
   aspectRatio: number;
@@ -133,10 +139,11 @@ export function applyPositionProfile<T extends {
   serrationFreq: number;
   tipSharpness: number;
 }>(
+  profileByPosition: Record<LeafletPosition, LeafletShapeProfile>,
   resolved: T,
   position: LeafletPosition,
 ): T {
-  const positional = PROFILE_BY_POSITION[position];
+  const positional = profileByPosition[position];
   // ★ v3 #3 — ...resolved 먼저 (fallback), positional 덮어쓰기.
   return {
     ...resolved,

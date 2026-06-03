@@ -91,6 +91,9 @@ import { getLeafletSkeletonNodesByParentLeaf } from '../plant/skeleton/PlantSkel
 //   buildLeafletMeshes 위임 — L2-3 이후 산식 통합 진입점.
 //   참조: docs/architecture/LEAF_MESH_PIPELINE_AUDIT.md
 import { buildLeafMeshFromSkeleton } from './leaf';
+// ★ Iter 39 L4-5 (S33) — application은 'tomato.json' 선택. engine은 spec 받음.
+import { getLeafSpec } from '../data/leaf';
+const tomatoLeafSpec = getLeafSpec('tomato.json');
 
 // Iter 35 PR 2 Phase I — ShowcasePlant archived. SkinMeshPlantHandle interface는
 //   원래 ShowcasePlant에서 import하던 type을 _자체 정의_로 inline (1:1 동일).
@@ -803,6 +806,7 @@ export function createSkinMeshPlant(
           //   LeafMeshBuilder = pure mesh algorithm (Babylon 의존 0)
           //   wrapLeafChunksAsMeshes = Babylon Mesh wrapper (LeafGenerator)
           const leafletPatches = buildLeafMeshFromSkeleton({
+            spec: tomatoLeafSpec,
             bladeRef,
             leafletSkeletonNodes,
             leafBladeRootNode: meshAnchorNode,
