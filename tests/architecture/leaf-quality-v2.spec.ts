@@ -36,7 +36,7 @@ async function matureTerminalFixture(): Promise<ShapeProfileV2Input> {
     tipSharpness: t.tipSharpness,
     baseShape: 0.85,
     asymmetry: 0,
-    samples: 24,
+    samples: 40,  // ★ S106 — V2 default LOD (low) 일치
     baseTransitionEndU: spec.shapeProfileRules.baseTransitionEndU,
     shoulderLobes: t.shoulderLobes ?? [],
     sinusNotches: t.sinusNotches ?? [],
