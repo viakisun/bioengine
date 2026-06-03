@@ -25,6 +25,7 @@ const REPO_ROOT = path.resolve(SPEC_DIR, '../..');
 
 const SKELETON = path.join(REPO_ROOT, 'src/plant/skeleton/buildTomatoSkeletonGraph.ts');
 const GRAPH = path.join(REPO_ROOT, 'src/plant/skeleton/PlantSkeletonGraph.ts');
+const PLANTBASE = path.join(REPO_ROOT, 'src/plant/PlantBase.ts');
 
 async function readFile(p: string): Promise<string> {
   return fs.readFile(p, 'utf-8');
@@ -142,6 +143,28 @@ test.describe('S114 — Leaf Branch Scale + Density (v3 보정 반영)', () => {
     );
     expect(src, 'rachisScale 사용 의무').toMatch(
       /rachisLengthM\s*=\s*refRachis\s*\*\s*rachisScale\s*\*\s*nodePositionScale/,
+    );
+  });
+
+  // ─── E. PlantBase petioleLengthM도 동일 fix (S114-D) ─────────────────
+  //   _진짜_ 시각 fix — PlantBase petioleLengthM이 실제 렌더링 source.
+  //   probe 결과: sf=2.0 → petiole 21cm → 12cm (40% 감소).
+
+  test('LEAF-BRANCH-PLANTBASE-SF-CLAMP-01: PlantBase petioleLengthM에도 sf 상한 적용 (S114-D)', async () => {
+    const src = await readFile(PLANTBASE);
+    // 회귀 금지: 이전 0.12 × max(0.05, sf) (상한 없음)
+    expect(src, 'PlantBase petioleLengthM sf 상한 없는 산식 회귀 금지').not.toMatch(
+      /const\s+petioleLengthM\s*=\s*0\.12\s*\*\s*Math\.max\(0\.05,\s*node\.leafSizeFactor\)/,
+    );
+    // S114-D 적용: smoothstep + lerp curve
+    expect(src, 'PlantBase lengthSf clamp + smoothstep').toMatch(
+      /const\s+lengthSf\s*=\s*Math\.max\(0\.05,\s*Math\.min\(1\.0,\s*node\.leafSizeFactor\)\)/,
+    );
+    expect(src, 'PlantBase visualMaturity smoothstep').toMatch(
+      /const\s+visualMaturity\s*=\s*_smoothstepT\s*\*\s*_smoothstepT\s*\*\s*\(3\s*-\s*2\s*\*\s*_smoothstepT\)/,
+    );
+    expect(src, 'PlantBase petioleScale lerp(0.35, 1.0)').toMatch(
+      /const\s+petioleScale\s*=\s*0\.35\s*\+\s*0\.65\s*\*\s*visualMaturity/,
     );
   });
 });
