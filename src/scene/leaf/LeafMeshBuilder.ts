@@ -560,21 +560,10 @@ function buildLeafShapeDescriptor(ctx: LeafMeshBuildInput): LeafShapeDescriptor 
   // ★ L5-6a (S42) — senescence curl weight from spec.
   // ★ L6-A-7 (S52) — per-leaf macro curlMultiplier 주입 (baseline=1.0).
   const curlMultiplier = ctx.leafMacro?.curlMultiplier ?? 1.0;
-  const curlRaw = (
+  const curl = (
     ctx.leafOrganState.posture.curl
     + ctx.leafOrganState.senescence.curl * ctx.spec.shapeProfileRules.senescenceCurlWeight
   ) * curlMultiplier;
-  // ★ L9-DIAG-CURL (TEMPORARY, S81) — 잎 V자 fold 원인 검증 테스트.
-  //   'zero'   = curl 완전 해소 (산식이 진짜 fold 원인인지)
-  //   'invert' = curl 반대 방향 (잎이 _아래로_ 접히는지 — 산식 정상 작동)
-  //   'normal' = 정상 (production)
-  //   ★ 측정 후 _이 코드 블록 전체 삭제 + curl = curlRaw_로 revert!
-  //   Marker for grep: 'L9-DIAG-CURL'.
-  const L9_DIAG_CURL_MODE: 'normal' | 'zero' | 'invert' = 'zero';
-  const curl =
-    L9_DIAG_CURL_MODE === 'zero' ? 0
-    : L9_DIAG_CURL_MODE === 'invert' ? -curlRaw
-    : curlRaw;
   const gravityDroopDeg = ctx.leafOrganState.posture.gravityDroopDeg ?? 0;
   const maturity = Math.max(0, Math.min(1, ctx.leafOrganState.expansionProgress));
   // ★ L5-6b (S43) — Phase F5 maturity-driven pose envelope from spec.shapeProfileRules.
@@ -809,8 +798,12 @@ function buildLeafletPlaneChunk(
       let z = colNorm * halfW;
 
       // Transverse cup — edges rise (turgor). Flattens with senescence.
+      // ★ L9-A v3 S82 (산식 변경) — 사용자 진단 (L9-DIAG-CURL zero=완전 평평 확정)
+      // 후 V자 fold 약화: pow(absCol, 2) × 0.9 → pow(absCol, 3) × 0.3.
+      //   - pow(absCol, 3): 가장자리만 강조 (중심부 더 평평)
+      //   - × 0.3: 전체 3× 약화 (목표 cup 1-3mm)
       const transverseCup =
-        curl * Math.pow(absCol, 2) * Math.max(0, 1 - ageFrac * 0.5) * size * 0.9;
+        curl * Math.pow(absCol, 3) * Math.max(0, 1 - ageFrac * 0.5) * size * 0.3;
       // Longitudinal droop — tip down via t² cantilever.
       const gravityComponent = Math.sin(gravityRad) * size * Math.pow(t, 2);
       const ageComponent = (0.10 + ageFrac * 0.30) * Math.pow(t, 2) * size;
@@ -839,7 +832,9 @@ function buildLeafletPlaneChunk(
       }
 
       // Curl z-twist — tip edges turn laterally.
-      z += curl * Math.pow(t, 2.0) * Math.sign(colNorm) * Math.abs(colNorm) * size * 0.4;
+      // ★ L9-A v3 S82 — apex 비틀림 약화: × 0.4 → × 0.15 (사용자 캡처에서
+      //   apex 쪽 fold 명확했음). transverseCup과 함께 약화 balance.
+      z += curl * Math.pow(t, 2.0) * Math.sign(colNorm) * Math.abs(colNorm) * size * 0.15;
 
       chunk.positions.push(rowX, y, z);
 
