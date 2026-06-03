@@ -1,0 +1,101 @@
+// Tomato Data Catalog — Umbrella Manifest (SSOT)
+//
+// Single logical entry point for all tomato data across the FarmSim repo.
+// Physical files remain in their aggregate-boundary locations (engine purity #42,
+// ownership boundaries, lifecycle differences). This file makes them all
+// discoverable from one place — for both AI agents and humans.
+//
+// Convention:
+//   - "layer" keys are singular (visual.leaf, cultivar, training, diagnostic — not plural).
+//   - Each runtime data file MUST carry a matching `"layer": "<key>"` field.
+//   - `path` is a single file; `glob` is a directory of homogeneous files.
+//   - All `path`/`glob` are relative to THIS file's location.
+//   - `runtime: false` = not consumed by the running engine (audit / docs only).
+//
+// Adding a new layer:
+//   1. Add a `layers.<key>` entry below (singular).
+//   2. Add `"layer": "<key>"` to each data file in that group.
+//   3. Mirror the change in docs/architecture/TOMATO_DATA_MAP.md.
+//   4. Run tests/architecture/tomato-data-index.spec.ts — it enforces consistency.
+//
+// Reference docs: docs/architecture/TOMATO_DATA_MAP.md (human-readable mirror)
+
+{
+  "schemaVersion": "tomato.index.v1",
+  "crop": "tomato",
+  "layers": {
+    "visual.leaf": {
+      "path": "../../../src/data/leaf/specs/tomato.json",
+      "reader": "src/data/leaf/index.ts (getLeafSpec)",
+      "owner": "render-eng",
+      "lifecycle": "weekly",
+      "schemaVersion": "1.1",
+      "description": "Leaf morphology spec for the rendering engine (age presets, profileByPosition, lobe/serration noise, edge asymmetry, cultivar shape overrides)."
+    },
+    "visual.fruit": {
+      "path": "../../../src/data/fruit/specs/tomato.json",
+      "reader": "src/data/fruit/index.ts (getFruitSpec)",
+      "owner": "render-eng",
+      "lifecycle": "weekly",
+      "schemaVersion": "1.0",
+      "description": "Fruit morphology + ripening + material spec for the rendering engine (crown recession, shoulder bulge, stage PBR coefficients, LOD mesh resolution)."
+    },
+    "physiology": {
+      "path": "./tomgro-v1.jsonc",
+      "reader": "packages/tomato-engine/src/ModelRegistry.ts",
+      "owner": "model-eng",
+      "lifecycle": "monthly",
+      "schemaVersion": "1.0.0",
+      "description": "Reduced TOMGRO 5-state physiology — LUE, Beer-Lambert k, Q10, T_base, abortion, diurnal envelope, LAI cap. Shared across all cultivars."
+    },
+    "botanical": {
+      "path": "./botanical/tomato.jsonc",
+      "reader": "packages/tomato-engine/src/ModelRegistry.ts",
+      "owner": "botanist + model-eng",
+      "lifecycle": "monthly",
+      "schemaVersion": "botanical.v1",
+      "description": "Stem growth (hypocotyl, internode, elongation, height curve) + fruit development (Gompertz, ripening, flowering, mass flow). Plant-level botanical defaults."
+    },
+    "cultivar": {
+      "glob": "./cultivars/*.jsonc",
+      "reader": "packages/tomato-engine/src/ModelRegistry.ts",
+      "owner": "agronomist",
+      "lifecycle": "quarterly",
+      "description": "Per-cultivar phenology + reproductive + morphology + training overrides. Currently 5: cherry-generic, beefsteak-generic, roma-generic, round-generic, tomimaru-muchoo."
+    },
+    "training": {
+      "glob": "./training/*.jsonc",
+      "reader": "packages/tomato-engine/src/ModelRegistry.ts (scenario registry)",
+      "owner": "agronomist",
+      "lifecycle": "quarterly",
+      "description": "Cultivation scenario specs (single-stem-high-wire, free-bush). Pruning / training policies independent of cultivar."
+    },
+    "calibration": {
+      "path": "./calibration/tomato-growth-targets.jsonc",
+      "reader": "packages/tomato-engine/src/growth/CalibrationPack.ts",
+      "owner": "calib-ops",
+      "lifecycle": "weekly",
+      "schemaVersion": "calibrationPack.v0.1",
+      "description": "Runtime calibration assertion targets (Reference Pack v0.1 height/leaf/truss bands by day). Used by Single-Plant Analysis to flag drift."
+    },
+    "diagnostic": {
+      "glob": "../../../growth-calibration/schema/diagnostic_rules/tomato*.jsonc",
+      "reader": "growth-calibration/scripts/**",
+      "owner": "qa-ops",
+      "lifecycle": "on-incident",
+      "schemaVersion": "growthCalibration.v1",
+      "description": "Cultivar-agnostic + per-day diagnostic rules (e.g. tomato_fruit_appears_too_early). Layered on top of common.jsonc."
+    }
+  },
+  "audit": {
+    "expertReview": {
+      "path": "../../../docs/expert-review/tomato-growth-model.review.json",
+      "owner": "external reviewer",
+      "lifecycle": "one-shot",
+      "schemaVersion": "0.1.0-review",
+      "runtime": false,
+      "readOnly": true,
+      "description": "Expert review packet — audit baseline of currently-hardcoded biological parameters that should move into model data. Not consumed by the running engine."
+    }
+  }
+}

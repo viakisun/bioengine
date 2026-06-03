@@ -1,5 +1,11 @@
 # FarmSim Tomato Growth Model — Spec Sheet
 
+> **Data catalog entry point**: see [`INDEX.jsonc`](./INDEX.jsonc) for the
+> umbrella manifest of _all_ tomato data across the repo (5 layers, 14 files
+> including visual specs in `src/data/` and diagnostic rules in
+> `growth-calibration/`). Human-readable mirror:
+> [`docs/architecture/TOMATO_DATA_MAP.md`](../../../docs/architecture/TOMATO_DATA_MAP.md).
+
 This directory is the **scientific specification** of the FarmSim tomato
 growth engine. The engine code (`packages/tomato-engine/src/*.ts`) does
 not hardcode model parameters — every coefficient is read from one of
@@ -21,14 +27,29 @@ The model implements:
 
 ## Files
 
-| File | Purpose |
-|------|---------|
-| `tomgro-v1.jsonc` | Global model parameters — LUE, k, Q10, T_base, abortion, diurnal envelope, LAI cap. All cultivars share these. |
-| `cultivars/tomimaru-muchoo.jsonc` | F1 pink beefsteak (Sakata Seeds, K-smartfarm reference) |
-| `cultivars/cherry-generic.jsonc` | Cherry tomato baseline |
-| `cultivars/round-generic.jsonc` | Mid-size round baseline |
-| `cultivars/beefsteak-generic.jsonc` | Large beefsteak baseline |
-| `cultivars/roma-generic.jsonc` | Roma (paste) tomato — elongated H:W > 1 |
+| File | Purpose | Layer key |
+|------|---------|-----------|
+| `INDEX.jsonc` | Umbrella catalog — single entry point for all 5 layers (visual + physiology + botanical + cultivar + training + calibration + diagnostic + audit). Source of truth for the data map. | — |
+| `tomgro-v1.jsonc` | Global model parameters — LUE, k, Q10, T_base, abortion, diurnal envelope, LAI cap. All cultivars share these. | `physiology` |
+| `botanical/tomato.jsonc` | Stem growth (hypocotyl, internode, elongation, height curve) + fruit development (Gompertz, ripening, flowering, mass flow). Plant-level botanical defaults. | `botanical` |
+| `cultivars/tomimaru-muchoo.jsonc` | F1 pink beefsteak (Sakata Seeds, K-smartfarm reference) | `cultivar` |
+| `cultivars/cherry-generic.jsonc` | Cherry tomato baseline | `cultivar` |
+| `cultivars/round-generic.jsonc` | Mid-size round baseline | `cultivar` |
+| `cultivars/beefsteak-generic.jsonc` | Large beefsteak baseline | `cultivar` |
+| `cultivars/roma-generic.jsonc` | Roma (paste) tomato — elongated H:W > 1 | `cultivar` |
+| `training/single-stem-high-wire.jsonc` | Korean K-smartfarm single-stem high-wire pruning policy. | `training` |
+| `training/free-bush.jsonc` | Free bush (no pruning) determinate-style baseline. | `training` |
+| `calibration/tomato-growth-targets.jsonc` | Runtime calibration assertion bands (Reference Pack v0.1 height/leaf/truss by day). Used by Single-Plant Analysis to flag drift. | `calibration` |
+
+**Layers _outside_ this directory** (catalogued in `INDEX.jsonc`):
+
+| File | Purpose | Layer key |
+|------|---------|-----------|
+| `../../../src/data/leaf/specs/tomato.json` | Leaf morphology spec for the rendering engine (age presets, profileByPosition, lobe/serration noise). | `visual.leaf` |
+| `../../../src/data/fruit/specs/tomato.json` | Fruit morphology + ripening + material spec for the rendering engine. | `visual.fruit` |
+| `../../../growth-calibration/schema/diagnostic_rules/tomato.jsonc` | Cultivar-agnostic operating diagnostic rules. | `diagnostic` |
+| `../../../growth-calibration/schema/diagnostic_rules/tomato_tomimaru_day33.jsonc` | Per-day cultivar-specific diagnostic rules. | `diagnostic` |
+| `../../../docs/expert-review/tomato-growth-model.review.json` | Expert review packet (audit, read-only, runtime: false). | (audit) |
 
 ## Parameter Schema (high-level)
 
