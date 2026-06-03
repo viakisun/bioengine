@@ -24,6 +24,7 @@ import {
   lobeTaperWeight,
   serrationTaperWeight,
 } from '../../src/scene/leaf/LeafletProfile';
+import { computeLeafMacroState } from '../../src/scene/leaf/LeafMeshBuilder';
 
 const SPEC_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(SPEC_DIR, '../..');
@@ -248,5 +249,28 @@ test.describe('Iter 39 Phase L5 — Spec migration parity', () => {
         `serrationTaper(${t}) >= lobeTaper(${t})`,
       ).toBeGreaterThanOrEqual(lobeTaperWeight(t));
     }
+  });
+
+  test('LEAF-MACRO-VARIATION-SPEC-01: spec.leafInstanceRules에 macro 3 fields 정의 (L6-A-6 step 1)', async () => {
+    // ★ L6-A-6 — macro variation reporting only. spec field + computeLeafMacroState.
+    //   mesh path 연결은 step 2 (S52).
+    const spec = await loadTomatoSpec();
+    expect(spec.leafInstanceRules.curlMultiplier, 'curlMultiplier 정의').toBeDefined();
+    expect(spec.leafInstanceRules.opennessOffset, 'opennessOffset 정의').toBeDefined();
+    expect(spec.leafInstanceRules.rachisCurvatureBias, 'rachisCurvatureBias 정의').toBeDefined();
+
+    // 각 entry는 baseline + range
+    expect(typeof spec.leafInstanceRules.curlMultiplier.baseline).toBe('number');
+    expect(typeof spec.leafInstanceRules.curlMultiplier.range).toBe('number');
+
+    // computeLeafMacroState 결정성 — 동일 idx/seed → 동일 출력
+    const a = computeLeafMacroState(spec.leafInstanceRules, 5, 42);
+    const b = computeLeafMacroState(spec.leafInstanceRules, 5, 42);
+    expect(a.curlMultiplier).toBeCloseTo(b.curlMultiplier, 10);
+    expect(a.opennessOffset).toBeCloseTo(b.opennessOffset, 10);
+
+    // baseline 근처 (range = 1.0/0.10 등 작음)
+    expect(a.curlMultiplier).toBeGreaterThanOrEqual(spec.leafInstanceRules.curlMultiplier.baseline - spec.leafInstanceRules.curlMultiplier.range);
+    expect(a.curlMultiplier).toBeLessThanOrEqual(spec.leafInstanceRules.curlMultiplier.baseline + spec.leafInstanceRules.curlMultiplier.range);
   });
 });

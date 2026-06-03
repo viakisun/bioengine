@@ -140,7 +140,10 @@
   "leafInstanceRules": {
     "leftRightImbalanceRange": 0.20,
     "apexImbalanceThreshold": 0.85,
-    "apexImbalanceBoost": 1.3
+    "apexImbalanceBoost": 1.3,
+    "curlMultiplier":      { "baseline": 1.0, "range": 0.10 },
+    "opennessOffset":      { "baseline": 0.0, "range": 0.05 },
+    "rachisCurvatureBias": { "baseline": 0.0, "range": 0.0 }
   },
   "shapeProfileRules": {
     "baseTransitionEndU": 0.25,

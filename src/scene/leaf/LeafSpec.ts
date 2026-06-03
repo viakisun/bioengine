@@ -149,20 +149,46 @@ export const LobeNoiseRulesSchema = z.object({
 });
 
 /**
- * Leaf-instance macro variation (skeleton size factor 영향).
+ * Per-leaf macro variation range (baseline + ±range/2, deterministic seed).
+ *
+ * ★ L6-A-6 (S51) — leaf-level macro variation 신규 도입 (L5에서 4 dead fields
+ *   제거 후 재도입). 각 entry는 _multiplier 또는 offset_ — mesh path는 step 2 (S52)에서 연결.
+ *
+ * Formula:
+ *   value = baseline + signed(seed) * range
+ *   (signed = -1 ~ +1, hash 기반 deterministic per-leaf)
+ */
+export const LeafMacroRangeSchema = z.object({
+  baseline: z.number(),
+  range: z.number().min(0),
+});
+
+/**
+ * Leaf-instance macro variation rules.
  *
  * ★ L5-4 (S42) — L4 후 `computeLeafInstanceProfile` 6 fields 중 5 dead.
  *   Live 1 field만 (leftRightImbalance). L5에서 function 분해 →
  *   `computeLeftRightImbalance(spec.leafInstanceRules, ...)`.
  *
- * Formula:
- *   apexBoost = nodePositionT > apexImbalanceThreshold ? apexImbalanceBoost : 1.0
- *   leftRightImbalance = signed(3) * leftRightImbalanceRange * apexBoost
+ * ★ L6-A-6 (S51) — macro variation 재도입:
+ *   - curlMultiplier: leaf 전체 curl 비율 (baseline=1.0, range=0.1 → 0.9~1.1)
+ *   - opennessOffset: leaf openness factor offset (baseline=0, range=0.05 → ±0.05)
+ *   - rachisCurvatureBias: leaf rachis 곡률 bias (baseline=0, range=0.1 → ±0.1, _reserved_ — bone path 영향, L7+)
+ *
+ * Step 1 (S51): spec + computeLeafMacroState 산출만 — mesh path _미연결_
+ * Step 2 (S52): buildLeafShapeDescriptor에 주입
+ * Step 3 (S53): 값 조정
  */
 export const LeafInstanceRulesSchema = z.object({
+  // L5-4 existing (skeleton size factor 영향)
   leftRightImbalanceRange: z.number().min(0),  // current: 0.20
   apexImbalanceThreshold: Ratio01,             // current: 0.85
   apexImbalanceBoost: z.number().positive(),   // current: 1.3
+
+  // L6-A-6 macro variation (mesh path 영향 — S52에서 연결)
+  curlMultiplier: LeafMacroRangeSchema,        // baseline 1.0, range 0.1
+  opennessOffset: LeafMacroRangeSchema,        // baseline 0, range 0.05
+  rachisCurvatureBias: LeafMacroRangeSchema,   // baseline 0, range 0 (reserved)
 });
 
 /**
@@ -278,6 +304,7 @@ export type AgePresetParams = z.infer<typeof AgePresetSchema>;
 export type LeafletShapeProfile = z.infer<typeof PositionProfileSchema>;
 export type LobeNoiseWave = z.infer<typeof LobeNoiseWaveSchema>;
 export type LobeNoiseRules = z.infer<typeof LobeNoiseRulesSchema>;
+export type LeafMacroRange = z.infer<typeof LeafMacroRangeSchema>;
 export type LeafInstanceRules = z.infer<typeof LeafInstanceRulesSchema>;
 export type ShapeProfileRules = z.infer<typeof ShapeProfileRulesSchema>;
 export type EdgeAsymmetryRules = z.infer<typeof EdgeAsymmetryRulesSchema>;

@@ -220,6 +220,39 @@ export function computeLeftRightImbalance(
   return signed(3) * rules.leftRightImbalanceRange * apexBoost;
 }
 
+/**
+ * Per-leaf macro variation state (curl multiplier / openness offset /
+ * rachis curvature bias). Deterministic per leaf.
+ *
+ * ★ L6-A-6 (S51) — Step 1: 산출만, mesh path _미연결_.
+ * ★ L6-A-7 (S52) — Step 2: buildLeafShapeDescriptor 주입 예정.
+ *
+ * 산식 (signed 의 hash index는 leftRightImbalance와 _겹치지 않도록_ 8/9/10):
+ *   curlMultiplier      = baseline + signed(8) * range
+ *   opennessOffset      = baseline + signed(9) * range
+ *   rachisCurvatureBias = baseline + signed(10) * range
+ */
+export interface LeafMacroState {
+  curlMultiplier: number;
+  opennessOffset: number;
+  rachisCurvatureBias: number;
+}
+
+export function computeLeafMacroState(
+  rules: LeafInstanceRules,
+  leafNodeIdx: number,
+  globalSeed: number,
+): LeafMacroState {
+  const seed = (globalSeed * 1009 + leafNodeIdx * 31) >>> 0;
+  const h = (i: number): number => ((seed * (i * 7919 + 1) + 49297) % 1000) / 1000;
+  const signed = (i: number): number => h(i) * 2 - 1;
+  return {
+    curlMultiplier:      rules.curlMultiplier.baseline      + signed(8)  * rules.curlMultiplier.range,
+    opennessOffset:      rules.opennessOffset.baseline      + signed(9)  * rules.opennessOffset.range,
+    rachisCurvatureBias: rules.rachisCurvatureBias.baseline + signed(10) * rules.rachisCurvatureBias.range,
+  };
+}
+
 // ─── L3-C S23: agePresets + correlationRules (inline) ───────────────────
 // 사용자 botanical reference §7-8: 5 age presets + complexity 묶음 산식.
 

@@ -43,7 +43,10 @@ export type { LeafletPosition, LeafletShapeProfile } from './LeafMeshBuilder';
 // ★ L5-4 (S41) — leaf-instance macro 분해. LeafInstanceProfile 6-field 폐기,
 //   live 1-field만 보존하는 `computeLeftRightImbalance`로 대체. computeLeafletPose
 //   (deg-based, 호출처 0) 완전 제거.
-export { computeLeftRightImbalance } from './LeafMeshBuilder';
+// ★ L6-A-6 (S51) — leaf-level macro variation 재도입 (computeLeafMacroState).
+//   step 1: 산출만, mesh path 미연결 (S52에서 연결).
+export { computeLeftRightImbalance, computeLeafMacroState } from './LeafMeshBuilder';
+export type { LeafMacroState } from './LeafMeshBuilder';
 
 // L4-3 LeafSpec + Zod runtime validation.
 export type {
