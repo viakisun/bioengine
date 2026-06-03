@@ -82,16 +82,13 @@ import { defaultSkinEngine } from '../plant/skin/defaultSkinEngine';
 // Iter 18B PR 4 — switch to createLeafBladeOnlyMesh. SkinMeshPlant은 SDF
 // skeleton mesh가 petiole tube를 그리므로 leaf mesh 안의 중복 petiole
 // cylinder는 불필요.
-import { getLeafMaterial, getYellowLeafMaterial, wrapLeafChunksAsMeshes } from './leaf/LeafMaterial';
-// Iter 36 v5 Phase C — skeleton 3-tier: get leaflet nodes for compound leaf rendering.
-// Iter 39 Phase B — getLeafletNodesByParentLeaf 제거 (Skin path는 SkeletonNode[] 사용).
-import { getLeafletSkeletonNodesByParentLeaf } from '../plant/skeleton/PlantSkeletonGraph';
-// ★ Iter 39 Phase L2-1 — canonical leaf mesh entry (사용자 v3 Option B).
-//   LeafMeshBuilder = pure mesh algorithm layer. 현재 thin wrapper로
-//   buildLeafletMeshes 위임 — L2-3 이후 산식 통합 진입점.
+// ★ Iter 39 Phase L4-7 (S35) — LeafEngine namespace API.
+//   LeafEngine.createLeaf(spec, node, graph, options) → patches → wrapAsMeshes.
 //   참조: docs/architecture/LEAF_MESH_PIPELINE_AUDIT.md
-import { buildLeafMeshFromSkeleton } from './leaf';
-// ★ Iter 39 L4-5 (S33) — application은 'tomato.json' 선택. engine은 spec 받음.
+import { LeafEngine } from './leaf';
+// Iter 36 v5 Phase C — skeleton 3-tier: get leaflet nodes for compound leaf rendering.
+import { getLeafletSkeletonNodesByParentLeaf } from '../plant/skeleton/PlantSkeletonGraph';
+// ★ Iter 39 L4 (S35) — application은 'tomato.json' 선택. engine은 spec 받음.
 import { getLeafSpec } from '../data/leaf';
 const tomatoLeafSpec = getLeafSpec('tomato.json');
 
@@ -188,8 +185,8 @@ export function createSkinMeshPlant(
   const cotyledonMat = getCotyledonMaterial(scene);
   const skinMat = getSkinMeshMaterial(scene);
   // Iter 17 — legacy leaf materials (matches SupportingPlant/ShowcasePlant).
-  const leafMat = getLeafMaterial(scene);
-  const yellowLeafMat = getYellowLeafMaterial(scene);
+  const leafMat = LeafEngine.getMaterial(scene);
+  const yellowLeafMat = LeafEngine.getYellowMaterial(scene);
   void getStemMaterial;  // import-graph stability — kept for parity, not used directly
 
   let currentMeshes: Mesh[] = [];
@@ -794,30 +791,17 @@ export function createSkinMeshPlant(
         const meshNamePrefix = `skinplant_leaf_${seed}_a${axisIdx}_n${nodeIdx}`;
 
         if (bladeRef && leafletSkeletonNodes.length > 0) {
-          // ★ Iter 39 Phase B — graph node-driven path (all leaflet types).
-          //   petiole edge의 마지막 bone tangent = R26 rotation 산식과 동일 (DRY).
-          const lastBone = edge.bonePath[edge.bonePath.length - 1];
-          const petioleTipTangent = {
-            x: lastBone.p1.x - lastBone.p0.x,
-            y: lastBone.p1.y - lastBone.p0.y,
-            z: lastBone.p1.z - lastBone.p0.z,
-          };
-          // ★ Iter 39 L3-F (S27) — pure LeafMeshPatch[] → Babylon Mesh[] 변환.
-          //   LeafMeshBuilder = pure mesh algorithm (Babylon 의존 0)
-          //   wrapLeafChunksAsMeshes = Babylon Mesh wrapper (LeafGenerator)
-          const leafletPatches = buildLeafMeshFromSkeleton({
-            spec: tomatoLeafSpec,
-            bladeRef,
-            leafletSkeletonNodes,
-            leafBladeRootNode: meshAnchorNode,
-            petioleTipTangent,
-            leafOrganState,
-            rng: leafRng,
-            seed: seed * 1009 + axisIdx * 9173 + nodeIdx * 31 + 11,
+          // ★ Iter 39 Phase L4-7 (S35) — LeafEngine namespace API.
+          //   createLeaf(spec, node, graph, options) → patches → wrapAsMeshes.
+          //   petiole tangent + leaflet collection 등 derivation은 LeafEngine 내부.
+          //   leafRng는 ctx에 주입되지 않음 — engine은 deterministic seed만 사용.
+          void leafRng;
+          const leafletPatches = LeafEngine.createLeaf(tomatoLeafSpec, meshAnchorNode, graph, {
             cultivarOverride: cultivarShapeOverride,
+            seed: seed * 1009 + axisIdx * 9173 + nodeIdx * 31 + 11,
             meshNamePrefix,
           });
-          const leafletMeshes = wrapLeafChunksAsMeshes(leafletPatches, scene);
+          const leafletMeshes = LeafEngine.wrapAsMeshes(leafletPatches, scene);
           // Iter 39 Phase B — defoliation은 leaf 단위 (leaf-blade-root y 기준).
           //   각 leaflet mesh에 metadata.leafBladeRootY 첨부 — defol loop에서 사용.
           const leafBladeRootY = meshAnchorNode.pos.y;

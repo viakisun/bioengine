@@ -37,10 +37,10 @@ async function walk(dir: string, acc: string[] = []): Promise<string[]> {
 }
 
 test.describe('Iter 34 C6 + Iter 39 L3-A — Leaf mesh build 진입점 단일 보장', () => {
-  test('LEAF-MESH-SINGLE-ENTRY-01 (L3-A revised): canonical entry = buildLeafMeshFromSkeleton (LeafMeshBuilder)', async () => {
+  test('LEAF-MESH-SINGLE-ENTRY-01 (L4-7 revised): canonical entry = LeafEngine.createLeaf', async () => {
     // ★ L3-A (S19) — fallback path (buildLeafMeshFromPhytomer) 제거.
-    //   canonical entry = LeafMeshBuilder.buildLeafMeshFromSkeleton.
-    //   호출 site = SkinMeshPlant.ts 1건만.
+    // ★ L4-7 (S35) — LeafEngine.ts (engine facade)가 buildLeafMeshFromSkeleton의
+    //   단일 caller. SkinMeshPlant → LeafEngine.createLeaf → buildLeafMeshFromSkeleton.
     const srcDir = path.join(REPO_ROOT, 'src');
     const files = await walk(srcDir);
     const callRe = /buildLeafMeshFromSkeleton\s*\(/;
@@ -54,7 +54,7 @@ test.describe('Iter 34 C6 + Iter 39 L3-A — Leaf mesh build 진입점 단일 �
         callSites.push(rel);
       }
     }
-    expect(callSites).toEqual(['src/scene/SkinMeshPlant.ts']);
+    expect(callSites).toEqual(['src/scene/leaf/LeafEngine.ts']);
   });
 
   test('LEAF-MESH-FALLBACK-REMOVED-01 (L3-A): buildLeafMeshFromPhytomer 정의 0', async () => {
