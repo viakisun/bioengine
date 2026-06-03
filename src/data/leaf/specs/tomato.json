@@ -119,7 +119,7 @@
     "serrationFreqSlope": 24,
     "asymmetryBase": 0.02,
     "asymmetrySlope": 0.06,
-    "correlationJitterScale": 0.10
+    "correlationJitterScale": 0.15
   },
   "poseRules": {
     "foldDroopDegBase": -5,
@@ -156,8 +156,8 @@
   "edgeAsymmetryRules": {
     "leftLobeWeight": 1.0,
     "leftSerrationWeight": 1.0,
-    "rightLobeWeight": 0.85,
-    "rightSerrationWeight": 1.1
+    "rightLobeWeight": 0.80,
+    "rightSerrationWeight": 1.18
   },
   "cultivars": {
     "cherry": {
