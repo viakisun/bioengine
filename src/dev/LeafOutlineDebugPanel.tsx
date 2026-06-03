@@ -8,14 +8,15 @@ import {
   buildShapeProfileV2,
   NATURAL_LEAFLET_SAMPLES,
   NATURAL_LEAFLET_SAMPLE_NAMES,
+  selectLeafletSample,
   type ShapeProfileV2Input,
+  type NaturalLeafletSample,
 } from '../scene/leaf/LeafMeshBuilder2';
 
 const PLOT_WIDTH = 220;
 const PLOT_HEIGHT = 380;
 
-function plotSample(sampleIdx: number, lengthCm: number, idSeed: number) {
-  const sample = NATURAL_LEAFLET_SAMPLES[sampleIdx];
+function plotFromSample(sample: NaturalLeafletSample, lengthCm: number, idSeed: number) {
   const lengthM = lengthCm / 100;
   const lobeDepthMult = Math.max(0.2, Math.min(1.0, lengthM / 0.20));
 
@@ -60,17 +61,21 @@ function plotSample(sampleIdx: number, lengthCm: number, idSeed: number) {
 }
 
 function SamplePlot({
-  sampleIdx,
+  sample,
+  label,
+  hueIdx,
   lengthCm,
   idSeed,
 }: {
-  sampleIdx: number;
+  sample: NaturalLeafletSample;
+  label: string;
+  hueIdx: number;
   lengthCm: number;
   idSeed: number;
 }) {
   const profile = useMemo(
-    () => plotSample(sampleIdx, lengthCm, idSeed),
-    [sampleIdx, lengthCm, idSeed],
+    () => plotFromSample(sample, lengthCm, idSeed),
+    [sample, lengthCm, idSeed],
   );
 
   const pts: Array<[number, number]> = [];
@@ -84,13 +89,13 @@ function SamplePlot({
   const xToPx = (u: number) => 20 + u * (PLOT_WIDTH - 40);
   const yToPx = (z: number) => PLOT_HEIGHT / 2 - (z / maxHW) * (PLOT_HEIGHT / 2 - 20);
 
-  const hue = (sampleIdx * 36) % 360;
+  const hue = (hueIdx * 36) % 360;
   const maxHWCm = maxHW * 100;
 
   return (
     <div style={{ background: '#1e1e1e', padding: 6, borderRadius: 4 }}>
       <div style={{ color: '#aaa', fontSize: 10, marginBottom: 4, fontFamily: 'monospace' }}>
-        {NATURAL_LEAFLET_SAMPLE_NAMES[sampleIdx]}
+        {label}
       </div>
       <div style={{ color: '#666', fontSize: 9, marginBottom: 2, fontFamily: 'monospace' }}>
         max half-width: {maxHWCm.toFixed(2)}cm
@@ -163,10 +168,36 @@ export function LeafOutlineDebugPanel() {
           {' '}{idSeed}
         </label>
       </div>
+      <div style={{ color: '#888', fontSize: 10, marginBottom: 4 }}>Photo samples (10):</div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, auto)', gap: 6 }}>
-        {NATURAL_LEAFLET_SAMPLES.map((_, idx) => (
-          <SamplePlot key={idx} sampleIdx={idx} lengthCm={lengthCm} idSeed={idSeed} />
+        {NATURAL_LEAFLET_SAMPLES.map((s, idx) => (
+          <SamplePlot
+            key={`p-${idx}`}
+            sample={s}
+            label={NATURAL_LEAFLET_SAMPLE_NAMES[idx]}
+            hueIdx={idx}
+            lengthCm={lengthCm}
+            idSeed={idSeed}
+          />
         ))}
+      </div>
+      <div style={{ color: '#888', fontSize: 10, margin: '10px 0 4px' }}>
+        Procedural samples (5 random seeds):
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, auto)', gap: 6 }}>
+        {[0, 1, 2, 3, 4].map(i => {
+          const procSeed = idSeed * 17 + i * 37 + 12345;
+          return (
+            <SamplePlot
+              key={`proc-${i}`}
+              sample={selectLeafletSample(procSeed)}
+              label={`Proc seed=${procSeed % 9999}`}
+              hueIdx={i + 10}
+              lengthCm={lengthCm}
+              idSeed={procSeed}
+            />
+          );
+        })}
       </div>
     </div>
   );

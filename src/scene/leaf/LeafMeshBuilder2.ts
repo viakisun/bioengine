@@ -435,6 +435,69 @@ export const NATURAL_LEAFLET_SAMPLES: ReadonlyArray<NaturalLeafletSample> = [
   },
 ];
 
+// ★ S112 — Procedural sample 생성기 (multi-generator 시스템).
+//   10 photo sample _외에_ 절차적 polyline 생성. 동일 polyline 메커니즘 사용.
+//   사용자: "여러 함수 만들어서 랜덤으로 돌려도 돼" → 10 sample + 무한 procedural 혼합.
+function generateProceduralSample(idSeed: number): NaturalLeafletSample {
+  // lobe 3~6개 (idSeed 결정)
+  const lobeCount = 3 + ((Math.abs(idSeed * 7) % 4));
+
+  // lobe u 범위 (base/tip 여유)
+  const lobeRangeStart = 0.13 + signedRand(idSeed, 41) * 0.02;
+  const lobeRangeEnd = 0.85 + signedRand(idSeed, 43) * 0.03;
+  const step = (lobeRangeEnd - lobeRangeStart) / (lobeCount * 2);
+
+  const buildSide = (sideSalt: number): ControlPoint[] => {
+    const pts: ControlPoint[] = [];
+    // base (좁음)
+    pts.push({ u: 0, halfWidth: 0.05 + Math.abs(signedRand(idSeed, sideSalt + 51)) * 0.04 });
+    // pre-base ramp
+    pts.push({ u: 0.08, halfWidth: 0.35 + Math.abs(signedRand(idSeed, sideSalt + 53)) * 0.20 });
+    // alternating peak/valley
+    for (let i = 0; i < lobeCount; i++) {
+      const lobeU = lobeRangeStart + step * (2 * i + 1)
+        + signedRand(idSeed, sideSalt + 61 + i * 3) * step * 0.25;
+      const lobeHW = 0.70 + Math.abs(signedRand(idSeed, sideSalt + 67 + i * 5)) * 0.30;
+      pts.push({ u: Math.max(0.10, Math.min(0.95, lobeU)), halfWidth: lobeHW });
+
+      if (i < lobeCount - 1) {
+        const notchU = lobeRangeStart + step * (2 * i + 2)
+          + signedRand(idSeed, sideSalt + 71 + i * 7) * step * 0.25;
+        const notchHW = 0.20 + Math.abs(signedRand(idSeed, sideSalt + 73 + i * 11)) * 0.30;
+        pts.push({ u: Math.max(0.10, Math.min(0.95, notchU)), halfWidth: notchHW });
+      }
+    }
+    // post-lobe taper
+    pts.push({ u: 0.93, halfWidth: 0.15 + Math.abs(signedRand(idSeed, sideSalt + 81)) * 0.10 });
+    pts.push({ u: 1.0, halfWidth: 0 });
+    return pts;
+  };
+
+  // 30% 비대칭 (좌우 _완전 다른 set_)
+  const asymmetric = ((Math.abs(idSeed) >>> 3) % 10) < 3;
+  const aspectRatio = 1.7 + Math.abs(signedRand(idSeed, 91)) * 0.7;
+  const tipSharpness = 1.05 + Math.abs(signedRand(idSeed, 101)) * 0.10;
+
+  return {
+    aspectRatio,
+    tipSharpness,
+    shoulderLobes: [],
+    sinusNotches: [],
+    dripTipUStart: 0.85,
+    dripTipDepth: 0.30,
+    controlPoints: buildSide(0),
+    controlPointsRight: asymmetric ? buildSide(503) : undefined,
+  };
+}
+
+// ★ S112 — Generator dispatch. idSeed 기반 deterministic 선택.
+//   60% photo sample (10개 중 하나), 40% procedural (무한 가짓수).
+export function selectLeafletSample(idSeed: number): NaturalLeafletSample {
+  const useProc = ((Math.abs(idSeed) >>> 4) % 10) < 4;
+  if (useProc) return generateProceduralSample(idSeed);
+  return NATURAL_LEAFLET_SAMPLES[Math.abs(idSeed) % NATURAL_LEAFLET_SAMPLES.length];
+}
+
 // ★ S110 — debug panel 라벨용 sample 이름 (NATURAL_LEAFLET_SAMPLES 순서 일치).
 export const NATURAL_LEAFLET_SAMPLE_NAMES: ReadonlyArray<string> = [
   '0. Terminal elaborate',
@@ -652,10 +715,9 @@ function buildLeafletPatchV2(
   const sizeRatio = Math.min(1, lengthM / GRAVITY_REF_LENGTH_M);
   const overrideGravityDroopDeg = sizeRatio * sizeRatio * GRAVITY_MAX_DEG;
 
-  // ★ S108 — Natural sample 선택 (10개 중 idSeed % 10).
-  //   tomato.json spec _override_ (사용자 결정: 산식 추측 X, 자연 모방 10개).
-  const sampleIdx = Math.abs(idSeed) % NATURAL_LEAFLET_SAMPLES.length;
-  const sample = NATURAL_LEAFLET_SAMPLES[sampleIdx];
+  // ★ S108 → S112 — Natural sample 선택 + procedural 혼합.
+  //   사용자: "여러 함수 만들어서 랜덤" — 60% photo (10 sample), 40% procedural (무한).
+  const sample = selectLeafletSample(idSeed);
 
   // S105 lobeDepthMult (잎 길이 비례) — sample depth × mult
   const lobeDepthMult = Math.max(0.2, Math.min(1.0, lengthM / 0.20));
