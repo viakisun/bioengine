@@ -152,13 +152,15 @@ const VAR_MAX = {
   rollRad: 0.0, pitchRad: 0.0, curlMult: 0.0,
 } as const;
 
-// ★ S103 — Per-leaflet gravity 4 카테고리 (각 25% 분배):
-//   category 0: 0% gravity → 0° (수평, 빳빳)
-//   category 1: 20% → 18°
-//   category 2: 50% → 45°
-//   category 3: 100% → 90° (수직 급격히 꺾어짐)
-const GRAVITY_BASE_DEG_MAX = 90;
-const GRAVITY_CATEGORY_PCT = [0, 0.20, 0.50, 1.0] as const;
+// ★ S104 — 사용자 결정: gravity 처짐은 _잎 길이_에 비례 (cantilever bending).
+//   자연 물리: 처짐 ∝ length² (균일 하중 cantilever)
+//   - 짧은 intercalary (2-5cm) → 거의 수평 (가벼움)
+//   - 중간 primary (10-15cm) → 30-50°
+//   - 큰 terminal (20-25cm) → 70-90°
+//
+//   산식: gravityDeg = (lengthM / 0.25)² × 90  (clamp 0~90)
+const GRAVITY_REF_LENGTH_M = 0.25;  // 25cm = 100% reference
+const GRAVITY_MAX_DEG = 90;
 
 /**
  * ★ L9-D V2 S99 — Per-leaflet lobe perturbation (단일 strength multiplier).
@@ -313,11 +315,10 @@ function buildLeafletPatchV2(
   const curlMult = 1;
   void s;  // unused (strength=0)
 
-  // ★ S103 — Per-leaflet gravityDroopDeg 4 카테고리 (각 25% 분배):
-  //   abs(idSeed) % 4 → 0/20/50/100% × 90° = 0°/18°/45°/90°
-  const gravityCategory = Math.abs(idSeed) % 4;
-  const gravityPct = GRAVITY_CATEGORY_PCT[gravityCategory];
-  const overrideGravityDroopDeg = GRAVITY_BASE_DEG_MAX * gravityPct;
+  // ★ S104 — gravityDroopDeg = (lengthM / 0.25)² × 90 (cantilever bending).
+  //   잎 길이에 비례 (자연 물리). 4 랜덤 카테고리 제거.
+  const sizeRatio = Math.min(1, lengthM / GRAVITY_REF_LENGTH_M);
+  const overrideGravityDroopDeg = sizeRatio * sizeRatio * GRAVITY_MAX_DEG;
 
   const profileV2 = buildShapeProfileV2({
     lengthM: lengthV2,
