@@ -10,6 +10,8 @@ import { createLogger } from '../utils/logger';
 
 const log = createLogger('plant');
 import { createFruitNode } from '../scene/fruit/FruitGenerator';
+import { getFruitSpec } from '../data/fruit';
+const tomatoFruitSpec = getFruitSpec('tomato.json');
 import { computeTrussDroop } from '@farmsim/tomato-engine';
 import { ACTIVE_MODEL } from '@farmsim/tomato-engine/ModelRegistry';
 import type { TrussState } from '@farmsim/tomato-engine';
@@ -353,6 +355,7 @@ export function createTrussNodeFromBase(
           };
           const fruitNode = createFruitNode(
             `${name}_fruit_${site.index}`, scene, fruitState, rng.fork(site.index + 1),
+            tomatoFruitSpec,
             { skipCalyxAndStem: true },
           );
           fruitNode.parent = root;
@@ -616,6 +619,7 @@ export function createTrussFruitOrgansOnly(
           };
           const fruitNode = createFruitNode(
             `${name}_fruit_${site.index}`, scene, fruitState, rng.fork(site.index + 1),
+            tomatoFruitSpec,
             { skipCalyxAndStem: true },
           );
           fruitNode.parent = root;

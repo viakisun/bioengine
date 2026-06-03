@@ -30,13 +30,10 @@ import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { SeededRandom } from '@farmsim/tomato-engine';
 import type { FruitState, CultivarSample } from '@farmsim/tomato-engine';
+import type { FruitSpec } from './FruitSpec';
 
-const SEGMENTS_HIGH = 36;     // hero (showcase) — smoother lobes, less faceted
-const RINGS_HIGH = 22;        // hero — latitudinal rings (smoother shoulder)
-const SEGMENTS_LOW = 14;      // supporting — coarser but still lobed
-const RINGS_LOW = 10;         // supporting
-const CROWN_RECESSION = 0.18; // depth of stem-end socket (× radius) — pedicel tip lands here
-const SHOULDER_BULGE = 0.05;  // outward swell on ring just below socket — smooth transition
+// ★ L7-A-3a/b (S63/S64) — SEGMENTS/RINGS/CROWN/SHOULDER 모두 spec 주입.
+//   FruitGenerator.ts 안 botanical/rendering magic 0 의무 (FRUIT-SPEC-BOTANICAL-PARAMETERS-01).
 
 // ---------------------------------------------------------------------------
 // Body mesh — oblate, ribbed, asymmetric, per-vertex colored
@@ -45,14 +42,20 @@ const SHOULDER_BULGE = 0.05;  // outward swell on ring just below socket — smo
 function buildFruitBodyVertexData(
   fruit: FruitState,
   genome: CultivarSample,
-  lod: 'high' | 'low' = 'high',
+  spec: FruitSpec,
+  lod: 'high' | 'low' | 'ultraLow' = 'high',
 ): VertexData {
   const positions: number[] = [];
   const colors: number[] = [];
   const indices: number[] = [];
 
-  const RINGS = lod === 'high' ? RINGS_HIGH : RINGS_LOW;
-  const SEGMENTS = lod === 'high' ? SEGMENTS_HIGH : SEGMENTS_LOW;
+  // ★ L7-A-3b (S64) — resolution from spec.meshResolution.
+  const resolution = spec.meshResolution[lod];
+  const RINGS = resolution.rings;
+  const SEGMENTS = resolution.segments;
+  // ★ L7-A-3a (S63) — morphology from spec.morphologyRules.
+  const CROWN_RECESSION = spec.morphologyRules.crownRecession;
+  const SHOULDER_BULGE = spec.morphologyRules.shoulderBulge;
 
   // Vertex grid (RINGS+1 rings × SEGMENTS+1 columns)
   // The pole rings collapse to a single point; the top pole has the
@@ -398,7 +401,8 @@ export function createFruitNode(
   scene: Scene,
   fruit: FruitState,
   rng: SeededRandom,        // legacy parameter — kept for compatibility
-  opts?: { lod?: 'high' | 'low'; skipCalyxAndStem?: boolean },
+  spec: FruitSpec,          // ★ L7-A-3a (S63) — botanical/rendering parameter spec
+  opts?: { lod?: 'high' | 'low' | 'ultraLow'; skipCalyxAndStem?: boolean },
 ): TransformNode {
   void rng; // no longer used; per-fruit determinism comes from genome seeds
   const lod = opts?.lod ?? 'high';
@@ -421,7 +425,7 @@ export function createFruitNode(
 
   // ---------- Body ----------
   const body = new Mesh(`${name}_body`, scene);
-  buildFruitBodyVertexData(fruit, genome, lod).applyToMesh(body);
+  buildFruitBodyVertexData(fruit, genome, spec, lod).applyToMesh(body);
   body.scaling = new Vector3(radiusM, radiusM, radiusM);
   body.parent = root;
   body.useVertexColors = true;

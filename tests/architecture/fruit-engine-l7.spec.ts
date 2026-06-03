@@ -1,0 +1,135 @@
+// ★ Iter 39 Phase L7 — Fruit data-driven architecture invariants.
+//
+// L7-A invariants (S60~S67):
+//   FRUIT-ENGINE-API-01            — FruitEngine namespace 3 methods
+//   FRUIT-SPEC-NO-TOMATO-01        — src/scene/fruit/ 코드 안 'tomato' 단어 0
+//   FRUIT-SPEC-ZOD-VALID-01        — tomato.json이 FruitSpecSchema.parse PASS
+//   FRUIT-SPEC-BOTANICAL-PARAMETERS-01 — audit Section 1 entries migrated
+//   FRUIT-SPEC-TAXONOMY-01         — spec.taxonomy 4 fields 필수
+//
+// 파리티 (산식 byte-identical):
+//   FRUIT-GEOMETRY-PARITY-01 — morphology 산식 spec 주입 후 동일 값
+//   FRUIT-COLOR-PARITY-01    — ripening 산식 동일
+//   FRUIT-MATERIAL-PARITY-01 — material 산식 동일
+
+import { test, expect } from '@playwright/test';
+import { promises as fs } from 'fs';
+import * as path from 'path';
+import { fileURLToPath } from 'url';
+
+import { FruitSpecSchema, parseFruitSpec } from '../../src/scene/fruit/FruitSpec';
+
+const SPEC_DIR = path.dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = path.resolve(SPEC_DIR, '../..');
+const FRUIT_ENGINE_DIR = path.join(REPO_ROOT, 'src/scene/fruit');
+
+async function readEngineFiles(): Promise<Array<{ rel: string; text: string }>> {
+  const files = await fs.readdir(FRUIT_ENGINE_DIR);
+  const out: Array<{ rel: string; text: string }> = [];
+  for (const f of files) {
+    if (!f.endsWith('.ts')) continue;
+    const abs = path.join(FRUIT_ENGINE_DIR, f);
+    out.push({ rel: `src/scene/fruit/${f}`, text: await fs.readFile(abs, 'utf-8') });
+  }
+  return out;
+}
+
+async function readTomatoFruitJson(): Promise<unknown> {
+  const text = await fs.readFile(
+    path.join(REPO_ROOT, 'src/data/fruit/specs/tomato.json'),
+    'utf-8',
+  );
+  return JSON.parse(text);
+}
+
+test.describe('Iter 39 Phase L7 — Fruit data-driven architecture', () => {
+  test('FRUIT-SPEC-ZOD-VALID-01: tomato.json (fruit) FruitSpecSchema.parse PASS', async () => {
+    const raw = await readTomatoFruitJson();
+    expect(() => FruitSpecSchema.parse(raw), 'tomato fruit spec schema parse').not.toThrow();
+    const parsed = parseFruitSpec(raw);
+    expect(parsed.schemaVersion).toBe('1.0');
+    expect(parsed.taxonomy.commonName).toBe('tomato');
+
+    // Cross-field constraints
+    // meshResolution monotonic
+    expect(parsed.meshResolution.high.segments).toBeGreaterThan(parsed.meshResolution.low.segments);
+    expect(parsed.meshResolution.low.segments).toBeGreaterThan(parsed.meshResolution.ultraLow.segments);
+    expect(parsed.meshResolution.high.rings).toBeGreaterThan(parsed.meshResolution.low.rings);
+    expect(parsed.meshResolution.low.rings).toBeGreaterThan(parsed.meshResolution.ultraLow.rings);
+
+    // materialRules array length === stageCount
+    expect(parsed.materialRules.stageRoughness.length).toBe(parsed.ripeningRules.stageCount);
+    expect(parsed.materialRules.stageClearcoatIntensity.length).toBe(parsed.ripeningRules.stageCount);
+    expect(parsed.materialRules.stageClearcoatRoughness.length).toBe(parsed.ripeningRules.stageCount);
+  });
+
+  test('FRUIT-SPEC-TAXONOMY-01: spec.taxonomy 4 fields 필수 (multi-crop, 원칙 #44)', async () => {
+    const raw = await readTomatoFruitJson();
+    const parsed = parseFruitSpec(raw);
+    expect(parsed.taxonomy.family).toBe('Solanaceae');
+    expect(parsed.taxonomy.genus).toBe('Solanum');
+    expect(parsed.taxonomy.species).toBe('lycopersicum');
+    expect(parsed.taxonomy.commonName).toBe('tomato');
+  });
+
+  test('FRUIT-SPEC-NO-TOMATO-01: src/scene/fruit/ engine 코드 안 "tomato" 단어 0 (원칙 #42)', async () => {
+    // Scope: comments + @farmsim/tomato-* package imports 제외 (보완 #7)
+    const files = await readEngineFiles();
+    const tomatoRe = /\btomato\b/i;
+    const offenders: Array<{ file: string; line: number; text: string }> = [];
+    for (const { rel, text } of files) {
+      const lines = text.split('\n');
+      let inBlockComment = false;
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.includes('/*')) inBlockComment = true;
+        const isCommentLine = inBlockComment || /^\s*(\/\/|\*)/.test(line);
+        if (line.includes('*/')) inBlockComment = false;
+        if (isCommentLine) continue;
+        const codePart = line.replace(/\/\/.*$/, '');
+        if (!tomatoRe.test(codePart)) continue;
+        // allow @farmsim/tomato-* package imports
+        if (/@farmsim\/tomato-(engine|geometry|growth)/.test(codePart)) continue;
+        offenders.push({ file: rel, line: i + 1, text: line.trim() });
+      }
+    }
+    expect(
+      offenders,
+      `engine 코드 (src/scene/fruit/*.ts) 안 'tomato' 단어 0 의무 (원칙 #42).\n` +
+        `Found: ${JSON.stringify(offenders, null, 2)}`,
+    ).toEqual([]);
+  });
+
+  test('FRUIT-SPEC-BOTANICAL-PARAMETERS-01: audit-based migration coverage (S63 morphology)', async () => {
+    // ★ 보완 #12 — audit table 기반 검증. Section 1.A morphology entries:
+    //   CROWN_RECESSION, SHOULDER_BULGE 코드 hardcoded 0 + spec field 존재.
+    const src = await fs.readFile(
+      path.join(REPO_ROOT, 'src/scene/fruit/FruitGenerator.ts'),
+      'utf-8',
+    );
+
+    // 산식이 spec.morphologyRules 사용
+    expect(src, 'spec.morphologyRules.crownRecession 사용').toMatch(
+      /spec\.morphologyRules\.crownRecession/,
+    );
+    expect(src, 'spec.morphologyRules.shoulderBulge 사용').toMatch(
+      /spec\.morphologyRules\.shoulderBulge/,
+    );
+
+    // 코드 안 hardcoded 0 — comment 제외하고 active code에서 const 정의 0
+    const lines = src.split('\n');
+    const activeConstDefs = lines.filter(
+      l => !l.trim().startsWith('//') &&
+           !l.trim().startsWith('*') &&
+           /^const\s+CROWN_RECESSION\s*=\s*0\.18/.test(l.trim()),
+    );
+    expect(activeConstDefs, 'CROWN_RECESSION hardcoded const 정의 0').toEqual([]);
+
+    const shoulderConstDefs = lines.filter(
+      l => !l.trim().startsWith('//') &&
+           !l.trim().startsWith('*') &&
+           /^const\s+SHOULDER_BULGE\s*=\s*0\.05/.test(l.trim()),
+    );
+    expect(shoulderConstDefs, 'SHOULDER_BULGE hardcoded const 정의 0').toEqual([]);
+  });
+});
