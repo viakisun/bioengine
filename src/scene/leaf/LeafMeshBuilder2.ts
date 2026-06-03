@@ -144,21 +144,22 @@ function signedRand(seed: number, salt: number): number {
 //   - outline (1,2,3,4): _보수_ (마름모/기형 회피)
 //   - 3D 회전 (5,6): _크게_ (outline 영향 0, 안전)
 //   - curl (7): _크게_ (말림 강도 자연 다양)
-// ★ S101 — _말도 안 될 정도로_ 과격 (사용자: "이래도 되나 싶을정도로").
-//   S100도 시각 X. 안 보이면 → 코드 안 들어감 진단. 보이면 → 거기서 줄임.
+// ★ S102 — 사용자 결정:
+//   "pitch/roll 부착지점 회전은 말이 안 됨" → 원복 (작은 noise만)
+//   "잎의 모양에만 집중" → outline 영역만 과격
 const LEAF_VARIATION_STRENGTH = 1.0;
 
 const VAR_MAX = {
-  // Outline 2D (마름모 위험 무시, 과격 시도)
-  aspect: 0.45,           // ±45% aspectRatio (S100 0.15 → 3배)
-  depth: 0.80,            // ±80% lobe depth (2배)
-  asymmetry: 0.60,        // ±0.60 (2배)
-  dripDepth: 0.70,        // ±70% (2배)
-  // 3D 회전 (말도 안 되는 회전)
-  rollRad: 1.60,          // ±1.60 rad ≈ ±92° (S100 0.80 → 2배, 완전 뒤집힘 수준)
-  pitchRad: 1.20,         // ±1.20 rad ≈ ±69° (앞으로 거의 수직)
-  // 3D curl (말도 안 되는 변동)
-  curlMult: 2.0,          // ±200% — 0~3× base curl
+  // Outline 2D (사용자 집중 영역, 과격 유지)
+  aspect: 0.45,           // ±45% aspectRatio
+  depth: 0.80,            // ±80% lobe depth
+  asymmetry: 0.60,        // ±0.60 좌/우 면적
+  dripDepth: 0.70,        // ±70% apex 뭉툭/뾰족
+  // 3D 회전 (원복 — 부착지점 회전 부자연)
+  rollRad: 0.0,           // ★ S102 원복 — V1 noise만 적용 (extra 0)
+  pitchRad: 0.0,          // ★ S102 원복
+  // 3D curl (작은 변동만)
+  curlMult: 0.30,         // ±30% — base curl이 이미 작음
 } as const;
 
 /**
@@ -301,27 +302,38 @@ function buildLeafletPatchV2(
   const aspectJitter = 1 + (((idSeed * 23) % 100 - 50) / jitterDivisor);
   const sharpnessJitter = 1 + (((idSeed * 29) % 100 - 50) / jitterDivisor);
 
-  // ★ L9-D V2 S99 — 단일 strength multiplier로 모든 7 영역 통제.
-  //   사용자: "배리에이션 function은 단 하나면 충분".
-  //   LEAF_VARIATION_STRENGTH 조정 = 전체 variation 강도 조정.
+  // ★ L9-D V2 S99 — 단일 strength multiplier로 모든 영역 통제.
+  // ★ S102 — outline만 집중. pitch/roll 원복.
   const s = LEAF_VARIATION_STRENGTH;
 
+  // ★ S102 DIAGNOSTIC — variation이 _진짜 적용 중인지_ 확인 위해 3 categories
+  //   강제 분기 (signedRand 우회). 보이면 코드 OK, 안 보이면 코드 안 들어감.
+  //   결과: 잎 3종류 (긴/중간/짧)이 _명백히 다른 모양_으로 나와야.
+  const category = Math.abs(idSeed) % 3;
+  const aspectCategoryMult =
+    category === 0 ? 0.6   // 짧고 넓음
+    : category === 1 ? 1.0  // 중간 (default)
+    : 1.7;                  // 길고 좁음
+  const depthCategoryMult =
+    category === 0 ? 0.5
+    : category === 1 ? 1.0
+    : 1.5;
+
   // ─── Outline 2D (영역 1, 2, 3, 4) ─────────────────────────────
-  // 영역 4: aspectRatio variation (가로/세로 비율 차이)
-  const aspectJitterV2 = 1 + signedRand(idSeed, 19) * VAR_MAX.aspect * s;
-  // (영역 1 lobe depth는 perturbLobes에서 적용됨)
-  // 영역 2: asymmetry variation (좌/우 면적)
+  const aspectJitterV2 = aspectCategoryMult * (1 + signedRand(idSeed, 19) * VAR_MAX.aspect * s * 0.3);
   const asymVariation = signedRand(idSeed, 23) * VAR_MAX.asymmetry * s;
-  // 영역 3: dripTip depth variation (apex 뭉툭/뾰족)
   const dripDepthBase = positionedProfile.dripTipDepth ?? 0.6;
   const dripUStartBase = positionedProfile.dripTipUStart ?? 0.85;
   const dripDepthJitter = 1 + signedRand(idSeed, 29) * VAR_MAX.dripDepth * s;
   const dripUShift = signedRand(idSeed, 31) * 0.03 * s;
-  const lengthV2 = lengthM;  // size는 targetSizeM이 이미 다름
+  const lengthV2 = lengthM;
 
-  // ─── 3D curl (영역 7) ───────────────────────────────────────
-  // 영역 6: 옆 말림 + 영역 7: 말림 강도 (per-leaflet curl multiplier)
+  // ─── 3D curl (영역 7, 작은 변동) ─────────────────────────────
   const curlMult = Math.max(0, 1 + signedRand(idSeed, 47) * VAR_MAX.curlMult * s);
+
+  // ★ S102 — depth category multiplier perturbLobes에 전달 위해
+  //   inline 추가 perturbation (perturbLobes signature 변경 회피).
+  void depthCategoryMult;  // TODO: perturbLobes에 통합
 
   const profileV2 = buildShapeProfileV2({
     lengthM: lengthV2,
@@ -378,13 +390,9 @@ function buildLeafletPatchV2(
   // SSOT #186 — L1-B centroid anchor (V1 동일).
   normalizeLeafMeshVertices(chunk.positions);
 
-  // ★ S99 영역 5,6 — V2 자체 추가 pose (V1 applyLeafletPose 위에 곱).
-  //   roll (좌/우 휘어짐) + pitch (앞으로 말림)
-  const baseQuat = applyLeafletPose(ctx.spec.poseRules, node, idSeed, desc);
-  const extraPitch = signedRand(idSeed, 53) * VAR_MAX.pitchRad * s;
-  const extraRoll = signedRand(idSeed, 59) * VAR_MAX.rollRad * s;
-  const extraQuat = quatFromYawPitchRoll(0, extraPitch, extraRoll);
-  const finalQuat = quatMultiply(baseQuat, extraQuat);
+  // ★ S102 — V1 applyLeafletPose만 (extra pitch/roll 제거).
+  //   사용자: "pitch/roll 부착지점 회전은 말이 안 됨".
+  const finalQuat = applyLeafletPose(ctx.spec.poseRules, node, idSeed, desc);
 
   return {
     meshName: `${ctx.meshNamePrefix}_l${i}_${node.leafletRef.position}_v2`,
