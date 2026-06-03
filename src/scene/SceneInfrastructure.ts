@@ -13,6 +13,14 @@ import { SCENARIO } from '../data/mockScenario';
 import { logBoot, updateStageDetail } from '../state/notify';
 import { createSkinMeshPlant, type SkinMeshPlantHandle } from './SkinMeshPlant';
 import { createCocopeatBags } from './greenhouse/CocopeatBags';
+import {
+  createGreenhouseBuilding,
+  defaultBedZPositions,
+  defaultAisleZPositions,
+  BED_DEPTH,
+} from './greenhouse/GreenhouseBuilding';
+import { createBedStands } from './greenhouse/BedStands';
+import { createTubeRail } from './greenhouse/TubeRail';
 
 /** Showcase seed — Iter 33 V1 baseline tomato plant.
  *  ★ S116 — URL `?seed=N` override 지원. 사용자: 동일 seed 매 view → "main stem 하드코딩 인상".
@@ -51,8 +59,9 @@ export interface SceneInfrastructureHandle {
   extraPlants: SkinMeshPlantHandle[];
 }
 
-/** ★ S118 — multi-plant extra count (성능 trade). default 4 (1구 건너 1구 첫 bed 일부).
- *  URL `?extraPlants=N` override. N=0 시 single plant 동작 (이전과 동일). */
+/** ★ S119/S122 — multi-plant config (성능 trade). default 8 plants (showcase + 7 extra).
+ *  URL `?extraPlants=N` override. N=0 시 single plant 동작.
+ *  베드 수도 함께 — `?activeBeds=N` (N=1~13, default 3). 작물은 main bed에만. */
 function resolveExtraPlantCount(): number {
   if (typeof location !== 'undefined') {
     const param = new URLSearchParams(location.search).get('extraPlants');
@@ -61,19 +70,28 @@ function resolveExtraPlantCount(): number {
       if (Number.isFinite(n) && n >= 0 && n <= 30) return n;
     }
   }
-  return 4;  // default — 4 extra (showcase 1 + extra 4 = 5 plants total)
+  return 7;  // default — showcase + 7 extra = 8 plants total
+}
+
+function resolveActiveBedCount(): number {
+  if (typeof location !== 'undefined') {
+    const param = new URLSearchParams(location.search).get('activeBeds');
+    if (param !== null) {
+      const n = Number.parseInt(param, 10);
+      if (Number.isFinite(n) && n >= 1 && n <= 13) return n;
+    }
+  }
+  return 3;
 }
 
 export async function buildSceneInfrastructure(scene: Scene): Promise<SceneInfrastructureHandle> {
-  updateStageDetail('바닥', 0.05);
+  updateStageDetail('바닥', 0.03);
   logBoot('log', 'scene: 바닥 mesh');
 
-  // ★ S118 — multi-plant 시 ground 확장. single plant 시 기존 8m 유지.
-  const extraN = resolveExtraPlantCount();
-  const groundWidth = extraN > 0 ? 32 : 8;
+  // ★ S119 — Greenhouse 전체 footprint 커버 (24m × 34m). 이전 8m 단순 floor.
   const ground = MeshBuilder.CreateGround(
     'ground',
-    { width: groundWidth, height: extraN > 0 ? 6 : 8, subdivisions: 4 },
+    { width: 50, height: 28, subdivisions: 4 },
     scene,
   );
   const groundMat = new PBRMaterial('groundMat', scene);
@@ -84,7 +102,57 @@ export async function buildSceneInfrastructure(scene: Scene): Promise<SceneInfra
   ground.material = groundMat;
   ground.receiveShadows = true;
 
-  updateStageDetail('생장 엔진 + 식물', 0.3);
+  // ★ S119 — Greenhouse building (frame + roof + walls + overhead wires + strings).
+  updateStageDetail('온실 건물 + 유인줄', 0.15);
+  logBoot('log', 'scene: greenhouse building');
+  await new Promise((r) => setTimeout(r, 0));
+  const bedZPositions = defaultBedZPositions();
+  const aisleZPositions = defaultAisleZPositions();
+  const activeBedCount = resolveActiveBedCount();
+  const mainBedIdx = Math.floor(bedZPositions.length / 2);  // center bed
+  const activeBedIndices = activeBedsAroundMain(mainBedIdx, activeBedCount, bedZPositions.length);
+  createGreenhouseBuilding(scene, {
+    bedZPositions,
+    activePlantBedIndices: activeBedIndices,
+    substrateTopY: SUBSTRATE_TOP_Y,
+  });
+
+  // ★ S120 — Bed stands (다리) + tube rails (통로 레일).
+  updateStageDetail('베드 다리 + 튜브레일', 0.25);
+  logBoot('log', 'scene: bed stands + tube rails');
+  await new Promise((r) => setTimeout(r, 0));
+  const frameMat = new PBRMaterial('bedStandMat', scene);
+  frameMat.albedoColor = Color3.FromHexString('#c8c8c0');
+  frameMat.metallic = 0.85;
+  frameMat.roughness = 0.3;
+  for (const [bedIdx, bedZ] of bedZPositions.entries()) {
+    createBedStands(scene, {
+      centerZ: bedZ,
+      lengthM: SCENARIO.bedLengthM,
+      bedTopY: SCENARIO.bedY,
+      bedDepthM: BED_DEPTH,
+      material: frameMat,
+      instanceTag: `bed${bedIdx}`,
+    });
+  }
+  for (const [aisleIdx, aisleZ] of aisleZPositions.entries()) {
+    createTubeRail(scene, {
+      centerZ: aisleZ,
+      lengthM: SCENARIO.bedLengthM,
+      instanceTag: `aisle${aisleIdx}`,
+    });
+  }
+
+  // ★ S119 — Cocopeat bags per active bed.
+  updateStageDetail('Cocopeat bags', 0.4);
+  logBoot('log', 'scene: cocopeat bags');
+  await new Promise((r) => setTimeout(r, 0));
+  for (const bedIdx of activeBedIndices) {
+    createCocopeatBags(scene, { centerZ: bedZPositions[bedIdx], instanceTag: `bed${bedIdx}` });
+  }
+
+  // ★ Engine + plants.
+  updateStageDetail('생장 엔진 + 식물', 0.5);
   logBoot('log', 'scene: GrowthEngine + plants');
   await new Promise((r) => setTimeout(r, 0));
 
@@ -98,46 +166,38 @@ export async function buildSceneInfrastructure(scene: Scene): Promise<SceneInfra
     nutrientEC: 3.0,
   });
 
-  // ★ S118 — 첫 plant (showcase): SCENARIO.plants[0] 위치 (실제 cocopeat hole 좌표).
-  //   _이전_: world origin (0,0,0). _이제_: SCENARIO 기반 hole 좌표.
+  // Showcase plant — SCENARIO.plants[0] in main bed.
   const showcaseSpec = SCENARIO.plants[0];
   growthEngine.addPlant({ seed: SHOWCASE_SEED, cultivarName: 'tomimaru-muchoo' });
-  const skinPos = new Vector3(showcaseSpec.position[0], SUBSTRATE_TOP_Y, 0);
+  const skinPos = new Vector3(showcaseSpec.position[0], SUBSTRATE_TOP_Y, bedZPositions[mainBedIdx]);
 
-  updateStageDetail('SkinMesh 빌드', 0.5);
+  updateStageDetail('SkinMesh 빌드 (showcase)', 0.65);
   logBoot('log', 'scene: showcase plant');
   await new Promise((r) => setTimeout(r, 0));
-
   const skinMeshPlant = createSkinMeshPlant(scene, growthEngine, SHOWCASE_SEED, skinPos);
   skinMeshPlant.setVisible(true);
 
-  // ★ S118 — Multi-plant: SCENARIO.plants 다음 N개 추가 (모두 1구 건너 hole에 위치).
-  //   SCENARIO PLANT_HOLE_OFFSETS = [-0.4, 0.0, +0.4] (3 holes per bag) — 자동 alternating.
-  //   각 plant: addPlant + SkinMeshPlant 인스턴스.
+  // ★ S122 — Extra plants. SCENARIO.plants 좌표 = 자동 1구 건너 hole 배치.
+  //   default 7 extras (총 8 plants), URL `?extraPlants=N`로 변경.
+  const extraN = resolveExtraPlantCount();
   const extraPlants: SkinMeshPlantHandle[] = [];
   for (let i = 0; i < extraN; i++) {
     const spec = SCENARIO.plants[i + 1];
     if (!spec) break;
     const seed = SHOWCASE_SEED + (i + 1) * 1009;
     growthEngine.addPlant({ seed, cultivarName: 'tomimaru-muchoo' });
-    const pos = new Vector3(spec.position[0], SUBSTRATE_TOP_Y, 0);
+    const pos = new Vector3(spec.position[0], SUBSTRATE_TOP_Y, bedZPositions[mainBedIdx]);
     const plant = createSkinMeshPlant(scene, growthEngine, seed, pos);
     plant.setVisible(true);
     extraPlants.push(plant);
     if (i % 2 === 0) {
-      updateStageDetail(`extra plants ${i + 1}/${extraN}`, 0.5 + 0.2 * (i / extraN));
+      updateStageDetail(`extra plants ${i + 1}/${extraN}`, 0.65 + 0.3 * (i / extraN));
       await new Promise((r) => setTimeout(r, 0));
     }
   }
 
-  // ★ S118 — Cocopeat bag row (greenhouse 환경 데이터, archive에서 복원).
-  updateStageDetail('Cocopeat bags', 0.8);
-  logBoot('log', 'scene: cocopeat bags');
-  await new Promise((r) => setTimeout(r, 0));
-  createCocopeatBags(scene, { centerZ: 0, instanceTag: 'main' });
-
   updateStageDetail('인프라 완료', 1.0);
-  logBoot('log', `scene: 인프라 완료 (plants total=${1 + extraPlants.length})`);
+  logBoot('log', `scene: 인프라 완료 (plants=${1 + extraPlants.length}, beds=${bedZPositions.length}, active=${activeBedIndices.length})`);
   await new Promise((r) => setTimeout(r, 0));
 
   return {
@@ -145,4 +205,17 @@ export async function buildSceneInfrastructure(scene: Scene): Promise<SceneInfra
     skinMeshPlant,
     extraPlants,
   };
+}
+
+/** Active beds around the main (center) bed. */
+function activeBedsAroundMain(mainIdx: number, count: number, total: number): number[] {
+  const result: number[] = [mainIdx];
+  let offset = 1;
+  while (result.length < count && offset <= total) {
+    if (mainIdx - offset >= 0) result.push(mainIdx - offset);
+    if (result.length >= count) break;
+    if (mainIdx + offset < total) result.push(mainIdx + offset);
+    offset++;
+  }
+  return result.sort((a, b) => a - b);
 }
