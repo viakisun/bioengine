@@ -34,31 +34,51 @@ async function readFile(p: string): Promise<string> {
 test.describe('S114 — Leaf Branch Scale + Density (v3 보정 반영)', () => {
   // ─── A. sf clamp + non-linear maturity curve ──────────────────────────
 
-  test('LEAF-BRANCH-SF-CLAMP-01: lengthSf = clamp(sf, 0.05, 1.0) 상한 1.0', async () => {
+  test('LEAF-BRANCH-DISTANCE-FROM-APEX-01: skeleton computeLeafBladeRef에 distanceFromApexM 인자 (S114-F)', async () => {
     const src = await readFile(SKELETON);
-    expect(src, 'lengthSf 명명 분리 + clamp(sf, 0.05, 1.0)').toMatch(
-      /const\s+lengthSf\s*=\s*clamp\(sf,\s*0\.05,\s*1\.0\)/,
+    expect(src, 'computeLeafBladeRef signature에 distanceFromApexM').toMatch(
+      /function computeLeafBladeRef\([\s\S]{0,300}distanceFromApexM:\s*number/,
+    );
+    expect(src, 'caller에서 apex 거리 계산 후 전달').toMatch(
+      /computeLeafBladeRef\(leaf,\s*cultivar,\s*nodePositionScale,\s*distanceFromApexM\)/,
     );
   });
 
-  test('LEAF-BRANCH-VISUAL-MATURITY-01: visualMaturity = smoothstep(0.12, 1.0, lengthSf)', async () => {
+  test('LEAF-BRANCH-VISUAL-MATURITY-01: visualMaturity = min(sfMaturity, distanceMaturity) (S114-F)', async () => {
     const src = await readFile(SKELETON);
-    expect(src, 'visualMaturity smoothstep ease (young 빨리 큼 회피)').toMatch(
-      /const\s+visualMaturity\s*=\s*smoothstep\(0\.12,\s*1\.0,\s*lengthSf\)/,
+    // S114-F: sf 빠른 포화 해소 — min() blend.
+    expect(src, 'sfMaturity smoothstep(0.25, 1.80, sf)').toMatch(
+      /const\s+sfMaturity\s*=\s*smoothstep\(0\.25,\s*1\.80,\s*sf\)/,
+    );
+    expect(src, 'distanceMaturity smoothstep(0.04, 0.24, distanceFromApexM)').toMatch(
+      /const\s+distanceMaturity\s*=\s*smoothstep\(0\.04,\s*0\.24,\s*distanceFromApexM\)/,
+    );
+    expect(src, 'visualMaturity = Math.min(sfMaturity, distanceMaturity)').toMatch(
+      /const\s+visualMaturity\s*=\s*Math\.min\(sfMaturity,\s*distanceMaturity\)/,
     );
   });
 
-  test('LEAF-BRANCH-NONLINEAR-SCALE-01: petiole / rachis / leafletScale lerp 곡선', async () => {
+  test('LEAF-BRANCH-NONLINEAR-SCALE-01: STRONG_FIX scale 곡선 (S114-F)', async () => {
     const src = await readFile(SKELETON);
-    // v3 보정 #2: rachis 최소 < petiole 최소 (어린 잎 _긴 빈 축_ 회피)
-    expect(src, 'petioleScale = lerp(0.35, 1.0, visualMaturity)').toMatch(
-      /const\s+petioleScale\s*=\s*lerp\(0\.35,\s*1\.0,\s*visualMaturity\)/,
+    expect(src, 'petioleScale = lerp(0.22, 1.0, visualMaturity)').toMatch(
+      /const\s+petioleScale\s*=\s*lerp\(0\.22,\s*1\.0,\s*visualMaturity\)/,
     );
-    expect(src, 'rachisScale = lerp(0.30, 1.0, visualMaturity) — petiole보다 작음').toMatch(
-      /const\s+rachisScale\s*=\s*lerp\(0\.30,\s*1\.0,\s*visualMaturity\)/,
+    expect(src, 'rachisScale = lerp(0.20, 1.0, visualMaturity) — petiole보다 작음').toMatch(
+      /const\s+rachisScale\s*=\s*lerp\(0\.20,\s*1\.0,\s*visualMaturity\)/,
     );
-    expect(src, 'leafletScale = lerp(0.35, 1.0, visualMaturity)').toMatch(
-      /const\s+leafletScale\s*=\s*lerp\(0\.35,\s*1\.0,\s*visualMaturity\)/,
+    expect(src, 'leafletScale = lerp(0.30, 1.0, visualMaturity)').toMatch(
+      /const\s+leafletScale\s*=\s*lerp\(0\.30,\s*1\.0,\s*visualMaturity\)/,
+    );
+  });
+
+  test('LEAF-BRANCH-MATURE-CAPS-01: STRONG_FIX base 값 (S114-F)', async () => {
+    const src = await readFile(SKELETON);
+    // refRachis default 0.30 → 0.22 (22cm), refPetiole 0.10 → 0.065 (6.5cm)
+    expect(src, 'refRachis default 0.22').toMatch(
+      /referenceRachisLengthM\s*\?\?\s*0\.22/,
+    );
+    expect(src, 'refPetiole default 0.065').toMatch(
+      /referencePetioleLengthM\s*\?\?\s*0\.065/,
     );
   });
 
@@ -150,21 +170,27 @@ test.describe('S114 — Leaf Branch Scale + Density (v3 보정 반영)', () => {
   //   _진짜_ 시각 fix — PlantBase petioleLengthM이 실제 렌더링 source.
   //   probe 결과: sf=2.0 → petiole 21cm → 12cm (40% 감소).
 
-  test('LEAF-BRANCH-PLANTBASE-SF-CLAMP-01: PlantBase petioleLengthM에도 sf 상한 적용 (S114-D)', async () => {
+  test('LEAF-BRANCH-PLANTBASE-STRONG-FIX-01: PlantBase petiole STRONG_FIX (S114-E)', async () => {
     const src = await readFile(PLANTBASE);
-    // 회귀 금지: 이전 0.12 × max(0.05, sf) (상한 없음)
-    expect(src, 'PlantBase petioleLengthM sf 상한 없는 산식 회귀 금지').not.toMatch(
+    // 회귀 금지: 이전 0.12 × max(0.05, sf) (상한 없음) + S114-D 0.12 base
+    expect(src, '회귀 금지: 0.12 × max(0.05, sf)').not.toMatch(
       /const\s+petioleLengthM\s*=\s*0\.12\s*\*\s*Math\.max\(0\.05,\s*node\.leafSizeFactor\)/,
     );
-    // S114-D 적용: smoothstep + lerp curve
-    expect(src, 'PlantBase lengthSf clamp + smoothstep').toMatch(
-      /const\s+lengthSf\s*=\s*Math\.max\(0\.05,\s*Math\.min\(1\.0,\s*node\.leafSizeFactor\)\)/,
+    // S114-E: min(sfMaturity, distanceMaturity) + 5.5cm base
+    expect(src, 'sfMaturity smoothstep(0.25, 1.80)').toMatch(
+      /sfMaturity\s*=\s*_ssSf\s*\*\s*_ssSf\s*\*\s*\(3\s*-\s*2\s*\*\s*_ssSf\)/,
     );
-    expect(src, 'PlantBase visualMaturity smoothstep').toMatch(
-      /const\s+visualMaturity\s*=\s*_smoothstepT\s*\*\s*_smoothstepT\s*\*\s*\(3\s*-\s*2\s*\*\s*_smoothstepT\)/,
+    expect(src, 'distanceMaturity from apex').toMatch(
+      /distanceMaturity\s*=\s*_ssDist\s*\*\s*_ssDist\s*\*\s*\(3\s*-\s*2\s*\*\s*_ssDist\)/,
     );
-    expect(src, 'PlantBase petioleScale lerp(0.35, 1.0)').toMatch(
-      /const\s+petioleScale\s*=\s*0\.35\s*\+\s*0\.65\s*\*\s*visualMaturity/,
+    expect(src, 'visualMaturity = min(sfMaturity, distanceMaturity)').toMatch(
+      /const\s+visualMaturity\s*=\s*Math\.min\(sfMaturity,\s*distanceMaturity\)/,
+    );
+    expect(src, 'maturePetioleLengthM = 0.055 (5.5cm)').toMatch(
+      /const\s+maturePetioleLengthM\s*=\s*0\.055/,
+    );
+    expect(src, 'petioleScale = 0.22 + 0.78 × visualMaturity').toMatch(
+      /const\s+petioleScale\s*=\s*0\.22\s*\+\s*0\.78\s*\*\s*visualMaturity/,
     );
   });
 });

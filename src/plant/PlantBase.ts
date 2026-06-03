@@ -364,6 +364,12 @@ function buildAxisBase(
   const stemRadiusByNodeIdx = new Map<number, number>();
   for (const seg of stemCurve) stemRadiusByNodeIdx.set(seg.nodeIdx, seg.radius);
 
+  // ★ S114-E — Apex position for distance-from-apex maturity check.
+  //   사용자: "sf만으로 빠른 포화. 생장점 거리도 봐야". apex = stemCurve last node.
+  const apexPos = stemCurve.length > 0
+    ? stemCurve[stemCurve.length - 1].position
+    : { x: 0, y: 0, z: 0 };
+
   for (let i = 0; i < axis.nodes.length; i++) {
     const node = axis.nodes[i];
     const stemCenter = stemPosByNodeIdx.get(node.index) ?? node.position;
@@ -382,7 +388,7 @@ function buildAxisBase(
         }
       : stemCenter;
 
-    leaves.push(buildLeafBase(node, leafAttachPos, genome));
+    leaves.push(buildLeafBase(node, leafAttachPos, genome, apexPos));
 
     if (node.truss) {
       // trussOrderIdx = 0-based emergence order on this axis (main only
@@ -464,29 +470,39 @@ function buildLeafBase(
   node: NodeState,
   attachWorldPos: { x: number; y: number; z: number },
   genome: PlantGenome,
+  apexPos: { x: number; y: number; z: number },
 ): LeafBase {
   // 기존 코드는 'attachPos' 변수명. 좌표계 명시 위해 외부 alias.
   const attachPos = attachWorldPos;
   const azimuthRad = (node.phyllotaxisAngle * Math.PI) / 180;
   const droopRad = (node.droopExtra * Math.PI) / 180;
   const sizeFactor = node.leafSizeFactor * genome.leafSizeMultiplier;
-  // Petiole length matches the skeleton wire computation
-  // (SkeletonOverlay:271): 0.12 × max(0.3, leafSizeFactor) — bare
-  // leafSizeFactor, NOT effective (genome multiplier already implicit
-  // in the engine-side leafSizeFactor).
+  // ★ S114-E (Iter 40) — sf만으로 _빠른 포화_ 해소: min(sfMaturity, distanceMaturity).
+  //   probe 진단 (S114-D 후): apex 거리 0.7cm 에서 sf=1.08 → petiole 12cm 도달.
+  //   사용자: "생장점 7mm 떨어진 잎이 mature 취급되면 안 됨. 최소 15-25cm".
   //
-  // Iter 36 v5 Phase A — 사용자 botanical 6단계 model + linear gradient.
-  // ★ S114-D (Iter 40) — sf 상한 1.0 + smoothstep ease + non-linear curve.
-  //   이전: `0.12 × max(0.05, sf)` — sf>1 폭발 (probe: sf 1.86 → petiole 19.9cm).
-  //   원인: sf는 area scale, linear length에 1:1 곱 잘못. PlantBase petiole이
-  //   buildTomatoSkeletonGraph bladeRef와 _분리_되어 있어 S114-A clamp 미적용.
-  //   적용: skeleton bladeRef와 _동일 산식_ — lengthSf + visualMaturity +
-  //   petioleScale=lerp(0.35, 1.0, vm).
-  const lengthSf = Math.max(0.05, Math.min(1.0, node.leafSizeFactor));
-  const _smoothstepT = Math.max(0, Math.min(1, (lengthSf - 0.12) / (1.0 - 0.12)));
-  const visualMaturity = _smoothstepT * _smoothstepT * (3 - 2 * _smoothstepT);
-  const petioleScale = 0.35 + 0.65 * visualMaturity;
-  const petioleLengthM = 0.12 * petioleScale;
+  //   STRONG_FIX 적용 (사용자 강한 단축 권고):
+  //     maturePetioleLengthM = 0.055 (5.5cm, 기존 12cm에서 -54%)
+  //     sfMaturity edge       0.25 ~ 1.80 (sf 빠른 포화 회피)
+  //     distanceMaturity edge 0.04 ~ 0.24m (apex 4cm 이내 young 강제)
+  //     petioleScale lerp     0.22 ~ 1.00
+  //
+  //   결과: apex 거리 5mm → petiole ~1.2cm. 22cm+ 떨어진 잎만 mature 5.5cm.
+  const apexDx = attachPos.x - apexPos.x;
+  const apexDy = attachPos.y - apexPos.y;
+  const apexDz = attachPos.z - apexPos.z;
+  const distanceFromApexM = Math.sqrt(apexDx * apexDx + apexDy * apexDy + apexDz * apexDz);
+
+  const _ssSf = Math.max(0, Math.min(1, (node.leafSizeFactor - 0.25) / (1.80 - 0.25)));
+  const sfMaturity = _ssSf * _ssSf * (3 - 2 * _ssSf);
+
+  const _ssDist = Math.max(0, Math.min(1, (distanceFromApexM - 0.04) / (0.24 - 0.04)));
+  const distanceMaturity = _ssDist * _ssDist * (3 - 2 * _ssDist);
+
+  const visualMaturity = Math.min(sfMaturity, distanceMaturity);
+  const petioleScale = 0.22 + 0.78 * visualMaturity;
+  const maturePetioleLengthM = 0.055;
+  const petioleLengthM = maturePetioleLengthM * petioleScale;
 
   // Petiole 4-cp Catmull-Rom centerline. attach → arched tip with
   // weight-based cantilever sag. droopRad 가 노드 mass × 80 (+age/stress)

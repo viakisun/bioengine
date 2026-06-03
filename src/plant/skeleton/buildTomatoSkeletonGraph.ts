@@ -381,7 +381,15 @@ function addLeavesForAxis(
     const nodePositionScale = nodePositionGradient(
       leaf.nodeIdx, axis.stemCurve.length,
     );
-    const leafBladeRef = computeLeafBladeRef(leaf, cultivar, nodePositionScale);
+    // ★ S114-F — Apex distance for skeleton bladeRef (PlantBase S114-E와 동일 정책).
+    const apexPos = axis.stemCurve.length > 0
+      ? axis.stemCurve[axis.stemCurve.length - 1].position
+      : leaf.attachPosition;
+    const dxA = leaf.attachPosition.x - apexPos.x;
+    const dyA = leaf.attachPosition.y - apexPos.y;
+    const dzA = leaf.attachPosition.z - apexPos.z;
+    const distanceFromApexM = Math.sqrt(dxA*dxA + dyA*dyA + dzA*dzA);
+    const leafBladeRef = computeLeafBladeRef(leaf, cultivar, nodePositionScale, distanceFromApexM);
     // ★ L5-4 (S41) — leaf-instance macro 분해. leftRightImbalance만 skeleton
     //   size factor에 영향 (다른 5 fields는 dead — audit Section 3 참조).
     const leftRightImbalance = computeLeftRightImbalance(
@@ -685,6 +693,8 @@ function computeLeafBladeRef(
   cultivar?: import('@farmsim/tomato-engine').Cultivar,
   /** ★ Iter 39 Phase F3 — 줄기 위치별 size gradient (0.25~1.0). 기본 1.0 (back-compat). */
   nodePositionScale: number = 1.0,
+  /** ★ S114-F — 생장점까지 거리 (m). distance-based maturity 산출. 기본 0.5m (mature). */
+  distanceFromApexM: number = 0.5,
 ): LeafBladeRef {
   // ★ Iter 37 Q3.2 + Q5 — Stage 세분화 + Cultivar distribution sampling.
   //   사용자 §2 (Q3.2): "어린 잎 primary 1-2쌍, 보통 2-3쌍, 복잡 3-4쌍".
@@ -765,23 +775,29 @@ function computeLeafBladeRef(
     secondaryCount = sf > 0.9 ? 6 : 3;
   }
 
-  // ★ S114 — Length-layer surgical fix (sf 면적 성격이라 linear length 1:1 X).
-  //   기존: sf>1 가능 (engine 측정 area scale) → rachis 1.26m까지 폭발 (probe verdict FAIL).
-  //   해결: length-layer만 sf 상한 1.0 + non-linear smoothstep curve.
+  // ★ S114-F — STRONG_FIX 사용자 가이드 채택 (probe 진단: sf 빠른 포화).
+  //   문제: sf만 사용 시 apex 거리 0.7cm 에서 sf=1.08 → mature 도달 (너무 빠름).
+  //   해결: min(sfMaturity, distanceMaturity) — 둘 중 _더 어린_ 쪽 따름.
+  //         apex 4cm 이내 강제 young, 24cm 이상 mature 도달.
   //
-  //   plan v3 보정:
-  //   #1 명명 분리: sfClamped → lengthSf, smoothstep 결과 → visualMaturity
-  //   #2 rachis 더 강하게 줄임: lerp(0.30, 1.0) vs petiole lerp(0.35, 1.0)
-  //   #5 droopDeg도 visualMaturity 기반 (sf>1 mature 오판정 회피)
-  const refRachis  = cultivar?.growthProfile?.referenceRachisLengthM  ?? 0.30;
-  const refPetiole = cultivar?.growthProfile?.referencePetioleLengthM ?? 0.10;
+  //   STRONG_FIX 값:
+  //     matureRachisLengthM = 0.22 (22cm, 기존 default 0.30에서 -27%)
+  //     matureRefPetioleM   = 0.065 (6.5cm, 기존 0.10에서 -35%)
+  //     sfMaturity edge       0.25 ~ 1.80
+  //     distanceMaturity edge 0.04 ~ 0.24m
+  //     petioleScale lerp     0.22 ~ 1.00
+  //     rachisScale  lerp     0.20 ~ 1.00 (rachis가 petiole보다 더 강하게 작음)
+  //     leafletScale lerp     0.30 ~ 1.00
+  const refRachis  = cultivar?.growthProfile?.referenceRachisLengthM  ?? 0.22;
+  const refPetiole = cultivar?.growthProfile?.referencePetioleLengthM ?? 0.065;
 
-  const lengthSf = clamp(sf, 0.05, 1.0);
-  const visualMaturity = smoothstep(0.12, 1.0, lengthSf);
+  const sfMaturity       = smoothstep(0.25, 1.80, sf);
+  const distanceMaturity = smoothstep(0.04, 0.24, distanceFromApexM);
+  const visualMaturity   = Math.min(sfMaturity, distanceMaturity);
 
-  const petioleScale = lerp(0.35, 1.0, visualMaturity);   // 35% ~ 100%
-  const rachisScale  = lerp(0.30, 1.0, visualMaturity);   // 30% ~ 100% (rachis 더 빠르게 작음)
-  const leafletScale = lerp(0.35, 1.0, visualMaturity);   // per-leaflet 적용용
+  const petioleScale = lerp(0.22, 1.0, visualMaturity);
+  const rachisScale  = lerp(0.20, 1.0, visualMaturity);
+  const leafletScale = lerp(0.30, 1.0, visualMaturity);
 
   const rachisLengthM  = refRachis  * rachisScale  * nodePositionScale;
   const petioleLengthM = refPetiole * petioleScale * nodePositionScale;
