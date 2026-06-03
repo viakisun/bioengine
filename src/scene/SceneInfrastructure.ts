@@ -59,13 +59,8 @@ export interface SceneInfrastructureHandle {
   extraPlants: SkinMeshPlantHandle[];
 }
 
-/** ★ S119~S126 → S127 — multi-plant config (renderer 무게 제약).
- *  S126에서 default 14 (15 plants) 시 SkinMeshPlant heavy renderer × 15 = 로딩 실패.
- *  SkinMeshPlant는 _showcase 전용_ heavy renderer (1066 lines, 잎+stem+fruit 풀-LOD).
- *  Archive에 경량 SupportingPlant (386 lines, 29 plants용)가 있었으나 _S127 복원 안 됨_.
- *
- *  S127 (사용자 "15개도 못 띄운단 말이야"): default 4 (5 plants) — 안정 로딩.
- *  TODO: SupportingPlant 복원 후 default 늘리기 (별도 phase).
+/** ★ S128 — extras에 lowQuality 적용 (ultra-low LOD + truss skip).
+ *  build 시간 단축 (~10배) — default 작물 4 → 14 (15 plants).
  *  URL `?extraPlants=N` (0~89) override. */
 function resolveExtraPlantCount(): number {
   if (typeof location !== 'undefined') {
@@ -75,7 +70,7 @@ function resolveExtraPlantCount(): number {
       if (Number.isFinite(n) && n >= 0 && n <= 89) return n;
     }
   }
-  return 4;  // default — showcase + 4 extra = 5 plants (안정 로딩, SkinMeshPlant heavy 제약)
+  return 14;  // default — showcase (high) + 14 extras (ultra-low) = 15 plants
 }
 
 function resolveActiveBedCount(): number {
@@ -203,7 +198,8 @@ export async function buildSceneInfrastructure(scene: Scene): Promise<SceneInfra
     const seed = SHOWCASE_SEED + bedIdx * 100000 + slot * 1009;
     growthEngine.addPlant({ seed, cultivarName: 'tomimaru-muchoo' });
     const pos = new Vector3(spec.position[0], SUBSTRATE_TOP_Y, bedZPositions[bedIdx]);
-    const plant = createSkinMeshPlant(scene, growthEngine, seed, pos);
+    // ★ S128 — extras는 lowQuality: ultra-low LOD + truss skip (빠른 로딩).
+    const plant = createSkinMeshPlant(scene, growthEngine, seed, pos, { lowQuality: true });
     plant.setVisible(true);
     extraPlants.push(plant);
     if (i % 4 === 0) {

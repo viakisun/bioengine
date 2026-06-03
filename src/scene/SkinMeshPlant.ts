@@ -171,11 +171,19 @@ function getSkinMeshMaterial(scene: Scene): PBRMaterial {
 
 // ── Main factory ──────────────────────────────────────────────────────
 
+/** ★ S128 — createSkinMeshPlant options.
+ *  multi-plant 시 extras에 lowQuality=true 적용 → 빠른 로딩. */
+export interface CreateSkinMeshPlantOpts {
+  /** ★ S128 — quality override. true 시 항상 'ultra-low' (distance 무관) + truss skip. */
+  lowQuality?: boolean;
+}
+
 export function createSkinMeshPlant(
   scene: Scene,
   engine: GrowthEngine,
   seed: number,
   worldPosition: Vector3,
+  opts: CreateSkinMeshPlantOpts = {},
 ): SkinMeshPlantHandle {
   const root = new TransformNode(`skinplant_${seed}`, scene);
   root.position.copyFrom(worldPosition);
@@ -803,7 +811,8 @@ export function createSkinMeshPlant(
           const distM = cam
             ? Vector3.Distance(cam.position, root.absolutePosition)
             : 10;
-          const lodQuality = qualityFromDistance(distM);
+          // ★ S128 — lowQuality 옵션 시 'ultra-low' 강제 (extras 빠른 로딩).
+          const lodQuality = opts.lowQuality ? 'ultra-low' : qualityFromDistance(distM);
           // ★ S117 — V2 정식 production default. V1은 _legacy_ (`?leafBuilder=v1`).
           //   ?leafBuilder=v1   → V1 legacy outline (S117 archived)
           //   ?leafPlane=flat   → posture override (outline 단독 평가, 임시 진단)
@@ -891,9 +900,10 @@ export function createSkinMeshPlant(
     //   Entry via graph.edges (type === 'peduncle'); each peduncle's id
     //   parses to axisIdx/trussIdx. trussBase (fruit/flower/calyx organ
     //   state) still read from PlantBase — PR 5-1 strict cut.
+    // ★ S128 — lowQuality 시 truss organ build skip (multi-plant 빠른 로딩).
     const baseAxes: AxisBase[] = [plantBase.mainAxis, ...plantBase.sideShoots];
     const seenTrussKeys = new Set<string>();
-    for (const edge of graph.edges.values()) {
+    if (!opts.lowQuality) for (const edge of graph.edges.values()) {
       if (edge.type !== 'peduncle') continue;
       const m = edge.id.match(/^e:peduncle:axis(\d+):t(\d+)$/);
       if (!m) continue;
