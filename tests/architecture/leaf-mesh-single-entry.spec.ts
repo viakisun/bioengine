@@ -58,7 +58,7 @@ test.describe('Iter 34 C6 + Iter 39 L3-A — Leaf mesh build 진입점 단일 �
   });
 
   test('LEAF-MESH-FALLBACK-REMOVED-01 (L3-A): buildLeafMeshFromPhytomer 정의 0', async () => {
-    const text = await readSrc('src/plant/LeafGenerator.ts');
+    const text = await readSrc('src/scene/leaf/LeafMaterial.ts');
     expect(text, 'buildLeafMeshFromPhytomer function 정의 0 — L3-A에서 제거').not.toMatch(
       /export function buildLeafMeshFromPhytomer/,
     );

@@ -82,7 +82,7 @@ import { defaultSkinEngine } from '../plant/skin/defaultSkinEngine';
 // Iter 18B PR 4 — switch to createLeafBladeOnlyMesh. SkinMeshPlant은 SDF
 // skeleton mesh가 petiole tube를 그리므로 leaf mesh 안의 중복 petiole
 // cylinder는 불필요.
-import { getLeafMaterial, getYellowLeafMaterial, wrapLeafChunksAsMeshes } from '../plant/LeafGenerator';
+import { getLeafMaterial, getYellowLeafMaterial, wrapLeafChunksAsMeshes } from './leaf/LeafMaterial';
 // Iter 36 v5 Phase C — skeleton 3-tier: get leaflet nodes for compound leaf rendering.
 // Iter 39 Phase B — getLeafletNodesByParentLeaf 제거 (Skin path는 SkeletonNode[] 사용).
 import { getLeafletSkeletonNodesByParentLeaf } from '../plant/skeleton/PlantSkeletonGraph';

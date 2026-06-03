@@ -1,13 +1,11 @@
 // Babylon material wrapper for leaf mesh.
 //
-// ★ Iter 39 Phase L3-A (S19) — pure Babylon wrapper로 축소.
-//   Previous: GeoChunk → Mesh + material + fallback path 혼재.
-//   Current: getLeafMaterial / getYellowLeafMaterial / shader wind toggle.
-//   Mesh 산식은 LeafMeshBuilder.ts (canonical SSOT) 진입.
+// ★ Iter 39 Phase L4-1 (S29) — LeafGenerator.ts → src/scene/leaf/LeafMaterial.ts.
+//   Babylon Mesh wrapping + material 산식 한 곳. 산식 SSOT는 LeafMeshBuilder.ts.
 //
-// 책임 분리 (active 원칙 #39):
-//   LeafMeshBuilder.ts = pure mesh algorithm (GeoChunk 산출)
-//   LeafGenerator.ts   = Babylon Mesh + Material wrapper (이 파일)
+// 책임 분리 (원칙 #39, #42):
+//   LeafMeshBuilder.ts = pure mesh algorithm (GeoChunk 산출, Babylon 의존 0)
+//   LeafMaterial.ts    = Babylon Mesh + Material wrapper (이 파일)
 
 import { Scene } from '@babylonjs/core/scene';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
@@ -20,7 +18,7 @@ import {
   getLeafColorTexture,
   getLeafNormalTexture,
 } from './LeafTexture';
-import type { LeafMeshPatch } from '../scene/leaf';
+import type { LeafMeshPatch } from './LeafMeshBuilder';
 
 /**
  * ★ Iter 39 L3-F (S27) — Babylon Mesh wrapper.

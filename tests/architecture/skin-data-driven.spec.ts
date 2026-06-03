@@ -28,7 +28,7 @@ const REPO_ROOT = path.resolve(SPEC_DIR, '../..');
 
 const SKIN_FILES = [
   'src/scene/SkinMeshPlant.ts',
-  'src/plant/LeafGenerator.ts',
+  'src/scene/leaf/LeafMaterial.ts',
 ];
 
 async function readSource(rel: string): Promise<string> {
@@ -37,7 +37,7 @@ async function readSource(rel: string): Promise<string> {
 
 test.describe('Skin Data-Driven Refactor (Iter 29 Phase 4)', () => {
   test('SKIN-DATA-DRIVEN-01: buildLeafMeshFromPhytomer signature has 0 plantAge/day params', async () => {
-    const text = await readSource('src/plant/LeafGenerator.ts');
+    const text = await readSource('src/scene/leaf/LeafMaterial.ts');
     // Find buildLeafMeshFromPhytomer signature block
     const sig = text.match(/export function buildLeafMeshFromPhytomer\([\s\S]*?\)\s*:\s*Mesh/);
     expect(sig, 'buildLeafMeshFromPhytomer exported').toBeTruthy();
@@ -49,7 +49,7 @@ test.describe('Skin Data-Driven Refactor (Iter 29 Phase 4)', () => {
   });
 
   test('SKIN-DATA-DRIVEN-02: hardcoded leaf size constants 0 in canonical path', async () => {
-    const text = await readSource('src/plant/LeafGenerator.ts');
+    const text = await readSource('src/scene/leaf/LeafMaterial.ts');
     // Find buildLeafMeshFromPhytomer body (between function start + first close brace at zero nesting)
     const start = text.indexOf('export function buildLeafMeshFromPhytomer');
     expect(start, 'buildLeafMeshFromPhytomer found').toBeGreaterThan(0);
@@ -96,7 +96,7 @@ test.describe('Skin Data-Driven Refactor (Iter 29 Phase 4)', () => {
         .not.toMatch(new RegExp(`\\b${fn}\\s*\\(`));
     }
     // LeafGenerator buildLeafMeshFromPhytomer body
-    const gen = await readSource('src/plant/LeafGenerator.ts');
+    const gen = await readSource('src/scene/leaf/LeafMaterial.ts');
     const start = gen.indexOf('export function buildLeafMeshFromPhytomer');
     const subset = gen.slice(start);
     const endMatch = subset.match(/\n\}\s*\n/);
@@ -108,7 +108,7 @@ test.describe('Skin Data-Driven Refactor (Iter 29 Phase 4)', () => {
   });
 
   test('SKIN-LEAF-01: buildLeafMeshFromPhytomer is reproducible from LeafOrganState + visualGenome alone', async () => {
-    const text = await readSource('src/plant/LeafGenerator.ts');
+    const text = await readSource('src/scene/leaf/LeafMaterial.ts');
     // Function declares `leafOrganState` + `visualGenome` + `rng` + name/scene only
     const sig = text.match(/export function buildLeafMeshFromPhytomer\([\s\S]*?\)\s*:\s*Mesh/);
     expect(sig, 'signature present').toBeTruthy();
@@ -128,7 +128,7 @@ test.describe('Skin Data-Driven Refactor (Iter 29 Phase 4)', () => {
   test('SKIN-LEGACY-REMOVED-01: ShowcasePlant + createLeafMeshFromNode archived (Iter 35 PR 2 Phase I+L)', async () => {
     // Iter 35 PR 2: ShowcasePlant 완전 제거 → legacy createLeafMeshFromNode 사용처 0.
     // src/scene/ShowcasePlant.ts 부재 + LeafGenerator.ts에 createLeafMeshFromNode export 부재.
-    const lg = await readSource('src/plant/LeafGenerator.ts');
+    const lg = await readSource('src/scene/leaf/LeafMaterial.ts');
     expect(lg, 'createLeafMeshFromNode export 0 (Phase L archived)')
       .not.toMatch(/export function createLeafMeshFromNode/);
 
@@ -154,7 +154,7 @@ test.describe('Skin Data-Driven Refactor (Iter 29 Phase 4)', () => {
     expect(skinBody, 'no `senescenceProgress * <num>` recomputation')
       .not.toMatch(/senescenceProgress\s*\*\s*\d+\.?\d*/);
 
-    const gen = await readSource('src/plant/LeafGenerator.ts');
+    const gen = await readSource('src/scene/leaf/LeafMaterial.ts');
     const start = gen.indexOf('export function buildLeafMeshFromPhytomer');
     const subset = gen.slice(start);
     const endMatch = subset.match(/\n\}\s*\n/);

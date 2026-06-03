@@ -15,7 +15,7 @@ import { useTwinStore, type LightingState } from '../state/twinStore';
 import { SCENARIO } from '../data/mockScenario';
 import { getSunState } from '@farmsim/tomato-engine';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
-import { setShaderWindEnabled, isShaderWindEnabled } from '../plant/LeafGenerator';
+import { setShaderWindEnabled, isShaderWindEnabled } from './leaf/LeafMaterial';
 // Iter 35: LabelOverlay archived — single-plant only.
 // Iter 20 — hotkey for petiole-stem junction overlay ('d'/'D'/'ㅇ').
 import { installDockingOverlayHotkey } from './dockingOverlay/hotkeyToggle';

@@ -14,7 +14,7 @@ const SPEC_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(SPEC_DIR, '../..');
 
 const LEAF_CHUNK = path.join(REPO_ROOT, 'packages/tomato-geometry/src/leafChunk.ts');
-const LEAF_GEN = path.join(REPO_ROOT, 'src/plant/LeafGenerator.ts');
+const LEAF_GEN = path.join(REPO_ROOT, 'src/scene/leaf/LeafMaterial.ts');
 const AGE_PRESETS = path.join(REPO_ROOT, 'src/scene/leaf/agePresets.ts');
 const CORRELATION = path.join(REPO_ROOT, 'src/scene/leaf/correlationRules.ts');
 const LEAF_ENGINE_INDEX = path.join(REPO_ROOT, 'src/scene/leaf/index.ts');
