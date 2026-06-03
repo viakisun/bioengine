@@ -155,15 +155,194 @@ const VAR_MAX = {
   rollRad: 0.0, pitchRad: 0.0, curlMult: 0.0,
 } as const;
 
-// ★ S104 — 사용자 결정: gravity 처짐은 _잎 길이_에 비례 (cantilever bending).
-//   자연 물리: 처짐 ∝ length² (균일 하중 cantilever)
-//   - 짧은 intercalary (2-5cm) → 거의 수평 (가벼움)
-//   - 중간 primary (10-15cm) → 30-50°
-//   - 큰 terminal (20-25cm) → 70-90°
-//
-//   산식: gravityDeg = (lengthM / 0.25)² × 90  (clamp 0~90)
-const GRAVITY_REF_LENGTH_M = 0.25;  // 25cm = 100% reference
+// ★ S104 — gravity = (lengthM / 0.25)² × 90 (cantilever bending).
+const GRAVITY_REF_LENGTH_M = 0.25;
 const GRAVITY_MAX_DEG = 90;
+
+// ★ S108 — 자연 토마토 잎 사진에서 추출한 10개 outline sample.
+//   각 sample = 한 자연 leaflet의 _고정_ shape parameters.
+//   idSeed % 10으로 선택 → 10 종류 outline이 자연스럽게 섞임.
+//   다양성: lobe 개수/위치/깊이/asymmetry/dripTip 모두 _제각각_.
+//   S110: debug panel 시각화용으로 export.
+export interface NaturalLeafletSample {
+  aspectRatio: number;
+  tipSharpness: number;
+  shoulderLobes: ShoulderLobe[];
+  sinusNotches: SinusNotch[];
+  shoulderLobesRight?: ShoulderLobe[];   // 좌우 비대칭 sample 용
+  sinusNotchesRight?: SinusNotch[];
+  dripTipUStart: number;
+  dripTipDepth: number;
+}
+
+export const NATURAL_LEAFLET_SAMPLES: ReadonlyArray<NaturalLeafletSample> = [
+  // 0. Terminal elaborate (큰 terminal, 4 shoulder + 3 notch)
+  {
+    aspectRatio: 2.2, tipSharpness: 1.05,
+    shoulderLobes: [
+      { u: 0.20, depth: 0.40, sigma: 0.04 },
+      { u: 0.40, depth: 0.60, sigma: 0.04 },
+      { u: 0.60, depth: 0.50, sigma: 0.04 },
+      { u: 0.80, depth: 0.30, sigma: 0.035 },
+    ],
+    sinusNotches: [
+      { u: 0.30, depth: 0.30, sigma: 0.03 },
+      { u: 0.50, depth: 0.45, sigma: 0.03 },
+      { u: 0.70, depth: 0.35, sigma: 0.03 },
+    ],
+    dripTipUStart: 0.88, dripTipDepth: 0.35,
+  },
+  // 1. Primary broad (넓고 3 shoulder)
+  {
+    aspectRatio: 1.8, tipSharpness: 1.10,
+    shoulderLobes: [
+      { u: 0.25, depth: 0.50, sigma: 0.05 },
+      { u: 0.55, depth: 0.55, sigma: 0.05 },
+      { u: 0.78, depth: 0.25, sigma: 0.04 },
+    ],
+    sinusNotches: [
+      { u: 0.40, depth: 0.35, sigma: 0.04 },
+      { u: 0.68, depth: 0.25, sigma: 0.03 },
+    ],
+    dripTipUStart: 0.85, dripTipDepth: 0.30,
+  },
+  // 2. Sub-lobed (6 shoulder + 5 notch, 매우 elaborate)
+  {
+    aspectRatio: 2.0, tipSharpness: 1.05,
+    shoulderLobes: [
+      { u: 0.15, depth: 0.20, sigma: 0.025 },
+      { u: 0.30, depth: 0.45, sigma: 0.03 },
+      { u: 0.45, depth: 0.30, sigma: 0.025 },
+      { u: 0.60, depth: 0.50, sigma: 0.03 },
+      { u: 0.75, depth: 0.35, sigma: 0.025 },
+      { u: 0.88, depth: 0.18, sigma: 0.025 },
+    ],
+    sinusNotches: [
+      { u: 0.22, depth: 0.18, sigma: 0.025 },
+      { u: 0.37, depth: 0.35, sigma: 0.025 },
+      { u: 0.52, depth: 0.20, sigma: 0.025 },
+      { u: 0.68, depth: 0.40, sigma: 0.025 },
+      { u: 0.82, depth: 0.25, sigma: 0.025 },
+    ],
+    dripTipUStart: 0.90, dripTipDepth: 0.30,
+  },
+  // 3. Long pointed (길고 뾰족, 2 shoulder만)
+  {
+    aspectRatio: 2.8, tipSharpness: 1.15,
+    shoulderLobes: [
+      { u: 0.30, depth: 0.45, sigma: 0.05 },
+      { u: 0.60, depth: 0.40, sigma: 0.05 },
+    ],
+    sinusNotches: [
+      { u: 0.45, depth: 0.30, sigma: 0.04 },
+    ],
+    dripTipUStart: 0.78, dripTipDepth: 0.55,
+  },
+  // 4. Asymmetric left-heavy (왼쪽 lobed 강, 오른쪽 약)
+  {
+    aspectRatio: 2.0, tipSharpness: 1.05,
+    shoulderLobes: [
+      { u: 0.22, depth: 0.55, sigma: 0.04 },
+      { u: 0.55, depth: 0.50, sigma: 0.04 },
+      { u: 0.78, depth: 0.30, sigma: 0.04 },
+    ],
+    sinusNotches: [
+      { u: 0.40, depth: 0.40, sigma: 0.03 },
+      { u: 0.66, depth: 0.30, sigma: 0.03 },
+    ],
+    shoulderLobesRight: [
+      { u: 0.45, depth: 0.30, sigma: 0.05 },
+      { u: 0.75, depth: 0.20, sigma: 0.04 },
+    ],
+    sinusNotchesRight: [
+      { u: 0.30, depth: 0.15, sigma: 0.04 },
+    ],
+    dripTipUStart: 0.85, dripTipDepth: 0.35,
+  },
+  // 5. Asymmetric right-heavy (오른쪽 lobed 강)
+  {
+    aspectRatio: 2.0, tipSharpness: 1.05,
+    shoulderLobes: [
+      { u: 0.45, depth: 0.30, sigma: 0.05 },
+      { u: 0.75, depth: 0.20, sigma: 0.04 },
+    ],
+    sinusNotches: [
+      { u: 0.30, depth: 0.15, sigma: 0.04 },
+    ],
+    shoulderLobesRight: [
+      { u: 0.22, depth: 0.55, sigma: 0.04 },
+      { u: 0.55, depth: 0.50, sigma: 0.04 },
+      { u: 0.78, depth: 0.30, sigma: 0.04 },
+    ],
+    sinusNotchesRight: [
+      { u: 0.40, depth: 0.40, sigma: 0.03 },
+      { u: 0.66, depth: 0.30, sigma: 0.03 },
+    ],
+    dripTipUStart: 0.85, dripTipDepth: 0.35,
+  },
+  // 6. Simple small (작은 intercalary 같은, 1 shoulder)
+  {
+    aspectRatio: 1.5, tipSharpness: 1.05,
+    shoulderLobes: [
+      { u: 0.50, depth: 0.20, sigma: 0.07 },
+    ],
+    sinusNotches: [],
+    dripTipUStart: 0.92, dripTipDepth: 0.20,
+  },
+  // 7. Deep cleavage (매우 깊은 sinus notch)
+  {
+    aspectRatio: 2.0, tipSharpness: 1.05,
+    shoulderLobes: [
+      { u: 0.25, depth: 0.55, sigma: 0.04 },
+      { u: 0.55, depth: 0.55, sigma: 0.04 },
+      { u: 0.80, depth: 0.40, sigma: 0.04 },
+    ],
+    sinusNotches: [
+      { u: 0.40, depth: 0.60, sigma: 0.03 },  // 매우 깊음
+      { u: 0.68, depth: 0.50, sigma: 0.03 },
+    ],
+    dripTipUStart: 0.88, dripTipDepth: 0.30,
+  },
+  // 8. Apex emphasis (apex 쪽 큰 lobe)
+  {
+    aspectRatio: 2.2, tipSharpness: 1.10,
+    shoulderLobes: [
+      { u: 0.35, depth: 0.20, sigma: 0.05 },
+      { u: 0.60, depth: 0.50, sigma: 0.04 },
+      { u: 0.82, depth: 0.40, sigma: 0.04 },
+    ],
+    sinusNotches: [
+      { u: 0.50, depth: 0.20, sigma: 0.04 },
+      { u: 0.72, depth: 0.40, sigma: 0.03 },
+    ],
+    dripTipUStart: 0.90, dripTipDepth: 0.40,
+  },
+  // 9. Mid-bulged (가운데 하나 큰 lobe)
+  {
+    aspectRatio: 1.8, tipSharpness: 1.05,
+    shoulderLobes: [
+      { u: 0.45, depth: 0.65, sigma: 0.06 },
+    ],
+    sinusNotches: [
+      { u: 0.65, depth: 0.30, sigma: 0.04 },
+    ],
+    dripTipUStart: 0.85, dripTipDepth: 0.30,
+  },
+];
+
+// ★ S110 — debug panel 라벨용 sample 이름 (NATURAL_LEAFLET_SAMPLES 순서 일치).
+export const NATURAL_LEAFLET_SAMPLE_NAMES: ReadonlyArray<string> = [
+  '0. Terminal elaborate',
+  '1. Primary broad',
+  '2. Sub-lobed (6 lobes)',
+  '3. Long pointed',
+  '4. Asym left-heavy',
+  '5. Asym right-heavy',
+  '6. Simple small',
+  '7. Deep cleavage',
+  '8. Apex emphasis',
+  '9. Mid-bulged',
+];
 
 /**
  * ★ L9-D V2 S107 — Per-leaflet lobe perturbation (좌/우 _다른 set_ 위해 saltBase 분리).
@@ -340,31 +519,44 @@ function buildLeafletPatchV2(
   const sizeRatio = Math.min(1, lengthM / GRAVITY_REF_LENGTH_M);
   const overrideGravityDroopDeg = sizeRatio * sizeRatio * GRAVITY_MAX_DEG;
 
-  // ★ S105 — lobe depth = 잎 길이 비례 (어린/작은 잎은 얕은 lobe).
-  //   산식: max(0.2, min(1.0, lengthM / 0.20)) — 20cm 이상 full depth.
-  //   2cm intercalary → 0.20 (거의 매끈), 10cm → 0.50, 20cm+ → 1.00.
+  // ★ S108 — Natural sample 선택 (10개 중 idSeed % 10).
+  //   tomato.json spec _override_ (사용자 결정: 산식 추측 X, 자연 모방 10개).
+  const sampleIdx = Math.abs(idSeed) % NATURAL_LEAFLET_SAMPLES.length;
+  const sample = NATURAL_LEAFLET_SAMPLES[sampleIdx];
+
+  // S105 lobeDepthMult (잎 길이 비례) — sample depth × mult
   const lobeDepthMult = Math.max(0.2, Math.min(1.0, lengthM / 0.20));
-  const scaledShoulderLobes = (positionedProfile.shoulderLobes ?? []).map(lobe => ({
+  const scaledShoulderLobes = sample.shoulderLobes.map(lobe => ({
     ...lobe,
     depth: lobe.depth * lobeDepthMult,
   }));
-  const scaledSinusNotches = (positionedProfile.sinusNotches ?? []).map(notch => ({
+  const scaledSinusNotches = sample.sinusNotches.map(notch => ({
     ...notch,
     depth: notch.depth * lobeDepthMult,
   }));
+  // 좌우 비대칭 sample (Sample 4/5는 right 따로)
+  const scaledShoulderLobesRight = sample.shoulderLobesRight
+    ? sample.shoulderLobesRight.map(lobe => ({ ...lobe, depth: lobe.depth * lobeDepthMult }))
+    : undefined;
+  const scaledSinusNotchesRight = sample.sinusNotchesRight
+    ? sample.sinusNotchesRight.map(notch => ({ ...notch, depth: notch.depth * lobeDepthMult }))
+    : undefined;
 
+  // ★ S108 — sample 값 _완전 override_ (자연 모방). spec의 aspect/sharpness/dripTip 무시.
   const profileV2 = buildShapeProfileV2({
     lengthM: lengthV2,
-    aspectRatio: positioned.aspectRatio * aspectJitter * aspectJitterV2,
-    tipSharpness: positioned.tipSharpness * sharpnessJitter,  // sharpness는 V1 only
+    aspectRatio: sample.aspectRatio * aspectJitter,  // sample 기준 + V1 ±5% jitter
+    tipSharpness: sample.tipSharpness * sharpnessJitter,
     baseShape: positioned.baseShape,
-    asymmetry: positioned.asymmetry + asymVariation,  // ★ S99 영역 2
+    asymmetry: positioned.asymmetry,
     samples: samplesV2,
     baseTransitionEndU: ctx.spec.shapeProfileRules.baseTransitionEndU,
     shoulderLobes: scaledShoulderLobes,
     sinusNotches: scaledSinusNotches,
-    dripTipUStart: Math.max(0.7, Math.min(0.95, dripUStartBase + dripUShift)),
-    dripTipDepth: Math.max(0, dripDepthBase * dripDepthJitter),
+    shoulderLobesRight: scaledShoulderLobesRight,
+    sinusNotchesRight: scaledSinusNotchesRight,
+    dripTipUStart: sample.dripTipUStart,
+    dripTipDepth: sample.dripTipDepth,
     expansionProgress: desc.maturity,
     ageFrac: desc.ageFrac,
     smoothMargin: desc.resolved.smoothMargin === true,
