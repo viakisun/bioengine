@@ -10,7 +10,7 @@
 // 연구자: src/data/leaf/specs/*.json 수정 → 코드 변경 없이 실험 설계.
 
 import { parseLeafSpec, type LeafSpec } from '../../scene/leaf/LeafSpec';
-import tomatoJson from './specs/tomato.json';
+import tomatoJson from './specs/tomato.json' with { type: 'json' };
 
 /**
  * Registry — manifest 기반 dispatch.
