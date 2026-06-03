@@ -1,0 +1,149 @@
+{
+  "schemaVersion": "1.0",
+  "taxonomy": {
+    "family": "Solanaceae",
+    "genus": "Solanum",
+    "species": "lycopersicum",
+    "commonName": "tomato"
+  },
+  "agePresets": {
+    "young": {
+      "leafLengthCmRange": [2, 8],
+      "majorLeafletPairsRange": [1, 2],
+      "intercalaryRange": [0, 2],
+      "aspectRatioRange": [1.2, 1.8],
+      "serrationAmpRange": [0.005, 0.015],
+      "lobeDepthRange": [0.03, 0.08],
+      "poseDroopDegRange": [-15, -5],
+      "color": "bright-light-green",
+      "aspectRatioBaseline": 1.5,
+      "baseShapeBaseline": 0.92,
+      "tipSharpnessBaseline": 1.2
+    },
+    "mature": {
+      "leafLengthCmRange": [10, 25],
+      "majorLeafletPairsRange": [2, 4],
+      "intercalaryRange": [2, 6],
+      "aspectRatioRange": [1.8, 3.0],
+      "serrationAmpRange": [0.02, 0.04],
+      "lobeDepthRange": [0.07, 0.14],
+      "poseDroopDegRange": [-5, 15],
+      "color": "green",
+      "aspectRatioBaseline": 2.4,
+      "baseShapeBaseline": 0.85,
+      "tipSharpnessBaseline": 1.5
+    },
+    "old": {
+      "leafLengthCmRange": [14, 28],
+      "majorLeafletPairsRange": [3, 4],
+      "intercalaryRange": [3, 8],
+      "aspectRatioRange": [2.0, 3.5],
+      "serrationAmpRange": [0.03, 0.06],
+      "lobeDepthRange": [0.10, 0.20],
+      "poseDroopDegRange": [15, 35],
+      "color": "green-with-yellowing",
+      "curl": 0.4,
+      "aspectRatioBaseline": 2.8,
+      "baseShapeBaseline": 0.80,
+      "tipSharpnessBaseline": 1.7
+    },
+    "complex": {
+      "leafLengthCmRange": [16, 30],
+      "majorLeafletPairsRange": [4, 4],
+      "intercalaryRange": [5, 10],
+      "secondaryRange": [3, 8],
+      "aspectRatioRange": [2.2, 3.5],
+      "serrationAmpRange": [0.04, 0.06],
+      "lobeDepthRange": [0.14, 0.25],
+      "poseDroopDegRange": [0, 20],
+      "color": "green",
+      "asymmetry": 0.3,
+      "aspectRatioBaseline": 2.9,
+      "baseShapeBaseline": 0.75,
+      "tipSharpnessBaseline": 1.8
+    },
+    "potato-leaf": {
+      "leafLengthCmRange": [12, 28],
+      "majorLeafletPairsRange": [2, 3],
+      "intercalaryRange": [0, 1],
+      "aspectRatioRange": [1.3, 2.2],
+      "serrationAmpRange": [0.0, 0.01],
+      "lobeDepthRange": [0.0, 0.03],
+      "poseDroopDegRange": [-5, 15],
+      "color": "green",
+      "smoothMargin": true,
+      "leafLengthFactor": 1.2,
+      "leafletCountFactor": 0.7,
+      "aspectRatioBaseline": 1.7,
+      "baseShapeBaseline": 0.95,
+      "tipSharpnessBaseline": 1.1
+    }
+  },
+  "profileByPosition": {
+    "terminal": {
+      "widthRatio": 0.42,
+      "lobeDepth": 0.14,
+      "serrationAmp": 0.05,
+      "serrationFreq": 22,
+      "tipSharpness": 1.65,
+      "baseTaper": 0.65
+    },
+    "primary": {
+      "widthRatio": 0.38,
+      "lobeDepth": 0.12,
+      "serrationAmp": 0.045,
+      "serrationFreq": 20,
+      "tipSharpness": 1.55,
+      "baseTaper": 0.60
+    },
+    "intercalary": {
+      "widthRatio": 0.34,
+      "lobeDepth": 0.07,
+      "serrationAmp": 0.025,
+      "serrationFreq": 16,
+      "tipSharpness": 1.30,
+      "baseTaper": 0.50
+    },
+    "secondary": {
+      "widthRatio": 0.36,
+      "lobeDepth": 0.10,
+      "serrationAmp": 0.04,
+      "serrationFreq": 18,
+      "tipSharpness": 1.45,
+      "baseTaper": 0.55
+    }
+  },
+  "correlationRules": {
+    "intercalaryComplexityExponent": 2,
+    "serrationFreqBase": 10,
+    "serrationFreqSlope": 18,
+    "asymmetryBase": 0.02,
+    "asymmetrySlope": 0.06,
+    "correlationJitterScale": 0.10
+  },
+  "poseRules": {
+    "foldDroopDegBase": -5,
+    "foldDroopDegSlope": 15,
+    "leafletJitterPercent": 5,
+    "pitchNoiseRange": 0.1,
+    "rollNoiseRange": 0.2,
+    "twistNoiseRange": 0.15
+  },
+  "cultivars": {
+    "cherry": {
+      "aspectRatioMultiplier": 0.85,
+      "baseShapeBias": 0.05,
+      "tipSharpnessMultiplier": 0.95
+    },
+    "beefsteak": {
+      "aspectRatioMultiplier": 1.15,
+      "baseShapeBias": -0.05,
+      "tipSharpnessMultiplier": 1.10
+    },
+    "roma": {
+      "aspectRatioMultiplier": 1.25,
+      "baseShapeBias": -0.03,
+      "tipSharpnessMultiplier": 1.05
+    }
+  }
+}
