@@ -97,15 +97,16 @@ export const CorrelationRulesSchema = z.object({
 
 /**
  * Pose rules — leaflet orientation noise + L0-D-1 fold droop.
- * All noise ranges are radians except foldDroopDeg{Base,Slope} (degrees).
+ * ★ L5-5 (S43) — `pitch/roll/twistNoiseRange` → `pitch/roll/twistNoiseRangeRad`
+ *   (rad unit 명시). `applyLeafletPose` 내부 사용.
  */
 export const PoseRulesSchema = z.object({
-  foldDroopDegBase: z.number(),                           // current: -5
-  foldDroopDegSlope: z.number(),                          // current: 15
-  leafletJitterPercent: z.number().min(0).max(100),       // current: 5 (±5%)
-  pitchNoiseRange: z.number().min(0),                     // rad
-  rollNoiseRange: z.number().min(0),                      // rad
-  twistNoiseRange: z.number().min(0),                     // rad
+  foldDroopDegBase: z.number(),                            // current: -5 (deg)
+  foldDroopDegSlope: z.number(),                           // current: 15 (deg)
+  leafletJitterPercent: z.number().min(0).max(100),        // current: 5 (±5%)
+  pitchNoiseRangeRad: z.number().min(0),                   // current: 0.1 (rad)
+  rollNoiseRangeRad: z.number().min(0),                    // current: 0.2 (rad)
+  twistNoiseRangeRad: z.number().min(0),                   // current: 0.15 (rad)
 });
 
 /**
@@ -116,6 +117,104 @@ export const CultivarOverrideSchema = z.object({
   aspectRatioMultiplier: RatioPositive.optional(),
   baseShapeBias: z.number().min(-0.3).max(0.3).optional(),
   tipSharpnessMultiplier: RatioPositive.optional(),
+});
+
+// ─── L5 (Phase v1.1) new sections — full parameterization ─────────────────
+
+/**
+ * Single sine wave for lobe noise synthesis.
+ *
+ * Formula: `freq = baseFrequency + (seed * seedMultiplier) % seedFrequencyMod`
+ *          `phase = (seed * phaseMultiplier) % (2π)`
+ *          `out = sin(2π * freq * u + phase) * weight`
+ *
+ * L4 (S33) 후 코드 hardcoded 3 waves → L5-3 (S41) spec migration.
+ */
+export const LobeNoiseWaveSchema = z.object({
+  baseFrequency: z.number().positive(),
+  seedFrequencyMod: z.number().positive(),
+  seedMultiplier: z.number(),              // current: 1, 7, 13
+  phaseMultiplier: z.number(),             // current: 0.7, 1.3, 2.1
+  weight: z.number().min(0).max(1),        // current: 0.5, 0.3, 0.2
+});
+
+/**
+ * Lobe noise — 잎 outline에 추가될 큰 결각 (낮은 빈도, 큰 진폭).
+ * Multi-wave Fourier synthesis (sin 합성). `positiveOnly: true`면 [0, amp]
+ * 클램프 (outline 항상 _바깥쪽으로_).
+ */
+export const LobeNoiseRulesSchema = z.object({
+  positiveOnly: z.boolean(),                // current: true
+  waves: z.array(LobeNoiseWaveSchema).min(1),
+});
+
+/**
+ * Leaf-instance macro variation (skeleton size factor 영향).
+ *
+ * ★ L5-4 (S42) — L4 후 `computeLeafInstanceProfile` 6 fields 중 5 dead.
+ *   Live 1 field만 (leftRightImbalance). L5에서 function 분해 →
+ *   `computeLeftRightImbalance(spec.leafInstanceRules, ...)`.
+ *
+ * Formula:
+ *   apexBoost = nodePositionT > apexImbalanceThreshold ? apexImbalanceBoost : 1.0
+ *   leftRightImbalance = signed(3) * leftRightImbalanceRange * apexBoost
+ */
+export const LeafInstanceRulesSchema = z.object({
+  leftRightImbalanceRange: z.number().min(0),  // current: 0.20
+  apexImbalanceThreshold: Ratio01,             // current: 0.85
+  apexImbalanceBoost: z.number().positive(),   // current: 1.3
+});
+
+/**
+ * Shape profile + maturity envelope + cultivar clamp + senescence weight.
+ *
+ * ★ L5-6a/6b 분리:
+ *   L5-6a: baseTransitionEndU / cultivar clamps / senescenceCurlWeight
+ *   L5-6b: maturityEnvelope* / opennessBase*
+ */
+export const ShapeProfileRulesSchema = z.object({
+  // L5-6a: base wedge transition (buildShapeProfile)
+  baseTransitionEndU: Ratio01,                 // current: 0.2
+
+  // L5-6a: cultivar override clamps (buildLeafShapeDescriptor)
+  baseShapeClamp: z
+    .tuple([z.number(), z.number()])
+    .refine(([min, max]) => min <= max, 'baseShapeClamp min <= max'),
+                                                // current: [0.7, 1.0]
+  tipSharpnessClamp: z
+    .tuple([z.number(), z.number()])
+    .refine(([min, max]) => min <= max, 'tipSharpnessClamp min <= max'),
+                                                // current: [1.0, 2.0]
+
+  // L5-6a: senescence curl weight (buildLeafShapeDescriptor)
+  senescenceCurlWeight: z.number().min(0).max(1),  // current: 0.5
+
+  // L5-6b: maturity envelope (Phase F5 smoothstep)
+  maturityEnvelopeStart: Ratio01,              // current: 0.2
+  maturityEnvelopeEnd: Ratio01,                // current: 0.8
+
+  // L5-6b: openness factor base range
+  opennessBaseMin: Ratio01,                    // current: 0.2
+  opennessBaseMax: Ratio01,                    // current: 1.0
+}).refine(
+  r => r.maturityEnvelopeStart <= r.maturityEnvelopeEnd,
+  { message: 'maturityEnvelopeStart must be <= maturityEnvelopeEnd' },
+).refine(
+  r => r.opennessBaseMin <= r.opennessBaseMax,
+  { message: 'opennessBaseMin must be <= opennessBaseMax' },
+);
+
+/**
+ * Edge asymmetry weights — left/right lobe + serration application.
+ *
+ * L5-6b: `halfWidthLeft += lobe * leftLobeWeight + teeth * leftSerrationWeight`
+ *        `halfWidthRight += lobe * rightLobeWeight + teeth * rightSerrationWeight`
+ */
+export const EdgeAsymmetryRulesSchema = z.object({
+  leftLobeWeight: z.number().min(0),         // current: 1.0
+  leftSerrationWeight: z.number().min(0),    // current: 1.0
+  rightLobeWeight: z.number().min(0),        // current: 0.85
+  rightSerrationWeight: z.number().min(0),   // current: 1.1
 });
 
 // ─── Taxonomy (정교화 ★, 원칙 #44 — multi-crop) ────────────────────────────
@@ -143,20 +242,39 @@ export const SpecExtendsSchema = z
 
 // ─── Top-level LeafSpec ────────────────────────────────────────────────────
 
+/**
+ * ★ schemaVersion '1.1' (L5) — '1.0' deprecated.
+ *   - 1.0: L4 초기 (agePresets/profileByPosition/correlation/poseRules basic)
+ *   - 1.1: L5 (lobeNoise/leafInstance/shapeProfile/edgeAsymmetry sections 추가
+ *          + poseRules pitch/roll/twistNoiseRange → ...Rad rename)
+ *
+ * L5 이후 runtime은 _1.1만 허용_ (z.literal('1.1')). 1.0 spec은 deprecated —
+ * tomato.json은 동시 갱신. 별도 migration 함수 없음 (수동 — 단일 spec 환경).
+ */
 export const LeafSpecSchema = z.object({
-  schemaVersion: z.literal('1.0'),
+  schemaVersion: z.literal('1.1'),
   taxonomy: TaxonomySchema,
   extends: SpecExtendsSchema,
   agePresets: z.record(z.string(), AgePresetSchema),
   profileByPosition: ProfileByPositionSchema,
   correlationRules: CorrelationRulesSchema,
   poseRules: PoseRulesSchema,
+  // L5 (Phase v1.1) — new sections
+  lobeNoiseRules: LobeNoiseRulesSchema,
+  leafInstanceRules: LeafInstanceRulesSchema,
+  shapeProfileRules: ShapeProfileRulesSchema,
+  edgeAsymmetryRules: EdgeAsymmetryRulesSchema,
   cultivars: z.record(z.string(), CultivarOverrideSchema).optional(),
 });
 
 export type LeafSpec = z.infer<typeof LeafSpecSchema>;
 export type AgePresetParams = z.infer<typeof AgePresetSchema>;
 export type LeafletShapeProfile = z.infer<typeof PositionProfileSchema>;
+export type LobeNoiseWave = z.infer<typeof LobeNoiseWaveSchema>;
+export type LobeNoiseRules = z.infer<typeof LobeNoiseRulesSchema>;
+export type LeafInstanceRules = z.infer<typeof LeafInstanceRulesSchema>;
+export type ShapeProfileRules = z.infer<typeof ShapeProfileRulesSchema>;
+export type EdgeAsymmetryRules = z.infer<typeof EdgeAsymmetryRulesSchema>;
 export type ProfileByPosition = z.infer<typeof ProfileByPositionSchema>;
 export type CorrelationRules = z.infer<typeof CorrelationRulesSchema>;
 export type PoseRules = z.infer<typeof PoseRulesSchema>;

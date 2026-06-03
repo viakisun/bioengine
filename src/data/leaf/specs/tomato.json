@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.0",
+  "schemaVersion": "1.1",
   "taxonomy": {
     "family": "Solanaceae",
     "genus": "Solanum",
@@ -125,9 +125,38 @@
     "foldDroopDegBase": -5,
     "foldDroopDegSlope": 15,
     "leafletJitterPercent": 5,
-    "pitchNoiseRange": 0.1,
-    "rollNoiseRange": 0.2,
-    "twistNoiseRange": 0.15
+    "pitchNoiseRangeRad": 0.1,
+    "rollNoiseRangeRad": 0.2,
+    "twistNoiseRangeRad": 0.15
+  },
+  "lobeNoiseRules": {
+    "positiveOnly": true,
+    "waves": [
+      { "baseFrequency": 2.0, "seedFrequencyMod": 1.5, "seedMultiplier": 1, "phaseMultiplier": 0.7, "weight": 0.5 },
+      { "baseFrequency": 3.7, "seedFrequencyMod": 1.2, "seedMultiplier": 7, "phaseMultiplier": 1.3, "weight": 0.3 },
+      { "baseFrequency": 5.1, "seedFrequencyMod": 1.0, "seedMultiplier": 13, "phaseMultiplier": 2.1, "weight": 0.2 }
+    ]
+  },
+  "leafInstanceRules": {
+    "leftRightImbalanceRange": 0.20,
+    "apexImbalanceThreshold": 0.85,
+    "apexImbalanceBoost": 1.3
+  },
+  "shapeProfileRules": {
+    "baseTransitionEndU": 0.2,
+    "baseShapeClamp": [0.7, 1.0],
+    "tipSharpnessClamp": [1.0, 2.0],
+    "senescenceCurlWeight": 0.5,
+    "maturityEnvelopeStart": 0.2,
+    "maturityEnvelopeEnd": 0.8,
+    "opennessBaseMin": 0.2,
+    "opennessBaseMax": 1.0
+  },
+  "edgeAsymmetryRules": {
+    "leftLobeWeight": 1.0,
+    "leftSerrationWeight": 1.0,
+    "rightLobeWeight": 0.85,
+    "rightSerrationWeight": 1.1
   },
   "cultivars": {
     "cherry": {

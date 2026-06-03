@@ -690,9 +690,9 @@ function applyLeafletPose(
   //   재정렬: original `% 200 - 100` gives [-100, 99] / 1000 = [-0.1, 0.099].
   //   want = ±range. divisor = 100 / range (because max abs num 100).
   //   pitchNoiseRange=0.1 → divisor = 1000 → ✓ byte-identical.
-  const pitchDivisor = 100 / poseRules.pitchNoiseRange;
-  const rollDivisor  = 200 / poseRules.rollNoiseRange;   // num: % 400 - 200 → max 200 → div 200/range
-  const twistDivisor = 150 / poseRules.twistNoiseRange;  // num: % 300 - 150 → max 150 → div 150/range
+  const pitchDivisor = 100 / poseRules.pitchNoiseRangeRad;
+  const rollDivisor  = 200 / poseRules.rollNoiseRangeRad;   // num: % 400 - 200 → max 200 → div 200/range
+  const twistDivisor = 150 / poseRules.twistNoiseRangeRad;  // num: % 300 - 150 → max 150 → div 150/range
   const pitchNoise = (((idSeed * 17) % 200 - 100) / pitchDivisor);
   const rollNoise  = (((idSeed * 19) % 400 - 200) / rollDivisor);
   const twistNoise = (((idSeed * 13) % 300 - 150) / twistDivisor);

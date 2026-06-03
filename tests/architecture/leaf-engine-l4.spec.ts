@@ -103,7 +103,7 @@ test.describe('Iter 39 Phase L4-8 — LeafEngine architecture (원칙 #41-44)', 
     const rawJson = await readTomatoJson();
     expect(() => LeafSpecSchema.parse(rawJson), 'tomato.json schema parse').not.toThrow();
     const parsed = parseLeafSpec(rawJson);
-    expect(parsed.schemaVersion).toBe('1.0');
+    expect(parsed.schemaVersion).toBe('1.1');
     expect(parsed.taxonomy.commonName).toBe('tomato');
     // cross-field constraint 확인 (terminal.lobeDepth >= intercalary.lobeDepth)
     expect(parsed.profileByPosition.terminal.lobeDepth).toBeGreaterThanOrEqual(
