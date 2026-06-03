@@ -81,6 +81,38 @@ export const AgePresetSchema = z.object({
  * Per-leaflet shape profile (terminal / primary / intercalary / secondary).
  * Differentiates leaflet morphology by position on the compound leaf rachis.
  */
+/**
+ * ★ L9-D V2 S88 — V2 outline structure fields (옵셔널, V1은 무시).
+ *
+ * Outward shoulder lobe (Gaussian bump) — Self-contained schema for
+ * positionally _structured_ shoulder lobes (단순 noise가 아닌 정해진 위치).
+ *
+ * 단위:
+ *   - `u`: rachis 따라 0=base, 1=tip (rachis 길이 비율)
+ *   - `depth`: `halfWidthBase` 비율 (★ meter 아님! 0.18 = halfWidth의 18%)
+ *   - `sigma`: u-domain Gaussian 폭 (rachis 길이 비율, default 0.06)
+ *
+ * V2 산식: `bump(u) = Σ depth_i × exp(-(u - u_i)² / (2σ_i²))`
+ */
+export const ShoulderLobeSchema = z.object({
+  u: Ratio01,
+  depth: Ratio01,
+  sigma: Ratio01.optional(),
+});
+
+/**
+ * ★ L9-D V2 S88 — Inward sinus notch (Gaussian dent, lobe 사이 안쪽 파임).
+ *
+ * 단위는 `ShoulderLobeSchema`와 동일. 자연 토마토 outline의 _깊은 갈라짐_
+ * 표현 — outward lobe만으로 부족. 산식에서 `(base + outward - inward)` 형태로
+ * 감산 적용.
+ */
+export const SinusNotchSchema = z.object({
+  u: Ratio01,
+  depth: Ratio01,                  // ★ halfWidthBase 비율 (감산)
+  sigma: Ratio01.optional(),       // default 0.04 (lobe보다 좁음)
+});
+
 export const PositionProfileSchema = z.object({
   widthRatio: RatioPositive.max(2),
   lobeDepth: Ratio01,
@@ -88,6 +120,26 @@ export const PositionProfileSchema = z.object({
   serrationFreq: z.number().positive(),
   tipSharpness: RatioPositive,
   baseTaper: Ratio01,
+
+  // ★ L9-D V2 S88 — V2 outline structure fields (옵셔널).
+  //   V1은 무시 (PositionProfileSchema parse는 .optional()을 통과시킴).
+  //   V2 (S90+) 산식이 활성. 단위 주의: depth/sigma는 _halfWidthBase 비율_과
+  //   _u-domain normalized_ — README/JSDoc 참조.
+
+  /** Outward shoulder lobe array (Gaussian bump, halfWidthBase 비율). */
+  shoulderLobes: z.array(ShoulderLobeSchema).optional(),
+
+  /** Inward sinus notch array (Gaussian dent, lobe 사이 안쪽 파임). */
+  sinusNotches: z.array(SinusNotchSchema).optional(),
+
+  /** Drip tip apex acuminate 시작 u (default 0.85). */
+  dripTipUStart: Ratio01.optional(),
+
+  /** Drip tip apex 폭 감소율 (halfWidth 비율, default 0.6). */
+  dripTipDepth: Ratio01.optional(),
+
+  /** V2 LOD samples override (default LEAF_MESH_RESOLUTION_V2 적용). */
+  samplesV2: z.number().int().min(12).max(48).optional(),
 });
 
 /**
@@ -339,6 +391,8 @@ export const LeafSpecSchema = z.object({
 export type LeafSpec = z.infer<typeof LeafSpecSchema>;
 export type AgePresetParams = z.infer<typeof AgePresetSchema>;
 export type LeafletShapeProfile = z.infer<typeof PositionProfileSchema>;
+export type ShoulderLobe = z.infer<typeof ShoulderLobeSchema>;
+export type SinusNotch = z.infer<typeof SinusNotchSchema>;
 export type LobeNoiseWave = z.infer<typeof LobeNoiseWaveSchema>;
 export type LobeNoiseRules = z.infer<typeof LobeNoiseRulesSchema>;
 export type LeafMacroRange = z.infer<typeof LeafMacroRangeSchema>;

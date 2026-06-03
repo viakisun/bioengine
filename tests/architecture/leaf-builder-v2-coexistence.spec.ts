@@ -113,6 +113,33 @@ test.describe('L9-D V2 — Builder coexistence phase (Active 원칙 #56)', () =>
     ).toMatch(/options\.builderVersion\s*===\s*['"]v2['"]/);
   });
 
+  test('V2-SPEC-FIELDS-01: PositionProfileSchema V2 outline structure fields (S88)', async () => {
+    // S88 — shoulderLobes / sinusNotches / dripTipUStart / dripTipDepth / samplesV2.
+    // ★ 보완 #1 — `drippTip` 오타 _없음_ (처음부터 dripTip).
+    const specSrc = await fs.readFile(
+      path.join(REPO_ROOT, 'src/scene/leaf/LeafSpec.ts'),
+      'utf-8',
+    );
+
+    // 5 V2 outline fields (optional)
+    const fields = ['shoulderLobes', 'sinusNotches', 'dripTipUStart', 'dripTipDepth', 'samplesV2'];
+    for (const f of fields) {
+      expect(specSrc, `PositionProfileSchema에 ${f} field`).toMatch(
+        new RegExp(`${f}:\\s*\\w`),  // z., Ratio01., RatioPositive 등 허용
+      );
+    }
+
+    // ★ 보완 #1 — dripTip 정확 명명 (drippTip 오타 부재)
+    expect(specSrc, 'drippTip 오타 부재 (처음부터 dripTip)').not.toMatch(/drippTip/);
+
+    // ShoulderLobeSchema + SinusNotchSchema 존재
+    expect(specSrc, 'ShoulderLobeSchema export').toMatch(/export\s+const\s+ShoulderLobeSchema\s*=/);
+    expect(specSrc, 'SinusNotchSchema export').toMatch(/export\s+const\s+SinusNotchSchema\s*=/);
+
+    // ★ 단위 주석 명시 (depth = halfWidthBase 비율, _meter 아님_)
+    expect(specSrc, 'depth 단위 주석 (halfWidthBase 비율)').toMatch(/halfWidthBase\s*비율/);
+  });
+
   test('LEAF-BUILDER-V2-DEFAULT-V1-01: builderVersion 미지정 시 V1 default (production 안정성)', async () => {
     // S86 보완 #11 — default 'v2' 강제 방지. CreateLeafOptions field가
     // _optional_이고 dispatch가 ===  'v2' 명시 비교일 때만 V2.
