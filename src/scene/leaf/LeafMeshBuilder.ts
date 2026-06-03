@@ -434,6 +434,8 @@ export interface ShapeProfileInput {
   baseShape: number;
   asymmetry: number;
   samples?: number;
+  /** ★ L5-6a (S42) — base wedge transition end (was hardcoded 0.2). */
+  baseTransitionEndU: number;
 }
 
 export interface ShapeProfileSample {
@@ -463,8 +465,11 @@ export function buildShapeProfile(input: ShapeProfileInput): ShapeProfileSample[
     const u = i / (samples - 1);
     const w = baseWidth(u, shapePower) * halfWidthBase;
 
-    // baseShape: u가 base 근처(0-0.2)일 때 wedge/heart 변형.
-    const baseFactor = u < 0.2 ? 1 - (1 - input.baseShape) * (1 - u / 0.2) : 1;
+    // baseShape: u가 base 근처(0~baseTransitionEndU)일 때 wedge/heart 변형.
+    // ★ L5-6a (S42) — baseTransitionEndU from spec.shapeProfileRules.
+    const baseFactor = u < input.baseTransitionEndU
+      ? 1 - (1 - input.baseShape) * (1 - u / input.baseTransitionEndU)
+      : 1;
     const w2 = w * baseFactor;
 
     // 좌우 비대칭.
@@ -541,21 +546,26 @@ function buildLeafShapeDescriptor(ctx: LeafMeshBuildInput): LeafShapeDescriptor 
   );
 
   // Cultivar shape override (Iter 38 S4).
+  // ★ L5-6a (S42) — clamp bounds from spec.shapeProfileRules.{baseShapeClamp, tipSharpnessClamp}.
   if (ctx.cultivarOverride) {
     const o = ctx.cultivarOverride;
+    const baseClamp = ctx.spec.shapeProfileRules.baseShapeClamp;
+    const tipClamp = ctx.spec.shapeProfileRules.tipSharpnessClamp;
     if (o.aspectRatioMultiplier != null) resolved.aspectRatio *= o.aspectRatioMultiplier;
     if (o.baseShapeBias != null) {
-      resolved.baseShape = Math.max(0.7, Math.min(1.0, resolved.baseShape + o.baseShapeBias));
+      resolved.baseShape = Math.max(baseClamp[0], Math.min(baseClamp[1], resolved.baseShape + o.baseShapeBias));
     }
     if (o.tipSharpnessMultiplier != null) {
       resolved.tipSharpness = Math.max(
-        1.0, Math.min(2.0, resolved.tipSharpness * o.tipSharpnessMultiplier),
+        tipClamp[0], Math.min(tipClamp[1], resolved.tipSharpness * o.tipSharpnessMultiplier),
       );
     }
   }
 
   const ageFrac = Math.min(1, ctx.leafOrganState.senescence.progress);
-  const curl = ctx.leafOrganState.posture.curl + ctx.leafOrganState.senescence.curl * 0.5;
+  // ★ L5-6a (S42) — senescence curl weight from spec.
+  const curl = ctx.leafOrganState.posture.curl
+    + ctx.leafOrganState.senescence.curl * ctx.spec.shapeProfileRules.senescenceCurlWeight;
   const gravityDroopDeg = ctx.leafOrganState.posture.gravityDroopDeg ?? 0;
   const maturity = Math.max(0, Math.min(1, ctx.leafOrganState.expansionProgress));
   // Iter 39 Phase F5 — maturity-driven pose envelope.
@@ -612,6 +622,7 @@ function buildLeafletOutlineWithNoise(
     baseShape:    positioned.baseShape,
     asymmetry:    positioned.asymmetry,
     samples:      desc.qualitySamples,
+    baseTransitionEndU: spec.shapeProfileRules.baseTransitionEndU,
   });
 
   // G3 noise scale cap (작은 leaflet broken mesh shard 방지).
