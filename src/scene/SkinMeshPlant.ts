@@ -393,7 +393,11 @@ export function createSkinMeshPlant(
       // stem-petiole junction에 자연 collar 효과 강화 (visual emerge 완화).
       // 사용자 보고: stem 두께 불규칙 → "꼬임" 시각 (적엽으로 junction 일부 사라져
       //   bulge node + flat node 혼재). parentSwellingScale 1.25 → 1.05 (5% 약한 bulge).
-      stemOpts: { radialSegments: 8, rootRadiusScale: 1.30, parentSwellingScale: 1.05 },
+      // ★ S129 — lowQuality 시 stem mesh도 light: radialSegments 8 → 4 (~2x verts ↓).
+      //   probe 진단: stem mesh가 plant 비용의 40-50%. radialSegs 절반 효과 큼.
+      stemOpts: opts.lowQuality
+        ? { radialSegments: 4, rootRadiusScale: 1.0, parentSwellingScale: 1.0 }
+        : { radialSegments: 8, rootRadiusScale: 1.30, parentSwellingScale: 1.05 },
     });
     // Compatibility shim — preserve the existing `skin.faceGroups` shape so
     // the metadata block below doesn't need rewriting. defaultSkinEngine
