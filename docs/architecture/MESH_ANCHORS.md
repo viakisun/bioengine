@@ -47,7 +47,7 @@ mesh, mesh-local origin = "첫 leaflet stem-side")는 _historic archive_.
 | vertex 분포 | 단일 leaflet plane — `normalizeLeafMeshVertices` 적용 후 |
 | mesh name | `skinplant_leaf_{seed}_a{ax}_n{n}_l{idx}_{position}` |
 
-**Entry function**: `src/scene/leaf-engine/buildLeafletMeshes.ts:buildLeafletMeshes()`.
+**Entry function**: `src/scene/leaf/buildLeafletMeshes.ts:buildLeafletMeshes()`.
 mandatory path — `bladeRef`/`leafletSkeletonNodes` 누락 시 throw (Phase K
 silent fallback 함정 방지).
 
@@ -96,7 +96,7 @@ silent fallback 함정 방지).
 
 **Iter 39 L1-B 확장 — Centroid anchor (사용자 close-up 진단 정확)**:
 
-K3 (`strict less-than`)은 row=0의 _첫 만나는 vertex_ 선택. leafletPlaneChunk
+K3 (`strict less-than`)은 row=0의 _첫 만나는 vertex_ 선택. LeafletPlaneChunk
 산식상 row=0 (stem-side)에 col 0~8 9 vertices가 모두 x = x_min:
 - col=0 → z = -halfWidthLeft (**leftmost edge**)
 - col=4 → z = 0 (center)

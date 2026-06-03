@@ -1,4 +1,4 @@
-// Iter 36 v5 Phase D — leaf-engine entry: buildCompoundLeaf.
+// Iter 36 v5 Phase D — leaf entry: buildCompoundLeaf.
 //
 // 사용자 architectural model "skeleton → node 정보 → rendering 알고리즘" 의
 // 3-tier 중 마지막 tier (rendering 엔진). Conservative 분리:

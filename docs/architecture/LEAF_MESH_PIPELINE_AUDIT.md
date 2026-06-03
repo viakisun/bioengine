@@ -18,17 +18,17 @@ _4-5 파일 추적_. L2 refactor의 _명분_을 audit으로 확정.
 
 ```
 SkinMeshPlant.ts:799
-  └─ buildLeafletMeshes (src/scene/leaf-engine/buildLeafletMeshes.ts:90)
-     ├─ buildShapeProfile  (leaf-engine/shapeProfile.ts)
-     ├─ lobeNoise          (leaf-engine/lobeNoise.ts)
-     ├─ serrationNoise     (leaf-engine/serrationNoise.ts)
-     ├─ AGE_PRESETS        (leaf-engine/agePresets.ts)
-     ├─ applyCorrelation   (leaf-engine/correlationRules.ts)
-     ├─ buildLeafletPlaneChunk (@farmsim/tomato-geometry/leafletPlaneChunk.ts)
+  └─ buildLeafletMeshes (src/scene/leaf/buildLeafletMeshes.ts:90)
+     ├─ buildShapeProfile  (leaf/shapeProfile.ts)
+     ├─ lobeNoise          (leaf/lobeNoise.ts)
+     ├─ serrationNoise     (leaf/serrationNoise.ts)
+     ├─ AGE_PRESETS        (leaf/agePresets.ts)
+     ├─ applyCorrelation   (leaf/correlationRules.ts)
+     ├─ buildLeafletPlaneChunk (@farmsim/tomato-geometry/LeafletPlaneChunk.ts)
      └─ normalizeLeafMeshVertices (anchors/leafAnchor.ts, L1-B centroid)
 ```
 
-**의존 11 imports** (Babylon 4 + leaf-engine 6 + tomato-geometry 1):
+**의존 11 imports** (Babylon 4 + leaf 6 + tomato-geometry 1):
 - `@babylonjs/core/{scene, Meshes/mesh, Meshes/mesh.vertexData, Maths/math.vector}`
 - `@farmsim/tomato-engine` (SeededRandom type)
 - `@farmsim/tomato-geometry` (buildLeafletPlaneChunk)
@@ -123,7 +123,7 @@ LeafMeshBuilder.ts (신규)
 | `LeafGenerator.buildLeafMeshFromPhytomer` | L2-2c (S11) 또는 L2-2d (S12) | ✓ @deprecated (S9) |
 | `tomato-geometry/leafChunk.buildLeafChunkSkin` | L2-2c/d | ✓ @deprecated (S9) |
 | `tomato-geometry/leafChunk.buildLeafChunkLegacy` | L2-2c/d | ✓ @deprecated (S9) |
-| `tomato-geometry/leafletPlaneChunk.buildLeafletPlaneChunk` | _NOT deprecated_ | production canonical 의존 |
+| `tomato-geometry/LeafletPlaneChunk.buildLeafletPlaneChunk` | _NOT deprecated_ | production canonical 의존 |
 
 ## ★ L2-2b: usage 0 confirm (S10)
 
@@ -177,12 +177,12 @@ SkinMeshPlant.ts:799
         ├─ AGE_PRESETS[bladeRef.agePreset]       [agePresets.ts]
         ├─ applyCorrelation(...)                 [correlationRules.ts]
         ├─ for each leaflet:
-        │  ├─ applyPositionProfile(...)          [leafletPositionProfile.ts]
+        │  ├─ applyPositionProfile(...)          [LeafletProfile.ts]
         │  ├─ buildShapeProfile({samples})       [shapeProfile.ts]
         │  ├─ for each row:
-        │  │  ├─ lobeNoise(...) * endpointTaperWeight(t)  [lobeNoise.ts + leafletPositionProfile.ts]
+        │  │  ├─ lobeNoise(...) * endpointTaperWeight(t)  [lobeNoise.ts + LeafletProfile.ts]
         │  │  └─ serrationNoise(...) * endpointTaperWeight(t)  [serrationNoise.ts]
-        │  ├─ buildLeafletPlaneChunk(profile)    [packages/tomato-geometry/leafletPlaneChunk.ts]
+        │  ├─ buildLeafletPlaneChunk(profile)    [packages/tomato-geometry/LeafletPlaneChunk.ts]
         │  ├─ normalizeLeafMeshVertices(chunk)   [anchors/leafAnchor.ts]
         │  └─ new Mesh + position + rotation     ★ Babylon API
         └─ return Mesh[]                          ★ Babylon Mesh, pure algorithm 아님
@@ -211,10 +211,10 @@ LeafGenerator.ts (별도)
 
 **총 ~793줄 제거**. 위험 낮음 — LEAF-LIVE-FALLBACK-NEVER-01이 0% live 보장.
 
-#### L3-B (S20) — leafletPlaneChunk 이동
+#### L3-B (S20) — LeafletPlaneChunk 이동
 
-`packages/tomato-geometry/src/leafletPlaneChunk.ts` (~200줄) → `src/scene/leaf-engine/`:
-- import paths: `@farmsim/tomato-geometry` → `./leafletPlaneChunk` (1 callsite buildLeafletMeshes.ts)
+`packages/tomato-geometry/src/LeafletPlaneChunk.ts` (~200줄) → `src/scene/leaf/`:
+- import paths: `@farmsim/tomato-geometry` → `./LeafletPlaneChunk` (1 callsite buildLeafletMeshes.ts)
 - packages/tomato-geometry/src/index.ts export 제거
 
 **0줄 변동** (이동만). tomato-geometry는 cotyledon/stem/truss만 보유.
@@ -236,9 +236,9 @@ LeafGenerator.ts (별도)
 - index.ts re-export 제거
 - REFACTOR-PARITY-01 strict PASS
 
-#### L3-D (S25) — leafletPlaneChunk + buildLeafletMeshes inline
+#### L3-D (S25) — LeafletPlaneChunk + buildLeafletMeshes inline
 
-L3-B 후 leafletPlaneChunk.ts (~200줄) + buildLeafletMeshes.ts (~250줄) 모두
+L3-B 후 LeafletPlaneChunk.ts (~200줄) + buildLeafletMeshes.ts (~250줄) 모두
 LeafMeshBuilder.ts inline.
 
 이 시점 LeafMeshBuilder.ts = ~700-900줄 monolithic 진입점.
@@ -279,9 +279,9 @@ Babylon Mesh 변환은 `LeafGenerator.wrapLeafChunksAsMeshes(chunks)` 신규 함
 ## ★ L3 후 예상 디렉터리
 
 ```
-src/scene/leaf-engine/
+src/scene/leaf/
   LeafMeshBuilder.ts             ~700-900줄  ← SSOT
-  leafletPositionProfile.ts      ~150줄
+  LeafletProfile.ts      ~150줄
   index.ts                       ~30줄
 
 src/plant/
@@ -290,7 +290,7 @@ src/plant/
 
 packages/tomato-geometry/
   leafChunk.ts                    삭제 (L3-A)
-  leafletPlaneChunk.ts            삭제 (L3-B/D)
+  LeafletPlaneChunk.ts            삭제 (L3-B/D)
   cotyledon/stem/truss만 보유
 ```
 

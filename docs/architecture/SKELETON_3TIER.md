@@ -55,9 +55,9 @@
 │  - src/plant/LeafGenerator.ts                                  │
 │      → buildLeafMeshFromPhytomer(leafOrganState, bladeRef,     │
 │        leafletNodes[], ...)                                    │
-│      → leaf-engine 호출 (procedural variation)                  │
+│      → leaf 호출 (procedural variation)                  │
 │                                                                │
-│  - src/scene/leaf-engine/ ★ Iter 36 v5                         │
+│  - src/scene/leaf/ ★ Iter 36 v5                         │
 │      → buildCompoundLeaf(bladeRef, leafletNodes[], seed)       │
 │      → CompoundLeafDescriptor (shape + lobe + serration + pose)│
 │                                                                │

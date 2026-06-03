@@ -104,10 +104,10 @@ smooth margin과 더 큰 잎.
 
 | 영역 | 파일 |
 |---|---|
-| Preset table | `src/scene/leaf-engine/agePresets.ts` |
+| Preset table | `src/scene/leaf/agePresets.ts` |
 | Cultivar 분포 (5 JSONC) | `packages/tomato-engine/models/cultivars/*.jsonc` |
 | Schema | `packages/tomato-engine/src/CultivarGrowthProfile.ts` (`leafPresetDistribution`) |
-| Sampling 산식 | `src/scene/leaf-engine/index.ts` (`buildCompoundLeaf`) |
+| Sampling 산식 | `src/scene/leaf/index.ts` (`buildCompoundLeaf`) |
 
 ---
 
@@ -117,7 +117,7 @@ smooth margin과 더 큰 잎.
 1. Skeleton populator (buildTomatoSkeletonGraph)
    → 각 leaf-blade-root에 LeafBladeRef.agePreset 지정 (sizeFactor 기반 baseline)
 
-2. Rendering engine (leaf-engine/index.ts)
+2. Rendering engine (leaf/index.ts)
    → AGE_PRESETS[agePreset] lookup
    → applyCorrelation(complexity, preset) → ResolvedLeafParams
    → 각 leaflet에 shape + lobe + serration + pose 적용

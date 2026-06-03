@@ -24,7 +24,7 @@ test.describe('Iter 36 v5 — Correlation rules + procedural noise', () => {
 
   test('CORRELATION-LOBE-NOISE-01: lobeNoise procedural sin 합성 (low freq, high amp)', async () => {
     const src = await fs.readFile(
-      path.join(REPO_ROOT, 'src/scene/leaf-engine/lobeNoise.ts'),
+      path.join(REPO_ROOT, 'src/scene/leaf/lobeNoise.ts'),
       'utf-8',
     );
     expect(src, 'lobeNoise export 의무').toContain('export function lobeNoise');
@@ -37,7 +37,7 @@ test.describe('Iter 36 v5 — Correlation rules + procedural noise', () => {
 
   test('CORRELATION-SERRATION-NOISE-01: serrationNoise triangleWave (high freq, low amp)', async () => {
     const src = await fs.readFile(
-      path.join(REPO_ROOT, 'src/scene/leaf-engine/serrationNoise.ts'),
+      path.join(REPO_ROOT, 'src/scene/leaf/serrationNoise.ts'),
       'utf-8',
     );
     expect(src, 'serrationNoise export 의무').toContain('export function serrationNoise');
@@ -48,7 +48,7 @@ test.describe('Iter 36 v5 — Correlation rules + procedural noise', () => {
 
   test('CORRELATION-POSE-VARIATION-01: 4 position types attachAngle 차이', async () => {
     const src = await fs.readFile(
-      path.join(REPO_ROOT, 'src/scene/leaf-engine/poseVariation.ts'),
+      path.join(REPO_ROOT, 'src/scene/leaf/poseVariation.ts'),
       'utf-8',
     );
     expect(src, 'computeLeafletPose export').toContain('export function computeLeafletPose');
@@ -61,7 +61,7 @@ test.describe('Iter 36 v5 — Correlation rules + procedural noise', () => {
 
   test('CORRELATION-SHAPE-PROFILE-01: shapeProfile sin(π × u)^shapePower (사용자 §5)', async () => {
     const src = await fs.readFile(
-      path.join(REPO_ROOT, 'src/scene/leaf-engine/shapeProfile.ts'),
+      path.join(REPO_ROOT, 'src/scene/leaf/shapeProfile.ts'),
       'utf-8',
     );
     expect(src, 'baseWidth 함수 (sin(π × u)^shapePower)').toContain('baseWidth');

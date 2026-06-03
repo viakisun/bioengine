@@ -20,7 +20,7 @@ import {
   getLeafColorTexture,
   getLeafNormalTexture,
 } from './LeafTexture';
-import type { LeafMeshPatch } from '../scene/leaf-engine';
+import type { LeafMeshPatch } from '../scene/leaf';
 
 /**
  * ★ Iter 39 L3-F (S27) — Babylon Mesh wrapper.

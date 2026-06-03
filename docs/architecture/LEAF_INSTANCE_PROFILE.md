@@ -18,7 +18,7 @@ Iter 39 Phase B에서 per-leaflet plane mesh가 graph node 위치에 정확히 �
 
 ## API
 
-`src/scene/leaf-engine/leafInstanceProfile.ts:`
+`src/scene/leaf/leafInstanceProfile.ts:`
 
 ```ts
 export interface LeafInstanceProfile {

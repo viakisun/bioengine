@@ -3,7 +3,7 @@
 > 사용자 botanical reference §8 직접 인용. variation을 _완전 random_으로 하면
 > 잎이 이상해짐. **묶음으로 변해야** 자연스러움.
 
-본 문서는 leaf-engine의 correlation rules와 procedural noise 산식입니다.
+본 문서는 leaf의 correlation rules와 procedural noise 산식입니다.
 
 ---
 

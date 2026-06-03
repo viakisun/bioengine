@@ -1,5 +1,5 @@
 // SSOT #203 — Per-Leaflet Position Profile (Iter 39 Phase L2-3).
-// See: src/scene/leaf-engine/LeafMeshBuilder.ts, LEAF_MESH_PIPELINE_AUDIT.md Section 4
+// See: src/scene/leaf/LeafMeshBuilder.ts, LEAF_MESH_PIPELINE_AUDIT.md Section 4
 //
 // L2-0 audit 진단: leafletRef.position이 _terminal flag만_ 사용. primary/
 // intercalary _shape 차별화 없음_ → 모든 leaflet이 같은 ovate profile + 같은
@@ -22,7 +22,7 @@
 // 회귀시키면 즉시 fail.
 
 import { test, expect } from '@playwright/test';
-import { PROFILE_BY_POSITION, applyPositionProfile } from '../../src/scene/leaf-engine/leafletPositionProfile';
+import { PROFILE_BY_POSITION, applyPositionProfile } from '../../src/scene/leaf/LeafletProfile';
 
 test.describe('Per-Leaflet Position Profile (SSOT #203, Iter 39 Phase L2-3)', () => {
   test('LEAFLET-POSITION-PROFILE-01: terminal > primary > intercalary differentiation', () => {

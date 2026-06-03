@@ -90,7 +90,7 @@ import { getLeafletSkeletonNodesByParentLeaf } from '../plant/skeleton/PlantSkel
 //   LeafMeshBuilder = pure mesh algorithm layer. 현재 thin wrapper로
 //   buildLeafletMeshes 위임 — L2-3 이후 산식 통합 진입점.
 //   참조: docs/architecture/LEAF_MESH_PIPELINE_AUDIT.md
-import { buildLeafMeshFromSkeleton } from './leaf-engine';
+import { buildLeafMeshFromSkeleton } from './leaf';
 
 // Iter 35 PR 2 Phase I — ShowcasePlant archived. SkinMeshPlantHandle interface는
 //   원래 ShowcasePlant에서 import하던 type을 _자체 정의_로 inline (1:1 동일).

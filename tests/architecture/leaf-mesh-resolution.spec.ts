@@ -1,5 +1,5 @@
 // SSOT #205 — Leaf Mesh Resolution Quality Profile (Iter 39 Phase L2-4b).
-// See: src/scene/leaf-engine/leafletPositionProfile.ts:LEAF_MESH_RESOLUTION
+// See: src/scene/leaf/LeafletProfile.ts:LEAF_MESH_RESOLUTION
 //
 // 사용자 v3 #5: 전역 상수 _금지_. quality profile dict + flag.
 //   default 'low' (production 회귀 0) + 'high' opt-in (hero/near plant).
@@ -10,7 +10,7 @@ import { test, expect } from '@playwright/test';
 import {
   LEAF_MESH_RESOLUTION,
   DEFAULT_LEAF_MESH_QUALITY,
-} from '../../src/scene/leaf-engine/leafletPositionProfile';
+} from '../../src/scene/leaf/LeafletProfile';
 
 test.describe('Leaf Mesh Resolution (SSOT #205, Iter 39 Phase L2-4b)', () => {
   test('LEAF-MESH-RESOLUTION-01: default low + high opt-in 구조', () => {

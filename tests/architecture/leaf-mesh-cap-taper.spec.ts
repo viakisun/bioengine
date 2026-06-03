@@ -1,5 +1,5 @@
 // SSOT #204 — Leaf Mesh Cap Taper (Iter 39 Phase L2-4a).
-// See: src/scene/leaf-engine/leafletPositionProfile.ts:endpointTaperWeight
+// See: src/scene/leaf/LeafletProfile.ts:endpointTaperWeight
 //
 // L2-4a fix: row=0 (base) / row=N (tip)에서 lobe/serration noise × sin(πt) →
 //   끝쪽 noise 0 가중치 → 9 vertices가 origin으로 수렴 → 뭉툭 cap 해소.
@@ -15,7 +15,7 @@
 //   - row=N vertices의 max|z| / leaflet half-width ≤ 0.05
 
 import { test, expect } from '@playwright/test';
-import { endpointTaperWeight } from '../../src/scene/leaf-engine/leafletPositionProfile';
+import { endpointTaperWeight } from '../../src/scene/leaf/LeafletProfile';
 
 test.describe('Leaf Mesh Cap Taper (SSOT #204, Iter 39 Phase L2-4a)', () => {
   test('LEAF-MESH-CAP-TAPER-01: endpointTaperWeight 산식', () => {

@@ -21,7 +21,7 @@ K3 (mesh anchor 3D) 완료 후 사용자 close-up:
 
 ### Root cause — `foldDroopDeg` per-leaflet pitch
 
-[buildLeafletMeshes.ts:133-134](../../src/scene/leaf-engine/buildLeafletMeshes.ts#L133):
+[buildLeafletMeshes.ts:133-134](../../src/scene/leaf/buildLeafletMeshes.ts#L133):
 ```ts
 // L0 이전: foldDroopDeg = -10 + 40 × maturity   → mature +30°
 // L0-D-1:  foldDroopDeg = -5 + 15 × maturity    → mature +10°
@@ -58,7 +58,7 @@ mature leaflet 평균 기울기 30° → 18° (사용자 명시 목표 10~18° �
 
 ## ★ Why Track A 폐기 (mesh-local vertex 산식)
 
-원래 L0 plan v1은 [leafletPlaneChunk.ts](../../packages/tomato-geometry/src/leafletPlaneChunk.ts)의
+원래 L0 plan v1은 [LeafletPlaneChunk.ts](../../packages/tomato-geometry/src/LeafletPlaneChunk.ts)의
 `transverseCup` / `ageComponent` 산식 보정 — Cup 약화 + Droop 강화. 그러나:
 
 1. **Baseline 측정이 가설 반박** — cupMax는 _negative_ (가장자리가 아래로),
@@ -90,7 +90,7 @@ mature leaflet 평균 기울기 30° → 18° (사용자 명시 목표 10~18° �
 
 | Track | 영역 | 상태 | 비고 |
 |---|---|---|---|
-| **A — Vertex cup/droop** | `leafletPlaneChunk.ts` 산식 | **폐기** | baseline 반박 |
+| **A — Vertex cup/droop** | `LeafletPlaneChunk.ts` 산식 | **폐기** | baseline 반박 |
 | **B — Variation** | `buildLeafletMeshes.ts` jitter, `correlationRules.ts` | **대기** | L0-D-1 후 시각 부족 시 |
 | **C — Mesh quality** | amplitude range scale | **대기** | 후순위 |
 | **D-1 — Per-leaflet pitch** | `foldDroopDeg = -10 + 40×m → -5 + 15×m` | **적용** ✓ | LEAF-LEAFLET-PITCH-01 |
@@ -131,7 +131,7 @@ L0-D-1 후 사용자 추가 3가지 보고:
 3. 잎 모양 앞뒤 뭉툭
 
 **진단**: K3 `normalizeLeafMeshVertices` strict-less-than이 row=0 (stem-side)의
-_첫_ vertex 선택. leafletPlaneChunk 산식상 row=0에 col 0~8 9 vertices가 모두
+_첫_ vertex 선택. LeafletPlaneChunk 산식상 row=0에 col 0~8 9 vertices가 모두
 x = x_min — col=0이 `-halfWidthLeft` (leftmost edge)에 위치.
 
 **측정** (probe ANCHOR-01 진단):

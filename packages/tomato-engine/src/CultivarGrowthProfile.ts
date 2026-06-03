@@ -162,7 +162,7 @@ export interface CultivarGrowthProfile {
   // Iter 36 v5 Phase F — Compound leaf age preset distribution.
   //
   // 사용자 botanical reference §7 (5 age presets) — 각 cultivar별 _사용 비율_.
-  // Sum = 1.0 (validator 검증). Rendering engine (leaf-engine)이 leaf instance
+  // Sum = 1.0 (validator 검증). Rendering engine (leaf)이 leaf instance
   // 의 ageTT + complexity seed에 따라 distribution sampling.
   // ───────────────────────────────────────────────────────────────────
 

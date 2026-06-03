@@ -1,4 +1,4 @@
-// @farmsim/tomato-geometry/leafletPlaneChunk — Per-leaflet single plane chunk (Iter 39).
+// @farmsim/tomato-geometry/LeafletPlaneChunk — Per-leaflet single plane chunk (Iter 39).
 //
 // 사용자 §5 + §6 botanical model 기반 _단일 leaflet plane_ geometry.
 // Skeleton 노드별 plane mesh가 graph node.pos에 직접 부착되도록 설계.
@@ -8,7 +8,7 @@
 //   +Y = blade up (normal direction at rest)
 //   +Z = blade width (left-right)
 //
-// Width source: ShapeProfileSample[] — leaf-engine/shapeProfile.ts가 생성한
+// Width source: ShapeProfileSample[] — leaf/shapeProfile.ts가 생성한
 // 좌우 halfWidth 시계열. lobe/serration noise는 호출자가 profile 자체에 add.
 //
 // Iter 36 v5 createOvateLeaflet (leafChunk.ts line 473)의 vertex 산식 중
@@ -19,7 +19,7 @@
 // `createOvateLeaflet`은 ShowcasePlant + buildLeafChunkLegacy byte-identical
 // 보존을 위해 _변경 없음_. 본 generator는 Skin 경로 전용.
 
-// ★ Iter 39 L3-B (S20) — leafletPlaneChunk를 src/scene/leaf-engine/로 이동.
+// ★ Iter 39 L3-B (S20) — LeafletPlaneChunk를 src/scene/leaf/로 이동.
 //   import path 갱신: ./types → @farmsim/tomato-geometry (newChunk + GeoChunk type).
 import { newChunk, type GeoChunk } from '@farmsim/tomato-geometry';
 

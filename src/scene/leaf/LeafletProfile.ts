@@ -20,7 +20,7 @@ export type LeafletPosition = 'terminal' | 'primary' | 'intercalary' | 'secondar
 // opt-in.
 //
 // 현재 shapeProfile samples만 quality 조정 (lengthSegs = samples - 1).
-// COLS (leafletPlaneChunk 내부 hardcode 9)는 patkage 변경 필요 → 후속 phase.
+// COLS (LeafletPlaneChunk 내부 hardcode 9)는 patkage 변경 필요 → 후속 phase.
 
 export type LeafMeshQuality = 'low' | 'high';
 
@@ -99,7 +99,7 @@ export const PROFILE_BY_POSITION: Record<LeafletPosition, LeafletShapeProfile> =
 /**
  * Endpoint taper weight (Iter 39 Phase L2-4a — cap topology).
  *
- * leafletPlaneChunk row 인덱스 t (0=base, 1=tip)에서 lobe/serration noise에
+ * LeafletPlaneChunk row 인덱스 t (0=base, 1=tip)에서 lobe/serration noise에
  * 곱할 가중치. sin(πt)는 t=0/1에서 0, t=0.5에서 1 → 끝쪽 noise suppress.
  *
  * 효과:

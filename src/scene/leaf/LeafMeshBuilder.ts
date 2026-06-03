@@ -36,7 +36,7 @@
 
 import type { SeededRandom } from '@farmsim/tomato-engine';
 import type { GeoChunk } from '@farmsim/tomato-geometry';
-import { buildLeafletPlaneChunk } from './leafletPlaneChunk';
+import { buildLeafletPlaneChunk } from './LeafletPlaneChunk';
 
 // ─── Pure quaternion math (Babylon 의존 0) ───────────────────────────────
 
@@ -81,7 +81,7 @@ import {
   DEFAULT_LEAF_MESH_QUALITY,
   type LeafletPosition,
   type LeafMeshQuality,
-} from './leafletPositionProfile';
+} from './LeafletProfile';
 import type { CultivarShapeOverride } from './index';
 
 type V3 = { x: number; y: number; z: number };
@@ -532,15 +532,15 @@ export function serrationNoise(u: number, amp: number, freq: number, seed: numbe
 }
 
 // ─── L2-3: Per-Leaflet Position Profile re-export ──────────────────────────
-// 산식은 leafletPositionProfile.ts (pure module, Babylon 의존 0, unit test 가능).
+// 산식은 LeafletProfile.ts (pure module, Babylon 의존 0, unit test 가능).
 export {
   PROFILE_BY_POSITION,
   applyPositionProfile,
-} from './leafletPositionProfile';
+} from './LeafletProfile';
 export type {
   LeafletPosition,
   LeafletShapeProfile,
-} from './leafletPositionProfile';
+} from './LeafletProfile';
 
 // ─── L3-E (S26) — 사용자 v3 sketch 함수 분해 ────────────────────────────
 // monolithic for-loop를 단일 책임 함수로 분해.

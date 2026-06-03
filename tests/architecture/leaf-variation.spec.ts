@@ -1,5 +1,5 @@
 // SSOT #206 — Leaf Variation (Iter 39 Phase L2-5a — reporting first).
-// See: src/scene/leaf-engine/buildLeafletMeshes.ts (per-leaflet jitter),
+// See: src/scene/leaf/buildLeafletMeshes.ts (per-leaflet jitter),
 //      LEAF_MESH_PIPELINE_AUDIT.md
 //
 // 사용자 v3 #5 (보완): variation threshold _처음부터 hard invariant X_.

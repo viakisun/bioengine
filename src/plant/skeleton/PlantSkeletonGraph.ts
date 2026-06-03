@@ -98,7 +98,7 @@ export type LeafletPosition = 'terminal' | 'primary' | 'secondary' | 'intercalar
  *
  * Conservative 분리 (사용자 결정): _구조 데이터만_. shapeProfile / serration /
  * lobeNoise / asymmetry / wrinkle / poseVariation은 _rendering engine 내부_
- * procedural (src/scene/leaf-engine/).
+ * procedural (src/scene/leaf/).
  */
 export interface LeafletNodeRef {
   /** parent leaf-blade-root node ID (skeleton 자기 참조). */
@@ -245,7 +245,7 @@ export interface SkeletonNode {
   /**
    * Iter 36 v5 Phase B (★ NEW) — per-leaflet data for leaflet-node type.
    * Populator fills for each leaflet position (terminal/primary/secondary/intercalary)
-   * around each leaf-blade-root. Rendering engine (LeafGenerator + leaf-engine)
+   * around each leaf-blade-root. Rendering engine (LeafGenerator + leaf)
    * reads these to position individual leaflet meshes.
    */
   leafletRef?: LeafletNodeRef;

@@ -15,9 +15,9 @@ const REPO_ROOT = path.resolve(SPEC_DIR, '../..');
 
 const LEAF_CHUNK = path.join(REPO_ROOT, 'packages/tomato-geometry/src/leafChunk.ts');
 const LEAF_GEN = path.join(REPO_ROOT, 'src/plant/LeafGenerator.ts');
-const AGE_PRESETS = path.join(REPO_ROOT, 'src/scene/leaf-engine/agePresets.ts');
-const CORRELATION = path.join(REPO_ROOT, 'src/scene/leaf-engine/correlationRules.ts');
-const LEAF_ENGINE_INDEX = path.join(REPO_ROOT, 'src/scene/leaf-engine/index.ts');
+const AGE_PRESETS = path.join(REPO_ROOT, 'src/scene/leaf/agePresets.ts');
+const CORRELATION = path.join(REPO_ROOT, 'src/scene/leaf/correlationRules.ts');
+const LEAF_ENGINE_INDEX = path.join(REPO_ROOT, 'src/scene/leaf/index.ts');
 const CULTIVAR_PROFILE = path.join(REPO_ROOT, 'packages/tomato-engine/src/CultivarGrowthProfile.ts');
 
 async function readFile(p: string): Promise<string> {
