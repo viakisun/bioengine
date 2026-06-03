@@ -939,6 +939,15 @@ function buildLeafletPatch(
  *
  * Output contract (REFACTOR-PARITY-01): 동일 input + seed → 동일 vertex
  * count / position / bbox / index.
+ *
+ * ★ S117 ARCHIVED — V1 outline pipeline은 _legacy_. 정식 production은 V2
+ *   (buildLeafMeshFromSkeletonV2). 파일 자체는 _공유 helpers_ 의존성 (V2가
+ *   buildLeafShapeDescriptor, applyLeafletPose, buildLeafletPlaneChunk, djb2
+ *   import) 때문에 _이동하지 않음_. V1 entry는 `?leafBuilder=v1` URL로만 접근.
+ *   향후 phase에서 shared helpers 별 파일 분리 + V1 entry _archive/_로 이동 권고.
+ *
+ * @deprecated Use buildLeafMeshFromSkeletonV2 (BGT pipeline). V1 entry 유지는
+ *   _emergency rollback_ + _regression diff_ 용도.
  */
 export function buildLeafMeshFromSkeleton(ctx: LeafMeshBuildInput): LeafMeshPatch[] {
   if (!ctx.bladeRef) {

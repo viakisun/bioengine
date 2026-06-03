@@ -804,15 +804,14 @@ export function createSkinMeshPlant(
             ? Vector3.Distance(cam.position, root.absolutePosition)
             : 10;
           const lodQuality = qualityFromDistance(distM);
-          // ★ L9-D V2 S87 — URL flag 격리 (engine 순수성 보존, 처리는 caller).
-          //   ?leafBuilder=v2          → V2 outline builder (S90 산식 활성)
-          //   ?leafPlane=flat          → V1+V2 postureOverride (outline 단독 평가)
-          //   둘 다 _임시 진단_. V2 acceptance Q1-a/Q3-a 평가 후 제거 의무.
+          // ★ S117 — V2 정식 production default. V1은 _legacy_ (`?leafBuilder=v1`).
+          //   ?leafBuilder=v1   → V1 legacy outline (S117 archived)
+          //   ?leafPlane=flat   → posture override (outline 단독 평가, 임시 진단)
           const urlParams = typeof location !== 'undefined'
             ? new URLSearchParams(location.search)
             : null;
           const builderVersion: 'v1' | 'v2' =
-            urlParams?.get('leafBuilder') === 'v2' ? 'v2' : 'v1';
+            urlParams?.get('leafBuilder') === 'v1' ? 'v1' : 'v2';
           const postureOverride =
             urlParams?.get('leafPlane') === 'flat'
               ? { curl: 0, gravityDroopDeg: 0 }

@@ -62,11 +62,12 @@ export interface CreateLeafOptions {
   /**
    * ★ L9-D V2 S86 — Outline builder version. Default `'v1'` (production).
    *
-   *   - `'v1'` (default): LeafMeshBuilder.ts — `sin(πu)^shapePower` 단일 bell curve.
-   *   - `'v2'`: LeafMeshBuilder2.ts — Gaussian shoulder lobe + sinus notch +
-   *     drip tip + Expansion/Senescence scaling (S90부터 산식 활성, S86은 골격).
+   *   - `'v2'` (★ default since S117): LeafMeshBuilder2.ts — BGT (Beta × Gaussian × Triangle).
+   *     사용자 reference 산식, 정식 production. n_internal=900 + box-average decimation.
+   *   - `'v1'` (legacy): LeafMeshBuilder.ts — `sin(πu)^shapePower` 단일 bell curve.
+   *     S117 정식 archive 결정 — `?leafBuilder=v1` URL 옵션으로만 접근 가능.
    *
-   * Caller dispatch via URL `?leafBuilder=v2` (SkinMeshPlant.ts에서 격리).
+   * Caller dispatch via URL `?leafBuilder=v1` (legacy opt-out, SkinMeshPlant에서 격리).
    */
   builderVersion?: 'v1' | 'v2';
 
@@ -192,11 +193,12 @@ export const LeafEngine = {
       leafMacro,
     };
 
-    // ★ L9-D V2 S86 — Dispatch by builderVersion (default 'v1').
-    //   S85에서 V2는 V1 단순 위임 (byte-identical). S90에서 V2 자체 산식 활성.
-    return options.builderVersion === 'v2'
-      ? buildLeafMeshFromSkeletonV2(ctx)
-      : buildLeafMeshFromSkeleton(ctx);
+    // ★ S117 — V2 정식 production default. V1은 _legacy opt-out_ (URL `?leafBuilder=v1`).
+    //   기존 (S86 plan): V1 default, V2 opt-in via `?leafBuilder=v2`.
+    //   S117 (사용자 결정): V2 정식 교체. V1 archive (file 유지 — 공유 helpers 의존성).
+    return options.builderVersion === 'v1'
+      ? buildLeafMeshFromSkeleton(ctx)        // legacy
+      : buildLeafMeshFromSkeletonV2(ctx);     // default (v2 production)
   },
 
   /**

@@ -106,11 +106,13 @@ test.describe('L9-D V2 — Builder coexistence phase (Active 원칙 #56)', () =>
       'LeafMeshBuilder2 import (buildLeafMeshFromSkeletonV2)',
     ).toMatch(/import[^;]*buildLeafMeshFromSkeletonV2[^;]*from\s+['"]\.\/LeafMeshBuilder2['"]/s);
 
-    // createLeaf 안 dispatch 산식
+    // ★ S117 — dispatch는 V1 명시 비교 (default V2 production).
+    //   이전 (S86~S114): options.builderVersion === 'v2' (default V1)
+    //   이제 (S117):    options.builderVersion === 'v1' (default V2)
     expect(
       engineSrc,
-      'dispatch: options.builderVersion === \'v2\' 분기',
-    ).toMatch(/options\.builderVersion\s*===\s*['"]v2['"]/);
+      'dispatch: options.builderVersion === \'v1\' 분기 (default V2)',
+    ).toMatch(/options\.builderVersion\s*===\s*['"]v1['"]/);
   });
 
   test('V2-SPEC-FIELDS-01: PositionProfileSchema V2 outline structure fields (S88)', async () => {
@@ -140,24 +142,24 @@ test.describe('L9-D V2 — Builder coexistence phase (Active 원칙 #56)', () =>
     expect(specSrc, 'depth 단위 주석 (halfWidthBase 비율)').toMatch(/halfWidthBase\s*비율/);
   });
 
-  test('LEAF-BUILDER-V2-DEFAULT-V1-01: builderVersion 미지정 시 V1 default (production 안정성)', async () => {
-    // S86 보완 #11 — default 'v2' 강제 방지. CreateLeafOptions field가
-    // _optional_이고 dispatch가 ===  'v2' 명시 비교일 때만 V2.
+  test('LEAF-BUILDER-V2-DEFAULT-V2-01: builderVersion 미지정 시 V2 default (S117 정식 교체)', async () => {
+    // ★ S117 — V2 정식 production 승격. V1은 legacy (`?leafBuilder=v1` opt-out).
+    //   이전 (S86~S114): default V1, V2 opt-in.
+    //   이제: default V2, V1 명시 'v1' 비교일 때만.
     const engineSrc = await fs.readFile(
       path.join(REPO_ROOT, 'src/scene/leaf/LeafEngine.ts'),
       'utf-8',
     );
 
-    // optional ? (default undefined → V1)
     expect(
       engineSrc,
-      'builderVersion은 optional (default undefined → V1)',
+      'builderVersion은 optional (default undefined → V2 production)',
     ).toMatch(/builderVersion\?\:/);
 
-    // 명시 'v2' 비교 (default 분기 X)
+    // S117 명시 'v1' 비교 (default 분기 → V2)
     expect(
       engineSrc,
-      'dispatch 산식이 명시 ===  \'v2\' (default v2 강제 X)',
-    ).toMatch(/options\.builderVersion\s*===\s*['"]v2['"][^:]*\?[^:]*V2/);
+      "dispatch 산식이 명시 === 'v1' (default → V2 production)",
+    ).toMatch(/options\.builderVersion\s*===\s*['"]v1['"][^:]*\?[^:]*FromSkeleton\(/);
   });
 });
