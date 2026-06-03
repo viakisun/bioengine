@@ -247,4 +247,54 @@ test.describe('Iter 39 Phase L6-B-1a — Per-leaf mesh batching parity', () => {
     // empty patches → null (보완 #6)
     expect(src, 'empty patches → null').toMatch(/patches\.length\s*===\s*0\s*\)\s*return\s+null/);
   });
+
+  test('LEAF-MESH-COUNT-REDUCTION-01: SkinMeshPlant caller wrapAsLeafBatch 사용 (보완 #4)', async () => {
+    // ★ automated proxy: caller가 per-leaflet (`wrapAsMeshes`) 대신 per-leaf
+    //   (`wrapAsLeafBatch`)을 사용. 실제 draw call은 perf audit에서 별도 측정.
+    const fs = await import('fs/promises');
+    const path = await import('path');
+    const { fileURLToPath } = await import('url');
+    const SPEC_DIR = path.dirname(fileURLToPath(import.meta.url));
+    const REPO_ROOT = path.resolve(SPEC_DIR, '../..');
+    const src = await fs.readFile(
+      path.join(REPO_ROOT, 'src/scene/SkinMeshPlant.ts'),
+      'utf-8',
+    );
+    // SkinMeshPlant가 LeafEngine.wrapAsLeafBatch 호출 (production caller)
+    expect(src, 'SkinMeshPlant uses wrapAsLeafBatch').toMatch(
+      /LeafEngine\.wrapAsLeafBatch\s*\(/,
+    );
+    // wrapAsMeshes (per-leaflet) production caller에서는 _직접 사용 X_ — comment에서만
+    // 활성 호출 (non-comment line)에 `LeafEngine.wrapAsMeshes(` 있으면 안 됨.
+    const lines = src.split('\n');
+    const activeMeshesCalls = lines.filter(
+      l => !l.trim().startsWith('//') &&
+           !l.trim().startsWith('*') &&
+           /LeafEngine\.wrapAsMeshes\s*\(/.test(l),
+    );
+    expect(activeMeshesCalls, 'wrapAsMeshes calls in active code').toEqual([]);
+  });
+
+  test('LEAF-COORD-HIERARCHY-01: leaf mesh.parent = lushGroup (원칙 #49)', async () => {
+    // ★ 보완 + 원칙 #49 — Coordinate hierarchy 단일 책임.
+    //   per-leaf merge 후에도 mesh.parent = lushGroup (변경 X).
+    //   live env 미노출 시 source pattern grep.
+    const fs = await import('fs/promises');
+    const path = await import('path');
+    const { fileURLToPath } = await import('url');
+    const SPEC_DIR = path.dirname(fileURLToPath(import.meta.url));
+    const REPO_ROOT = path.resolve(SPEC_DIR, '../..');
+    const src = await fs.readFile(
+      path.join(REPO_ROOT, 'src/scene/SkinMeshPlant.ts'),
+      'utf-8',
+    );
+    // batched leaf mesh가 lushGroup 자식으로 attach
+    expect(src, 'leafMesh.parent = lushGroup').toMatch(
+      /leafMesh\.parent\s*=\s*lushGroup/,
+    );
+    // lushGroup이 root TransformNode의 자식 (createSkinMeshPlant 안)
+    expect(src, 'lushGroup.parent = root').toMatch(
+      /lushGroup\.parent\s*=\s*root/,
+    );
+  });
 });

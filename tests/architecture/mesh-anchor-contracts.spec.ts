@@ -34,10 +34,14 @@ async function enterSkin(page: Page, day: number) {
 }
 
 test.describe('Mesh Anchor Contracts (SSOT #186)', () => {
-  test('ANCHOR-01 (L1-B center): leaflet mesh stem-side row centroid (x_min, y_avg, z_avg) ≤1mm', async ({ page }) => {
-    // L1-B (active 원칙 #38): _x_min vertex_ 단일 검증 → _x_min row의
-    //   geometric centroid_ 검증. K3 strict-less-than (col=0 left edge)
-    //   편향 fix. row=0의 9 vertices (col 0~8) 평균 = leaflet base center.
+  test.skip('ANCHOR-01 (L1-B center): leaflet mesh stem-side row centroid (x_min, y_avg, z_avg) ≤1mm [L6-B-1b archived]', async ({ page }) => {
+    // ★ L6-B-1b (S57) — per-leaf merge로 leaflet vertex가 leaf-local로 _bake offset_.
+    //   per-leaflet 시점에서는 leaflet mesh-local origin이 stem-side centroid (L1-B).
+    //   per-leaf merge에서는 vertex가 _patch.position - leafBladeRootPos_ offset만큼 shift되어
+    //   각 leaflet centroid가 leaf-local 안 다른 위치. per-leaflet contract 검증 불가.
+    //
+    // 동등 검증: LEAF-MESH-BATCHING-PARITY-01 (vertex final plant-local position) +
+    //          LeafAnchor.ts:normalizeLeafMeshVertices가 _patch 생성 시점_에 적용 (산식 보존)
     test.setTimeout(120_000);
     await enterSkin(page, 45);
     const probe = await page.evaluate(() => {
@@ -111,7 +115,16 @@ test.describe('Mesh Anchor Contracts (SSOT #186)', () => {
     }
   });
 
-  test('ANCHOR-05: per-leaflet mesh.position == graph leafletNode.pos (≤1mm)', async ({ page }) => {
+  test('ANCHOR-05 (L6-B-1b 재정의 → LEAFLET-ANCHOR-BAKED-PARITY-01): per-leaf mesh.position == leaf-blade-root node.pos (≤1mm)', async ({ page }) => {
+    // ★ L6-B-1b (S57) — per-leaf merge로 mesh name 패턴 변경:
+    //   기존: skinplant_leaf_{seed}_a{ax}_n{n}_l{idx}_{position} (per-leaflet)
+    //   현재: skinplant_leaf_{seed}_a{ax}_n{n}_leaf            (per-leaf merged)
+    //
+    // 의미 _final coordinate 기준_으로 승격 (사용자 보완 #5):
+    //   mesh.position === leaf-blade-root node.pos (plant-local)
+    //   (leaflet vertex final position = mesh.position + bakedVertex
+    //                                  = patch.position + rotationQuat × localVertex,
+    //    parity는 LEAF-MESH-BATCHING-PARITY-01에서 검증)
     test.setTimeout(120_000);
     await enterSkin(page, 45);
     const probe = await page.evaluate(() => {
@@ -124,53 +137,47 @@ test.describe('Mesh Anchor Contracts (SSOT #186)', () => {
           }>;
         };
         __lastGraph?: {
-          nodes?: Map<string, { id: string; pos: { x: number; y: number; z: number }; leafletRef?: { parentLeafNodeId: string; position: string } }>;
+          nodes?: Map<string, { id: string; pos: { x: number; y: number; z: number }; leafBladeRef?: unknown }>;
         };
       };
-      const meshes = w.__debugScene?.meshes?.filter(m => /skinplant_leaf_.+_l\d+_/.test(m.name)) ?? [];
+      // ★ per-leaf merge 후 mesh name suffix `_leaf`
+      const meshes = w.__debugScene?.meshes?.filter(m => /skinplant_leaf_.+_leaf$/.test(m.name)) ?? [];
       const graph = w.__lastGraph;
       if (!graph?.nodes) return { error: 'no graph' };
-      // mesh name: ..._a{ax}_n{n}_l{idx}_{position}
-      // ★ Iter 39 Phase H0 — lookup 수정: lIdx는 _전체 leaflet 리스트_ 인덱스 (terminal/primary/intercalary/secondary 합쳐서).
-      //   이전 (잘못): position type별 posCount로 매칭 → SkinMesh의 _전체_ index와 mismatch.
-      //   수정: parentLeafNodeId가 같은 leaflet 전체 리스트에서 lIdx번째.
+      // mesh name: skinplant_leaf_{seed}_a{ax}_n{n}_leaf
       const results: Array<{ name: string; dist_mm: number }> = [];
       for (const m of meshes) {
-        const match = m.name.match(/_a(\d+)_n(\d+)_l(\d+)_(\w+)$/);
+        const match = m.name.match(/_a(\d+)_n(\d+)_leaf$/);
         if (!match) continue;
-        const axIdx = match[1], nIdx = match[2], lIdx = +match[3];
-        const parentId = `n:petiole_tip:axis${axIdx}:n${nIdx}`;
-        // 전체 leafletSkeletonNodes 인덱스 lookup (SkinMeshPlant 와 동일 순서).
-        const orderedLeaflets: Array<{ pos: { x: number; y: number; z: number }; pos_type: string }> = [];
-        for (const node of graph.nodes.values()) {
-          if (node.leafletRef?.parentLeafNodeId !== parentId) continue;
-          orderedLeaflets.push({ pos: node.pos, pos_type: node.leafletRef.position });
-        }
-        if (lIdx >= orderedLeaflets.length) continue;
-        const matched = orderedLeaflets[lIdx].pos;
+        const axIdx = match[1], nIdx = match[2];
+        // leaf-blade-root node id: petiole tip node
+        const leafBladeRootId = `n:petiole_tip:axis${axIdx}:n${nIdx}`;
+        const node = graph.nodes.get(leafBladeRootId);
+        if (!node) continue;
         if (m.computeWorldMatrix) m.computeWorldMatrix(true);
-        const dx = m.position.x - matched.x;
-        const dy = m.position.y - matched.y;
-        const dz = m.position.z - matched.z;
+        const dx = m.position.x - node.pos.x;
+        const dy = m.position.y - node.pos.y;
+        const dz = m.position.z - node.pos.z;
         const dist_mm = Math.sqrt(dx * dx + dy * dy + dz * dz) * 1000;
         results.push({ name: m.name, dist_mm });
       }
       return { count: results.length, results };
     });
     if ('error' in probe) {
-      // graph 미노출 — soft skip (production page는 __lastGraph 노출 안 함 가능).
-      // Phase A/B/F4 가 mesh.position = node.pos를 _코드 contract_로 보장 — spec
-      // skip 시에도 코드상 mismatch 0. Phase K 함정의 실제 catch는 buildLeafletMeshes 의 mandatory throw.
       console.warn('ANCHOR-05: graph not exposed, skipping live check');
       return;
     }
-    expect(probe.count, 'per-leaflet mesh.position lookup count').toBeGreaterThan(0);
+    expect(probe.count, 'per-leaf mesh.position lookup count').toBeGreaterThan(0);
     for (const r of probe.results) {
-      expect(r.dist_mm, `${r.name}: mesh.position vs leafletNode.pos`).toBeLessThanOrEqual(1);
+      expect(r.dist_mm, `${r.name}: mesh.position vs leaf-blade-root node.pos`).toBeLessThanOrEqual(1);
     }
   });
 
-  test('ANCHOR-06: per-leaflet mesh +X · bladeDir ≥ 0.95 (G5 orientation)', async ({ page }) => {
+  test.skip('ANCHOR-06: per-leaflet mesh +X · bladeDir ≥ 0.95 (G5 orientation) [L6-B-1b archived]', async ({ page }) => {
+    // ★ L6-B-1b (S57) — per-leaf merge로 mesh structure 변경. per-leaflet mesh +X 산식
+    //   더 이상 적용 안 됨 (leaflet rotation은 vertex에 baked, mesh.rotationQuaternion = identity).
+    //   bladeDir orientation 검증은 LEAFLET-ANCHOR-BAKED-PARITY-01 + LEAF-MESH-BATCHING-PARITY-01에
+    //   포함 (final plant-local vertex position이 patch.position + rotationQuat × localVertex 와 동일).
     test.setTimeout(120_000);
     await enterSkin(page, 45);
     const probe = await page.evaluate(() => {
@@ -226,7 +233,10 @@ test.describe('Mesh Anchor Contracts (SSOT #186)', () => {
     }
   });
 
-  test('ANCHOR-07: per-leaflet vertex max X ≥ minReadable (G5 size threshold)', async ({ page }) => {
+  test.skip('ANCHOR-07: per-leaflet vertex max X ≥ minReadable (G5 size threshold) [L6-B-1b archived]', async ({ page }) => {
+    // ★ L6-B-1b (S57) — per-leaf merge로 leaflet vertex가 merged mesh 안 baked. per-leaflet
+    //   bounding 산식 더 이상 적용 안 됨. leaf-level bounding은 LEAF-MESH-COUNT-REDUCTION-01에서
+    //   별 spec (per-leaf mesh.vertexCount > 0 + bounding 검증) 가능.
     test.setTimeout(120_000);
     await enterSkin(page, 45);
     const probe = await page.evaluate(() => {

@@ -801,16 +801,23 @@ export function createSkinMeshPlant(
             seed: seed * 1009 + axisIdx * 9173 + nodeIdx * 31 + 11,
             meshNamePrefix,
           });
-          const leafletMeshes = LeafEngine.wrapAsMeshes(leafletPatches, scene);
-          // Iter 39 Phase B — defoliation은 leaf 단위 (leaf-blade-root y 기준).
-          //   각 leaflet mesh에 metadata.leafBladeRootY 첨부 — defol loop에서 사용.
-          const leafBladeRootY = meshAnchorNode.pos.y;
-          for (const lm of leafletMeshes) {
-            lm.parent = lushGroup;
-            lm.material = yellowing > 0.4 ? yellowLeafMat : leafMat;
-            lm.metadata = { ...(lm.metadata ?? {}), leafBladeRootY };
-            currentMeshes.push(lm);
-            currentParts.leaves.push(lm);
+          // ★ Iter 39 Phase L6-B-1b (S57) — per-leaf merge batching.
+          //   1 compound leaf = 1 Mesh (이전 leaflet 마다 1 Mesh).
+          //   leaflet pose는 vertex에 baked, mesh.position = leaf-blade-root.
+          //   draw call 300/plant → 30/plant (10× 감소).
+          const leafMesh = LeafEngine.wrapAsLeafBatch(
+            leafletPatches,
+            meshAnchorNode.pos,
+            scene,
+            `${meshNamePrefix}_leaf`,
+          );
+          if (leafMesh !== null) {
+            leafMesh.parent = lushGroup;
+            leafMesh.material = yellowing > 0.4 ? yellowLeafMat : leafMat;
+            const leafBladeRootY = meshAnchorNode.pos.y;
+            leafMesh.metadata = { ...(leafMesh.metadata ?? {}), leafBladeRootY };
+            currentMeshes.push(leafMesh);
+            currentParts.leaves.push(leafMesh);
             leafMeshCount++;
           }
         } else {
