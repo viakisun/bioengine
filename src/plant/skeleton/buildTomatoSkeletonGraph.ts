@@ -561,19 +561,27 @@ interface RachisDirSource {
   tangentAt?(u: number): V3;
 }
 
-// ─── Iter 39 Phase J0-7D + J0-9C — Petiolule length per-pair-index rhythm ─
-// 사용자 v15/v16: J0-3B 0.08/0.04이 시각상 _구슬 꿰기_. 0.10/0.05 (J0-7D) 채택.
-//   J0-9C (v21): primary _pair index별_ rhythm으로 "모두 같은 hook 반복" 해소.
-//   factor `[0.105, 0.100, 0.095, 0.090]` (v21 안전 ceiling — max factor 0.105).
+// ─── Iter 39 Phase J0-7D + J0-9C → L9-K (사용자 시각 + botanical 비교 후 70% 감소) ─
+// History:
+//   J0-3A: 0.12/0.06 — spec 위반 (primary max 0.12 > strict 0.10)
+//   J0-3B: 0.08/0.04 — _구슬 꿰기_ 인상 (branch hierarchy 약함)
+//   J0-7D: 0.10/0.05 — 시각 _부착감_ + hierarchy (botanical 근거 약함)
+//   ★ L9-K (S83): 사용자 캡처 _과하게 김_ + 자연 botanical 비교 후 70% 감소.
+//     자연 토마토 primary petiolule = rachis의 2-3% (mature 25cm rachis →
+//     5-10mm primary petiolule), 이전 10%로 3-5× 과함.
+//     사용자 2-step 결정 (1차 40% 감소 후 시각 평가에서 여전 부족):
+//       1차: 0.105~0.090 → 0.063~0.054 (40% 감소) — _공중 부유_ 인상 잔존
+//       2차 (적용): 0.063~0.054 → 0.035~0.026 (추가 50% 감소, 총 70%)
+//     이론 lower bound: factor 0.025 미만은 _구슬 꿰기_ 위험 (J0-3B 경고).
 //
 //   ★ PETIOLULE-LEN-01 평가는 _실제 ratio_ (petioluleLen / rachisLen) 기준.
 //   sf > 1 시 inflated ratio 가능 (J0-8B audit FAIL 62.5% — engine sizeFactor
 //   POSTCLOSE-1 phase). factor만 보면 안전해도 inflated case에서 ratio 초과.
 const PRIMARY_BRANCH_LENGTH_BY_PAIR_INDEX: ReadonlyArray<number> = [
-  0.105,  // pair[0] — base, 약간 큼
-  0.100,  // pair[1]
-  0.095,  // pair[2] — rhythm
-  0.090,  // pair[3] — terminal 쪽, 더 짧음 (terminal에 양보)
+  0.035,  // pair[0] — base, 약간 큼 (이전 0.105 × 0.333)
+  0.032,  // pair[1] (이전 0.100 × 0.32)
+  0.029,  // pair[2] — rhythm (이전 0.095 × 0.305)
+  0.026,  // pair[3] — terminal 쪽, 더 짧음 (이전 0.090 × 0.29)
 ];
 function computeBranchLength(
   position: LeafletPosition,
@@ -587,11 +595,11 @@ function computeBranchLength(
         ? PRIMARY_BRANCH_LENGTH_BY_PAIR_INDEX[
             Math.min(pairIndex, PRIMARY_BRANCH_LENGTH_BY_PAIR_INDEX.length - 1)
           ]
-        : 0.10;  // fallback: J0-7D 균일값
+        : 0.030;  // ★ L9-K fallback: 균일 0.030 (이전 0.10)
       return sf * rachisLen * factor;
     }
-    case 'intercalary': return sf * rachisLen * 0.05;
-    case 'secondary':   return sf * rachisLen * 0.10;  // (I3 disabled)
+    case 'intercalary': return sf * rachisLen * 0.015;  // ★ L9-K (이전 0.05, 자연 1-2% 근접)
+    case 'secondary':   return sf * rachisLen * 0.030;  // ★ L9-K (이전 0.10, I3 disabled)
     case 'terminal':    return 0;
   }
 }

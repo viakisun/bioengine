@@ -28,19 +28,21 @@ async function enterSkin(page: Page, day: number) {
   await page.waitForTimeout(3500);
 }
 
-// ─── J0-7D (v16) 재정의 ─────────────────────────────────────────────────
-// J0-3B (0.08/0.04)에서 시각상 _구슬 꿰기_ 인상 (branch hierarchy 약함).
-// J0-7D (0.10/0.05) metrics-3D.json 비교 결과:
-//   - 3B hierarchy prim/inter = 1.76
-//   - 3D hierarchy prim/inter = 2.82 (60% 강화)
-// → 3D 채택 + ceiling을 _metrics 근거 기반_ 재정의 (active 원칙 #22).
+// ─── J0-7D (v16) → L9-K 2-step (사용자 시각 + botanical 70% 감소) ─────
+// History:
+//   J0-3B 0.08/0.04 — _구슬 꿰기_ 인상 (hierarchy 약함)
+//   J0-7D 0.10/0.05 — 시각 _부착감_ + hierarchy
+//   ★ L9-K (S83) 2-step:
+//     1차 40% 감소 (0.063~0.054 / 0.030) — _공중 부유_ 잔존
+//     2차 50% 추가 (0.035~0.026 / 0.015) — 자연 토마토 2-3% rachis 근접
 //
-// 신규 PETIOLULE-LEN-01:
-//   primary:     avg ≤ 0.10 AND individual max ≤ 0.12 AND individual min ≥ 0.04
-//   intercalary: avg ≤ 0.06 AND individual max ≤ 0.07 AND individual min ≥ 0.02
+// 신규 PETIOLULE-LEN-01 (L9-K):
+//   primary:     avg ≤ 0.04 AND individual max ≤ 0.045 AND individual min ≥ 0.012
+//   intercalary: avg ≤ 0.018 AND individual max ≤ 0.022 AND individual min ≥ 0.004
 // avg ceiling + 절대 max 상한 + floor — 3가지로 _금지_ + _부재_ 모두 catch.
-test.describe('Petiolule Length (SSOT #192, Iter 39 Phase J0-7D 재정의)', () => {
-  test('PETIOLULE-LEN-01: primary [0.04, 0.10 avg, 0.12 max], intercalary [0.02, 0.06 avg, 0.07 max]', async ({ page }) => {
+// sf inflation ≤ 1.15 고려해서 max를 factor × 1.15 + EPS로 설정.
+test.describe('Petiolule Length (SSOT #192, Iter 39 Phase L9-K 자연 botanical 근접)', () => {
+  test('PETIOLULE-LEN-01: primary [0.012, 0.04 avg, 0.045 max], intercalary [0.004, 0.018 avg, 0.022 max]', async ({ page }) => {
     test.setTimeout(120_000);
     await enterSkin(page, 45);
     const probe = await page.evaluate(() => {
@@ -96,7 +98,9 @@ test.describe('Petiolule Length (SSOT #192, Iter 39 Phase J0-7D 재정의)', () 
         if (ref.position === 'primary') ratiosByLeaf.get(tag)!.primary.push(ratio);
         else ratiosByLeaf.get(tag)!.intercalary.push(ratio);
       }
-      // ★ J0-7D 신규 PETIOLULE-LEN-01: avg ceiling + 절대 max + floor.
+      // ★ L9-K (S83) 신규 PETIOLULE-LEN-01: avg ceiling + 절대 max + floor.
+      //   사용자 botanical 비교 후 factor 40% 감소. 자연 토마토 primary
+      //   petiolule = rachis의 2-3%, intercalary = 1-2% 또는 sessile.
       // ★ v21 #1: inflated 잎은 별도 reporting, invariant 검증 제외.
       const violations: string[] = [];
       const inflatedReport: string[] = [];
@@ -115,27 +119,25 @@ test.describe('Petiolule Length (SSOT #192, Iter 39 Phase J0-7D 재정의)', () 
           const primAvg = avg(r.primary);
           const primMax = Math.max(...r.primary);
           const primMin = Math.min(...r.primary);
-          // ★ J0-9C + J0-9B-1 (v21 #1): spec은 _factor가 아니라_ measured ratio.
-          //   ratio = leaflet.sf × factor[pairIndex]. J0-9C factor max 0.105.
-          //   J0-9B-1로 primary baseSf range 1.00 ~ 0.70. leaflet sf 변동 최대
-          //   ~1.20 (engine sizeFactor + baseSf 곱). 산식 upper:
-          //     0.105 × 1.20 = 0.126 → max ceiling 0.13 (원칙 #22, +0.004 safety).
-          //   v21 #1 권장 0.11은 sf=1.05 가정 — sf 변동 반영 0.13.
-          if (primAvg > 0.10) violations.push(`${tag} primary avg ratio ${primAvg.toFixed(4)} > 0.10`);
-          if (primMax > 0.13) violations.push(`${tag} primary max ratio ${primMax.toFixed(4)} > 0.13`);
-          if (primMin < 0.04) violations.push(`${tag} primary min ratio ${primMin.toFixed(4)} < 0.04 (구슬 꿰기 risk)`);
+          // ★ L9-K (S83) 2-step: factor max 0.035, sf 변동 최대 ~1.20. 산식 upper:
+          //     0.035 × 1.20 = 0.042 → max ceiling 0.045 (safety +0.003).
+          //   avg ceiling 0.04 (이전 0.10, 60% 감소).
+          //   floor 0.012 (이전 0.04) — factor 0.026 × sf 0.5 = 0.013 lower bound.
+          if (primAvg > 0.04) violations.push(`${tag} primary avg ratio ${primAvg.toFixed(4)} > 0.04`);
+          if (primMax > 0.045) violations.push(`${tag} primary max ratio ${primMax.toFixed(4)} > 0.045`);
+          if (primMin < 0.012) violations.push(`${tag} primary min ratio ${primMin.toFixed(4)} < 0.012 (구슬 꿰기 risk)`);
         }
         if (r.intercalary.length > 0) {
           checked++;
           const intAvg = avg(r.intercalary);
           const intMax = Math.max(...r.intercalary);
           const intMin = Math.min(...r.intercalary);
-          if (intAvg > 0.06) violations.push(`${tag} intercalary avg ${intAvg.toFixed(4)} > 0.06`);
-          if (intMax > 0.07) violations.push(`${tag} intercalary max ${intMax.toFixed(4)} > 0.07`);
-          // ★ intercalary floor 0.012 (J0-9B-1 산식 lower bound):
-          //   factor 0.05 × J0-9B-1 min sf 0.25 = 0.0125. floor 0.012 = 산식
-          //   lower - 0.0005 safety (원칙 #22). 이전 J0-5 sf 0.30 → 0.015.
-          if (intMin < 0.012) violations.push(`${tag} intercalary min ${intMin.toFixed(4)} < 0.012`);
+          // ★ L9-K (S83) 2-step: factor 0.015. sf 최대 ~1.20 → max 0.018. ceiling 0.022 (safety).
+          if (intAvg > 0.018) violations.push(`${tag} intercalary avg ${intAvg.toFixed(4)} > 0.018`);
+          if (intMax > 0.022) violations.push(`${tag} intercalary max ${intMax.toFixed(4)} > 0.022`);
+          // ★ intercalary floor 0.004:
+          //   factor 0.015 × J0-9B-1 min sf 0.25 = 0.00375. floor 0.004 = safety.
+          if (intMin < 0.004) violations.push(`${tag} intercalary min ${intMin.toFixed(4)} < 0.004`);
         }
       }
       return { violations, checked, inflatedReport };
