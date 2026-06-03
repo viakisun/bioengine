@@ -90,6 +90,15 @@ function baseWidthV2(
   return Math.max(0, s);
 }
 
+// ★ S111 — Control point polyline (사진에서 _직접 추출_한 (u, halfWidth) 점들).
+// Gaussian 산식 대안 — 뾰족 삼각형 lobe + 깊은 V-notch _진짜_ 자연 잎 모방.
+//   u: rachis 따라 0=base, 1=tip.
+//   halfWidth: halfWidthBase 비율 (0=중심선까지 닿음, 1=full half-width).
+export interface ControlPoint {
+  u: number;
+  halfWidth: number;
+}
+
 export interface ShapeProfileV2Input {
   lengthM: number;
   aspectRatio: number;
@@ -113,6 +122,28 @@ export interface ShapeProfileV2Input {
   /** ★ S107 — 좌우 _다른 lobe set_ (자연 비대칭). undefined 시 좌우 동일 (대칭). */
   shoulderLobesRight?: ReadonlyArray<ShoulderLobe>;
   sinusNotchesRight?: ReadonlyArray<SinusNotch>;
+  /**
+   * ★ S111 — Control point polyline (사진 추출). 지정 시 Gaussian _완전 대체_.
+   *   shoulderLobes/sinusNotches/dripTip* 모두 _무시_, polyline 선형보간으로 outline 생성.
+   */
+  controlPoints?: ReadonlyArray<ControlPoint>;
+  controlPointsRight?: ReadonlyArray<ControlPoint>;
+}
+
+// ★ S111 — Control point polyline 선형 보간.
+function interpolateHalfWidthRatio(u: number, points: ReadonlyArray<ControlPoint>): number {
+  if (points.length === 0) return 0;
+  if (u <= points[0].u) return points[0].halfWidth;
+  if (u >= points[points.length - 1].u) return points[points.length - 1].halfWidth;
+  for (let i = 0; i < points.length - 1; i++) {
+    const a = points[i];
+    const b = points[i + 1];
+    if (u >= a.u && u <= b.u) {
+      const t = (u - a.u) / Math.max(1e-9, b.u - a.u);
+      return a.halfWidth + (b.halfWidth - a.halfWidth) * t;
+    }
+  }
+  return 0;
 }
 
 // ★ S96 — Per-leaflet variation: deterministic signed random ([-1, 1]).
@@ -173,160 +204,234 @@ export interface NaturalLeafletSample {
   sinusNotchesRight?: SinusNotch[];
   dripTipUStart: number;
   dripTipDepth: number;
+  /** ★ S111 — 사진 추출 control point polyline. 지정 시 Gaussian 무시. */
+  controlPoints?: ControlPoint[];
+  controlPointsRight?: ControlPoint[];
 }
 
 export const NATURAL_LEAFLET_SAMPLES: ReadonlyArray<NaturalLeafletSample> = [
-  // 0. Terminal elaborate (큰 terminal, 4 shoulder + 3 notch)
+  // 0. Terminal elaborate — 큰 terminal leaflet, 4 sharp lobes 좌우 균등 (이미지 1 right-top)
   {
     aspectRatio: 2.2, tipSharpness: 1.05,
-    shoulderLobes: [
-      { u: 0.20, depth: 0.40, sigma: 0.04 },
-      { u: 0.40, depth: 0.60, sigma: 0.04 },
-      { u: 0.60, depth: 0.50, sigma: 0.04 },
-      { u: 0.80, depth: 0.30, sigma: 0.035 },
-    ],
-    sinusNotches: [
-      { u: 0.30, depth: 0.30, sigma: 0.03 },
-      { u: 0.50, depth: 0.45, sigma: 0.03 },
-      { u: 0.70, depth: 0.35, sigma: 0.03 },
-    ],
+    shoulderLobes: [],
+    sinusNotches: [],
     dripTipUStart: 0.88, dripTipDepth: 0.35,
+    controlPoints: [
+      { u: 0.00, halfWidth: 0.05 },  // 좁은 base (petiolule 부착)
+      { u: 0.06, halfWidth: 0.35 },
+      { u: 0.13, halfWidth: 0.85 },  // 1st lobe peak
+      { u: 0.20, halfWidth: 0.40 },  // 1st notch (deep)
+      { u: 0.30, halfWidth: 0.95 },  // 2nd lobe peak (largest)
+      { u: 0.38, halfWidth: 0.45 },  // 2nd notch
+      { u: 0.48, halfWidth: 0.90 },  // 3rd lobe
+      { u: 0.56, halfWidth: 0.50 },  // 3rd notch
+      { u: 0.66, halfWidth: 0.75 },  // 4th lobe (smaller)
+      { u: 0.76, halfWidth: 0.40 },  // 4th notch
+      { u: 0.85, halfWidth: 0.45 },  // pre-tip widening
+      { u: 0.94, halfWidth: 0.20 },  // acuminate taper
+      { u: 1.00, halfWidth: 0.00 },  // sharp tip
+    ],
   },
-  // 1. Primary broad (넓고 3 shoulder)
+  // 1. Primary broad — 넓은 primary leaflet, 3 broad lobes (이미지 1 lower-left)
   {
     aspectRatio: 1.8, tipSharpness: 1.10,
-    shoulderLobes: [
-      { u: 0.25, depth: 0.50, sigma: 0.05 },
-      { u: 0.55, depth: 0.55, sigma: 0.05 },
-      { u: 0.78, depth: 0.25, sigma: 0.04 },
-    ],
-    sinusNotches: [
-      { u: 0.40, depth: 0.35, sigma: 0.04 },
-      { u: 0.68, depth: 0.25, sigma: 0.03 },
-    ],
+    shoulderLobes: [],
+    sinusNotches: [],
     dripTipUStart: 0.85, dripTipDepth: 0.30,
+    controlPoints: [
+      { u: 0.00, halfWidth: 0.08 },
+      { u: 0.08, halfWidth: 0.50 },
+      { u: 0.16, halfWidth: 0.90 },
+      { u: 0.26, halfWidth: 0.55 },
+      { u: 0.38, halfWidth: 1.00 },  // 가장 큰 lobe
+      { u: 0.50, halfWidth: 0.55 },
+      { u: 0.62, halfWidth: 0.85 },
+      { u: 0.74, halfWidth: 0.45 },
+      { u: 0.84, halfWidth: 0.40 },
+      { u: 0.93, halfWidth: 0.20 },
+      { u: 1.00, halfWidth: 0.00 },
+    ],
   },
-  // 2. Sub-lobed (6 shoulder + 5 notch, 매우 elaborate)
+  // 2. Sub-lobed (이미지 4 bottom-right) — 매우 깊게 갈라진 lobe, 거의 midrib까지
   {
     aspectRatio: 2.0, tipSharpness: 1.05,
-    shoulderLobes: [
-      { u: 0.15, depth: 0.20, sigma: 0.025 },
-      { u: 0.30, depth: 0.45, sigma: 0.03 },
-      { u: 0.45, depth: 0.30, sigma: 0.025 },
-      { u: 0.60, depth: 0.50, sigma: 0.03 },
-      { u: 0.75, depth: 0.35, sigma: 0.025 },
-      { u: 0.88, depth: 0.18, sigma: 0.025 },
-    ],
-    sinusNotches: [
-      { u: 0.22, depth: 0.18, sigma: 0.025 },
-      { u: 0.37, depth: 0.35, sigma: 0.025 },
-      { u: 0.52, depth: 0.20, sigma: 0.025 },
-      { u: 0.68, depth: 0.40, sigma: 0.025 },
-      { u: 0.82, depth: 0.25, sigma: 0.025 },
-    ],
+    shoulderLobes: [],
+    sinusNotches: [],
     dripTipUStart: 0.90, dripTipDepth: 0.30,
+    controlPoints: [
+      { u: 0.00, halfWidth: 0.06 },
+      { u: 0.05, halfWidth: 0.30 },
+      { u: 0.11, halfWidth: 0.85 },  // sub-leaflet 1
+      { u: 0.17, halfWidth: 0.20 },  // 매우 깊은 cleavage
+      { u: 0.24, halfWidth: 0.95 },  // sub-leaflet 2
+      { u: 0.31, halfWidth: 0.18 },
+      { u: 0.39, halfWidth: 1.00 },  // sub-leaflet 3 (largest)
+      { u: 0.47, halfWidth: 0.22 },
+      { u: 0.55, halfWidth: 0.85 },  // sub-leaflet 4
+      { u: 0.63, halfWidth: 0.25 },
+      { u: 0.71, halfWidth: 0.70 },  // sub-leaflet 5
+      { u: 0.80, halfWidth: 0.30 },
+      { u: 0.88, halfWidth: 0.40 },
+      { u: 0.95, halfWidth: 0.15 },
+      { u: 1.00, halfWidth: 0.00 },
+    ],
   },
-  // 3. Long pointed (길고 뾰족, 2 shoulder만)
+  // 3. Long pointed (이미지 3) — 길고 뾰족, 가는 elongated leaflet
   {
     aspectRatio: 2.8, tipSharpness: 1.15,
-    shoulderLobes: [
-      { u: 0.30, depth: 0.45, sigma: 0.05 },
-      { u: 0.60, depth: 0.40, sigma: 0.05 },
-    ],
-    sinusNotches: [
-      { u: 0.45, depth: 0.30, sigma: 0.04 },
-    ],
+    shoulderLobes: [],
+    sinusNotches: [],
     dripTipUStart: 0.78, dripTipDepth: 0.55,
+    controlPoints: [
+      { u: 0.00, halfWidth: 0.05 },
+      { u: 0.10, halfWidth: 0.55 },
+      { u: 0.22, halfWidth: 0.90 },  // 1st lobe peak
+      { u: 0.35, halfWidth: 0.50 },  // notch
+      { u: 0.50, halfWidth: 0.85 },  // 2nd lobe (mid)
+      { u: 0.65, halfWidth: 0.50 },  // notch
+      { u: 0.78, halfWidth: 0.55 },  // small bulge near tip
+      { u: 0.88, halfWidth: 0.30 },
+      { u: 0.96, halfWidth: 0.12 },  // long acuminate
+      { u: 1.00, halfWidth: 0.00 },
+    ],
   },
-  // 4. Asymmetric left-heavy (왼쪽 lobed 강, 오른쪽 약)
+  // 4. Asymmetric left-heavy — 좌측 3 deep lobe, 우측 2 shallow (이미지 1 lower-right)
   {
     aspectRatio: 2.0, tipSharpness: 1.05,
-    shoulderLobes: [
-      { u: 0.22, depth: 0.55, sigma: 0.04 },
-      { u: 0.55, depth: 0.50, sigma: 0.04 },
-      { u: 0.78, depth: 0.30, sigma: 0.04 },
-    ],
-    sinusNotches: [
-      { u: 0.40, depth: 0.40, sigma: 0.03 },
-      { u: 0.66, depth: 0.30, sigma: 0.03 },
-    ],
-    shoulderLobesRight: [
-      { u: 0.45, depth: 0.30, sigma: 0.05 },
-      { u: 0.75, depth: 0.20, sigma: 0.04 },
-    ],
-    sinusNotchesRight: [
-      { u: 0.30, depth: 0.15, sigma: 0.04 },
-    ],
+    shoulderLobes: [],
+    sinusNotches: [],
     dripTipUStart: 0.85, dripTipDepth: 0.35,
+    controlPoints: [
+      { u: 0.00, halfWidth: 0.05 },
+      { u: 0.08, halfWidth: 0.45 },
+      { u: 0.18, halfWidth: 0.95 },
+      { u: 0.27, halfWidth: 0.40 },
+      { u: 0.38, halfWidth: 0.90 },
+      { u: 0.50, halfWidth: 0.45 },
+      { u: 0.62, halfWidth: 0.75 },
+      { u: 0.74, halfWidth: 0.40 },
+      { u: 0.85, halfWidth: 0.35 },
+      { u: 0.94, halfWidth: 0.18 },
+      { u: 1.00, halfWidth: 0.00 },
+    ],
+    controlPointsRight: [
+      { u: 0.00, halfWidth: 0.05 },
+      { u: 0.12, halfWidth: 0.40 },
+      { u: 0.30, halfWidth: 0.70 },  // 약한 lobe
+      { u: 0.45, halfWidth: 0.50 },  // shallow notch
+      { u: 0.62, halfWidth: 0.65 },
+      { u: 0.78, halfWidth: 0.45 },
+      { u: 0.90, halfWidth: 0.25 },
+      { u: 1.00, halfWidth: 0.00 },
+    ],
   },
-  // 5. Asymmetric right-heavy (오른쪽 lobed 강)
+  // 5. Asymmetric right-heavy — sample 4 좌우 swap (다른 leaflet 같은 plant)
   {
     aspectRatio: 2.0, tipSharpness: 1.05,
-    shoulderLobes: [
-      { u: 0.45, depth: 0.30, sigma: 0.05 },
-      { u: 0.75, depth: 0.20, sigma: 0.04 },
-    ],
-    sinusNotches: [
-      { u: 0.30, depth: 0.15, sigma: 0.04 },
-    ],
-    shoulderLobesRight: [
-      { u: 0.22, depth: 0.55, sigma: 0.04 },
-      { u: 0.55, depth: 0.50, sigma: 0.04 },
-      { u: 0.78, depth: 0.30, sigma: 0.04 },
-    ],
-    sinusNotchesRight: [
-      { u: 0.40, depth: 0.40, sigma: 0.03 },
-      { u: 0.66, depth: 0.30, sigma: 0.03 },
-    ],
+    shoulderLobes: [],
+    sinusNotches: [],
     dripTipUStart: 0.85, dripTipDepth: 0.35,
-  },
-  // 6. Simple small (작은 intercalary 같은, 1 shoulder)
-  {
-    aspectRatio: 1.5, tipSharpness: 1.05,
-    shoulderLobes: [
-      { u: 0.50, depth: 0.20, sigma: 0.07 },
+    controlPoints: [
+      { u: 0.00, halfWidth: 0.05 },
+      { u: 0.12, halfWidth: 0.40 },
+      { u: 0.30, halfWidth: 0.70 },
+      { u: 0.45, halfWidth: 0.50 },
+      { u: 0.62, halfWidth: 0.65 },
+      { u: 0.78, halfWidth: 0.45 },
+      { u: 0.90, halfWidth: 0.25 },
+      { u: 1.00, halfWidth: 0.00 },
     ],
+    controlPointsRight: [
+      { u: 0.00, halfWidth: 0.05 },
+      { u: 0.08, halfWidth: 0.45 },
+      { u: 0.18, halfWidth: 0.95 },
+      { u: 0.27, halfWidth: 0.40 },
+      { u: 0.38, halfWidth: 0.90 },
+      { u: 0.50, halfWidth: 0.45 },
+      { u: 0.62, halfWidth: 0.75 },
+      { u: 0.74, halfWidth: 0.40 },
+      { u: 0.85, halfWidth: 0.35 },
+      { u: 0.94, halfWidth: 0.18 },
+      { u: 1.00, halfWidth: 0.00 },
+    ],
+  },
+  // 6. Simple small — 작은 intercalary leaflet, 부드러운 ovate + mild teeth (이미지 1 중앙 소형)
+  {
+    aspectRatio: 1.7, tipSharpness: 1.05,
+    shoulderLobes: [],
     sinusNotches: [],
     dripTipUStart: 0.92, dripTipDepth: 0.20,
+    controlPoints: [
+      { u: 0.00, halfWidth: 0.10 },
+      { u: 0.12, halfWidth: 0.60 },
+      { u: 0.28, halfWidth: 0.90 },
+      { u: 0.40, halfWidth: 0.70 },  // 약한 notch
+      { u: 0.52, halfWidth: 0.85 },
+      { u: 0.66, halfWidth: 0.65 },
+      { u: 0.80, halfWidth: 0.50 },
+      { u: 0.92, halfWidth: 0.25 },
+      { u: 1.00, halfWidth: 0.00 },
+    ],
   },
-  // 7. Deep cleavage (매우 깊은 sinus notch)
+  // 7. Deep cleavage — sub-leaflet 거의 분리될 정도 깊은 갈라짐 (이미지 4 top-left)
   {
     aspectRatio: 2.0, tipSharpness: 1.05,
-    shoulderLobes: [
-      { u: 0.25, depth: 0.55, sigma: 0.04 },
-      { u: 0.55, depth: 0.55, sigma: 0.04 },
-      { u: 0.80, depth: 0.40, sigma: 0.04 },
-    ],
-    sinusNotches: [
-      { u: 0.40, depth: 0.60, sigma: 0.03 },  // 매우 깊음
-      { u: 0.68, depth: 0.50, sigma: 0.03 },
-    ],
+    shoulderLobes: [],
+    sinusNotches: [],
     dripTipUStart: 0.88, dripTipDepth: 0.30,
+    controlPoints: [
+      { u: 0.00, halfWidth: 0.06 },
+      { u: 0.07, halfWidth: 0.45 },
+      { u: 0.16, halfWidth: 1.00 },  // 매우 큰 sub-leaflet
+      { u: 0.24, halfWidth: 0.15 },  // 거의 0까지 깊은 갈라짐
+      { u: 0.34, halfWidth: 0.95 },
+      { u: 0.43, halfWidth: 0.18 },  // 또 거의 0
+      { u: 0.54, halfWidth: 0.85 },
+      { u: 0.64, halfWidth: 0.22 },
+      { u: 0.74, halfWidth: 0.65 },
+      { u: 0.84, halfWidth: 0.35 },
+      { u: 0.93, halfWidth: 0.20 },
+      { u: 1.00, halfWidth: 0.00 },
+    ],
   },
-  // 8. Apex emphasis (apex 쪽 큰 lobe)
+  // 8. Apex emphasis — 좁은 base + 큰 mid-apex lobe (이미지 2 top-right)
   {
     aspectRatio: 2.2, tipSharpness: 1.10,
-    shoulderLobes: [
-      { u: 0.35, depth: 0.20, sigma: 0.05 },
-      { u: 0.60, depth: 0.50, sigma: 0.04 },
-      { u: 0.82, depth: 0.40, sigma: 0.04 },
-    ],
-    sinusNotches: [
-      { u: 0.50, depth: 0.20, sigma: 0.04 },
-      { u: 0.72, depth: 0.40, sigma: 0.03 },
-    ],
+    shoulderLobes: [],
+    sinusNotches: [],
     dripTipUStart: 0.90, dripTipDepth: 0.40,
+    controlPoints: [
+      { u: 0.00, halfWidth: 0.04 },
+      { u: 0.10, halfWidth: 0.30 },
+      { u: 0.22, halfWidth: 0.45 },  // small base lobe
+      { u: 0.34, halfWidth: 0.35 },
+      { u: 0.46, halfWidth: 0.80 },  // mid lobe
+      { u: 0.56, halfWidth: 0.45 },
+      { u: 0.68, halfWidth: 1.00 },  // big apex-side lobe
+      { u: 0.78, halfWidth: 0.50 },
+      { u: 0.87, halfWidth: 0.55 },
+      { u: 0.95, halfWidth: 0.22 },
+      { u: 1.00, halfWidth: 0.00 },
+    ],
   },
-  // 9. Mid-bulged (가운데 하나 큰 lobe)
+  // 9. Mid-bulged — 가운데 가장 넓은 단순 형태 (이미지 4 top-right)
   {
-    aspectRatio: 1.8, tipSharpness: 1.05,
-    shoulderLobes: [
-      { u: 0.45, depth: 0.65, sigma: 0.06 },
-    ],
-    sinusNotches: [
-      { u: 0.65, depth: 0.30, sigma: 0.04 },
-    ],
+    aspectRatio: 1.9, tipSharpness: 1.05,
+    shoulderLobes: [],
+    sinusNotches: [],
     dripTipUStart: 0.85, dripTipDepth: 0.30,
+    controlPoints: [
+      { u: 0.00, halfWidth: 0.08 },
+      { u: 0.12, halfWidth: 0.55 },
+      { u: 0.24, halfWidth: 0.85 },
+      { u: 0.35, halfWidth: 0.65 },  // mild notch
+      { u: 0.46, halfWidth: 0.95 },  // widest
+      { u: 0.58, halfWidth: 0.65 },  // mild notch
+      { u: 0.70, halfWidth: 0.70 },
+      { u: 0.82, halfWidth: 0.45 },
+      { u: 0.92, halfWidth: 0.22 },
+      { u: 1.00, halfWidth: 0.00 },
+    ],
   },
 ];
 
@@ -389,6 +494,34 @@ export interface ShapeProfileV2Sample {
 export function buildShapeProfileV2(input: ShapeProfileV2Input): ShapeProfileV2Sample[] {
   const samples = Math.max(12, input.samples);
   const halfWidthBase = input.lengthM / Math.max(1, input.aspectRatio) / 2;
+
+  // ★ S111 — Control points polyline 경로 (Gaussian _완전 대체_).
+  //   사진에서 직접 추출한 (u, halfWidth) 점들의 선형 보간으로 outline 생성.
+  //   _뾰족 삼각형_ lobe + _깊은 V-notch_ 자연 형태.
+  if (input.controlPoints && input.controlPoints.length >= 2 && !input.smoothMargin) {
+    const expansion = Math.max(0, Math.min(1, input.expansionProgress));
+    const ageFrac = Math.max(0, Math.min(1, input.ageFrac));
+    const expansionLobeScale = Math.min(1.0, Math.max(0.2, (expansion - 0.1) / 0.6));
+    const senescenceLobeScale = Math.max(0.6, 1 - ageFrac * 0.4);
+    const finalLobeScale = expansionLobeScale * senescenceLobeScale;
+
+    const pointsLeft = input.controlPoints;
+    const pointsRight = input.controlPointsRight ?? input.controlPoints;
+
+    // 폴리라인 ±5% size jitter (per-leaflet, deterministic).
+    const sizeJitter = 1 + signedRand(input.idSeed, 31) * 0.05;
+
+    const result: ShapeProfileV2Sample[] = [];
+    for (let i = 0; i < samples; i++) {
+      const u = i / (samples - 1);
+      const hwL = interpolateHalfWidthRatio(u, pointsLeft) * finalLobeScale * sizeJitter;
+      const hwR = interpolateHalfWidthRatio(u, pointsRight) * finalLobeScale * sizeJitter;
+      const halfWidthLeft = Math.max(0, hwL * halfWidthBase);
+      const halfWidthRight = Math.max(0, hwR * halfWidthBase);
+      result.push({ u, halfWidthLeft, halfWidthRight });
+    }
+    return result;
+  }
 
   // ★ Expansion + Senescence scaling 분리 (Plan v5 보완 #11).
   const expansion = Math.max(0, Math.min(1, input.expansionProgress));
@@ -543,6 +676,7 @@ function buildLeafletPatchV2(
     : undefined;
 
   // ★ S108 — sample 값 _완전 override_ (자연 모방). spec의 aspect/sharpness/dripTip 무시.
+  // ★ S111 — sample.controlPoints 지정 시 polyline 경로 사용 (Gaussian _완전 대체_).
   const profileV2 = buildShapeProfileV2({
     lengthM: lengthV2,
     aspectRatio: sample.aspectRatio * aspectJitter,  // sample 기준 + V1 ±5% jitter
@@ -561,6 +695,8 @@ function buildLeafletPatchV2(
     ageFrac: desc.ageFrac,
     smoothMargin: desc.resolved.smoothMargin === true,
     idSeed,
+    controlPoints: sample.controlPoints,
+    controlPointsRight: sample.controlPointsRight,
   });
 
   // V2 serration 후처리 — V1 serrationNoise 재사용 (micro-serration)

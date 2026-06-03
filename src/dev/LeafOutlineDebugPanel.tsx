@@ -40,7 +40,7 @@ function plotSample(sampleIdx: number, lengthCm: number, idSeed: number) {
     tipSharpness: sample.tipSharpness,
     baseShape: 0.85,
     asymmetry: 0,
-    samples: 40,
+    samples: 80,  // ★ S111 debug 표시용 고밀도 (polyline 각 corner 잘 보이게)
     baseTransitionEndU: 0.25,
     shoulderLobes: scaledShoulderLobes,
     sinusNotches: scaledSinusNotches,
@@ -52,6 +52,8 @@ function plotSample(sampleIdx: number, lengthCm: number, idSeed: number) {
     ageFrac: 0,
     smoothMargin: false,
     idSeed,
+    controlPoints: sample.controlPoints,
+    controlPointsRight: sample.controlPointsRight,
   };
 
   return buildShapeProfileV2(input);
