@@ -226,7 +226,7 @@
     }
   },
   "meshConfig": {
-    "default": "baseline",
+    "default": "lite",
     "distanceThresholds": { "highMaxM": 5, "lowMaxM": 15 },
     "presets": {
       "baseline": {

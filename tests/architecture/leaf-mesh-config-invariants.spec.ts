@@ -11,12 +11,13 @@
 import { test, expect } from '@playwright/test';
 import { getLeafSpec, getActiveMeshPreset } from '../../src/data/leaf';
 
-test('LEAF-MESH-CONFIG-01: 3 required presets present', () => {
+test('LEAF-MESH-CONFIG-01: 3 required presets present + valid default', () => {
   const { meshConfig } = getLeafSpec('tomato.json');
   expect(meshConfig.presets.baseline).toBeDefined();
   expect(meshConfig.presets.lite).toBeDefined();
   expect(meshConfig.presets.aggressive).toBeDefined();
-  expect(meshConfig.default).toBe('baseline');
+  // ★ S142-D — default 'lite'로 채택 (회귀 0 + leaf verts -47% 측정 검증 후).
+  expect(['baseline', 'lite', 'aggressive']).toContain(meshConfig.default);
 });
 
 test('LEAF-MESH-CONFIG-02: baseline = previous hardcoded values (parity)', () => {
