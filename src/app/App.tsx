@@ -1,37 +1,62 @@
-// App — top-level routing. Mounts the boot/notify overlays + the active
-// mode's layout.
+// App — top-level routing.
 //
-// Iter 35: single-plant mode 단일. lobby/greenhouse/robot/sandbox archived.
-// SinglePlantApp (구 GreenhouseLayout, Phase Q3 rename) 첫 진입 후 영구
-// 마운트되어 dispose 안 됨. SinglePlantOverlay가 위에 분석 UI overlay.
+// ★ S136 (Iter 41) — Mode 시스템 도입.
+//   App entry → ModeSelector (사용자가 mode + quality 선택)
+//             → 진입 → SceneInfrastructure build + Babylon scene 마운트
+//   현재는 single-plant + greenhouse 두 모드. 향후 registry에 추가하면 자동 확장.
+//
+//   URL `?mode=single-plant` 또는 `?mode=greenhouse` 시 selector 우회.
+//   기존 Iter 35 single-plant-only flow는 _?mode=single-plant_와 동등.
 
+import { useState } from 'react';
 import { SinglePlantApp } from './SinglePlantApp';
 import { SinglePlantOverlay } from '../hud/SinglePlantOverlay';
 import { BootOverlay } from '../hud/BootOverlay';
 import { NotificationCenter } from '../hud/NotificationCenter';
 import { ErrorModal } from '../hud/ErrorModal';
 import { ErrorBoundary } from '../hud/ErrorBoundary';
-// ★ L9-D V2 — Outline debug panel (?outlineDebug=1)
 import { LeafOutlineDebugPanel } from '../dev/LeafOutlineDebugPanel';
+import { ModeSelector } from '../modes/ModeSelector';
+import type { ModeKey, ModeQualityConfig } from '../modes/types';
+import { resolveDefaultMode } from '../modes/registry';
 
 const outlineDebug = typeof location !== 'undefined' &&
   new URLSearchParams(location.search).get('outlineDebug') === '1';
 
+/** URL ?mode=X 가 있으면 selector 건너뛰고 바로 진입 (Iter 35 호환). */
+function shouldSkipSelector(): boolean {
+  if (typeof location === 'undefined') return false;
+  const param = new URLSearchParams(location.search).get('mode');
+  return param === 'single-plant' || param === 'greenhouse';
+}
+
 export function App() {
+  const skip = shouldSkipSelector();
+  const [activeMode, setActiveMode] = useState<{ mode: ModeKey; quality: ModeQualityConfig } | null>(
+    skip ? { mode: resolveDefaultMode(), quality: { level: 'high', extraPlants: 14, showGreenhouseInfra: true } } : null,
+  );
+
+  if (activeMode === null) {
+    return (
+      <ErrorBoundary>
+        <ModeSelector
+          onEnter={(mode, quality) => setActiveMode({ mode, quality })}
+        />
+      </ErrorBoundary>
+    );
+  }
+
+  // Mode 진입 — 기존 SinglePlantApp + SkinMesh 인프라 그대로 사용.
+  // ★ S138 후속에서 activeMode.quality 를 SceneInfrastructure에 전달 예정.
   return (
     <ErrorBoundary>
-      {/* Boot overlay — hasEverReached false일 때만 풀스크린 (BootOverlay 내부 처리). */}
       <BootOverlay />
       <NotificationCenter />
       <ErrorModal />
 
-      {/* SinglePlantApp — single-plant scene host (단일 mode이므로 항상 mount). */}
       <SinglePlantApp />
-
-      {/* Single-plant overlay — canvas 위에 분석 UI */}
       <SinglePlantOverlay />
 
-      {/* ★ Outline debug panel (?outlineDebug=1) */}
       {outlineDebug && <LeafOutlineDebugPanel />}
     </ErrorBoundary>
   );
