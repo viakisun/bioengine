@@ -171,11 +171,37 @@ function getSkinMeshMaterial(scene: Scene): PBRMaterial {
 
 // ── Main factory ──────────────────────────────────────────────────────
 
-/** ★ S128 — createSkinMeshPlant options.
- *  multi-plant 시 extras에 lowQuality=true 적용 → 빠른 로딩. */
+/** ★ S128 / S138 — createSkinMeshPlant options.
+ *  multi-plant 시 extras에 quality='low' 적용 → 빠른 로딩. */
 export interface CreateSkinMeshPlantOpts {
-  /** ★ S128 — quality override. true 시 항상 'ultra-low' (distance 무관) + truss skip. */
-  lowQuality?: boolean;
+  /**
+   * ★ S138 — quality tier (mode quality.level과 직접 매핑).
+   *   - 'high'   : stem radial=8, leaf=distance LOD, truss full       (showcase / single-plant)
+   *   - 'medium' : stem radial=6, leaf='low',         truss full       (greenhouse mid extras)
+   *   - 'low'    : stem radial=4, leaf='ultra-low',   truss skip       (greenhouse low extras — 이전 S128 lowQuality)
+   *  생략 시 'high'.
+   */
+  quality?: import('../modes/types').QualityLevel;
+}
+
+/** ★ S138 — quality tier → stem radial segments. */
+function stemRadialFor(q: import('../modes/types').QualityLevel): number {
+  return q === 'low' ? 4 : q === 'medium' ? 6 : 8;
+}
+
+/** ★ S138 — quality tier → leaf LOD tag (LeafEngine LOD enum). */
+function leafQualityFor(
+  q: import('../modes/types').QualityLevel,
+  distM: number,
+): 'ultra-low' | 'low' | 'high' {
+  if (q === 'low') return 'ultra-low';
+  if (q === 'medium') return 'low';
+  return qualityFromDistance(distM);
+}
+
+/** ★ S138 — truss organ build 여부 (low는 skip). */
+function shouldBuildTruss(q: import('../modes/types').QualityLevel): boolean {
+  return q !== 'low';
 }
 
 export function createSkinMeshPlant(
@@ -393,11 +419,16 @@ export function createSkinMeshPlant(
       // stem-petiole junction에 자연 collar 효과 강화 (visual emerge 완화).
       // 사용자 보고: stem 두께 불규칙 → "꼬임" 시각 (적엽으로 junction 일부 사라져
       //   bulge node + flat node 혼재). parentSwellingScale 1.25 → 1.05 (5% 약한 bulge).
-      // ★ S129 — lowQuality 시 stem mesh도 light: radialSegments 8 → 4 (~2x verts ↓).
-      //   probe 진단: stem mesh가 plant 비용의 40-50%. radialSegs 절반 효과 큼.
-      stemOpts: opts.lowQuality
-        ? { radialSegments: 4, rootRadiusScale: 1.0, parentSwellingScale: 1.0 }
-        : { radialSegments: 8, rootRadiusScale: 1.30, parentSwellingScale: 1.05 },
+      // ★ S138 — quality tier 별 stem radial. low=4, medium=6, high=8.
+      //   probe 진단: stem mesh가 plant 비용의 40-50%. radial 절반 → 2× verts ↓.
+      stemOpts: (() => {
+        const q = opts.quality ?? 'high';
+        const radial = stemRadialFor(q);
+        // 'low'는 fillet 제거 (시각 단순화 + verts ↓)
+        return q === 'low'
+          ? { radialSegments: radial, rootRadiusScale: 1.0, parentSwellingScale: 1.0 }
+          : { radialSegments: radial, rootRadiusScale: 1.30, parentSwellingScale: 1.05 };
+      })(),
     });
     // Compatibility shim — preserve the existing `skin.faceGroups` shape so
     // the metadata block below doesn't need rewriting. defaultSkinEngine
@@ -815,8 +846,8 @@ export function createSkinMeshPlant(
           const distM = cam
             ? Vector3.Distance(cam.position, root.absolutePosition)
             : 10;
-          // ★ S128 — lowQuality 옵션 시 'ultra-low' 강제 (extras 빠른 로딩).
-          const lodQuality = opts.lowQuality ? 'ultra-low' : qualityFromDistance(distM);
+          // ★ S138 — quality tier → leaf LOD. high=distance LOD, medium='low', low='ultra-low'.
+          const lodQuality = leafQualityFor(opts.quality ?? 'high', distM);
           // ★ S117 — V2 정식 production default. V1은 _legacy_ (`?leafBuilder=v1`).
           //   ?leafBuilder=v1   → V1 legacy outline (S117 archived)
           //   ?leafPlane=flat   → posture override (outline 단독 평가, 임시 진단)
@@ -904,10 +935,10 @@ export function createSkinMeshPlant(
     //   Entry via graph.edges (type === 'peduncle'); each peduncle's id
     //   parses to axisIdx/trussIdx. trussBase (fruit/flower/calyx organ
     //   state) still read from PlantBase — PR 5-1 strict cut.
-    // ★ S128 — lowQuality 시 truss organ build skip (multi-plant 빠른 로딩).
+    // ★ S138 — quality='low' 시 truss organ build skip (multi-plant 빠른 로딩).
     const baseAxes: AxisBase[] = [plantBase.mainAxis, ...plantBase.sideShoots];
     const seenTrussKeys = new Set<string>();
-    if (!opts.lowQuality) for (const edge of graph.edges.values()) {
+    if (shouldBuildTruss(opts.quality ?? 'high')) for (const edge of graph.edges.values()) {
       if (edge.type !== 'peduncle') continue;
       const m = edge.id.match(/^e:peduncle:axis(\d+):t(\d+)$/);
       if (!m) continue;

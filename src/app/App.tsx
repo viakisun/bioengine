@@ -17,7 +17,7 @@ import { ErrorModal } from '../hud/ErrorModal';
 import { ErrorBoundary } from '../hud/ErrorBoundary';
 import { LeafOutlineDebugPanel } from '../dev/LeafOutlineDebugPanel';
 import { EntryScreen } from '../modes/EntryScreen';
-import type { ModeKey, ModeQualityConfig } from '../modes/types';
+import type { ModeKey, ModeQualityConfig, QualityLevel } from '../modes/types';
 import { resolveDefaultMode, MODES } from '../modes/registry';
 import { setActiveMode } from '../modes/activeMode';
 
@@ -31,13 +31,23 @@ function shouldSkipSelector(): boolean {
   return param === 'single-plant' || param === 'greenhouse';
 }
 
+/** ★ S138 — URL `?quality=low|medium|high` override (skip 경로용 debug/probe). */
+function resolveUrlQuality(): QualityLevel | null {
+  if (typeof location === 'undefined') return null;
+  const q = new URLSearchParams(location.search).get('quality');
+  return q === 'low' || q === 'medium' || q === 'high' ? q : null;
+}
+
 export function App() {
   const skip = shouldSkipSelector();
   const [activeModeState, setActiveModeState] = useState<{ mode: ModeKey; quality: ModeQualityConfig } | null>(
     () => {
       if (!skip) return null;
       const mode = resolveDefaultMode();
-      const quality = MODES[mode].defaultQuality;
+      const urlQuality = resolveUrlQuality();
+      const quality: ModeQualityConfig = urlQuality
+        ? { ...MODES[mode].defaultQuality, level: urlQuality }
+        : MODES[mode].defaultQuality;
       setActiveMode(mode, quality);  // ★ S136-B — module-level holder도 즉시 set
       return { mode, quality };
     },

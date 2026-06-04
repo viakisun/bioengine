@@ -178,7 +178,8 @@ export async function buildSceneInfrastructure(scene: Scene): Promise<SceneInfra
   updateStageDetail('SkinMesh 빌드 (showcase)', 0.65);
   logBoot('log', 'scene: showcase plant');
   await new Promise((r) => setTimeout(r, 0));
-  const skinMeshPlant = createSkinMeshPlant(scene, growthEngine, SHOWCASE_SEED, skinPos);
+  // ★ S138 — showcase는 mode quality와 무관하게 항상 'high' (사용자가 자세히 관찰).
+  const skinMeshPlant = createSkinMeshPlant(scene, growthEngine, SHOWCASE_SEED, skinPos, { quality: 'high' });
   skinMeshPlant.setVisible(true);
 
   // ★ S136-C — Extras를 베드 _전체 길이_에 _간격 두고_ 분산.
@@ -186,6 +187,11 @@ export async function buildSceneInfrastructure(scene: Scene): Promise<SceneInfra
   //   이제: stride 기반 — bed당 plant N개를 30m 베드 전체에 균등 분포.
   //   showcase는 slot 45 (중앙), extras는 그 주위에 stride 간격.
   const extraN = resolveExtraPlantCount();
+  // ★ S138 — extras quality는 mode quality.level 그대로 따름.
+  //   greenhouse low → 'low' (이전 lowQuality 동등)
+  //   greenhouse medium → 'medium' (S138 신규: 중간 비용)
+  //   greenhouse high → 'high' (showcase 동급 — 비용 큼)
+  const extraQuality = getActiveMode().quality.level;
   const extraPlants: SkinMeshPlantHandle[] = [];
   // 각 active bed당 plant 수 계산 후 stride 분산.
   const plantsPerBed = Math.max(1, Math.ceil(extraN / activeBedIndices.length));
@@ -206,8 +212,8 @@ export async function buildSceneInfrastructure(scene: Scene): Promise<SceneInfra
       const seed = SHOWCASE_SEED + bedIdx * 100000 + slot * 1009;
       growthEngine.addPlant({ seed, cultivarName: 'tomimaru-muchoo' });
       const pos = new Vector3(spec.position[0], SUBSTRATE_TOP_Y, bedZPositions[bedIdx]);
-      // ★ S128 — extras는 lowQuality: ultra-low LOD + truss skip.
-      const plant = createSkinMeshPlant(scene, growthEngine, seed, pos, { lowQuality: true });
+      // ★ S138 — extras quality는 mode quality.level (low/medium/high) 그대로.
+      const plant = createSkinMeshPlant(scene, growthEngine, seed, pos, { quality: extraQuality });
       plant.setVisible(true);
       extraPlants.push(plant);
       extraIdx++;
