@@ -9,7 +9,12 @@
 //
 // 연구자: src/data/leaf/specs/*.json 수정 → 코드 변경 없이 실험 설계.
 
-import { parseLeafSpec, type LeafSpec } from '../../scene/leaf/LeafSpec';
+import {
+  parseLeafSpec,
+  type LeafSpec,
+  type MeshConfigPreset,
+  type MeshPresetKey,
+} from '../../scene/leaf/LeafSpec';
 import tomatoJson from './specs/tomato.json' with { type: 'json' };
 
 /**
@@ -45,4 +50,39 @@ export function getLeafSpec(name: string): LeafSpec {
 /** Names registered in the registry — useful for UI dropdowns / debug. */
 export function listAvailableLeafSpecs(): string[] {
   return Object.keys(REGISTRY);
+}
+
+// ─── Mesh preset selection (★ S142) ───────────────────────────────────────
+
+/** ★ S142 — SSR/test 환경 안전한 URL lookup. */
+function readLeafConfigFromUrl(): string | null {
+  if (typeof globalThis === 'undefined' || !('location' in globalThis)) return null;
+  const loc = (globalThis as { location?: Location }).location;
+  if (!loc) return null;
+  try {
+    return new URLSearchParams(loc.search).get('leafConfig');
+  } catch {
+    return null;
+  }
+}
+
+function isValidMeshPresetKey(k: string | null | undefined): k is MeshPresetKey {
+  return k === 'baseline' || k === 'lite' || k === 'aggressive';
+}
+
+/**
+ * ★ S142 — Active mesh preset 선택.
+ *   우선순위:
+ *     1) `overrideKey` (Playwright probe / programmatic 직접 주입)
+ *     2) URL `?leafConfig=baseline|lite|aggressive`
+ *     3) `spec.meshConfig.default`
+ *   알 수 없는 key는 default로 fallback.
+ */
+export function getActiveMeshPreset(
+  spec: LeafSpec,
+  overrideKey?: string | null,
+): { key: MeshPresetKey; preset: MeshConfigPreset } {
+  const raw = overrideKey ?? readLeafConfigFromUrl();
+  const key: MeshPresetKey = isValidMeshPresetKey(raw) ? raw : spec.meshConfig.default;
+  return { key, preset: spec.meshConfig.presets[key] };
 }

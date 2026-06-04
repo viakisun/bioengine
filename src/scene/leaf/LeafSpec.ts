@@ -338,6 +338,54 @@ export const EdgeAsymmetryRulesSchema = z.object({
   rightSerrationWeight: z.number().min(0),   // current: 1.1
 });
 
+// ─── Mesh resolution config (★ S142) ──────────────────────────────────────
+
+/**
+ * ★ S142 — Per-quality sample counts.
+ *   `ultra-low / low / high` 명칭은 LeafMeshQuality와 동일 — distance LOD에서 선택.
+ *   값은 `shape profile samples` (V1) 또는 `BGT internal samples` (V2).
+ */
+const MeshSampleLevelSchema = z.object({
+  ultraLowSamples: z.number().int().positive(),
+  lowSamples: z.number().int().positive(),
+  highSamples: z.number().int().positive(),
+});
+
+/**
+ * ★ S142 — 단일 leaf mesh tuning preset.
+ *   - `v1` = legacy `LeafletProfile` sampler (bell-curve outline, `?leafBuilder=v1` 시).
+ *   - `v2` = BGT (Beta × Gaussian × Triangle) sampler — production default.
+ *   - `cols` = cross-section column count (이전 `LEAFLET_PLANE_COLS` hardcode 9 대체).
+ */
+export const MeshConfigPresetSchema = z.object({
+  v1: MeshSampleLevelSchema,
+  v2: MeshSampleLevelSchema,
+  cols: z.number().int().positive(),
+});
+
+/** ★ S142 — preset key 고정 enum (typo 방어). */
+export const MeshPresetKeySchema = z.enum(['baseline', 'lite', 'aggressive']);
+
+/**
+ * ★ S142 — Mesh tuning 전체 config.
+ *   `default` 는 URL/override 없을 시 사용. `distanceThresholds` 는 LOD 거리 분기.
+ */
+export const MeshConfigSchema = z.object({
+  default: MeshPresetKeySchema,
+  distanceThresholds: z.object({
+    highMaxM: z.number().positive(),
+    lowMaxM: z.number().positive(),
+  }),
+  presets: z.object({
+    baseline: MeshConfigPresetSchema,
+    lite: MeshConfigPresetSchema,
+    aggressive: MeshConfigPresetSchema,
+  }),
+}).refine(
+  (cfg) => cfg.distanceThresholds.highMaxM < cfg.distanceThresholds.lowMaxM,
+  { message: 'highMaxM must be smaller than lowMaxM' },
+);
+
 // ─── Taxonomy (정교화 ★, 원칙 #44 — multi-crop) ────────────────────────────
 
 /**
@@ -386,6 +434,8 @@ export const LeafSpecSchema = z.object({
   shapeProfileRules: ShapeProfileRulesSchema,
   edgeAsymmetryRules: EdgeAsymmetryRulesSchema,
   cultivars: z.record(z.string(), CultivarOverrideSchema).optional(),
+  // ★ S142 — Mesh tuning config (samples / cols / distance thresholds SSOT).
+  meshConfig: MeshConfigSchema,
 });
 
 export type LeafSpec = z.infer<typeof LeafSpecSchema>;
@@ -404,6 +454,10 @@ export type CorrelationRules = z.infer<typeof CorrelationRulesSchema>;
 export type PoseRules = z.infer<typeof PoseRulesSchema>;
 export type CultivarOverride = z.infer<typeof CultivarOverrideSchema>;
 export type Taxonomy = z.infer<typeof TaxonomySchema>;
+// ★ S142 — mesh tuning config types.
+export type MeshConfigPreset = z.infer<typeof MeshConfigPresetSchema>;
+export type MeshPresetKey = z.infer<typeof MeshPresetKeySchema>;
+export type MeshConfig = z.infer<typeof MeshConfigSchema>;
 
 // ─── Parser (engine layer, registry는 data layer 책임) ─────────────────────
 
