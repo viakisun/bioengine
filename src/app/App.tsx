@@ -16,7 +16,7 @@ import { NotificationCenter } from '../hud/NotificationCenter';
 import { ErrorModal } from '../hud/ErrorModal';
 import { ErrorBoundary } from '../hud/ErrorBoundary';
 import { LeafOutlineDebugPanel } from '../dev/LeafOutlineDebugPanel';
-import { ModeSelector } from '../modes/ModeSelector';
+import { EntryScreen } from '../modes/EntryScreen';
 import type { ModeKey, ModeQualityConfig } from '../modes/types';
 import { resolveDefaultMode, MODES } from '../modes/registry';
 import { setActiveMode } from '../modes/activeMode';
@@ -46,7 +46,7 @@ export function App() {
   if (activeModeState === null) {
     return (
       <ErrorBoundary>
-        <ModeSelector
+        <EntryScreen
           onEnter={(mode, quality) => {
             setActiveMode(mode, quality);  // ★ S136-B — SceneInfrastructure가 읽도록
             setActiveModeState({ mode, quality });
