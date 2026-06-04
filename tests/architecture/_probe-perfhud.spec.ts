@@ -20,12 +20,13 @@ for (const q of QUALITY_LEVELS) {
     const metrics = await page.evaluate(() => {
       const w = window as unknown as {
         __debugScene?: { meshes: Array<{ isEnabled: () => boolean; isVisible: boolean; getTotalVertices: () => number; getTotalIndices: () => number; name: string }> };
-        __debugEngine?: { engine?: { getFps: () => number } } | { getFps: () => number };
+        __debugEngine?: { engine?: { getFps: () => number; _drawCalls?: { current: number } } } | { getFps: () => number; _drawCalls?: { current: number } };
       };
       const scene = w.__debugScene;
       const engHandle = w.__debugEngine;
       const engine = engHandle && 'engine' in engHandle ? engHandle.engine : engHandle;
       if (!scene || !engine) return null;
+      const drawCalls = engine._drawCalls?.current ?? null;
       let verts = 0, tris = 0, enabled = 0;
       const byPrefix: Record<string, { v: number; t: number; n: number }> = {};
       for (const m of scene.meshes) {
@@ -46,6 +47,7 @@ for (const q of QUALITY_LEVELS) {
         .map(([p, b]) => `  ${p.padEnd(28, ' ')} n=${String(b.n).padStart(4)} v=${b.v.toLocaleString().padStart(10)} t=${b.t.toLocaleString().padStart(10)}`);
       return {
         fps: Math.round(engine.getFps()),
+        drawCalls,
         totalMeshes: scene.meshes.length,
         enabledMeshes: enabled,
         verts,

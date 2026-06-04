@@ -430,6 +430,26 @@ export function createTrussNodeFromBase(
  *   fruitR: fruit radius — controls calyx size + slight back-offset so
  *           sepals sit on the fruit's calyx well rather than floating.
  */
+// ★ S139-B — Calyx sepal source mesh cache (Instance source).
+//   Per-scene 1개 unit plane → 모든 calyx sepal이 createInstance로 공유.
+//   동기: PerfHUD 측정 결과 truss organ 2793 meshes 중 calyx sepals이
+//   가장 큰 비중 (~1500). 동일 geometry + scale만 다름 → Instance 적합.
+//   현재: 5 plane × N truss × 9 plants = ~수천 개 Mesh
+//   변경 후: 1 source + N InstancedMesh → 1 draw call (GPU batch)
+const cachedCalyxSource: WeakMap<Scene, Mesh> = new WeakMap();
+function getCalyxSource(scene: Scene): Mesh {
+  let m = cachedCalyxSource.get(scene);
+  if (!m) {
+    // unit plane (1×1) — per-instance scaling으로 sepalW × sepalLen 표현.
+    m = MeshBuilder.CreatePlane('calyx_src', { width: 1, height: 1 }, scene);
+    m.material = getCalyxMat(scene);
+    m.isVisible = false;  // source 자체는 안 보임; instances만 보임
+    m.alwaysSelectAsActiveMesh = true;  // instance가 화면 안에 있을 때 source도 active로 유지
+    cachedCalyxSource.set(scene, m);
+  }
+  return m;
+}
+
 function addCalyxStar(
   scene: Scene,
   parent: TransformNode,
@@ -448,6 +468,8 @@ function addCalyxStar(
   const perp2 = Vector3.Cross(pedicelDir, perp).normalize();
   // Slight back-offset: place calyx base 30% of fruitR back along pedicel.
   const calyxBase = center.subtract(pedicelDir.scale(fruitR * 0.3));
+  // ★ S139-B — instance source 사용.
+  const src = getCalyxSource(scene);
   for (let s = 0; s < sepalCount; s++) {
     const theta = (s / sepalCount) * Math.PI * 2;
     const outwardComp = Math.sin(outwardAngle);
@@ -458,12 +480,13 @@ function addCalyxStar(
       .normalize();
     const tip = calyxBase.add(dir.scale(sepalLen));
     const mid = calyxBase.add(dir.scale(sepalLen * 0.5));
-    const sepal = MeshBuilder.CreatePlane(`${name}_s${s}`, { width: sepalW, height: sepalLen }, scene);
+    const sepal = src.createInstance(`${name}_s${s}`);
     sepal.parent = parent;
     sepal.position = mid;
-    // Orient plane: normal perpendicular to the dir + perp.
     sepal.lookAt(tip);
-    sepal.material = getCalyxMat(scene);
+    // Unit plane → per-instance scaling으로 실제 sepal 크기 표현.
+    sepal.scaling.set(sepalW, sepalLen, 1);
+    // material/Color은 source 상속 (instance는 material override 불가)
   }
 }
 

@@ -24,6 +24,7 @@ interface PerfSnapshot {
   totalMeshCount: number;
   vertices: number;
   triangles: number;
+  drawCalls: number | null;
   heapMB: number | null;
 }
 
@@ -33,6 +34,7 @@ const EMPTY: PerfSnapshot = {
   totalMeshCount: 0,
   vertices: 0,
   triangles: 0,
+  drawCalls: null,
   heapMB: null,
 };
 
@@ -70,12 +72,16 @@ function measure(): PerfSnapshot {
   }
   const memAny = (performance as Performance & { memory?: { usedJSHeapSize: number } }).memory;
   const heapMB = memAny ? Math.round(memAny.usedJSHeapSize / (1024 * 1024)) : null;
+  // Babylon engine._drawCalls (PerfCounter) — _ prefix internal but stable API.
+  const drawCalls = (engine as unknown as { _drawCalls?: { current: number } })
+    ._drawCalls?.current ?? null;
   return {
     fps,
     activeMeshCount,
     totalMeshCount: scene.meshes.length,
     vertices,
     triangles,
+    drawCalls,
     heapMB,
   };
 }
@@ -183,6 +189,7 @@ export function PerfHUD() {
       <Row label="meshes" value={`${snap.activeMeshCount}/${snap.totalMeshCount}`} />
       <Row label="verts" value={formatK(snap.vertices)} tone={vertTone} />
       <Row label="tris" value={formatK(snap.triangles)} />
+      {snap.drawCalls != null && <Row label="drawCalls" value={String(snap.drawCalls)} />}
       {snap.heapMB != null && <Row label="heap" value={`${snap.heapMB}MB`} />}
     </div>
   );
