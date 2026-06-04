@@ -13,6 +13,7 @@ import { SCENARIO } from '../data/mockScenario';
 import { logBoot, updateStageDetail } from '../state/notify';
 import { createSkinMeshPlant, type SkinMeshPlantHandle } from './SkinMeshPlant';
 import { createCocopeatBags } from './greenhouse/CocopeatBags';
+import { getActiveMode } from '../modes/activeMode';
 import {
   createGreenhouseBuilding,
   defaultBedZPositions,
@@ -59,8 +60,9 @@ export interface SceneInfrastructureHandle {
   extraPlants: SkinMeshPlantHandle[];
 }
 
-/** ★ S130 (사용자 "2그루만 해볼까?") — default 작물 14 → 1 (2 plants total).
- *  URL `?extraPlants=N` (0~89) override. */
+/** ★ S136-B — Active mode quality.extraPlants 우선, URL이 override.
+ *  greenhouse mode default: 14 plants, single-plant: 0.
+ *  URL `?extraPlants=N` (0~89) 있으면 mode 무시 (debug 용). */
 function resolveExtraPlantCount(): number {
   if (typeof location !== 'undefined') {
     const param = new URLSearchParams(location.search).get('extraPlants');
@@ -69,7 +71,8 @@ function resolveExtraPlantCount(): number {
       if (Number.isFinite(n) && n >= 0 && n <= 89) return n;
     }
   }
-  return 1;  // default — showcase + 1 extra = 2 plants total
+  // Active mode quality config 우선
+  return getActiveMode().quality.extraPlants ?? 0;
 }
 
 function resolveActiveBedCount(): number {

@@ -18,7 +18,8 @@ import { ErrorBoundary } from '../hud/ErrorBoundary';
 import { LeafOutlineDebugPanel } from '../dev/LeafOutlineDebugPanel';
 import { ModeSelector } from '../modes/ModeSelector';
 import type { ModeKey, ModeQualityConfig } from '../modes/types';
-import { resolveDefaultMode } from '../modes/registry';
+import { resolveDefaultMode, MODES } from '../modes/registry';
+import { setActiveMode } from '../modes/activeMode';
 
 const outlineDebug = typeof location !== 'undefined' &&
   new URLSearchParams(location.search).get('outlineDebug') === '1';
@@ -32,15 +33,24 @@ function shouldSkipSelector(): boolean {
 
 export function App() {
   const skip = shouldSkipSelector();
-  const [activeMode, setActiveMode] = useState<{ mode: ModeKey; quality: ModeQualityConfig } | null>(
-    skip ? { mode: resolveDefaultMode(), quality: { level: 'high', extraPlants: 14, showGreenhouseInfra: true } } : null,
+  const [activeModeState, setActiveModeState] = useState<{ mode: ModeKey; quality: ModeQualityConfig } | null>(
+    () => {
+      if (!skip) return null;
+      const mode = resolveDefaultMode();
+      const quality = MODES[mode].defaultQuality;
+      setActiveMode(mode, quality);  // ★ S136-B — module-level holder도 즉시 set
+      return { mode, quality };
+    },
   );
 
-  if (activeMode === null) {
+  if (activeModeState === null) {
     return (
       <ErrorBoundary>
         <ModeSelector
-          onEnter={(mode, quality) => setActiveMode({ mode, quality })}
+          onEnter={(mode, quality) => {
+            setActiveMode(mode, quality);  // ★ S136-B — SceneInfrastructure가 읽도록
+            setActiveModeState({ mode, quality });
+          }}
         />
       </ErrorBoundary>
     );
