@@ -11,7 +11,7 @@
 import { useState } from 'react';
 import { SinglePlantApp } from './SinglePlantApp';
 import { SinglePlantOverlay } from '../hud/SinglePlantOverlay';
-import { BootOverlay } from '../hud/BootOverlay';
+import { LoadingScreen } from '../hud/LoadingScreen';
 import { NotificationCenter } from '../hud/NotificationCenter';
 import { ErrorModal } from '../hud/ErrorModal';
 import { ErrorBoundary } from '../hud/ErrorBoundary';
@@ -60,7 +60,7 @@ export function App() {
   // ★ S138 후속에서 activeMode.quality 를 SceneInfrastructure에 전달 예정.
   return (
     <ErrorBoundary>
-      <BootOverlay />
+      <LoadingScreen />
       <NotificationCenter />
       <ErrorModal />
 
