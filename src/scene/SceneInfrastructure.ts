@@ -168,8 +168,10 @@ export async function buildSceneInfrastructure(scene: Scene): Promise<SceneInfra
     nutrientEC: 3.0,
   });
 
-  // Showcase plant — SCENARIO.plants[0] in main bed.
-  const showcaseSpec = SCENARIO.plants[0];
+  // ★ S136-C — Showcase plant at bed CENTER (slot 45 = middle), not corner.
+  //   이전: SCENARIO.plants[0] (X=-14.9, 베드 _왼쪽 끝_) → camera 화면 밖.
+  //   이제: SCENARIO.plants[45] (X≈0, 베드 _중앙_) → 사용자 즉시 시야.
+  const showcaseSpec = SCENARIO.plants[45];
   growthEngine.addPlant({ seed: SHOWCASE_SEED, cultivarName: 'tomimaru-muchoo' });
   const skinPos = new Vector3(showcaseSpec.position[0], SUBSTRATE_TOP_Y, bedZPositions[mainBedIdx]);
 
@@ -179,34 +181,40 @@ export async function buildSceneInfrastructure(scene: Scene): Promise<SceneInfra
   const skinMeshPlant = createSkinMeshPlant(scene, growthEngine, SHOWCASE_SEED, skinPos);
   skinMeshPlant.setVisible(true);
 
-  // ★ S122 → S123 — Extra plants 다중 active bed 분산 배치.
-  //   round-robin: plant i → activeBedIndices[i % activeBedIndices.length].
-  //   같은 bed 내 같은 hole 충돌 방지 — SCENARIO.plants 90개 좌표 순환 사용.
-  //   default 23 extras (총 24 plants), URL `?extraPlants=N`로 변경.
+  // ★ S136-C — Extras를 베드 _전체 길이_에 _간격 두고_ 분산.
+  //   이전 (S122-S123): slot 0,1,2,... → 모두 X=-14.9~-13.1 좁은 1.8m 코너에 클러스터.
+  //   이제: stride 기반 — bed당 plant N개를 30m 베드 전체에 균등 분포.
+  //   showcase는 slot 45 (중앙), extras는 그 주위에 stride 간격.
   const extraN = resolveExtraPlantCount();
   const extraPlants: SkinMeshPlantHandle[] = [];
-  // Per-bed counter — bed당 SCENARIO.plants 순서대로 (showcase는 main bed slot 0 점유).
-  const perBedNext = new Map<number, number>();
-  perBedNext.set(mainBedIdx, 1);  // showcase가 slot 0 사용 중
-  for (const bedIdx of activeBedIndices) {
-    if (!perBedNext.has(bedIdx)) perBedNext.set(bedIdx, 0);
-  }
-  for (let i = 0; i < extraN; i++) {
-    const bedIdx = activeBedIndices[i % activeBedIndices.length];
-    const slot = perBedNext.get(bedIdx)!;
-    perBedNext.set(bedIdx, slot + 1);
-    const spec = SCENARIO.plants[slot];
-    if (!spec) break;
-    const seed = SHOWCASE_SEED + bedIdx * 100000 + slot * 1009;
-    growthEngine.addPlant({ seed, cultivarName: 'tomimaru-muchoo' });
-    const pos = new Vector3(spec.position[0], SUBSTRATE_TOP_Y, bedZPositions[bedIdx]);
-    // ★ S128 — extras는 lowQuality: ultra-low LOD + truss skip (빠른 로딩).
-    const plant = createSkinMeshPlant(scene, growthEngine, seed, pos, { lowQuality: true });
-    plant.setVisible(true);
-    extraPlants.push(plant);
-    if (i % 4 === 0) {
-      updateStageDetail(`extra plants ${i + 1}/${extraN}`, 0.65 + 0.3 * (i / extraN));
-      await new Promise((r) => setTimeout(r, 0));
+  // 각 active bed당 plant 수 계산 후 stride 분산.
+  const plantsPerBed = Math.max(1, Math.ceil(extraN / activeBedIndices.length));
+  // SCENARIO에 90 positions per bed. Stride = floor(90 / plantsPerBed) → 균등 분포.
+  const stride = Math.max(1, Math.floor(90 / plantsPerBed));
+  // 각 bed에서 stride 간격으로 slot 사용. showcase 슬롯 45 충돌 회피.
+  const SHOWCASE_SLOT = 45;
+  let extraIdx = 0;
+  for (let perBed = 0; perBed < plantsPerBed && extraIdx < extraN; perBed++) {
+    for (const bedIdx of activeBedIndices) {
+      if (extraIdx >= extraN) break;
+      // stride 기반 slot — perBed가 진행할수록 다른 위치
+      let slot = (perBed * stride + Math.floor(stride / 2)) % 90;
+      // showcase slot 충돌 시 +1 시프트
+      if (bedIdx === mainBedIdx && slot === SHOWCASE_SLOT) slot = (slot + 1) % 90;
+      const spec = SCENARIO.plants[slot];
+      if (!spec) continue;
+      const seed = SHOWCASE_SEED + bedIdx * 100000 + slot * 1009;
+      growthEngine.addPlant({ seed, cultivarName: 'tomimaru-muchoo' });
+      const pos = new Vector3(spec.position[0], SUBSTRATE_TOP_Y, bedZPositions[bedIdx]);
+      // ★ S128 — extras는 lowQuality: ultra-low LOD + truss skip.
+      const plant = createSkinMeshPlant(scene, growthEngine, seed, pos, { lowQuality: true });
+      plant.setVisible(true);
+      extraPlants.push(plant);
+      extraIdx++;
+      if (extraIdx % 4 === 0) {
+        updateStageDetail(`extra plants ${extraIdx}/${extraN}`, 0.65 + 0.3 * (extraIdx / extraN));
+        await new Promise((r) => setTimeout(r, 0));
+      }
     }
   }
 
