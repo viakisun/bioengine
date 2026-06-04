@@ -12,6 +12,7 @@ import { useState } from 'react';
 import { SinglePlantApp } from './SinglePlantApp';
 import { SinglePlantOverlay } from '../hud/SinglePlantOverlay';
 import { LoadingScreen } from '../hud/LoadingScreen';
+import { PerfHUD } from '../hud/PerfHUD';
 import { NotificationCenter } from '../hud/NotificationCenter';
 import { ErrorModal } from '../hud/ErrorModal';
 import { ErrorBoundary } from '../hud/ErrorBoundary';
@@ -76,6 +77,7 @@ export function App() {
 
       <SinglePlantApp />
       <SinglePlantOverlay />
+      <PerfHUD />
 
       {outlineDebug && <LeafOutlineDebugPanel />}
     </ErrorBoundary>
