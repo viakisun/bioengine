@@ -25,7 +25,10 @@ export const MODES: Record<ModeKey, ModeSpec> = {
     icon: '🏠',
     defaultQuality: {
       level: 'medium',
-      extraPlants: 14,
+      // ★ S136-D — extras 14 → 29 (총 30 plants). 베드 전체 spread.
+      //   showcase (high LOD) + 29 extras (lowQuality) = 30 plants.
+      //   URL `?extraPlants=N`으로 사용자 조정.
+      extraPlants: 29,
       showGreenhouseInfra: true,
     },
     availableQualityLevels: ['low', 'medium', 'high'],
