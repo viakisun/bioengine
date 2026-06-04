@@ -8,9 +8,16 @@
 //   URL `?mode=single-plant` 또는 `?mode=greenhouse` 시 selector 우회.
 //   기존 Iter 35 single-plant-only flow는 _?mode=single-plant_와 동등.
 
-import { useState } from 'react';
-import { SinglePlantApp } from './SinglePlantApp';
-import { SinglePlantOverlay } from '../hud/SinglePlantOverlay';
+import { lazy, Suspense, useState } from 'react';
+// ★ S140-B — SinglePlantApp + SinglePlantOverlay lazy-loaded.
+//   EntryScreen / LoadingScreen 만 initial bundle에 포함 → 진입 후 chunk download.
+//   main bundle 2.8MB → entry chunk 작게, mode chunk separate.
+const SinglePlantApp = lazy(() =>
+  import('./SinglePlantApp').then((m) => ({ default: m.SinglePlantApp })),
+);
+const SinglePlantOverlay = lazy(() =>
+  import('../hud/SinglePlantOverlay').then((m) => ({ default: m.SinglePlantOverlay })),
+);
 import { LoadingScreen } from '../hud/LoadingScreen';
 import { PerfHUD } from '../hud/PerfHUD';
 import { NotificationCenter } from '../hud/NotificationCenter';
@@ -75,8 +82,12 @@ export function App() {
       <NotificationCenter />
       <ErrorModal />
 
-      <SinglePlantApp />
-      <SinglePlantOverlay />
+      {/* ★ S140-B — Suspense fallback은 null (LoadingScreen이 이미 풀스크린).
+         lazy chunk download 중에도 LoadingScreen이 위에 깔려 있어 사용자 인지 없음. */}
+      <Suspense fallback={null}>
+        <SinglePlantApp />
+        <SinglePlantOverlay />
+      </Suspense>
       <PerfHUD />
 
       {outlineDebug && <LeafOutlineDebugPanel />}
