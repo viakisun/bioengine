@@ -41,18 +41,27 @@ export const LEAF_MESH_RESOLUTION: Record<LeafMeshQuality, LeafMeshResolution> =
 };
 
 /**
- * Distance-based quality selection (★ L6-B-2 S58).
+ * Distance-based quality selection (★ L6-B-2 S58 / ★ S142 thresholds 인자).
  *
- * Threshold:
+ * Default threshold (S142 이전):
  *   < 5m  → 'high'      (near hero plant)
  *   < 15m → 'low'       (mid distance, production default)
  *   ≥ 15m → 'ultra-low' (far background plant)
  *
+ * ★ S142 — `thresholds` 인자 추가 (옵션). 부재 시 default 5/15 사용 (회귀 0).
+ *   caller (SkinMeshPlant)가 `spec.meshConfig.distanceThresholds` 전달.
+ *
  * @param distanceM  camera ↔ plant root world distance (meters)
+ * @param thresholds 선택 — `{ highMaxM, lowMaxM }`. 미지정 시 5/15.
  */
-export function qualityFromDistance(distanceM: number): LeafMeshQuality {
-  if (distanceM < 5) return 'high';
-  if (distanceM < 15) return 'low';
+export function qualityFromDistance(
+  distanceM: number,
+  thresholds?: { highMaxM: number; lowMaxM: number },
+): LeafMeshQuality {
+  const hi = thresholds?.highMaxM ?? 5;
+  const lo = thresholds?.lowMaxM ?? 15;
+  if (distanceM < hi) return 'high';
+  if (distanceM < lo) return 'low';
   return 'ultra-low';
 }
 

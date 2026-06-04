@@ -355,7 +355,8 @@ const MeshSampleLevelSchema = z.object({
  * ★ S142 — 단일 leaf mesh tuning preset.
  *   - `v1` = legacy `LeafletProfile` sampler (bell-curve outline, `?leafBuilder=v1` 시).
  *   - `v2` = BGT (Beta × Gaussian × Triangle) sampler — production default.
- *   - `cols` = cross-section column count (이전 `LEAFLET_PLANE_COLS` hardcode 9 대체).
+ *   - `cols` = V2 BGT cross-section column count (S95에서 hardcoded 17).
+ *             V1 (legacy)은 자체 `LEAFLET_PLANE_COLS=9` 유지 — preset 영향 없음.
  */
 export const MeshConfigPresetSchema = z.object({
   v1: MeshSampleLevelSchema,

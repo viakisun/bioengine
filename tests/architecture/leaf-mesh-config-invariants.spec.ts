@@ -25,8 +25,9 @@ test('LEAF-MESH-CONFIG-02: baseline = previous hardcoded values (parity)', () =>
   expect(baseline.v1).toEqual({ ultraLowSamples: 9, lowSamples: 16, highSamples: 23 });
   // V2 — LeafMeshBuilder2.ts L274-278 이전 값.
   expect(baseline.v2).toEqual({ ultraLowSamples: 28, lowSamples: 40, highSamples: 56 });
-  // LEAFLET_PLANE_COLS — LeafMeshBuilder.ts L773 이전 값.
-  expect(baseline.cols).toBe(9);
+  // cols는 V2 BGT 전용 — LeafMeshBuilder2.ts L573에서 hardcoded 17 (S95).
+  // V1 (legacy)은 자체 LEAFLET_PLANE_COLS=9 hardcode 유지 (preset 영향 0).
+  expect(baseline.cols).toBe(17);
 });
 
 test('LEAF-MESH-CONFIG-03: invalid URL preset falls back to default', () => {

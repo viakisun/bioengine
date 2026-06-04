@@ -232,17 +232,17 @@
       "baseline": {
         "v1": { "ultraLowSamples": 9,  "lowSamples": 16, "highSamples": 23 },
         "v2": { "ultraLowSamples": 28, "lowSamples": 40, "highSamples": 56 },
-        "cols": 9
+        "cols": 17
       },
       "lite": {
         "v1": { "ultraLowSamples": 7,  "lowSamples": 12, "highSamples": 18 },
         "v2": { "ultraLowSamples": 20, "lowSamples": 30, "highSamples": 42 },
-        "cols": 7
+        "cols": 12
       },
       "aggressive": {
         "v1": { "ultraLowSamples": 6,  "lowSamples": 9,  "highSamples": 13 },
         "v2": { "ultraLowSamples": 16, "lowSamples": 22, "highSamples": 30 },
-        "cols": 6
+        "cols": 9
       }
     }
   }

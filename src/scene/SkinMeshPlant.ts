@@ -196,7 +196,8 @@ function leafQualityFor(
 ): 'ultra-low' | 'low' | 'high' {
   if (q === 'low') return 'ultra-low';
   if (q === 'medium') return 'low';
-  return qualityFromDistance(distM);
+  // ★ S142 — distance thresholds는 spec에서 (이전 hardcode 5/15).
+  return qualityFromDistance(distM, tomatoLeafSpec.meshConfig.distanceThresholds);
 }
 
 /** ★ S138 — truss organ build 여부 (low는 skip). */

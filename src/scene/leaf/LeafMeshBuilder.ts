@@ -106,6 +106,7 @@ import type {
   CorrelationRules,
   PoseRules,
   LobeNoiseRules,
+  MeshConfigPreset,
 } from './LeafSpec';
 import {
   applyPositionProfile,
@@ -175,6 +176,12 @@ export interface LeafletMeshBuildContext {
    * 부재 시 baseline 사용 (curlMultiplier=1.0, opennessOffset=0).
    */
   leafMacro?: LeafMacroState;
+  /**
+   * ★ S142 — Active mesh preset (samples + cols).
+   *   LeafEngine.createLeaf() 에서 `getActiveMeshPreset(spec, ...)` 로 결정.
+   *   부재 시 builder는 baseline parity hardcode fallback 사용 (회귀 0).
+   */
+  meshPreset?: MeshConfigPreset;
 }
 
 export type LeafMeshBuildInput = LeafletMeshBuildContext;
@@ -590,7 +597,14 @@ export function buildLeafShapeDescriptor(ctx: LeafMeshBuildInput): LeafShapeDesc
   const foldDroopDeg =
     ctx.spec.poseRules.foldDroopDegBase + ctx.spec.poseRules.foldDroopDegSlope * maturity;
   // L2-4b quality.
-  const qualityRes = LEAF_MESH_RESOLUTION[ctx.quality ?? DEFAULT_LEAF_MESH_QUALITY];
+  // ★ S142 — V1 samples는 meshPreset에서, 부재 시 baseline LEAF_MESH_RESOLUTION fallback.
+  const activeQuality = ctx.quality ?? DEFAULT_LEAF_MESH_QUALITY;
+  const v1Samples = ctx.meshPreset
+    ? (activeQuality === 'ultra-low' ? ctx.meshPreset.v1.ultraLowSamples
+       : activeQuality === 'high'    ? ctx.meshPreset.v1.highSamples
+       :                                ctx.meshPreset.v1.lowSamples)
+    : LEAF_MESH_RESOLUTION[activeQuality].shapeProfileSamples;
+  const qualityRes = { shapeProfileSamples: v1Samples };
 
   return {
     resolved,
@@ -903,6 +917,8 @@ function buildLeafletPatch(
   const profile = buildLeafletOutlineWithNoise(ctx.spec, node, leafletSeed, idSeed, desc);
 
   // Plane geometry chunk (mesh-local).
+  // ★ S142 — V1 (legacy) builder는 cols hardcode 9 그대로.
+  //   preset.cols는 V2 BGT 전용 (V2는 S95에서 cols=17 강화).
   const chunk = buildLeafletPlaneChunk(profile, {
     lengthM,
     curl: desc.curl,

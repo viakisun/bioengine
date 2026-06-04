@@ -538,7 +538,14 @@ function buildLeafletPatchV2(
   // V2 samples (LOD V2)
   const position = node.leafletRef.position as LeafletPosition;
   const positionedProfile = ctx.spec.profileByPosition[position];
-  const samplesV2 = positionedProfile.samplesV2 ?? LEAF_MESH_RESOLUTION_V2[ctx.quality ?? 'low'];
+  // ★ S142 — V2 samples는 meshPreset에서, 부재 시 baseline LEAF_MESH_RESOLUTION_V2 fallback.
+  const activeQualityV2 = ctx.quality ?? 'low';
+  const v2DefaultSamples = ctx.meshPreset
+    ? (activeQualityV2 === 'ultra-low' ? ctx.meshPreset.v2.ultraLowSamples
+       : activeQualityV2 === 'high'    ? ctx.meshPreset.v2.highSamples
+       :                                   ctx.meshPreset.v2.lowSamples)
+    : LEAF_MESH_RESOLUTION_V2[activeQualityV2];
+  const samplesV2 = positionedProfile.samplesV2 ?? v2DefaultSamples;
 
   // ★ S104 — gravityDroopDeg = (lengthM / 0.25)² × 90 (cantilever bending).
   const sizeRatio = Math.min(1, lengthM / GRAVITY_REF_LENGTH_M);
@@ -561,6 +568,8 @@ function buildLeafletPatchV2(
   });
 
   // V1 buildLeafletPlaneChunk 재사용 + ★ S95 cols 17 + ★ S103 gravityDroopDeg.
+  // ★ S142 — V2 cols는 meshPreset에서 (baseline=17, lite=12, aggressive=9).
+  const v2Cols = ctx.meshPreset?.cols ?? 17;
   const chunk = buildLeafletPlaneChunk(profileV2, {
     lengthM,
     curl: desc.curl,
@@ -570,7 +579,7 @@ function buildLeafletPatchV2(
     isTerminal: node.leafletRef.position === 'terminal',
     veinSurfaceStrength: 1,
     seed: djb2(node.id),
-    cols: 17,
+    cols: v2Cols,
   });
 
   // SSOT #186 — L1-B centroid anchor (V1 동일).
