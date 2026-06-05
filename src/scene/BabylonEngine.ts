@@ -326,16 +326,32 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
 
   log.debug('starting render loop');
 
-  // 'shaders' — first-frame shader compilation. Babylon doesn't expose
-  // an explicit progress signal here, so we just mark the stage as
-  // active with an indeterminate spinner ('progress' starts at 0.1 so
-  // the bar visibly moves). executeWhenReady fires once every async
-  // texture/mesh asset has finished loading AND the first frame's
-  // shader permutations have compiled.
+  // 'shaders' — first-frame shader compilation. Babylon은 progress callback 미제공.
+  // ★ S143 — 시간 기반 ramp progress (0.1 → 0.9 over ~15s, plateau then 1.0 on ready).
+  //   executeWhenReady 시점 모름 → 사용자 인지를 위해 가짜 진행 표시.
   setBootStage('shaders', '셰이더 컴파일 (Babylon executeWhenReady 대기)', 0.1);
+  const shadersStart = performance.now();
+  const RAMP_DUR_MS = 15_000;
+  let isReady = false;
+  const rampTick = window.setInterval(() => {
+    if (isReady) return;
+    const elapsedMs = performance.now() - shadersStart;
+    const t = Math.min(1, elapsedMs / RAMP_DUR_MS);
+    // 0.1 → 0.9 ease-out (느려지면서 90% 한계)
+    const progress = 0.1 + 0.8 * (1 - Math.pow(1 - t, 2));
+    const elapsedS = (elapsedMs / 1000).toFixed(1);
+    useTwinStore.getState().updateStageDetail(
+      `셰이더 컴파일 · GPU 업로드 (${elapsedS}s)`,
+      Math.min(0.9, progress),
+    );
+  }, 200);
   scene.executeWhenReady(() => {
+    isReady = true;
+    window.clearInterval(rampTick);
     setBootStage('ready', '준비 완료', 1);
     const total = (performance.now() - useTwinStore.getState().boot.startedAt) / 1000;
+    const shadersS = (performance.now() - shadersStart) / 1000;
+    logBoot('log', `shaders: ${shadersS.toFixed(2)}초 (executeWhenReady)`);
     logBoot('log', `ready: 총 부팅 ${total.toFixed(2)}초`);
   });
 
