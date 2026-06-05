@@ -130,9 +130,28 @@ export function PerfHUD() {
     if (!visible) return;
     let raf = 0;
     let last = 0;
+    // ★ S142 후속 — drawCalls 누적 카운터 → per-frame derive.
+    //   engine._drawCalls.current 는 frame과 무관하게 누적. delta를 시간 + fps로
+    //   나눠 per-frame 추정. 첫 sample은 null (prev 없음).
+    let prevDrawCallsRaw: number | null = null;
+    let prevDrawCallsTs = 0;
     const tick = (ts: number) => {
       if (ts - last >= 200) {
-        setSnap(measure());
+        const m = measure();
+        let drawCallsPerFrame: number | null = null;
+        if (m.drawCalls != null) {
+          if (prevDrawCallsRaw != null && prevDrawCallsTs > 0) {
+            const deltaCalls = m.drawCalls - prevDrawCallsRaw;
+            const deltaSec = (ts - prevDrawCallsTs) / 1000;
+            if (deltaSec > 0 && m.fps > 0) {
+              const callsPerSec = deltaCalls / deltaSec;
+              drawCallsPerFrame = Math.max(0, Math.round(callsPerSec / m.fps));
+            }
+          }
+          prevDrawCallsRaw = m.drawCalls;
+          prevDrawCallsTs = ts;
+        }
+        setSnap({ ...m, drawCalls: drawCallsPerFrame });
         last = ts;
       }
       raf = requestAnimationFrame(tick);
@@ -189,7 +208,7 @@ export function PerfHUD() {
       <Row label="meshes" value={`${snap.activeMeshCount}/${snap.totalMeshCount}`} />
       <Row label="verts" value={formatK(snap.vertices)} tone={vertTone} />
       <Row label="tris" value={formatK(snap.triangles)} />
-      {snap.drawCalls != null && <Row label="drawCalls" value={String(snap.drawCalls)} />}
+      {snap.drawCalls != null && <Row label="dc/frame" value={String(snap.drawCalls)} />}
       {snap.heapMB != null && <Row label="heap" value={`${snap.heapMB}MB`} />}
     </div>
   );

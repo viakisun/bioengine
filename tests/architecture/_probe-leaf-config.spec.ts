@@ -26,7 +26,24 @@ for (const preset of PRESETS) {
       timeout: 45_000,
     });
 
-    const metrics = await page.evaluate(() => {
+    // ★ S142 후속 — drawCalls 누적 카운터 → 두 시점 측정으로 per-frame 추정.
+    //   1초 간격 두 sample → delta drawCalls / delta time / fps = drawCalls/frame.
+    type Sample = { drawCallsRaw: number | null; ts: number; fps: number } | null;
+    const sample1 = await page.evaluate((): Sample => {
+      const w = window as unknown as {
+        __debugEngine?: { engine?: { getFps: () => number; _drawCalls?: { current: number } } } | { getFps: () => number; _drawCalls?: { current: number } };
+      };
+      const engHandle = w.__debugEngine;
+      const engine = engHandle && 'engine' in engHandle ? engHandle.engine : engHandle;
+      if (!engine) return null;
+      return {
+        drawCallsRaw: engine._drawCalls?.current ?? null,
+        ts: performance.now(),
+        fps: engine.getFps(),
+      };
+    });
+    await page.waitForTimeout(1000);
+    const measurement = await page.evaluate(() => {
       const w = window as unknown as {
         __debugScene?: { meshes: Array<{ isEnabled: () => boolean; isVisible: boolean; getTotalVertices: () => number; getTotalIndices: () => number; name: string }> };
         __debugEngine?: { engine?: { getFps: () => number; _drawCalls?: { current: number } } } | { getFps: () => number; _drawCalls?: { current: number } };
@@ -35,7 +52,6 @@ for (const preset of PRESETS) {
       const engHandle = w.__debugEngine;
       const engine = engHandle && 'engine' in engHandle ? engHandle.engine : engHandle;
       if (!scene || !engine) return null;
-      const drawCalls = engine._drawCalls?.current ?? null;
       let totalVerts = 0, totalTris = 0, leafVerts = 0, leafTris = 0;
       for (const m of scene.meshes) {
         if (!m.isEnabled() || !m.isVisible) continue;
@@ -49,8 +65,9 @@ for (const preset of PRESETS) {
         }
       }
       return {
-        fps: Math.round(engine.getFps()),
-        drawCalls,
+        fps: engine.getFps(),
+        drawCallsRaw: engine._drawCalls?.current ?? null,
+        ts: performance.now(),
         totalMeshes: scene.meshes.length,
         totalVerts,
         totalTris,
@@ -58,6 +75,26 @@ for (const preset of PRESETS) {
         leafTris,
       };
     });
+    // per-frame drawCalls derive
+    let drawCallsPerFrame: number | null = null;
+    if (sample1 && measurement && sample1.drawCallsRaw != null && measurement.drawCallsRaw != null) {
+      const deltaCalls = measurement.drawCallsRaw - sample1.drawCallsRaw;
+      const deltaSec = (measurement.ts - sample1.ts) / 1000;
+      const avgFps = (sample1.fps + measurement.fps) / 2;
+      if (deltaSec > 0 && avgFps > 0) {
+        const callsPerSec = deltaCalls / deltaSec;
+        drawCallsPerFrame = Math.max(0, Math.round(callsPerSec / avgFps));
+      }
+    }
+    const metrics = measurement ? {
+      fps: Math.round(measurement.fps),
+      drawCallsPerFrame,
+      totalMeshes: measurement.totalMeshes,
+      totalVerts: measurement.totalVerts,
+      totalTris: measurement.totalTris,
+      leafVerts: measurement.leafVerts,
+      leafTris: measurement.leafTris,
+    } : null;
 
     console.log(`[preset=${preset}]`, JSON.stringify(metrics, null, 2));
     expect(metrics).not.toBeNull();
