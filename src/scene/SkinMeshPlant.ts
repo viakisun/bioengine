@@ -205,6 +205,21 @@ function shouldBuildTruss(q: import('../modes/types').QualityLevel): boolean {
   return q !== 'low';
 }
 
+/**
+ * ★ S142 후속 — mode quality.level → leaf meshConfig preset 매핑.
+ *   - 'low'    → 'aggressive' (greenhouse low 부팅 가속)
+ *   - 'medium' → 'lite' (default, leaf -47%)
+ *   - 'high'   → 'baseline' (single-plant 풀 디테일 / greenhouse high 호환)
+ *   URL `?leafConfig=` 가 있으면 override (caller에서 undefined 반환).
+ */
+function meshPresetKeyFor(
+  q: import('../modes/types').QualityLevel,
+): 'baseline' | 'lite' | 'aggressive' {
+  if (q === 'low') return 'aggressive';
+  if (q === 'high') return 'baseline';
+  return 'lite';
+}
+
 export function createSkinMeshPlant(
   scene: Scene,
   engine: GrowthEngine,
@@ -861,6 +876,11 @@ export function createSkinMeshPlant(
             urlParams?.get('leafPlane') === 'flat'
               ? { curl: 0, gravityDroopDeg: 0 }
               : undefined;
+          // ★ S142 후속 — URL `?leafConfig=` override 확인 (있으면 mode mapping skip).
+          const urlLeafConfig = urlParams?.get('leafConfig');
+          const meshConfigKey = (urlLeafConfig === 'baseline' || urlLeafConfig === 'lite' || urlLeafConfig === 'aggressive')
+            ? undefined  // URL이 LeafEngine 내부 getActiveMeshPreset에서 자동 적용 — 본 caller는 양보.
+            : meshPresetKeyFor(opts.quality ?? 'high');
           const leafletPatches = LeafEngine.createLeaf(tomatoLeafSpec, meshAnchorNode, graph, {
             cultivarOverride: cultivarShapeOverride,
             seed: seed * 1009 + axisIdx * 9173 + nodeIdx * 31 + 11,
@@ -868,6 +888,7 @@ export function createSkinMeshPlant(
             quality: lodQuality,
             builderVersion,
             postureOverride,
+            meshConfigKey,
           });
           // ★ Iter 39 Phase L6-B-1b (S57) — per-leaf merge batching.
           //   1 compound leaf = 1 Mesh (이전 leaflet 마다 1 Mesh).

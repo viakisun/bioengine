@@ -22,7 +22,7 @@ import type {
 } from '../../plant/skeleton/PlantSkeletonGraph';
 import { getLeafletSkeletonNodesByParentLeaf } from '../../plant/skeleton/PlantSkeletonGraph';
 import { SeededRandom } from '@farmsim/tomato-engine';
-import type { LeafSpec, CultivarOverride } from './LeafSpec';
+import type { LeafSpec, CultivarOverride, MeshPresetKey } from './LeafSpec';
 import { resolveCultivar } from './LeafSpec';
 // ★ S142 — Active mesh preset selector (URL/override → spec.default).
 import { getActiveMeshPreset } from '../../data/leaf';
@@ -86,6 +86,13 @@ export interface CreateLeafOptions {
     curl?: number;
     gravityDroopDeg?: number;
   };
+
+  /**
+   * ★ S142 후속 — Mesh preset override (caller가 mode quality 등에 따라 결정).
+   *   priority: 본 옵션 > URL `?leafConfig=` > spec.meshConfig.default.
+   *   undefined 시 기존 동작 유지 (URL 또는 default).
+   */
+  meshConfigKey?: MeshPresetKey;
 }
 
 /** Required internal context derived from skeleton + graph. */
@@ -180,9 +187,10 @@ export const LeafEngine = {
         }
       : leafBladeRootNode.phytomer.leaf;
 
-    // ★ S142 — Active mesh preset 결정 (URL `?leafConfig=` 또는 spec.default).
+    // ★ S142 — Active mesh preset 결정.
+    //   priority: options.meshConfigKey > URL `?leafConfig=` > spec.meshConfig.default.
     //   builder들 (V1/V2)이 ctx.meshPreset에서 samples/cols 읽음.
-    const { preset: meshPreset } = getActiveMeshPreset(spec);
+    const { preset: meshPreset } = getActiveMeshPreset(spec, options.meshConfigKey);
 
     const ctx: LeafletMeshBuildContext = {
       spec,
