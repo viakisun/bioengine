@@ -290,6 +290,9 @@ function fxHandles(scene: Scene): RuntimeFXHandles {
 /** Collect every mesh that should cast a shadow in this scene. */
 function collectShadowCasters(scene: Scene): Mesh[] {
   const casters: Mesh[] = [];
+  // ★ S143 — showcase seed (SceneInfrastructure.SHOWCASE_SEED = 20260520).
+  //   greenhouse 모드에서 extras는 shadow caster 제외 (사용자 _showcase_만 자세히 봄).
+  const SHOWCASE_SEED = 20260520;
   for (const m of scene.meshes) {
     // skip ground / heatmap / very thin lines / non-mesh
     if (!m || (m as Mesh).getTotalVertices?.() === 0) continue;
@@ -298,6 +301,15 @@ function collectShadowCasters(scene: Scene): Mesh[] {
         || name.startsWith('strings_') || name.startsWith('roof_')
         || name.startsWith('wall_') || name.startsWith('endwall_')
         || name === 'skybox') continue;
+    // ★ S143 — Boot profile 측정 결과: 3204 meshes 모두 shadow caster로 등록 시
+    //   mesh.isReady() polling 12-13초 (shadow depth pass effect compile per caster).
+    //   다음 mesh는 _shadow 의미 미미_ + caster 폭증 원인 → 제외.
+    //   (1) truss organs (fruit/calyx/flower/petal_remnant) — ~2793 작은 mesh.
+    //   (2) calyx instance source — InstancedMesh shadow 미지원.
+    //   (3) extras skinplant (showcase 외) — 멀리 있어 detail shadow 무의미.
+    if (name.startsWith('skinplant_truss_')) continue;
+    if (name === 'calyx_src') continue;
+    if (name.startsWith('skinplant_') && !name.includes(`_${SHOWCASE_SEED}_`)) continue;
     casters.push(m as Mesh);
   }
   return casters;

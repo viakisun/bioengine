@@ -205,6 +205,53 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
   };
   (globalThis as { __twinStore?: unknown }).__twinStore = useTwinStore;
 
+  // ★ S143 — Boot profile: 단계별 timestamps + shader/texture/frame 카운터.
+  //   probe (window.__bootProfile)로 ready 후 분해 측정 읽음.
+  interface BootProfile {
+    startMs: number;
+    events: Array<{ ts: number; name: string; data?: unknown }>;
+    shader: { count: number; totalMs: number; activeStart: number };
+    texture: { count: number };
+    frame: { firstRenderTs: number | null; renderCount: number };
+    sceneReady: number | null;
+    executeWhenReady: number | null;
+    // ★ S143 — readiness poll: executeWhenReady가 기다리는 mesh/texture/material.
+    readinessPoll: Array<{
+      ts: number;
+      meshNotReady: number;
+      textureNotReady: number;
+      sampleMeshes: string[];      // top 10 names by occurrence
+      sampleTextures: string[];
+    }>;
+  }
+  const bp: BootProfile = {
+    startMs: useTwinStore.getState().boot.startedAt,
+    events: [],
+    shader: { count: 0, totalMs: 0, activeStart: 0 },
+    texture: { count: 0 },
+    frame: { firstRenderTs: null, renderCount: 0 },
+    sceneReady: null,
+    executeWhenReady: null,
+    readinessPoll: [],
+  };
+  function mark(name: string, data?: unknown): void {
+    bp.events.push({ ts: performance.now() - bp.startMs, name, data });
+  }
+  (globalThis as { __bootProfile?: BootProfile }).__bootProfile = bp;
+  mark('engine_canvas_attached');
+
+  // Hook engine shader compile observables (per-compile timing).
+  engine.onBeforeShaderCompilationObservable.add(() => {
+    bp.shader.activeStart = performance.now();
+  });
+  engine.onAfterShaderCompilationObservable.add(() => {
+    if (bp.shader.activeStart > 0) {
+      bp.shader.totalMs += performance.now() - bp.shader.activeStart;
+      bp.shader.count++;
+      bp.shader.activeStart = 0;
+    }
+  });
+
   const cameraRig = setupCamera(scene, canvas);
   // Iter 35 PR 4 Phase Q2: cameraPreset store field 제거 — 기본 'single-plant' preset.
   cameraRig.setPreset('single-plant');
@@ -230,10 +277,28 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
     notify.error('씬 셋업 실패', err instanceof Error ? err : String(err));
   }
 
+  // ★ S143 — texture + scene observers (boot profile).
+  scene.onNewTextureAddedObservable.add(() => { bp.texture.count++; });
+  scene.onReadyObservable.add(() => {
+    if (bp.sceneReady === null) {
+      bp.sceneReady = performance.now() - bp.startMs;
+      mark('scene_onReady');
+    }
+  });
+  scene.onAfterRenderObservable.add(() => {
+    if (bp.frame.firstRenderTs === null) {
+      bp.frame.firstRenderTs = performance.now() - bp.startMs;
+      mark('first_after_render');
+    }
+    bp.frame.renderCount++;
+  });
+
+  mark('greenhouse_stage_begin');
   setBootStage('greenhouse', '온실 인프라 빌드 시작', 0);
   let greenhouse: SceneInfrastructureHandle | null = null;
   try {
     greenhouse = await buildSceneInfrastructure(scene);
+    mark('greenhouse_build_complete');
     setSinglePlantEngineRef(greenhouse.growthEngine);
     setSinglePlantSkinMeshRef(greenhouse.skinMeshPlant, 0);
     // ★ S126 — extra plants도 등록 (index 1+). SinglePlantOverlay에서 update 받음.
@@ -326,18 +391,24 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
 
   log.debug('starting render loop');
 
-  // 'shaders' — first-frame shader compilation. Babylon은 progress callback 미제공.
-  // ★ S143 — 시간 기반 ramp progress (0.1 → 0.9 over ~15s, plateau then 1.0 on ready).
-  //   executeWhenReady 시점 모름 → 사용자 인지를 위해 가짜 진행 표시.
-  setBootStage('shaders', '셰이더 컴파일 (Babylon executeWhenReady 대기)', 0.1);
+  // 'shaders' — first-frame shader compilation + GPU upload.
+  // ★ S143 — Boot profile 측정 결과:
+  //   shaders stage begin     @ ~1.3s
+  //   first_after_render       @ ~4.3s   ← 화면 실제 표시
+  //   scene.executeWhenReady   @ ~15.5s  ← Babylon internal mesh.isReady polling 완료
+  //   첫 frame이 그려지면 _이미 ready_ (사용자 시각 기준). executeWhenReady의 추가
+  //   ~11초는 background polling (모든 PBR material isReadyForSubMesh + envTexture
+  //   prefiltering + per-frame mesh.isReady() 검증). user 인지에 도달 X.
+  //   → ready 정의를 _first_after_render_로 변경. executeWhenReady는 logBoot only.
+  mark('shaders_stage_begin');
+  setBootStage('shaders', '셰이더 컴파일 · GPU 업로드', 0.1);
   const shadersStart = performance.now();
-  const RAMP_DUR_MS = 15_000;
+  const RAMP_DUR_MS = 5_000;  // first frame까지 ~3-4초 → ramp 5초로
   let isReady = false;
   const rampTick = window.setInterval(() => {
     if (isReady) return;
     const elapsedMs = performance.now() - shadersStart;
     const t = Math.min(1, elapsedMs / RAMP_DUR_MS);
-    // 0.1 → 0.9 ease-out (느려지면서 90% 한계)
     const progress = 0.1 + 0.8 * (1 - Math.pow(1 - t, 2));
     const elapsedS = (elapsedMs / 1000).toFixed(1);
     useTwinStore.getState().updateStageDetail(
@@ -345,14 +416,65 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
       Math.min(0.9, progress),
     );
   }, 200);
-  scene.executeWhenReady(() => {
+
+  // ★ S143 — Ready 신호 = 첫 frame 그려진 시점.
+  //   onAfterRenderObservable이 화면에 paint 후 호출 → 사용자가 _이미 보는 상태_.
+  //   safety: 2 frame 후 ready (첫 frame이 partial일 수 있음).
+  let firstRenderCount = 0;
+  const readyObs = scene.onAfterRenderObservable.add(() => {
+    firstRenderCount++;
+    if (firstRenderCount < 2 || isReady) return;
     isReady = true;
     window.clearInterval(rampTick);
+    window.clearInterval(readyPoll);
+    bp.executeWhenReady = performance.now() - bp.startMs;
+    mark('ready_first_frame');
     setBootStage('ready', '준비 완료', 1);
     const total = (performance.now() - useTwinStore.getState().boot.startedAt) / 1000;
-    const shadersS = (performance.now() - shadersStart) / 1000;
-    logBoot('log', `shaders: ${shadersS.toFixed(2)}초 (executeWhenReady)`);
-    logBoot('log', `ready: 총 부팅 ${total.toFixed(2)}초`);
+    logBoot('log', `ready: 첫 frame 그려진 시점 (총 ${total.toFixed(2)}초)`);
+    scene.onAfterRenderObservable.remove(readyObs);
+  });
+
+  // ★ S143 — readiness polling: executeWhenReady가 _구체적으로 무엇_을 기다리는지.
+  //   매 200ms scene.meshes / textures 순회. not-ready 항목 카운트 + 이름 sample.
+  const readyPoll = window.setInterval(() => {
+    if (isReady) return;
+    let meshNotReady = 0;
+    let textureNotReady = 0;
+    const meshNames: string[] = [];
+    const texNames: string[] = [];
+    for (const m of scene.meshes) {
+      try {
+        if (!m.isReady(true)) {
+          meshNotReady++;
+          if (meshNames.length < 10) meshNames.push(m.name);
+        }
+      } catch {
+        // isReady가 throw 시 not-ready로 간주
+        meshNotReady++;
+        if (meshNames.length < 10) meshNames.push(`${m.name}#throw`);
+      }
+    }
+    for (const t of scene.textures) {
+      if (!t.isReady()) {
+        textureNotReady++;
+        if (texNames.length < 10) texNames.push(t.name ?? 'unnamed');
+      }
+    }
+    bp.readinessPoll.push({
+      ts: performance.now() - bp.startMs,
+      meshNotReady,
+      textureNotReady,
+      sampleMeshes: meshNames,
+      sampleTextures: texNames,
+    });
+  }, 200);
+  // executeWhenReady는 background 검증용 — 모든 mesh.isReady() 완료 시 fire.
+  // 사용자에게는 _이미 ready_ 표시됐고 화면 보임. 진단 log only.
+  scene.executeWhenReady(() => {
+    mark('background_execute_when_ready');
+    const elapsedS = ((performance.now() - bp.startMs) / 1000).toFixed(2);
+    logBoot('log', `background: Babylon executeWhenReady ${elapsedS}초 (모든 mesh.isReady)`);
   });
 
   // Env counters refreshed every 500ms during boot, less often after
