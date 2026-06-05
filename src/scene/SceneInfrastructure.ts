@@ -175,12 +175,20 @@ export async function buildSceneInfrastructure(scene: Scene): Promise<SceneInfra
   growthEngine.addPlant({ seed: SHOWCASE_SEED, cultivarName: 'tomimaru-muchoo' });
   const skinPos = new Vector3(showcaseSpec.position[0], SUBSTRATE_TOP_Y, bedZPositions[mainBedIdx]);
 
-  updateStageDetail('SkinMesh 빌드 (showcase)', 0.65);
+  // ★ S143 — showcase build 시작 표시 (0.55) → yield 1 frame → build → 완료 표시 (0.65).
+  //   이전: 0.65 표시 + setTimeout(0) yield 후 즉시 sync build → React render commit 못 받아
+  //   사용자가 0.5 정체 후 95%로 점프하는 것처럼 보임.
+  //   변경: requestAnimationFrame 기반 yield (16ms+) — React commit 보장.
+  updateStageDetail('SkinMesh 빌드 (showcase) 시작', 0.55);
   logBoot('log', 'scene: showcase plant');
-  await new Promise((r) => setTimeout(r, 0));
+  await new Promise((r) => requestAnimationFrame(() => r(null)));
   // ★ S138 — showcase는 mode quality와 무관하게 항상 'high' (사용자가 자세히 관찰).
+  const t0 = performance.now();
   const skinMeshPlant = createSkinMeshPlant(scene, growthEngine, SHOWCASE_SEED, skinPos, { quality: 'high' });
   skinMeshPlant.setVisible(true);
+  logBoot('log', `scene: showcase plant build ${(performance.now() - t0).toFixed(0)}ms`);
+  updateStageDetail('SkinMesh 빌드 (showcase) 완료', 0.65);
+  await new Promise((r) => requestAnimationFrame(() => r(null)));
 
   // ★ S136-C — Extras를 베드 _전체 길이_에 _간격 두고_ 분산.
   //   이전 (S122-S123): slot 0,1,2,... → 모두 X=-14.9~-13.1 좁은 1.8m 코너에 클러스터.
@@ -217,16 +225,17 @@ export async function buildSceneInfrastructure(scene: Scene): Promise<SceneInfra
       plant.setVisible(true);
       extraPlants.push(plant);
       extraIdx++;
-      if (extraIdx % 4 === 0) {
-        updateStageDetail(`extra plants ${extraIdx}/${extraN}`, 0.65 + 0.3 * (extraIdx / extraN));
-        await new Promise((r) => setTimeout(r, 0));
-      }
+      // ★ S143 — extras 매 plant마다 progress + yield (이전 매 4 plants).
+      //   high quality 시 plant 1개 build ~1-3초 → 4 plants gap 8-12초 → UI 멈춘 듯 보임.
+      //   매 plant yield + 1 frame raf로 React render commit 보장.
+      updateStageDetail(`extra plants ${extraIdx}/${extraN}`, 0.65 + 0.3 * (extraIdx / extraN));
+      await new Promise((r) => requestAnimationFrame(() => r(null)));
     }
   }
 
   updateStageDetail('인프라 완료', 1.0);
   logBoot('log', `scene: 인프라 완료 (plants=${1 + extraPlants.length}, beds=${bedZPositions.length}, active=${activeBedIndices.length})`);
-  await new Promise((r) => setTimeout(r, 0));
+  await new Promise((r) => requestAnimationFrame(() => r(null)));
 
   return {
     growthEngine,
