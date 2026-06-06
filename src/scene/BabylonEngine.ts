@@ -7,7 +7,7 @@ import type { Material } from '@babylonjs/core/Materials/material';
 import { setupScene, type SceneSetupHandle } from './SceneSetup';
 import { applyRenderQuality } from './RenderQuality';
 import { setupCamera, type CameraRig } from './CameraRig';
-import { buildSceneInfrastructure, type SceneInfrastructureHandle } from './SceneInfrastructure';
+import { buildSceneInfrastructure, type SceneInfrastructureHandle, SHOWCASE_SEED } from './SceneInfrastructure';
 // Iter 35: GreenhouseContent (zones/heatmap/robot/path/supporting) + ProgressiveLoad
 //   제거 — single-plant only (Phase B+C, 사용자 결정).
 // Iter 35 PR 2 Phase O: QualityProbe archived (Skin 무관 general FX 측정).
@@ -223,6 +223,16 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
       sampleMeshes: string[];      // top 10 names by occurrence
       sampleTextures: string[];
     }>;
+    // ★ S144-A — Ready_first_frame 시점의 visual readiness snapshot.
+    //   회귀 위험 검증: env / shadow / showcase material이 첫 frame에 모두 ready인지.
+    //   4개 모두 true → 시각 회귀 없음. 일부 false → S144-B로 ready 조건 보강.
+    readyVisualState: {
+      envTextureReady: boolean | null;
+      shadowMapReady: boolean | null;
+      showcaseMeshReady: boolean | null;
+      showcaseMaterialReady: boolean | null;
+      showcaseMeshName: string | null;  // 디버그용 — capture된 mesh 식별
+    } | null;
   }
   const bp: BootProfile = {
     startMs: useTwinStore.getState().boot.startedAt,
@@ -233,6 +243,7 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
     sceneReady: null,
     executeWhenReady: null,
     readinessPoll: [],
+    readyVisualState: null,
   };
   function mark(name: string, data?: unknown): void {
     bp.events.push({ ts: performance.now() - bp.startMs, name, data });
@@ -417,21 +428,72 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
     );
   }, 200);
 
-  // ★ S143 — Ready 신호 = 첫 frame 그려진 시점.
+  // ★ S143 + S144-B — Ready 신호 = 첫 frame 그려진 시점 + visual readiness 확인.
   //   onAfterRenderObservable이 화면에 paint 후 호출 → 사용자가 _이미 보는 상태_.
-  //   safety: 2 frame 후 ready (첫 frame이 partial일 수 있음).
+  //   safety: 2 frame 후 + env/shadow/showcase ready 모두 true.
+  //   S144-A 측정 결과: showcase mesh/material이 첫 frame에 not-ready (effect compile).
+  //   → showcase mesh.isReady(true) true 될 때까지 추가 frame 대기.
+  //   10초 force-ready timeout: 영원히 ready 안 되는 edge case 차단 (warn 로그).
   let firstRenderCount = 0;
+  const readyTimeoutMs = 10_000;
+  const readyDeadline = performance.now() + readyTimeoutMs;
+  function captureReadyVisualState(): void {
+    try {
+      const env = scene.environmentTexture;
+      const showcaseSkinName = `skinplant_skin_${SHOWCASE_SEED}`;
+      const showcaseMesh = scene.meshes.find((m) => m.name === showcaseSkinName)
+        ?? scene.meshes.find((m) => (m.name ?? '').includes(`_${SHOWCASE_SEED}_`))
+        ?? null;
+      const mat = showcaseMesh?.material;
+      const subMesh = showcaseMesh?.subMeshes?.[0];
+      bp.readyVisualState = {
+        envTextureReady: env ? env.isReady() : null,
+        shadowMapReady: sceneSetup?.shadowGenerator?.getShadowMap()?.isReady() ?? null,
+        showcaseMeshReady: showcaseMesh ? showcaseMesh.isReady(true) : null,
+        showcaseMaterialReady: mat && subMesh
+          ? mat.isReadyForSubMesh(showcaseMesh, subMesh, false)
+          : (mat ? mat.isReady(showcaseMesh ?? undefined, false) : null),
+        showcaseMeshName: showcaseMesh?.name ?? null,
+      };
+    } catch (err) {
+      log.warn('readyVisualState capture failed:', err);
+    }
+  }
   const readyObs = scene.onAfterRenderObservable.add(() => {
+    if (isReady) return;
     firstRenderCount++;
-    if (firstRenderCount < 2 || isReady) return;
+    if (firstRenderCount < 2) return;
+    // ★ S144-B — Visual readiness check before signaling ready.
+    const env = scene.environmentTexture;
+    const envOK = !env || env.isReady();
+    const shadowMap = sceneSetup?.shadowGenerator?.getShadowMap();
+    const shadowOK = !shadowMap || shadowMap.isReady();
+    const showcaseSkinName = `skinplant_skin_${SHOWCASE_SEED}`;
+    const showcaseMesh = scene.meshes.find((m) => m.name === showcaseSkinName)
+      ?? scene.meshes.find((m) => (m.name ?? '').includes(`_${SHOWCASE_SEED}_`));
+    const showcaseOK = !showcaseMesh || showcaseMesh.isReady(true);
+    const timeoutHit = performance.now() > readyDeadline;
+    if (!timeoutHit && (!envOK || !shadowOK || !showcaseOK)) return;
     isReady = true;
     window.clearInterval(rampTick);
     window.clearInterval(readyPoll);
     bp.executeWhenReady = performance.now() - bp.startMs;
+    captureReadyVisualState();
     mark('ready_first_frame');
     setBootStage('ready', '준비 완료', 1);
     const total = (performance.now() - useTwinStore.getState().boot.startedAt) / 1000;
-    logBoot('log', `ready: 첫 frame 그려진 시점 (총 ${total.toFixed(2)}초)`);
+    if (timeoutHit) {
+      logBoot('warn', `ready: 10초 timeout — visual readiness 미확정 신호 (총 ${total.toFixed(2)}초)`);
+    } else {
+      logBoot('log', `ready: 첫 frame + visual readiness 확정 (총 ${total.toFixed(2)}초)`);
+    }
+    if (bp.readyVisualState) {
+      const v = bp.readyVisualState;
+      logBoot('log',
+        `readyVisualState: env=${v.envTextureReady} shadow=${v.shadowMapReady} ` +
+        `mesh=${v.showcaseMeshReady} mat=${v.showcaseMaterialReady} (${v.showcaseMeshName ?? '?'})`,
+      );
+    }
     scene.onAfterRenderObservable.remove(readyObs);
   });
 

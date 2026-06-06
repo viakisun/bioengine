@@ -32,6 +32,13 @@ test('boot profile breakdown', async ({ page }) => {
           sampleMeshes: string[];
           sampleTextures: string[];
         }>;
+        readyVisualState: {
+          envTextureReady: boolean | null;
+          shadowMapReady: boolean | null;
+          showcaseMeshReady: boolean | null;
+          showcaseMaterialReady: boolean | null;
+          showcaseMeshName: string | null;
+        } | null;
       };
     };
     return w.__bootProfile ?? null;
@@ -51,5 +58,23 @@ test('boot profile breakdown', async ({ page }) => {
     console.log(`  ${p.ts.toFixed(0).padStart(6)}ms  meshes=${p.meshNotReady}  textures=${p.textureNotReady}`);
     if (p.sampleMeshes.length > 0) console.log(`         meshes: ${p.sampleMeshes.join(', ')}`);
     if (p.sampleTextures.length > 0) console.log(`         textures: ${p.sampleTextures.join(', ')}`);
+  }
+  console.log('=== READY VISUAL STATE (S144-A 회귀 검증) ===');
+  const v = profile.readyVisualState;
+  if (!v) {
+    console.log('  ✗ readyVisualState 캡처 실패 (BabylonEngine 변경 또는 ready 직전 throw)');
+  } else {
+    console.log(`  envTextureReady       : ${v.envTextureReady}`);
+    console.log(`  shadowMapReady        : ${v.shadowMapReady}`);
+    console.log(`  showcaseMeshReady     : ${v.showcaseMeshReady}`);
+    console.log(`  showcaseMaterialReady : ${v.showcaseMaterialReady}`);
+    console.log(`  showcaseMeshName      : ${v.showcaseMeshName}`);
+    const allTrue = v.envTextureReady === true && v.shadowMapReady === true
+      && v.showcaseMeshReady === true && v.showcaseMaterialReady === true;
+    if (allTrue) {
+      console.log('  ✓ 4개 모두 ready — 시각 회귀 위험 없음. S144-B skip 가능.');
+    } else {
+      console.log('  ⚠ 일부 not-ready — 첫 frame 시각 회귀 가능. S144-B 진행 권장.');
+    }
   }
 });
