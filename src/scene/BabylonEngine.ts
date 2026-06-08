@@ -389,6 +389,17 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
         cameraRig.camera.layerMask = 0xFFFFFFFF; // 메인은 모두 보임
 
         scene.activeCameras = [cameraRig.camera, gimbalCam];
+
+        // gimbal-viewport-rtt-fix plan — multi-camera 두 번째 cam(gimbal) render 직전 viewport 영역만 clear.
+        //   Babylon scene._clear (scene.pure.js L4287)는 frame 시작 한 번만 전체 clear.
+        //   multi-camera 두 번째 cam은 setViewport (L4039) + bindFrameBuffer (L4052) 만 하고 clear X
+        //   → main 픽셀이 viewport 안에 남아 alpha blend로 비침.
+        //   onBeforeCameraRenderObservable는 L4058 — setViewport _이후_ 호출 → 현재 viewport (gimbal 영역)만 clear.
+        scene.onBeforeCameraRenderObservable.add((cam) => {
+          if (cam === gimbalCam) {
+            scene.getEngine().clear(scene.clearColor, true, true, false);
+          }
+        });
       }
     } catch (e) {
       console.warn('createRobot failed:', e);
