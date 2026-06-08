@@ -390,14 +390,40 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
 
         scene.activeCameras = [cameraRig.camera, gimbalCam];
 
-        // gimbal-viewport-rtt-fix plan — multi-camera 두 번째 cam(gimbal) render 직전 viewport 영역만 clear.
-        //   Babylon scene._clear (scene.pure.js L4287)는 frame 시작 한 번만 전체 clear.
-        //   multi-camera 두 번째 cam은 setViewport (L4039) + bindFrameBuffer (L4052) 만 하고 clear X
-        //   → main 픽셀이 viewport 안에 남아 alpha blend로 비침.
-        //   onBeforeCameraRenderObservable는 L4058 — setViewport _이후_ 호출 → 현재 viewport (gimbal 영역)만 clear.
+        // gimbal-viewport-rtt-fix plan v2 — multi-camera 두 번째 cam render 직전 viewport 영역만 clear.
+        //
+        //   원인 (thinEngine.pure.js L737~785 직접 검증):
+        //     engine.clear() 의 gl.clear() 는 viewport와 무관, _전체 framebuffer_ clear.
+        //     이전 plan v1 (engine.clear만 호출) 은 main이 그린 픽셀 다 지움 → main 회색.
+        //
+        //   해결: WebGL scissor test 활성화 → gl.clear가 scissor 영역만 clear.
+        //     WebGL은 gl.enable(SCISSOR_TEST) + gl.scissor(x,y,w,h) 직접.
+        //     WebGPU/Native는 engine.enableScissor() / disableScissor() 메서드.
         scene.onBeforeCameraRenderObservable.add((cam) => {
-          if (cam === gimbalCam) {
-            scene.getEngine().clear(scene.clearColor, true, true, false);
+          if (cam !== gimbalCam) return;
+          const e = scene.getEngine();
+          const w = e.getRenderWidth();
+          const h = e.getRenderHeight();
+          const vp = gimbalCam.viewport;
+          // viewport.x/y/width/height 모두 [0,1] percent. y는 bottom-up (WebGL과 동일).
+          const sx = Math.round(vp.x * w);
+          const sy = Math.round(vp.y * h);
+          const sw = Math.round(vp.width * w);
+          const sh = Math.round(vp.height * h);
+          // WebGPU / Native: 메서드 사용
+          if (typeof (e as unknown as { enableScissor?: (x: number, y: number, w: number, h: number) => void }).enableScissor === 'function') {
+            const ee = e as unknown as { enableScissor: (x: number, y: number, w: number, h: number) => void; disableScissor: () => void };
+            ee.enableScissor(sx, sy, sw, sh);
+            e.clear(scene.clearColor, true, true, false);
+            ee.disableScissor();
+          } else {
+            // WebGL: gl 직접
+            const gl = (e as unknown as { _gl?: WebGL2RenderingContext })._gl;
+            if (!gl) return;
+            gl.enable(gl.SCISSOR_TEST);
+            gl.scissor(sx, sy, sw, sh);
+            e.clear(scene.clearColor, true, true, false);
+            gl.disable(gl.SCISSOR_TEST);
           }
         });
       }
