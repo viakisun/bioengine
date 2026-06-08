@@ -1,8 +1,8 @@
-// §19 — Phenotyping runtime controls.
+// §19/§21 — Phenotyping runtime controls.
 //
 // 좌하단 (적엽 slider 위) — Quality preset 1~10 + Plant count 0~max.
-//   - Quality 변경 시 RenderFX + Babylon scene apply.
-//   - Plant count 변경 시 runtimePlantApi의 setRuntimePlantCount.
+//   - Quality 변경 시 RenderFX patch → BabylonEngine subscribe가 applyRenderQuality 자동 호출.
+//   - Plant count 변경 시 PlantManager.setCount() — R1~R4 fix 자동 적용.
 
 import { useEffect, useState } from 'react';
 import { useTwinStore } from '../state/twinStore';

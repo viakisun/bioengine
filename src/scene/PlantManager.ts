@@ -112,9 +112,14 @@ export class PlantManager {
     return this.plants.length;
   }
 
-  /** boot 후 SceneInfrastructure에서 ctx.plants와 reference 공유용 (호환). S5에서 readonly로 좁힘. */
+  /** boot 후 SceneInfrastructure에서 plants array reference 공유용. */
   getPlants(): SkinMeshPlantHandle[] {
     return this.plants;
+  }
+
+  /** BabylonEngine boot 직후 SinglePlantOverlay register 주입 (PlantRefRegister callback 교체). */
+  setRegisterPlantRef(cb: PlantRefRegister): void {
+    this.opts.registerPlantRef = cb;
   }
 
   /** Geometry 최대 — slotOrder × activeBeds (showcase 1 제외). */

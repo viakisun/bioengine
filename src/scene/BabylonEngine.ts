@@ -16,7 +16,6 @@ import { useTwinStore, type LightingState } from '../state/twinStore';
 import { SCENARIO } from '../data/mockScenario';
 import { getSunState } from '@farmsim/tomato-engine';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
-import { ArcRotateCamera } from '@babylonjs/core/Cameras/arcRotateCamera';
 import { UniversalCamera } from '@babylonjs/core/Cameras/universalCamera';
 import { Viewport } from '@babylonjs/core/Maths/math.viewport';
 import { setShaderWindEnabled, isShaderWindEnabled } from './leaf/LeafMaterial';
@@ -318,39 +317,34 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
 
   mark('greenhouse_stage_begin');
   setBootStage('greenhouse', '온실 인프라 빌드 시작', 0);
+  // §21 — URL → SceneOptions 명시 변환 후 buildSceneInfrastructure에 전달.
+  //   outer scope에 두어 robot/quality 분기에서도 재사용.
+  const sceneOptions = resolveSceneOptions(
+    typeof location !== 'undefined' ? location.search : '',
+  );
   let greenhouse: SceneInfrastructureHandle | null = null;
   try {
-    // §21 — URL → SceneOptions 명시 변환 후 buildSceneInfrastructure에 전달.
-    const sceneOptions = resolveSceneOptions(
-      typeof location !== 'undefined' ? location.search : '',
-    );
     greenhouse = await buildSceneInfrastructure(scene, sceneOptions);
     mark('greenhouse_build_complete');
     setSinglePlantEngineRef(greenhouse.growthEngine);
     setSinglePlantSkinMeshRef(greenhouse.skinMeshPlant, 0);
     // §21 — PlantManager.registerPlantRef 주입 (runtime add 시 SinglePlantOverlay 등록).
-    if (greenhouse.plantManager) {
-      // PlantManager.opts.registerPlantRef를 외부 callback으로 교체 (S5에서 일관화).
-      (greenhouse.plantManager as unknown as { opts: { registerPlantRef: typeof setSinglePlantSkinMeshRef } }).opts.registerPlantRef = setSinglePlantSkinMeshRef;
-    }
+    greenhouse.plantManager?.setRegisterPlantRef(setSinglePlantSkinMeshRef);
     setActiveSceneHandle(greenhouse);
 
     // W2.e·f (§18) — 신규 Robot mesh (Babylon 9 스타일) — chassis + arm + effector.
-    //   통로 안 (z=-0.8, y=0.3 = 휠 위) · rail X = 0 (식물 정면).
+    //   §21 — URL parsing 대신 sceneOptions 사용. profile/traverse/gimbalView 모두 옵션에서.
     try {
-      const url = new URL(window.location.href);
-      const profileParam = url.searchParams.get('robotProfile');
-      const profile = profileParam === 'agv-arm' ? 'agv-arm' : 'phenotyping';
-      const robot = createRobot(scene, { z: -0.8, y: 0.3, x: 0, profile });
+      const robotOpts = sceneOptions.robot;
+      const profile = robotOpts.profile === 'none' ? 'agv-arm' : robotOpts.profile;
+      const robot = createRobot(scene, { z: -0.8, y: 0.3, x: robotOpts.startX, profile });
 
-      // 사용자 요청 (2026-06-08) — URL `?robotTraverse=1` 시 레일 ping-pong 주행.
-      // ±14m 끝, 0.3 m/s, 경계 도달 시 반전.
-      // Phenotyping: 가는 방향 (+X)에는 좌측(Z+) 베드 촬영,
-      //              오는 방향 (-X)에는 우측(Z-) 베드 촬영.
-      if (url.searchParams.get('robotTraverse') === '1') {
-        const TRAVERSE_RANGE = 14;
-        const TRAVERSE_SPEED = 0.3;
-        let railX = 0;
+      // 레일 ping-pong 주행 — robot.traverseEnabled 시 활성.
+      // Phenotyping: 가는 방향 (+X) 좌측(Z+) 베드, 오는 방향 (-X) 우측(Z-) 베드 촬영.
+      if (robotOpts.traverseEnabled) {
+        const TRAVERSE_RANGE = robotOpts.traverseRangeM;
+        const TRAVERSE_SPEED = robotOpts.traverseSpeedMps;
+        let railX = robotOpts.startX;
         let dir = 1;
         robot.setGimbalLookSide('left');
         scene.onBeforeRenderObservable.add(() => {
@@ -370,9 +364,8 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
       }
 
       // §19 phenotyping — 짐벌 카메라 mini-viewport (좌상단 384×288 @ 1600×900).
-      //   ?gimbalView=1 시 활성. UniversalCamera + parent=gimbalPivot.
-      //   pivot이 traverse 중 robot과 함께 X 이동 + pan 회전 → camera world position·forward 자동 갱신.
-      if (profile === 'phenotyping' && url.searchParams.get('gimbalView') === '1') {
+      //   robotOpts.gimbalView 시 활성. UniversalCamera + parent=gimbalPivot.
+      if (profile === 'phenotyping' && robotOpts.gimbalView) {
         // Lens mesh가 pivot 앞 z=0.1에 있음 → cam을 z=0.18로 옮겨서 lens가 cam 뒤로 빠지게.
         //   추가로 minZ=0.1로 올려 lens body 자체도 near plane으로 clip.
         const gimbalCam = new UniversalCamera(
@@ -396,24 +389,6 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
         cameraRig.camera.layerMask = 0xFFFFFFFF; // 메인은 모두 보임
 
         scene.activeCameras = [cameraRig.camera, gimbalCam];
-
-        // 진단 — 매 60 frame마다 robot · pivot · cam world position 차이 출력.
-        //   ArcRotateCamera vs UniversalCamera 의심 검증용. log namespace = engine.
-        let diagFrame = 0;
-        scene.onBeforeRenderObservable.add(() => {
-          if (++diagFrame % 60 !== 0) return;
-          const rootPos = robot.root.position;
-          const pivotAbs = robot.gimbalPivot.absolutePosition;
-          const camAbs = gimbalCam.globalPosition;
-          // forward direction: camera → target. UniversalCamera에는 getForwardRay() 있음.
-          const fwd = gimbalCam.getForwardRay().direction;
-          log.debug(
-            `[gimbalDiag] root=(${rootPos.x.toFixed(2)},${rootPos.y.toFixed(2)},${rootPos.z.toFixed(2)}) ` +
-              `pivot=(${pivotAbs.x.toFixed(2)},${pivotAbs.y.toFixed(2)},${pivotAbs.z.toFixed(2)}) ` +
-              `cam=(${camAbs.x.toFixed(2)},${camAbs.y.toFixed(2)},${camAbs.z.toFixed(2)}) ` +
-              `fwd=(${fwd.x.toFixed(2)},${fwd.y.toFixed(2)},${fwd.z.toFixed(2)})`,
-          );
-        });
       }
     } catch (e) {
       console.warn('createRobot failed:', e);
@@ -439,18 +414,12 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
   if (sceneSetup) {
     setBootStage('quality', '렌더 품질 적용', 0);
     try {
-      // §19 phenotyping — URL `?qualityPreset=N` 으로 RenderFX preset 강제 (mode default override).
-      //   N=1 (Minimum, shadow off, MSAA 1, hardware 0.5x) 권장 — 270 plant 부담 ↓.
-      try {
-        const presetParam = new URL(window.location.href).searchParams.get('qualityPreset');
-        if (presetParam) {
-          const n = Number.parseInt(presetParam, 10);
-          if (Number.isFinite(n) && QUALITY_PRESETS[n]) {
-            useTwinStore.getState().setRenderFX(QUALITY_PRESETS[n].fx);
-            logBoot('log', `quality: preset ${n} (${QUALITY_PRESETS[n].label}) 강제 적용`);
-          }
-        }
-      } catch { /* URL 미지원 환경 무시 */ }
+      // §21 — sceneOptions.qualityPreset (URL ?qualityPreset=N 에서 옴) 으로 RenderFX preset 강제.
+      //   N=1 (Minimum, shadow off, MSAA 1, hardware 0.5x) 권장 — 130 plant 부담 ↓.
+      if (sceneOptions.qualityPreset !== null && QUALITY_PRESETS[sceneOptions.qualityPreset]) {
+        useTwinStore.getState().setRenderFX(QUALITY_PRESETS[sceneOptions.qualityPreset].fx);
+        logBoot('log', `quality: preset ${sceneOptions.qualityPreset} (${QUALITY_PRESETS[sceneOptions.qualityPreset].label}) 강제 적용`);
+      }
       applyRenderQuality(scene, sceneSetup, engine, useTwinStore.getState().renderFX);
       logBoot('log', 'quality: 렌더 품질 적용 완료');
     } catch (err) {

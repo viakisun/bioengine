@@ -3,7 +3,7 @@
 // 우상단 (TaskPanel 위쪽 또는 헤더 아래) — 매 1초 갱신.
 //   - JS Heap: used / total / limit + bar (Chrome `performance.memory`)
 //   - Babylon: mesh count, drawCalls (rough), active vertices
-//   - Plant count: runtimePlantApi
+//   - Plant count: PlantManager (getActivePlantManager)
 //
 // 좌하단의 PhenotypingControls와 짝 — 사용자가 plant/quality 조정 시 변화 실시간 확인.
 
