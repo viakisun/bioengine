@@ -7,13 +7,7 @@
 import { useEffect, useState } from 'react';
 import { useTwinStore } from '../state/twinStore';
 import { QUALITY_PRESETS } from '../scene/RenderQuality';
-import {
-  getRuntimePlantCount,
-  getRuntimePlantMaxCount,
-  getRuntimePlantSafeMaxCount,
-  getRuntimeAvgKBPerPlant,
-  setRuntimePlantCount as setPlantCount,
-} from '../scene/runtimePlantApi';
+import { getActivePlantManager, type SafeMaxStatus } from '../scene/PlantManager';
 import { FONT_MONO, C_FG, C_FG_MUTE, C_BORDER, C_ACCENT } from './single-plant/styles';
 
 interface PhenotypingControlsProps {
@@ -47,24 +41,31 @@ export function PhenotypingControls({ initialQuality = 1 }: PhenotypingControlsP
   const [plantSafeMax, setPlantSafeMax] = useState(0);
   const [plantGeomMax, setPlantGeomMax] = useState(0);
   const [avgKBPerPlant, setAvgKB] = useState(0);
+  const [safeStatus, setSafeStatus] = useState<SafeMaxStatus>('ok');
+  const [statusReason, setStatusReason] = useState<string | undefined>(undefined);
+  const [abortReason, setAbortReason] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const setRenderFX = useTwinStore((s) => s.setRenderFX);
 
   useEffect(() => {
     let prev = -1;
     const id = setInterval(() => {
-      const cur = getRuntimePlantCount();
-      const geom = getRuntimePlantMaxCount();
-      const safe = getRuntimePlantSafeMaxCount(0.7);
-      const avgKB = getRuntimeAvgKBPerPlant();
+      const mgr = getActivePlantManager();
+      if (!mgr) return;
+      const cur = mgr.getCount();
+      const geom = mgr.getGeomMax();
+      const safe = mgr.getSafeMax();
+      const avgKB = mgr.getAvgKBPerPlant();
       setPlantCountState(cur);
       setPlantGeomMax(geom);
-      setPlantSafeMax(safe);
+      setPlantSafeMax(safe.value);
+      setSafeStatus(safe.status);
+      setStatusReason(safe.reason);
       setAvgKB(avgKB);
       if (geom !== prev) {
         prev = geom;
         // eslint-disable-next-line no-console
-        console.log(`[PhenotypingControls] ctx: cur=${cur} safe=${safe} geom=${geom} avg=${avgKB.toFixed(0)}KB/plant`);
+        console.log(`[PhenotypingControls] ctx: cur=${cur} safe=${safe.value} (${safe.status}) geom=${geom} avg=${avgKB.toFixed(0)}KB/plant`);
       }
     }, 500);
     return () => clearInterval(id);
@@ -80,10 +81,14 @@ export function PhenotypingControls({ initialQuality = 1 }: PhenotypingControlsP
 
   async function onPlantCountChange(target: number) {
     if (busy) return;
+    const mgr = getActivePlantManager();
+    if (!mgr) return;
     setBusy(true);
+    setAbortReason(null);
     try {
-      await setPlantCount(target, {
+      await mgr.setCount(target, {
         onProgress: (cur) => setPlantCountState(cur),
+        onAbort: (_cur, _tgt, reason) => setAbortReason(reason),
       });
     } finally {
       setBusy(false);
@@ -131,6 +136,24 @@ export function PhenotypingControls({ initialQuality = 1 }: PhenotypingControlsP
           </span>
         </span>
       </div>
+
+      {/* §21 — status·abort 라벨 (R1/R4 가시성) */}
+      {(safeStatus !== 'ok' || abortReason) && (
+        <div
+          style={{
+            fontSize: 10,
+            fontFamily: FONT_MONO,
+            color: safeStatus === 'at-limit' || abortReason ? '#dc2626' : '#d97706',
+            padding: '2px 8px',
+            background: 'rgba(255,255,255,0.6)',
+            borderRadius: 4,
+            marginTop: -2,
+            width: 280,
+          }}
+        >
+          {abortReason ?? statusReason ?? (safeStatus === 'near-limit' ? 'heap near 60%' : '')}
+        </div>
+      )}
 
       {/* Quality bar */}
       <div style={CHIP_STYLE}>

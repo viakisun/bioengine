@@ -8,7 +8,7 @@
 // 좌하단의 PhenotypingControls와 짝 — 사용자가 plant/quality 조정 시 변화 실시간 확인.
 
 import { useEffect, useState } from 'react';
-import { getRuntimePlantCount, getRuntimePlantMaxCount } from '../scene/runtimePlantApi';
+import { getActivePlantManager } from '../scene/PlantManager';
 import { getSinglePlantSkinMesh } from './single-plant/useSinglePlantState';
 import { FONT_MONO, C_FG, C_FG_MUTE, C_BORDER, C_ACCENT } from './single-plant/styles';
 
@@ -66,8 +66,8 @@ function snapshot(): MemorySnapshot {
     totalVertices,
     drawCalls,
     fps,
-    plantCount: getRuntimePlantCount(),
-    plantMax: getRuntimePlantMaxCount(),
+    plantCount: getActivePlantManager()?.getCount() ?? 0,
+    plantMax: getActivePlantManager()?.getGeomMax() ?? 0,
   };
 }
 

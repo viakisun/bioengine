@@ -25,7 +25,6 @@ import { setShaderWindEnabled, isShaderWindEnabled } from './leaf/LeafMaterial';
 import { installDockingOverlayHotkey } from './dockingOverlay/hotkeyToggle';
 import { setBootStage, logBoot, setEnvInfo, setEnvCounters, notify } from '../state/notify';
 import { setSinglePlantEngineRef, setSinglePlantSkinMeshRef, setCameraRigRef } from '../hud/single-plant/useSinglePlantState';
-import { setRuntimePlantRefRegister } from './runtimePlantApi';
 import { setActiveSceneHandle } from './PlantManager';
 import { createRobot } from './robot/Robot';
 import { createLogger } from '../utils/logger';
@@ -329,8 +328,7 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
     mark('greenhouse_build_complete');
     setSinglePlantEngineRef(greenhouse.growthEngine);
     setSinglePlantSkinMeshRef(greenhouse.skinMeshPlant, 0);
-    // §19/§21 — PlantManager.registerPlantRef + runtimePlantApi ctx register 둘 다 주입 (호환).
-    setRuntimePlantRefRegister(setSinglePlantSkinMeshRef);
+    // §21 — PlantManager.registerPlantRef 주입 (runtime add 시 SinglePlantOverlay 등록).
     if (greenhouse.plantManager) {
       // PlantManager.opts.registerPlantRef를 외부 callback으로 교체 (S5에서 일관화).
       (greenhouse.plantManager as unknown as { opts: { registerPlantRef: typeof setSinglePlantSkinMeshRef } }).opts.registerPlantRef = setSinglePlantSkinMeshRef;

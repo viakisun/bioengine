@@ -14,8 +14,7 @@ import { logBoot, updateStageDetail } from '../state/notify';
 import { createSkinMeshPlant, type SkinMeshPlantHandle } from './SkinMeshPlant';
 import { createCocopeatBags } from './greenhouse/CocopeatBags';
 import { getActiveMode } from '../modes/activeMode';
-import { setRuntimePlantContext, computeSlotOrder } from './runtimePlantApi';
-import { PlantManager } from './PlantManager';
+import { PlantManager, computeSlotOrder } from './PlantManager';
 import {
   resolveSceneOptions,
   type SceneOptions,
@@ -233,26 +232,8 @@ export async function buildSceneInfrastructure(scene: Scene, options?: SceneOpti
     const totalS = (performance.now() - t0Total) / 1000;
     logBoot('log', `[phenotyping] boot DONE — ${plantManager.getCount()}/${totalMax} (slider로 늘림) · ${totalS.toFixed(1)}s`);
 
-    // extraPlants는 manager의 plants array reference 공유 (runtime ctx.plants와 동일).
+    // extraPlants는 manager의 plants array reference 공유.
     extraPlants = plantManager.getPlants();
-
-    // 호환 — 기존 runtimePlantApi.ctx 등록 (PhenotypingControls·MemoryStats가 S5 전까지 의존).
-    setRuntimePlantContext({
-      scene,
-      growthEngine,
-      bedZPositions,
-      activeBedIndices,
-      stride: bedLayout.stride,
-      showcaseSlot: SHOWCASE_SLOT,
-      mainBedIdx,
-      substrateTopY: SUBSTRATE_TOP_Y,
-      seedBase: SHOWCASE_SEED,
-      plants: extraPlants,
-      slotOrder,
-      registerPlantRef: () => {},
-      heapAtCtxStartBytes: heap0,
-      initialPlantCount: plantManager.getCount(),
-    });
   } else {
     // Legacy: ?extraPlants=N stride 분산. opts.extraPlants 우선, 없으면 mode default.
     const extraN = opts.extraPlants ?? (getActiveMode().quality.extraPlants ?? 0);

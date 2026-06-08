@@ -34,6 +34,11 @@ import type { ScenarioSpec } from '../../scenarios/types';
 import { getScenarioById } from '../../scenarios/loader';
 import { createLogger } from '../../utils/logger';
 import {
+  DEFAULT_SCENE_OPTIONS,
+  scenarioToOptions,
+  serializeSceneOptions,
+} from '../../scene/sceneOptions';
+import {
   applyTargetOutline,
   clearAllHighlights,
   extractTrussOrdinalFromTarget,
@@ -155,10 +160,9 @@ export function Workbench() {
       `Scenario loaded: ${s.id} (day=${s.crop.day}→minute=${minute}, seed=${s.crop.seed}, hour=${s.env.manualHour}, autoCam=${autoCam})`,
     );
 
-    // §19 phenotyping — 베드 layout · 적엽 · gimbal view · traverse 모두 boot time URL param.
-    //   현재 boot 후 runtime rebuild 불가 → URL push + reload.
+    // §21 — phenotyping 시나리오 진입은 SceneOptions 직렬화로 URL push + reload.
+    //   기존 hand-rolled URL params → serializeSceneOptions (sceneOptions.ts) 단일 함수.
     if (s.domain === 'phenotyping' && s.world.bedLayout) {
-      // 적엽 값 store 동기
       const cult = s.crop.cultivation;
       if (cult) {
         useTwinStore.getState().setDefoliationHeightCm(cult.deleafHeightCm ?? 0);
@@ -167,22 +171,13 @@ export function Workbench() {
       const already =
         cur.searchParams.get('scenario') === s.id &&
         cur.searchParams.get('bedLayout') &&
-        cur.searchParams.get('activeBedIds') &&
-        cur.searchParams.get('robotProfile') === (s.robot?.profile ?? 'phenotyping');
+        cur.searchParams.get('activeBedIds');
       if (already) return;
 
-      const layout = s.world.bedLayout;
-      const activeBedIds = (s.world.activeBeds ?? []).join(',');
-      const params = new URLSearchParams();
+      // SceneOptions 합성 — default + scenarioToOptions(s).
+      const merged = { ...DEFAULT_SCENE_OPTIONS, ...scenarioToOptions(s) };
+      const params = serializeSceneOptions(merged);
       params.set('mode', 'workbench');
-      params.set('scenario', s.id);
-      params.set('bedLayout', `${layout.leftCols}-${layout.rightCols}-${layout.stride}`);
-      params.set('activeBedIds', activeBedIds);
-      params.set('robotProfile', s.robot?.profile ?? 'phenotyping');
-      params.set('robotTraverse', '1');
-      params.set('gimbalView', '1');
-      // §19 — phenotyping은 RenderQuality preset 1 (Minimum) 강제 — shadow off · MSAA 1 · hw scale 0.5.
-      params.set('qualityPreset', '1');
       window.location.href = `${cur.pathname}?${params.toString()}`;
     }
   }
