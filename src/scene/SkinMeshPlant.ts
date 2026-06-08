@@ -246,6 +246,7 @@ export function createSkinMeshPlant(
   // Iter 26 PR 4-1 — cached graph for semantic overlay refresh on toggle.
   let lastGraph: import('../plant/skeleton/SkeletonEngine').PlantSkeletonGraph | null = null;
   let lastBuildDay = -999;
+  let lastDefoliationHeightCm = -1;
   const REBUILD_THRESHOLD_DAYS = 0.5;
 
   const highlight = new HighlightLayer('skinplant_hl', scene);
@@ -1062,8 +1063,13 @@ export function createSkinMeshPlant(
           `skinplant.update(day=${day.toFixed(2)}, physiology=${physiology ? 'yes' : 'no'})`,
         );
       }
-      if (!physiology && Math.abs(day - lastBuildDay) < REBUILD_THRESHOLD_DAYS) return;
+      // 사용자 보고 (2026-06-08) — 적엽 변경 시 extras(physiology 없음)도 rebuild 강제.
+      //   day 변화 없으면 skip하던 cache를 defoliationHeightCm 변경 시 무효화.
+      const curDefol = useTwinStore.getState().defoliationHeightCm;
+      const defolChanged = curDefol !== lastDefoliationHeightCm;
+      if (!physiology && !defolChanged && Math.abs(day - lastBuildDay) < REBUILD_THRESHOLD_DAYS) return;
       lastBuildDay = day;
+      lastDefoliationHeightCm = curDefol;
       let state = engine.computeState(seed, day);
       if (physiology) {
         state = overlayPhysiologyFruits(state, physiology);

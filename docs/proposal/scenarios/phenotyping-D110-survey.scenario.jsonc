@@ -24,7 +24,7 @@
     "seed": "0xD110",
     "cultivar": "tomimaru",
     "cultivation": {
-      "deleafHeightCm": 0,
+      "deleafHeightCm": 80,
       "deleafMaxCm": 80,
       "deleafEnabled": true
     }
