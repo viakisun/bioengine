@@ -15,6 +15,11 @@ import { createSkinMeshPlant, type SkinMeshPlantHandle } from './SkinMeshPlant';
 import { createCocopeatBags } from './greenhouse/CocopeatBags';
 import { getActiveMode } from '../modes/activeMode';
 import { setRuntimePlantContext, computeSlotOrder } from './runtimePlantApi';
+import { PlantManager } from './PlantManager';
+import {
+  resolveSceneOptions,
+  type SceneOptions,
+} from './sceneOptions';
 import {
   createGreenhouseBuilding,
   defaultBedZPositions,
@@ -46,66 +51,27 @@ export interface SceneInfrastructureHandle {
   skinMeshPlant: SkinMeshPlantHandle;
   /** ★ S118 — multi-plant 추가 (포트 건너뛰며 심기). */
   extraPlants: SkinMeshPlantHandle[];
+  /** §21 — PlantManager 인스턴스 (bedLayout 모드에서만 생성). runtime add/remove. */
+  plantManager: PlantManager | null;
+  /** §21 — boot 시 사용된 SceneOptions (S4 update의 base). */
+  sceneOptions: SceneOptions;
 }
 
-/** ★ S136-B — Active mode quality.extraPlants 우선, URL이 override.
- *  greenhouse mode default: 14 plants, single-plant: 0.
- *  URL `?extraPlants=N` (0~89) 있으면 mode 무시 (debug 용). */
-function resolveExtraPlantCount(): number {
-  if (typeof location !== 'undefined') {
-    const param = new URLSearchParams(location.search).get('extraPlants');
-    if (param !== null) {
-      const n = Number.parseInt(param, 10);
-      if (Number.isFinite(n) && n >= 0 && n <= 89) return n;
-    }
-  }
-  // Active mode quality config 우선
-  return getActiveMode().quality.extraPlants ?? 0;
+// §21 — URL parsing은 resolveSceneOptions (sceneOptions.ts) 으로 통합. 기존 6개 resolveXxx 제거.
+
+/**
+ * §21 S3 — buildScene 신규 진입점.
+ *   기존 buildSceneInfrastructure는 alias로 유지 (S5에서 호출 site 갱신).
+ *   options 미지정 시 URL 자동 resolve (legacy 호환).
+ */
+export async function buildScene(scene: Scene, options?: SceneOptions): Promise<SceneInfrastructureHandle> {
+  return buildSceneInfrastructure(scene, options);
 }
 
-function resolveActiveBedCount(): number {
-  if (typeof location !== 'undefined') {
-    const param = new URLSearchParams(location.search).get('activeBeds');
-    if (param !== null) {
-      const n = Number.parseInt(param, 10);
-      if (Number.isFinite(n) && n >= 1 && n <= 13) return n;
-    }
-  }
-  return 3;
-}
-
-/** §19 phenotyping — `?activeBedIds=4,5,6,7,8,9` 직접 지정 (priority over count). */
-function resolveActiveBedIds(totalBeds: number): number[] | null {
-  if (typeof location === 'undefined') return null;
-  const param = new URLSearchParams(location.search).get('activeBedIds');
-  if (!param) return null;
-  const ids = param
-    .split(',')
-    .map((s) => Number.parseInt(s.trim(), 10))
-    .filter((n) => Number.isFinite(n) && n >= 0 && n < totalBeds);
-  return ids.length > 0 ? ids.sort((a, b) => a - b) : null;
-}
-
-/** §19 phenotyping — `?bedLayout=L-R-S` (leftCols-rightCols-stride). */
-function resolveBedLayout(): { leftCols: number; rightCols: number; stride: number } | null {
-  if (typeof location === 'undefined') return null;
-  const param = new URLSearchParams(location.search).get('bedLayout');
-  if (!param) return null;
-  const parts = param.split('-').map((s) => Number.parseInt(s.trim(), 10));
-  if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n) || n < 0)) return null;
-  return { leftCols: parts[0], rightCols: parts[1], stride: Math.max(1, parts[2]) };
-}
-
-/** §19 — `?initialPlants=N` (boot 시 phenotyping plant 개수). default 30. */
-function resolveInitialPlants(): number {
-  if (typeof location === 'undefined') return 30;
-  const param = new URLSearchParams(location.search).get('initialPlants');
-  if (param === null) return 30;
-  const n = Number.parseInt(param, 10);
-  return Number.isFinite(n) && n >= 0 ? n : 30;
-}
-
-export async function buildSceneInfrastructure(scene: Scene): Promise<SceneInfrastructureHandle> {
+export async function buildSceneInfrastructure(scene: Scene, options?: SceneOptions): Promise<SceneInfrastructureHandle> {
+  const opts: SceneOptions = options ?? resolveSceneOptions(
+    typeof location !== 'undefined' ? location.search : '',
+  );
   updateStageDetail('바닥', 0.03);
   logBoot('log', 'scene: 바닥 mesh');
 
@@ -130,14 +96,13 @@ export async function buildSceneInfrastructure(scene: Scene): Promise<SceneInfra
   const bedZPositions = defaultBedZPositions();
   const aisleZPositions = defaultAisleZPositions();
   const mainBedIdx = Math.floor(bedZPositions.length / 2);  // center bed
-  // §19 phenotyping — URL `?activeBedIds=4,5,6,7,8,9` 우선, 없으면 기존 `?activeBeds=count`.
-  const explicitBedIds = resolveActiveBedIds(bedZPositions.length);
-  const activeBedIndices = explicitBedIds ?? activeBedsAroundMain(
+  // §21 — opts 우선. 미지정 시 activeBedCount 기반 default.
+  const activeBedIndices = opts.activeBedIndices ?? activeBedsAroundMain(
     mainBedIdx,
-    resolveActiveBedCount(),
+    opts.activeBedCount,
     bedZPositions.length,
   );
-  const bedLayout = resolveBedLayout();
+  const bedLayout = opts.bedLayout;
   createGreenhouseBuilding(scene, {
     bedZPositions,
     activePlantBedIndices: activeBedIndices,
@@ -209,8 +174,7 @@ export async function buildSceneInfrastructure(scene: Scene): Promise<SceneInfra
   await new Promise((r) => requestAnimationFrame(() => r(null)));
   // ★ S138 — showcase는 default 'high'. §19 phenotyping은 'medium' (truss·fruit 보이도록).
   //   'low'는 truss(꽃/과실) skip 되어 토마토 안 보임.
-  const bedLayoutEarly = resolveBedLayout();
-  const showcaseQuality = bedLayoutEarly ? 'medium' : 'high';
+  const showcaseQuality = bedLayout ? 'medium' : 'high';
   const t0 = performance.now();
   const skinMeshPlant = createSkinMeshPlant(scene, growthEngine, SHOWCASE_SEED, skinPos, { quality: showcaseQuality });
   skinMeshPlant.setVisible(true);
@@ -219,23 +183,35 @@ export async function buildSceneInfrastructure(scene: Scene): Promise<SceneInfra
   updateStageDetail('SkinMesh 빌드 (showcase) 완료', 0.65);
   await new Promise((r) => requestAnimationFrame(() => r(null)));
 
-  // ★ S136-C / §19 — Extras 배치.
-  //   bedLayout 모드 (phenotyping): 좌·우 분리 + hole stride. 활성 베드 모두 채움.
-  //   legacy 모드: ?extraPlants=N 기반 stride 분산.
+  // ★ S136-C / §19 / §21 — Extras 배치.
+  //   bedLayout 모드: PlantManager + buildInitial (S2/S3).
+  //   legacy 모드: ?extraPlants=N 기반 stride 분산 (변경 없음).
   const extraQuality = getActiveMode().quality.level;
-  const extraPlants: SkinMeshPlantHandle[] = [];
+  let extraPlants: SkinMeshPlantHandle[] = [];
+  let plantManager: PlantManager | null = null;
   const SHOWCASE_SLOT = 45;
 
   if (bedLayout) {
-    // §19 phenotyping — boot 시 적은 수(default 30)만 빌드, 나머지는 PhenotypingControls 슬라이더로 runtime 추가.
-    //   slotOrder = center-out (slot 45 → ±stride → ±2*stride). 로봇 통로 가운데부터 분포.
-    //   순서: round 0에서 각 active bed slot 45 → round 1 각 bed slot 45-stride → ...
+    // §21 — PlantManager + buildInitial (center-out round-robin, R1~R4 fix 캡슐화).
     const slotOrder = computeSlotOrder(bedLayout.stride);
     const totalMax = slotOrder.length * activeBedIndices.length - 1;
-    const initialN = Math.min(resolveInitialPlants(), totalMax);
-    const buildTimesMs: number[] = [];
+    const initialN = Math.min(opts.initialPlantCount, totalMax);
+
+    plantManager = new PlantManager(scene, growthEngine, {
+      bedZPositions,
+      activeBedIndices,
+      slotOrder,
+      mainBedIdx,
+      showcaseSlot: SHOWCASE_SLOT,
+      substrateTopY: SUBSTRATE_TOP_Y,
+      seedBase: SHOWCASE_SEED,
+      plantQuality: 'medium',
+      // registerPlantRef는 BabylonEngine boot 후 주입 (setRuntimePlantRefRegister 흐름 유지).
+      registerPlantRef: () => {},
+    });
+
     const t0Total = performance.now();
-    const perfMem = (performance as unknown as { memory?: { usedJSHeapSize: number; totalJSHeapSize: number; jsHeapSizeLimit: number } }).memory;
+    const perfMem = (performance as unknown as { memory?: { usedJSHeapSize: number; jsHeapSizeLimit: number } }).memory;
     const heap0 = perfMem?.usedJSHeapSize ?? 0;
     const heapLimit = perfMem?.jsHeapSizeLimit ?? 0;
     logBoot(
@@ -243,41 +219,20 @@ export async function buildSceneInfrastructure(scene: Scene): Promise<SceneInfra
       `[phenotyping] boot: initial=${initialN}/${totalMax} plants · heap=${(heap0 / 1024 / 1024).toFixed(1)}MB / limit=${(heapLimit / 1024 / 1024).toFixed(0)}MB · 나머지는 slider`,
     );
 
-    let placedIdx = 0;
-    let virtIdx = 0; // slotOrder × beds 순회 인덱스 (showcase skip 시 +1)
-    while (placedIdx < initialN) {
-      const beds = activeBedIndices.length;
-      const round = Math.floor(virtIdx / beds);
-      if (round >= slotOrder.length) break;
-      const bedIdx = activeBedIndices[virtIdx % beds];
-      const slot = slotOrder[round];
-      virtIdx++;
-      if (bedIdx === mainBedIdx && slot === SHOWCASE_SLOT) continue;
-      const spec = SCENARIO.plants[slot];
-      if (!spec) continue;
-      const seed = SHOWCASE_SEED + bedIdx * 100000 + slot * 1009;
-      growthEngine.addPlant({ seed, cultivarName: 'tomimaru-muchoo' });
-      const pos = new Vector3(spec.position[0], SUBSTRATE_TOP_Y, bedZPositions[bedIdx]);
-      const tPlant0 = performance.now();
-      const plant = createSkinMeshPlant(scene, growthEngine, seed, pos, { quality: 'medium' });
-      plant.setVisible(true);
-      buildTimesMs.push(performance.now() - tPlant0);
-      extraPlants.push(plant);
-      placedIdx++;
-      if (placedIdx % 4 === 0 || placedIdx === initialN) {
-        const elapsed = (performance.now() - t0Total) / 1000;
-        updateStageDetail(`phenotyping ${placedIdx}/${initialN}`, 0.65 + 0.3 * (placedIdx / Math.max(1, initialN)));
-        if (placedIdx % 8 === 0) {
-          const avgMs = buildTimesMs.reduce((a, b) => a + b, 0) / buildTimesMs.length;
-          const heapNow = perfMem?.usedJSHeapSize ?? 0;
-          logBoot('log', `[phenotyping] ${placedIdx}/${initialN} · avg=${avgMs.toFixed(0)}ms · heap+${((heapNow - heap0) / 1024 / 1024).toFixed(1)}MB · ${elapsed.toFixed(0)}s`);
-        }
-        await new Promise((r) => requestAnimationFrame(() => r(null)));
+    await plantManager.buildInitial(initialN, (placed, target, lastMs, heapDeltaMB) => {
+      updateStageDetail(`phenotyping ${placed}/${target}`, 0.65 + 0.3 * (placed / Math.max(1, target)));
+      if (placed % 8 === 0) {
+        logBoot('log', `[phenotyping] ${placed}/${target} · last=${lastMs.toFixed(0)}ms · heap+${heapDeltaMB.toFixed(1)}MB`);
       }
-    }
-    const totalS = (performance.now() - t0Total) / 1000;
-    logBoot('log', `[phenotyping] boot DONE — ${placedIdx}/${totalMax} (slider로 늘림) · ${totalS.toFixed(1)}s`);
+    });
 
+    const totalS = (performance.now() - t0Total) / 1000;
+    logBoot('log', `[phenotyping] boot DONE — ${plantManager.getCount()}/${totalMax} (slider로 늘림) · ${totalS.toFixed(1)}s`);
+
+    // extraPlants는 manager의 plants array reference 공유 (runtime ctx.plants와 동일).
+    extraPlants = plantManager.getPlants();
+
+    // 호환 — 기존 runtimePlantApi.ctx 등록 (PhenotypingControls·MemoryStats가 S5 전까지 의존).
     setRuntimePlantContext({
       scene,
       growthEngine,
@@ -292,11 +247,11 @@ export async function buildSceneInfrastructure(scene: Scene): Promise<SceneInfra
       slotOrder,
       registerPlantRef: () => {},
       heapAtCtxStartBytes: heap0,
-      initialPlantCount: placedIdx,
+      initialPlantCount: plantManager.getCount(),
     });
   } else {
-    // Legacy: ?extraPlants=N stride 분산.
-    const extraN = resolveExtraPlantCount();
+    // Legacy: ?extraPlants=N stride 분산. opts.extraPlants 우선, 없으면 mode default.
+    const extraN = opts.extraPlants ?? (getActiveMode().quality.extraPlants ?? 0);
     const plantsPerBed = Math.max(1, Math.ceil(extraN / activeBedIndices.length));
     const stride = Math.max(1, Math.floor(90 / plantsPerBed));
     let extraIdx = 0;
@@ -328,6 +283,8 @@ export async function buildSceneInfrastructure(scene: Scene): Promise<SceneInfra
     growthEngine,
     skinMeshPlant,
     extraPlants,
+    plantManager,
+    sceneOptions: opts,
   };
 }
 

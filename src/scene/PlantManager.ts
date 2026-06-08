@@ -97,7 +97,8 @@ export class PlantManager {
     return this.plants.length;
   }
 
-  getPlants(): readonly SkinMeshPlantHandle[] {
+  /** boot 후 SceneInfrastructure에서 ctx.plants와 reference 공유용 (호환). S5에서 readonly로 좁힘. */
+  getPlants(): SkinMeshPlantHandle[] {
     return this.plants;
   }
 
