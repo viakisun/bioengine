@@ -1,0 +1,20 @@
+{
+  // S1.g — 후기 생육 다중 화방 동시 적과 (최난이도 적과).
+  "id": "thin-D90-multi-truss",
+  "version": "1.0",
+  "domain": "thinning",
+  "consumableBy": ["Workbench"],
+  "world": { "greenhouseConfig": "default-24x34-13beds", "activeBeds": [3], "plantPlacement": "single-plant-D90" },
+  "crop": { "day": 90, "seed": "0x9101", "cultivar": "tomimaru" },
+  "env": { "manualHour": 11, "lightingPreset": "default", "wind": { "strength": 0.0, "direction": [0, 0, 0] } },
+  "robot": { "model": "via-agv-6dof-v1", "startPose": { "rail": "aisle-3", "x": 4.2 }, "endEffector": "thinning-cutter" },
+  "task": { "type": "thinning-decision", "speedMps": 0, "decisionTriggers": ["fruit-detected"], "targets": "truss>=3 && truss<=5 && (diameterMm < 12 || occlusion > 0.4)", "rule": "화방 3~5에서 작거나 가린 과실 제거" },
+  "verify": {
+    "successCriteria": [
+      { "metric": "decision-accuracy", "min": 0.80 },
+      { "metric": "reachability-rate", "min": 0.85 },
+      { "metric": "task-completion-time", "max": 90 }
+    ]
+  },
+  "meta": { "parentId": null, "createdBy": "via-pm", "createdAt": "2026-06-06T10:00:00Z", "description": "후기 다중 화방 적과." }
+}

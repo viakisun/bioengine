@@ -14,6 +14,7 @@ import { logBoot, updateStageDetail } from '../state/notify';
 import { createSkinMeshPlant, type SkinMeshPlantHandle } from './SkinMeshPlant';
 import { createCocopeatBags } from './greenhouse/CocopeatBags';
 import { getActiveMode } from '../modes/activeMode';
+import { setRuntimePlantContext, computeSlotOrder } from './runtimePlantApi';
 import {
   createGreenhouseBuilding,
   defaultBedZPositions,
@@ -23,22 +24,9 @@ import {
 import { createBedStands } from './greenhouse/BedStands';
 import { createTubeRail } from './greenhouse/TubeRail';
 
-/** Showcase seed — Iter 33 V1 baseline tomato plant.
- *  ★ S116 — URL `?seed=N` override 지원. 사용자: 동일 seed 매 view → "main stem 하드코딩 인상".
- *  Override 시 different genome → different sway phase/amp → different stem curve.
- *  e.g. localhost:8090?seed=42, ?seed=999 비교 가능. Test/snapshot은 default 그대로. */
-const SHOWCASE_SEED_DEFAULT = 20260520;
-function resolveShowcaseSeed(): number {
-  if (typeof location !== 'undefined') {
-    const param = new URLSearchParams(location.search).get('seed');
-    if (param !== null) {
-      const n = Number.parseInt(param, 10);
-      if (Number.isFinite(n) && n > 0) return n;
-    }
-  }
-  return SHOWCASE_SEED_DEFAULT;
-}
-export const SHOWCASE_SEED = resolveShowcaseSeed();
+// Showcase seed — Iter 33 V1 baseline. 별도 파일 분리 (순환 import 회피).
+export { SHOWCASE_SEED } from './showcaseSeed';
+import { SHOWCASE_SEED } from './showcaseSeed';
 
 /**
  * Substrate top Y — 기존 CocopeatBags 모듈의 `SUBSTRATE_TOP_Y` 상수.
@@ -86,6 +74,37 @@ function resolveActiveBedCount(): number {
   return 3;
 }
 
+/** §19 phenotyping — `?activeBedIds=4,5,6,7,8,9` 직접 지정 (priority over count). */
+function resolveActiveBedIds(totalBeds: number): number[] | null {
+  if (typeof location === 'undefined') return null;
+  const param = new URLSearchParams(location.search).get('activeBedIds');
+  if (!param) return null;
+  const ids = param
+    .split(',')
+    .map((s) => Number.parseInt(s.trim(), 10))
+    .filter((n) => Number.isFinite(n) && n >= 0 && n < totalBeds);
+  return ids.length > 0 ? ids.sort((a, b) => a - b) : null;
+}
+
+/** §19 phenotyping — `?bedLayout=L-R-S` (leftCols-rightCols-stride). */
+function resolveBedLayout(): { leftCols: number; rightCols: number; stride: number } | null {
+  if (typeof location === 'undefined') return null;
+  const param = new URLSearchParams(location.search).get('bedLayout');
+  if (!param) return null;
+  const parts = param.split('-').map((s) => Number.parseInt(s.trim(), 10));
+  if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n) || n < 0)) return null;
+  return { leftCols: parts[0], rightCols: parts[1], stride: Math.max(1, parts[2]) };
+}
+
+/** §19 — `?initialPlants=N` (boot 시 phenotyping plant 개수). default 30. */
+function resolveInitialPlants(): number {
+  if (typeof location === 'undefined') return 30;
+  const param = new URLSearchParams(location.search).get('initialPlants');
+  if (param === null) return 30;
+  const n = Number.parseInt(param, 10);
+  return Number.isFinite(n) && n >= 0 ? n : 30;
+}
+
 export async function buildSceneInfrastructure(scene: Scene): Promise<SceneInfrastructureHandle> {
   updateStageDetail('바닥', 0.03);
   logBoot('log', 'scene: 바닥 mesh');
@@ -110,9 +129,15 @@ export async function buildSceneInfrastructure(scene: Scene): Promise<SceneInfra
   await new Promise((r) => setTimeout(r, 0));
   const bedZPositions = defaultBedZPositions();
   const aisleZPositions = defaultAisleZPositions();
-  const activeBedCount = resolveActiveBedCount();
   const mainBedIdx = Math.floor(bedZPositions.length / 2);  // center bed
-  const activeBedIndices = activeBedsAroundMain(mainBedIdx, activeBedCount, bedZPositions.length);
+  // §19 phenotyping — URL `?activeBedIds=4,5,6,7,8,9` 우선, 없으면 기존 `?activeBeds=count`.
+  const explicitBedIds = resolveActiveBedIds(bedZPositions.length);
+  const activeBedIndices = explicitBedIds ?? activeBedsAroundMain(
+    mainBedIdx,
+    resolveActiveBedCount(),
+    bedZPositions.length,
+  );
+  const bedLayout = resolveBedLayout();
   createGreenhouseBuilding(scene, {
     bedZPositions,
     activePlantBedIndices: activeBedIndices,
@@ -182,54 +207,116 @@ export async function buildSceneInfrastructure(scene: Scene): Promise<SceneInfra
   updateStageDetail('SkinMesh 빌드 (showcase) 시작', 0.55);
   logBoot('log', 'scene: showcase plant');
   await new Promise((r) => requestAnimationFrame(() => r(null)));
-  // ★ S138 — showcase는 mode quality와 무관하게 항상 'high' (사용자가 자세히 관찰).
+  // ★ S138 — showcase는 default 'high'. §19 phenotyping은 'medium' (truss·fruit 보이도록).
+  //   'low'는 truss(꽃/과실) skip 되어 토마토 안 보임.
+  const bedLayoutEarly = resolveBedLayout();
+  const showcaseQuality = bedLayoutEarly ? 'medium' : 'high';
   const t0 = performance.now();
-  const skinMeshPlant = createSkinMeshPlant(scene, growthEngine, SHOWCASE_SEED, skinPos, { quality: 'high' });
+  const skinMeshPlant = createSkinMeshPlant(scene, growthEngine, SHOWCASE_SEED, skinPos, { quality: showcaseQuality });
   skinMeshPlant.setVisible(true);
-  logBoot('log', `scene: showcase plant build ${(performance.now() - t0).toFixed(0)}ms`);
+  const showcaseMs = performance.now() - t0;
+  logBoot('log', `scene: showcase plant build ${showcaseMs.toFixed(0)}ms (quality=${showcaseQuality})`);
   updateStageDetail('SkinMesh 빌드 (showcase) 완료', 0.65);
   await new Promise((r) => requestAnimationFrame(() => r(null)));
 
-  // ★ S136-C — Extras를 베드 _전체 길이_에 _간격 두고_ 분산.
-  //   이전 (S122-S123): slot 0,1,2,... → 모두 X=-14.9~-13.1 좁은 1.8m 코너에 클러스터.
-  //   이제: stride 기반 — bed당 plant N개를 30m 베드 전체에 균등 분포.
-  //   showcase는 slot 45 (중앙), extras는 그 주위에 stride 간격.
-  const extraN = resolveExtraPlantCount();
-  // ★ S138 — extras quality는 mode quality.level 그대로 따름.
-  //   greenhouse low → 'low' (이전 lowQuality 동등)
-  //   greenhouse medium → 'medium' (S138 신규: 중간 비용)
-  //   greenhouse high → 'high' (showcase 동급 — 비용 큼)
+  // ★ S136-C / §19 — Extras 배치.
+  //   bedLayout 모드 (phenotyping): 좌·우 분리 + hole stride. 활성 베드 모두 채움.
+  //   legacy 모드: ?extraPlants=N 기반 stride 분산.
   const extraQuality = getActiveMode().quality.level;
   const extraPlants: SkinMeshPlantHandle[] = [];
-  // 각 active bed당 plant 수 계산 후 stride 분산.
-  const plantsPerBed = Math.max(1, Math.ceil(extraN / activeBedIndices.length));
-  // SCENARIO에 90 positions per bed. Stride = floor(90 / plantsPerBed) → 균등 분포.
-  const stride = Math.max(1, Math.floor(90 / plantsPerBed));
-  // 각 bed에서 stride 간격으로 slot 사용. showcase 슬롯 45 충돌 회피.
   const SHOWCASE_SLOT = 45;
-  let extraIdx = 0;
-  for (let perBed = 0; perBed < plantsPerBed && extraIdx < extraN; perBed++) {
-    for (const bedIdx of activeBedIndices) {
-      if (extraIdx >= extraN) break;
-      // stride 기반 slot — perBed가 진행할수록 다른 위치
-      let slot = (perBed * stride + Math.floor(stride / 2)) % 90;
-      // showcase slot 충돌 시 +1 시프트
-      if (bedIdx === mainBedIdx && slot === SHOWCASE_SLOT) slot = (slot + 1) % 90;
+
+  if (bedLayout) {
+    // §19 phenotyping — boot 시 적은 수(default 30)만 빌드, 나머지는 PhenotypingControls 슬라이더로 runtime 추가.
+    //   slotOrder = center-out (slot 45 → ±stride → ±2*stride). 로봇 통로 가운데부터 분포.
+    //   순서: round 0에서 각 active bed slot 45 → round 1 각 bed slot 45-stride → ...
+    const slotOrder = computeSlotOrder(bedLayout.stride);
+    const totalMax = slotOrder.length * activeBedIndices.length - 1;
+    const initialN = Math.min(resolveInitialPlants(), totalMax);
+    const buildTimesMs: number[] = [];
+    const t0Total = performance.now();
+    const perfMem = (performance as unknown as { memory?: { usedJSHeapSize: number; totalJSHeapSize: number; jsHeapSizeLimit: number } }).memory;
+    const heap0 = perfMem?.usedJSHeapSize ?? 0;
+    const heapLimit = perfMem?.jsHeapSizeLimit ?? 0;
+    logBoot(
+      'log',
+      `[phenotyping] boot: initial=${initialN}/${totalMax} plants · heap=${(heap0 / 1024 / 1024).toFixed(1)}MB / limit=${(heapLimit / 1024 / 1024).toFixed(0)}MB · 나머지는 slider`,
+    );
+
+    let placedIdx = 0;
+    let virtIdx = 0; // slotOrder × beds 순회 인덱스 (showcase skip 시 +1)
+    while (placedIdx < initialN) {
+      const beds = activeBedIndices.length;
+      const round = Math.floor(virtIdx / beds);
+      if (round >= slotOrder.length) break;
+      const bedIdx = activeBedIndices[virtIdx % beds];
+      const slot = slotOrder[round];
+      virtIdx++;
+      if (bedIdx === mainBedIdx && slot === SHOWCASE_SLOT) continue;
       const spec = SCENARIO.plants[slot];
       if (!spec) continue;
       const seed = SHOWCASE_SEED + bedIdx * 100000 + slot * 1009;
       growthEngine.addPlant({ seed, cultivarName: 'tomimaru-muchoo' });
       const pos = new Vector3(spec.position[0], SUBSTRATE_TOP_Y, bedZPositions[bedIdx]);
-      // ★ S138 — extras quality는 mode quality.level (low/medium/high) 그대로.
-      const plant = createSkinMeshPlant(scene, growthEngine, seed, pos, { quality: extraQuality });
+      const tPlant0 = performance.now();
+      const plant = createSkinMeshPlant(scene, growthEngine, seed, pos, { quality: 'medium' });
       plant.setVisible(true);
+      buildTimesMs.push(performance.now() - tPlant0);
       extraPlants.push(plant);
-      extraIdx++;
-      // ★ S143 — extras 매 plant마다 progress + yield (이전 매 4 plants).
-      //   high quality 시 plant 1개 build ~1-3초 → 4 plants gap 8-12초 → UI 멈춘 듯 보임.
-      //   매 plant yield + 1 frame raf로 React render commit 보장.
-      updateStageDetail(`extra plants ${extraIdx}/${extraN}`, 0.65 + 0.3 * (extraIdx / extraN));
-      await new Promise((r) => requestAnimationFrame(() => r(null)));
+      placedIdx++;
+      if (placedIdx % 4 === 0 || placedIdx === initialN) {
+        const elapsed = (performance.now() - t0Total) / 1000;
+        updateStageDetail(`phenotyping ${placedIdx}/${initialN}`, 0.65 + 0.3 * (placedIdx / Math.max(1, initialN)));
+        if (placedIdx % 8 === 0) {
+          const avgMs = buildTimesMs.reduce((a, b) => a + b, 0) / buildTimesMs.length;
+          const heapNow = perfMem?.usedJSHeapSize ?? 0;
+          logBoot('log', `[phenotyping] ${placedIdx}/${initialN} · avg=${avgMs.toFixed(0)}ms · heap+${((heapNow - heap0) / 1024 / 1024).toFixed(1)}MB · ${elapsed.toFixed(0)}s`);
+        }
+        await new Promise((r) => requestAnimationFrame(() => r(null)));
+      }
+    }
+    const totalS = (performance.now() - t0Total) / 1000;
+    logBoot('log', `[phenotyping] boot DONE — ${placedIdx}/${totalMax} (slider로 늘림) · ${totalS.toFixed(1)}s`);
+
+    setRuntimePlantContext({
+      scene,
+      growthEngine,
+      bedZPositions,
+      activeBedIndices,
+      stride: bedLayout.stride,
+      showcaseSlot: SHOWCASE_SLOT,
+      mainBedIdx,
+      substrateTopY: SUBSTRATE_TOP_Y,
+      seedBase: SHOWCASE_SEED,
+      plants: extraPlants,
+      slotOrder,
+      registerPlantRef: () => {},
+      heapAtCtxStartBytes: heap0,
+      initialPlantCount: placedIdx,
+    });
+  } else {
+    // Legacy: ?extraPlants=N stride 분산.
+    const extraN = resolveExtraPlantCount();
+    const plantsPerBed = Math.max(1, Math.ceil(extraN / activeBedIndices.length));
+    const stride = Math.max(1, Math.floor(90 / plantsPerBed));
+    let extraIdx = 0;
+    for (let perBed = 0; perBed < plantsPerBed && extraIdx < extraN; perBed++) {
+      for (const bedIdx of activeBedIndices) {
+        if (extraIdx >= extraN) break;
+        let slot = (perBed * stride + Math.floor(stride / 2)) % 90;
+        if (bedIdx === mainBedIdx && slot === SHOWCASE_SLOT) slot = (slot + 1) % 90;
+        const spec = SCENARIO.plants[slot];
+        if (!spec) continue;
+        const seed = SHOWCASE_SEED + bedIdx * 100000 + slot * 1009;
+        growthEngine.addPlant({ seed, cultivarName: 'tomimaru-muchoo' });
+        const pos = new Vector3(spec.position[0], SUBSTRATE_TOP_Y, bedZPositions[bedIdx]);
+        const plant = createSkinMeshPlant(scene, growthEngine, seed, pos, { quality: extraQuality });
+        plant.setVisible(true);
+        extraPlants.push(plant);
+        extraIdx++;
+        updateStageDetail(`extra plants ${extraIdx}/${extraN}`, 0.65 + 0.3 * (extraIdx / extraN));
+        await new Promise((r) => requestAnimationFrame(() => r(null)));
+      }
     }
   }
 

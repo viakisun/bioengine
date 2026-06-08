@@ -1,0 +1,20 @@
+{
+  // S1.g — 첫 화방 단일 적과 (적과 시작기).
+  "id": "thin-D50-truss1-single",
+  "version": "1.0",
+  "domain": "thinning",
+  "consumableBy": ["Workbench"],
+  "world": { "greenhouseConfig": "default-24x34-13beds", "activeBeds": [3], "plantPlacement": "single-plant-D50" },
+  "crop": { "day": 50, "seed": "0x5001", "cultivar": "tomimaru" },
+  "env": { "manualHour": 11, "lightingPreset": "default", "wind": { "strength": 0.0, "direction": [0, 0, 0] } },
+  "robot": { "model": "via-agv-6dof-v1", "startPose": { "rail": "aisle-3", "x": 4.2 }, "endEffector": "thinning-cutter" },
+  "task": { "type": "thinning-decision", "speedMps": 0, "decisionTriggers": ["fruit-detected"], "targets": "truss==1 && diameterMm < 10", "rule": "첫 화방의 작은 과실 1개 제거" },
+  "verify": {
+    "successCriteria": [
+      { "metric": "decision-accuracy", "min": 0.85 },
+      { "metric": "reachability-rate", "min": 0.95 },
+      { "metric": "task-completion-time", "max": 30 }
+    ]
+  },
+  "meta": { "parentId": null, "createdBy": "via-pm", "createdAt": "2026-06-06T10:00:00Z", "description": "첫 화방 단일 과실 적과." }
+}

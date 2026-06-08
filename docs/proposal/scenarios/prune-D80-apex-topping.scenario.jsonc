@@ -1,0 +1,20 @@
+{
+  // S1.g — 생장점 절단 (시즌 마감 적심).
+  "id": "prune-D80-apex-topping",
+  "version": "1.0",
+  "domain": "pruning",
+  "consumableBy": ["Workbench"],
+  "world": { "greenhouseConfig": "default-24x34-13beds", "activeBeds": [3], "plantPlacement": "single-plant-D80" },
+  "crop": { "day": 80, "seed": "0x8001", "cultivar": "tomimaru" },
+  "env": { "manualHour": 10, "lightingPreset": "default", "wind": { "strength": 0.0, "direction": [0, 0, 0] } },
+  "robot": { "model": "via-agv-6dof-v1", "startPose": { "rail": "aisle-3", "x": 4.2 }, "endEffector": "thinning-cutter" },
+  "task": { "type": "pruning-apex", "speedMps": 0, "decisionTriggers": ["apex-detected"], "targets": "node==apex", "rule": "생장점 절단 (시즌 마감 시기 표시)" },
+  "verify": {
+    "successCriteria": [
+      { "metric": "decision-accuracy", "min": 0.92 },
+      { "metric": "reachability-rate", "min": 0.95 },
+      { "metric": "task-completion-time", "max": 15 }
+    ]
+  },
+  "meta": { "parentId": null, "createdBy": "via-pm", "createdAt": "2026-06-06T10:00:00Z", "description": "생장점 절단 (시즌 마감)." }
+}

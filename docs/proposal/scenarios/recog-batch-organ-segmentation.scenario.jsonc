@@ -1,0 +1,34 @@
+{
+  // S2.e — Foundry 기관 분할 (apex/stem/truss/leaf/fruit instance segmentation).
+  "id": "recog-batch-organ-segmentation",
+  "version": "1.0",
+  "domain": "recognition",
+  "consumableBy": ["Foundry"],
+  "world": { "greenhouseConfig": "default-24x34-13beds", "activeBeds": [3, 4, 5], "plantPlacement": "multi-plant-mixed-stages" },
+  "crop": { "day": 70, "seed": "0xC7000", "cultivar": "tomimaru" },
+  "env": { "manualHour": 12, "lightingPreset": "default", "wind": { "strength": 0.2, "direction": [1, 0, 0.1] } },
+  "foundry": {
+    "matrix": {
+      "time-of-day": [9, 12, 15],
+      "growth-day": [45, 60, 75, 90],
+      "camera-angle": [0, 60, 120, 180, 240, 300],
+      "camera-height": [1.0, 1.6]
+    },
+    "seeds": 12,
+    "outputs": ["coco-json", "mask-png", "3d-bbox-jsonl"],
+    "framesPerCondition": 1,
+    "expectedFrames": 17280
+  },
+  "task": {
+    "type": "recognition-capture",
+    "speedMps": 0,
+    "labelClasses": ["apex", "main-stem-segment", "truss-peduncle", "leaf", "fruit"]
+  },
+  "verify": {
+    "successCriteria": [
+      { "metric": "mask-iou", "min": 0.82 },
+      { "metric": "label-class-balance", "min": 0.05 }
+    ]
+  },
+  "meta": { "parentId": null, "createdBy": "via-pm", "createdAt": "2026-06-06T10:00:00Z", "description": "기관 분할 instance segmentation 데이터셋." }
+}

@@ -5,7 +5,7 @@ import { Color3, Color4 } from '@babylonjs/core/Maths/math.color';
 import { ImageProcessingConfiguration } from '@babylonjs/core/Materials/imageProcessingConfiguration';
 import type { Material } from '@babylonjs/core/Materials/material';
 import { setupScene, type SceneSetupHandle } from './SceneSetup';
-import { applyRenderQuality } from './RenderQuality';
+import { applyRenderQuality, QUALITY_PRESETS } from './RenderQuality';
 import { setupCamera, type CameraRig } from './CameraRig';
 import { buildSceneInfrastructure, type SceneInfrastructureHandle, SHOWCASE_SEED } from './SceneInfrastructure';
 // Iter 35: GreenhouseContent (zones/heatmap/robot/path/supporting) + ProgressiveLoad
@@ -15,12 +15,17 @@ import { useTwinStore, type LightingState } from '../state/twinStore';
 import { SCENARIO } from '../data/mockScenario';
 import { getSunState } from '@farmsim/tomato-engine';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
+import { ArcRotateCamera } from '@babylonjs/core/Cameras/arcRotateCamera';
+import { UniversalCamera } from '@babylonjs/core/Cameras/universalCamera';
+import { Viewport } from '@babylonjs/core/Maths/math.viewport';
 import { setShaderWindEnabled, isShaderWindEnabled } from './leaf/LeafMaterial';
 // Iter 35: LabelOverlay archived — single-plant only.
 // Iter 20 — hotkey for petiole-stem junction overlay ('d'/'D'/'ㅇ').
 import { installDockingOverlayHotkey } from './dockingOverlay/hotkeyToggle';
 import { setBootStage, logBoot, setEnvInfo, setEnvCounters, notify } from '../state/notify';
-import { setSinglePlantEngineRef, setSinglePlantSkinMeshRef } from '../hud/single-plant/useSinglePlantState';
+import { setSinglePlantEngineRef, setSinglePlantSkinMeshRef, setCameraRigRef } from '../hud/single-plant/useSinglePlantState';
+import { setRuntimePlantRefRegister } from './runtimePlantApi';
+import { createRobot } from './robot/Robot';
 import { createLogger } from '../utils/logger';
 const log = createLogger('engine');
 
@@ -264,6 +269,12 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
   });
 
   const cameraRig = setupCamera(scene, canvas);
+  // D11 (RFP §17) — module holder 등록 → CameraDock에서 setPreset 호출.
+  //   CameraRig는 typed (PresetView), holder는 string으로 받음 (cast).
+  setCameraRigRef({
+    setPreset: (n: string) => cameraRig.setPreset(n as Parameters<typeof cameraRig.setPreset>[0]),
+    setEePresetDynamic: cameraRig.setEePresetDynamic,
+  });
   // Iter 35 PR 4 Phase Q2: cameraPreset store field 제거 — 기본 'single-plant' preset.
   cameraRig.setPreset('single-plant');
   // Dev-only: expose scene + camera for headless capture / debugging.
@@ -312,6 +323,92 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
     mark('greenhouse_build_complete');
     setSinglePlantEngineRef(greenhouse.growthEngine);
     setSinglePlantSkinMeshRef(greenhouse.skinMeshPlant, 0);
+    // §19 — runtimePlantApi에 SinglePlantSkinMeshRef register 주입 (순환 import 회피).
+    setRuntimePlantRefRegister(setSinglePlantSkinMeshRef);
+
+    // W2.e·f (§18) — 신규 Robot mesh (Babylon 9 스타일) — chassis + arm + effector.
+    //   통로 안 (z=-0.8, y=0.3 = 휠 위) · rail X = 0 (식물 정면).
+    try {
+      const url = new URL(window.location.href);
+      const profileParam = url.searchParams.get('robotProfile');
+      const profile = profileParam === 'agv-arm' ? 'agv-arm' : 'phenotyping';
+      const robot = createRobot(scene, { z: -0.8, y: 0.3, x: 0, profile });
+
+      // 사용자 요청 (2026-06-08) — URL `?robotTraverse=1` 시 레일 ping-pong 주행.
+      // ±14m 끝, 0.3 m/s, 경계 도달 시 반전.
+      // Phenotyping: 가는 방향 (+X)에는 좌측(Z+) 베드 촬영,
+      //              오는 방향 (-X)에는 우측(Z-) 베드 촬영.
+      if (url.searchParams.get('robotTraverse') === '1') {
+        const TRAVERSE_RANGE = 14;
+        const TRAVERSE_SPEED = 0.3;
+        let railX = 0;
+        let dir = 1;
+        robot.setGimbalLookSide('left');
+        scene.onBeforeRenderObservable.add(() => {
+          const dt = scene.getEngine().getDeltaTime() / 1000;
+          railX += dir * TRAVERSE_SPEED * dt;
+          if (railX > TRAVERSE_RANGE) {
+            railX = TRAVERSE_RANGE;
+            dir = -1;
+            robot.setGimbalLookSide('right');
+          } else if (railX < -TRAVERSE_RANGE) {
+            railX = -TRAVERSE_RANGE;
+            dir = 1;
+            robot.setGimbalLookSide('left');
+          }
+          robot.setRailPosition(railX);
+        });
+      }
+
+      // §19 phenotyping — 짐벌 카메라 mini-viewport (좌상단 384×288 @ 1600×900).
+      //   ?gimbalView=1 시 활성. UniversalCamera + parent=gimbalPivot.
+      //   pivot이 traverse 중 robot과 함께 X 이동 + pan 회전 → camera world position·forward 자동 갱신.
+      if (profile === 'phenotyping' && url.searchParams.get('gimbalView') === '1') {
+        // Lens mesh가 pivot 앞 z=0.1에 있음 → cam을 z=0.18로 옮겨서 lens가 cam 뒤로 빠지게.
+        //   추가로 minZ=0.1로 올려 lens body 자체도 near plane으로 clip.
+        const gimbalCam = new UniversalCamera(
+          'gimbal-cam',
+          new Vector3(0, 0, 0.18),
+          scene,
+        );
+        gimbalCam.parent = robot.gimbalPivot;
+        gimbalCam.setTarget(new Vector3(0, 0, 1.5));
+        gimbalCam.fov = (60 * Math.PI) / 180;
+        gimbalCam.minZ = 0.1;
+        gimbalCam.maxZ = 60;
+        gimbalCam.viewport = new Viewport(0.07, 0.62, 0.24, 0.32);
+
+        // Robot 전체를 gimbalCam에서 제외 — chassis · strut · wheel · gimbal mount · lens 등.
+        //   layerMask 비트 0x10000000 = robot 전용. main cam은 default 0x0FFFFFFF에 포함됨.
+        const ROBOT_LAYER = 0x10000000;
+        const robotMeshes = robot.root.getChildMeshes(false);
+        for (const m of robotMeshes) m.layerMask = ROBOT_LAYER;
+        gimbalCam.layerMask = 0x0FFFFFFF; // robot 비트 제외, 나머지 (default 0x0FFFFFFF) 포함
+        cameraRig.camera.layerMask = 0xFFFFFFFF; // 메인은 모두 보임
+
+        scene.activeCameras = [cameraRig.camera, gimbalCam];
+
+        // 진단 — 매 60 frame마다 robot · pivot · cam world position 차이 출력.
+        //   ArcRotateCamera vs UniversalCamera 의심 검증용. log namespace = engine.
+        let diagFrame = 0;
+        scene.onBeforeRenderObservable.add(() => {
+          if (++diagFrame % 60 !== 0) return;
+          const rootPos = robot.root.position;
+          const pivotAbs = robot.gimbalPivot.absolutePosition;
+          const camAbs = gimbalCam.globalPosition;
+          // forward direction: camera → target. UniversalCamera에는 getForwardRay() 있음.
+          const fwd = gimbalCam.getForwardRay().direction;
+          log.debug(
+            `[gimbalDiag] root=(${rootPos.x.toFixed(2)},${rootPos.y.toFixed(2)},${rootPos.z.toFixed(2)}) ` +
+              `pivot=(${pivotAbs.x.toFixed(2)},${pivotAbs.y.toFixed(2)},${pivotAbs.z.toFixed(2)}) ` +
+              `cam=(${camAbs.x.toFixed(2)},${camAbs.y.toFixed(2)},${camAbs.z.toFixed(2)}) ` +
+              `fwd=(${fwd.x.toFixed(2)},${fwd.y.toFixed(2)},${fwd.z.toFixed(2)})`,
+          );
+        });
+      }
+    } catch (e) {
+      console.warn('createRobot failed:', e);
+    }
     // ★ S126 — extra plants도 등록 (index 1+). SinglePlantOverlay에서 update 받음.
     for (let i = 0; i < greenhouse.extraPlants.length; i++) {
       setSinglePlantSkinMeshRef(greenhouse.extraPlants[i], i + 1);
@@ -333,6 +430,18 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
   if (sceneSetup) {
     setBootStage('quality', '렌더 품질 적용', 0);
     try {
+      // §19 phenotyping — URL `?qualityPreset=N` 으로 RenderFX preset 강제 (mode default override).
+      //   N=1 (Minimum, shadow off, MSAA 1, hardware 0.5x) 권장 — 270 plant 부담 ↓.
+      try {
+        const presetParam = new URL(window.location.href).searchParams.get('qualityPreset');
+        if (presetParam) {
+          const n = Number.parseInt(presetParam, 10);
+          if (Number.isFinite(n) && QUALITY_PRESETS[n]) {
+            useTwinStore.getState().setRenderFX(QUALITY_PRESETS[n].fx);
+            logBoot('log', `quality: preset ${n} (${QUALITY_PRESETS[n].label}) 강제 적용`);
+          }
+        }
+      } catch { /* URL 미지원 환경 무시 */ }
       applyRenderQuality(scene, sceneSetup, engine, useTwinStore.getState().renderFX);
       logBoot('log', 'quality: 렌더 품질 적용 완료');
     } catch (err) {

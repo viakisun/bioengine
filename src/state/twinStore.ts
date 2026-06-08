@@ -490,6 +490,26 @@ interface TwinState {
   setSinglePlantPlaying: (p: boolean) => void;
   setSinglePlantSpeed: (s: 1 | 4 | 24) => void;
   setSinglePlantCamera: (c: 'free' | 'truss' | 'fruit' | 'top') => void;
+
+  /** D11 (RFP §17) — EE/Head/Mask 카메라 산업 사양 파라미터.
+   *  사용자 피드백: EE는 베드 바로 앞 튜브레일 센터 + 베드 위 25cm 높이 + 작물 다 보이게.
+   *  추가 파라미터로 mount 높이·working distance·FOV 조절. */
+  eeCameraParams: {
+    /** 베드 substrate top 기준 카메라 mount 높이 (cm). default 25 (튜브레일). */
+    mountHeightCmAboveBed: number;
+    /** 카메라 → 식물 정면 거리 (m). default 1.8 (식물 전체 framing). */
+    workingDistanceM: number;
+    /** 카메라 FOV (도). default 60 (산업용 RGB 표준). */
+    fovDeg: number;
+    /** 식물 root world Y (m). substrate top = 1.062m. */
+    bedTopY: number;
+    /** 식물 중심 응시 Y (target Y). default 1.8 (식물 중심). */
+    targetY: number;
+  };
+  setEeCameraParam: <K extends keyof TwinState['eeCameraParams']>(
+    key: K,
+    value: TwinState['eeCameraParams'][K],
+  ) => void;
   // Iter 35 PR 2 Phase J: chart/metrics/inspector setters 제거.
   // Iter 35 PR 2 Phase K: setSinglePlantTopFilter 제거.
 
@@ -717,6 +737,17 @@ export const useTwinStore = create<TwinState>((set) => ({
     set({ singlePlantMinute: Math.max(0, Math.min(120 * 24 * 60 - 1, Math.round(m))) }),
   setSinglePlantPlaying: (p) => set({ singlePlantPlaying: p }),
   setSinglePlantSpeed: (s) => set({ singlePlantSpeed: s }),
+
+  // D11 — EE 카메라 산업 사양 default.
+  eeCameraParams: {
+    mountHeightCmAboveBed: 25, // 튜브레일 위치 = 베드 substrate top + 25cm
+    workingDistanceM: 1.8,      // 식물 전체 (~2.4m) 보이도록 약간 멀게
+    fovDeg: 60,                  // 산업용 RGB 표준
+    bedTopY: 1.062,              // CocopeatBags.ts SUBSTRATE_TOP_Y
+    targetY: 1.8,                // 식물 중심 (베드 위 ~0.75m, 식물 D70 기준)
+  },
+  setEeCameraParam: (key, value) =>
+    set((state) => ({ eeCameraParams: { ...state.eeCameraParams, [key]: value } })),
   setSinglePlantCamera: (c) => set({ singlePlantCamera: c }),
   // Iter 35 PR 2 Phase J + K: chart/metrics/inspector/topFilter setters 제거.
 

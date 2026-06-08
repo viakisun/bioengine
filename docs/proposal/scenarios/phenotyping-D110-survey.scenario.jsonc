@@ -1,0 +1,68 @@
+{
+  // §19 Phenotyping survey — D110 후기 생육 phenotyping.
+  //   - 통로 z=-0.8 기준 좌 2 + 우 4 = 6 active beds
+  //   - hole 단위 stride 2 = 베드당 45 plant × 6 = 270 plant
+  //   - Phenotyping robot 자동 traverse + gimbal pan auto
+  //   - 적엽(deleaf) slider 0~80cm
+  //   - 좌상단 384×288 짐벌 카메라 mini-viewport (16:9)
+  "id": "phenotyping-D110-survey",
+  "version": "1.0",
+  "domain": "phenotyping",
+  "consumableBy": ["Workbench"],
+  "world": {
+    "greenhouseConfig": "default-24x34-13beds",
+    "activeBeds": [4, 5, 6, 7, 8, 9],
+    "plantPlacement": "phenotyping-D110-sparse-h4",
+    "bedLayout": {
+      "leftCols": 2,
+      "rightCols": 4,
+      "stride": 4
+    }
+  },
+  "crop": {
+    "day": 110,
+    "seed": "0xD110",
+    "cultivar": "tomimaru",
+    "cultivation": {
+      "deleafHeightCm": 0,
+      "deleafMaxCm": 80,
+      "deleafEnabled": true
+    }
+  },
+  "env": {
+    "manualHour": 12,
+    "lightingPreset": "default"
+  },
+  "robot": {
+    "model": "via-phenotyping-v1",
+    "profile": "phenotyping",
+    "startPose": { "x": -14 },
+    "endEffector": "none",
+    "camera": {
+      "head": {
+        "lens": 60,
+        "mountHeight": 1.28
+      }
+    }
+  },
+  "task": {
+    "type": "spray-survey",
+    "speedMps": 0.3,
+    "targets": "all-fruits",
+    "rule": "left-bed-on-forward,right-bed-on-return"
+  },
+  "verify": {
+    "successCriteria": [
+      {
+        "metric": "coverage-pct",
+        "min": 0.85,
+        "note": "전 베드 통과 + 좌·우 모두 캡처"
+      }
+    ]
+  },
+  "meta": {
+    "createdBy": "kisun@viasoft.ai",
+    "createdAt": "2026-06-08",
+    "description": "D110 후기 생육 phenotyping. 좌2/우4 sparse 270 plant, 적엽 0~80cm slider, 짐벌 카메라 mini-viewport."
+  }
+}

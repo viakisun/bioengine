@@ -1,0 +1,75 @@
+{
+  // Phytosim Scenario · Recognition Batch, Fruit Classification 6 stages
+  // Foundry 전용. 과실 6단계 (ripeStage 0~5) 분류 학습 데이터 생성.
+  "id": "recog-batch-fruit-classification",
+  "version": "1.0",
+  "domain": "recognition",
+  "consumableBy": ["Foundry"],
+
+  "world": {
+    "greenhouseConfig": "default-24x34-13beds",
+    "activeBeds": [3, 4, 5, 6, 7],
+    "plantPlacement": "multi-plant-mixed-stages"
+  },
+
+  "crop": {
+    "day": 75,                          // 다양한 ripeStage가 공존하는 시기
+    "seed": "0xFEED",                   // base seed; Foundry가 시드 다양화
+    "cultivar": "tomimaru",
+    "perturbation": {
+      "leafDensityScale": 1.0,
+      "internodeScale": 1.0,
+      "trussTimingOffset": 0,
+      "fruitSetRate": 1.0
+    }
+  },
+
+  "env": {
+    "manualHour": 12,                   // base; Foundry가 매트릭스로 변화
+    "lightingPreset": "default",
+    "wind": { "strength": 0.2, "direction": [1, 0, 0.1] }
+  },
+
+  // Foundry 배치 매트릭스 (Composer의 Variable 토글에 해당)
+  // 각 차원의 값을 모든 frame에 곱해서 적용
+  "foundry": {
+    "matrix": {
+      "time-of-day":          [6, 9, 12, 15, 18],
+      "light-preset":         ["default", "overcast", "golden", "grow-light"],
+      "growth-day":           [60, 75, 90, 105],
+      "leaf-density-perturb": [0.8, 1.0, 1.2],
+      "camera-angle":         [0, 45, 90, 135, 180, 225, 270, 315],
+      "camera-height":        [0.8, 1.2, 1.6],
+      "wind-strength":        [0.0, 0.3]
+    },
+    "seeds": 16,                        // 시드 다양화
+    "outputs": ["coco-json", "mask-png", "depth-png", "3d-bbox-jsonl"],
+    "framesPerCondition": 1,
+    "expectedFrames": 153600            // 5·4·4·3·8·3·2 × 16 = 184320 (예상)
+  },
+
+  "task": {
+    "type": "recognition-capture",
+    "speedMps": 0,
+    "targets": "fruit && (visible_fraction > 0.1)",
+    "labelClasses": [
+      "fruit-stage-0", "fruit-stage-1", "fruit-stage-2",
+      "fruit-stage-3", "fruit-stage-4", "fruit-stage-5"
+    ]
+  },
+
+  "verify": {
+    "successCriteria": [
+      { "metric": "mask-iou",            "min": 0.85, "note": "RT mesh ID 기반 mask는 high quality 기대" },
+      { "metric": "occlusion-error",     "max": 0.10 },
+      { "metric": "label-class-balance", "min": 0.05, "note": "각 클래스 ≥5% 비율" }
+    ]
+  },
+
+  "meta": {
+    "parentId": null,
+    "createdBy": "via-pm",
+    "createdAt": "2026-06-06T10:00:00Z",
+    "description": "과실 6단계 분류용 합성 데이터셋. ~15만 장."
+  }
+}

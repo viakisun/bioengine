@@ -1,6 +1,8 @@
 // ★ S141-B — Mode card (Supabase project-picker 패턴).
+// S1.b·c (RFP §15) — availability='coming-soon' 처리 + valueProps 칩 표시.
 
 import type { ModeSpec, QualityLevel } from './types';
+import { ValueChip } from '../hud/ValueChip';
 
 interface ModeCardProps {
   mode: ModeSpec;
@@ -23,18 +25,41 @@ const QUALITY_HINTS: Record<QualityLevel, string> = {
 
 export function ModeCard({ mode, selectedQuality, onSelectQuality, onEnter }: ModeCardProps) {
   const hasQualityChoice = mode.availableQualityLevels.length > 1;
+  const isComingSoon = mode.availability === 'coming-soon';
 
   return (
     <div
-      className="p-surface p-surface-hover"
+      className={`p-surface ${isComingSoon ? '' : 'p-surface-hover'}`}
       style={{
         padding: 24,
         display: 'flex',
         flexDirection: 'column',
         gap: 16,
         minWidth: 0,
+        opacity: isComingSoon ? 0.6 : 1,
+        position: 'relative',
       }}
     >
+      {isComingSoon && (
+        <span
+          className="p-pill"
+          style={{
+            position: 'absolute',
+            top: 12,
+            right: 12,
+            fontSize: 10,
+            fontWeight: 600,
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+            background: 'var(--p-fg-faint, #333)',
+            color: 'var(--p-fg-muted, #999)',
+            padding: '2px 8px',
+            borderRadius: 999,
+          }}
+        >
+          Coming soon
+        </span>
+      )}
       {/* Header: icon + identifier */}
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
         <div
@@ -76,6 +101,11 @@ export function ModeCard({ mode, selectedQuality, onSelectQuality, onEnter }: Mo
       >
         {mode.description}
       </p>
+
+      {/* Value props (S1.c — 모드가 실현하는 가치명제 노출) */}
+      {mode.valueProps && mode.valueProps.length > 0 && (
+        <ValueChip active={mode.valueProps} compact />
+      )}
 
       {/* Quality selector (greenhouse만 의미) */}
       {hasQualityChoice && (
@@ -135,8 +165,17 @@ export function ModeCard({ mode, selectedQuality, onSelectQuality, onEnter }: Mo
             <span className="p-pill">infra</span>
           )}
         </div>
-        <button className="p-btn p-btn-primary" onClick={onEnter}>
-          Launch →
+        <button
+          className="p-btn p-btn-primary"
+          onClick={onEnter}
+          disabled={isComingSoon}
+          aria-disabled={isComingSoon}
+          style={{
+            cursor: isComingSoon ? 'not-allowed' : 'pointer',
+            opacity: isComingSoon ? 0.5 : 1,
+          }}
+        >
+          {isComingSoon ? 'Coming soon' : 'Launch →'}
         </button>
       </div>
     </div>

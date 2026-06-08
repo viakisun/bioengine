@@ -1,0 +1,66 @@
+{
+  // Phytosim Scenario · Autonomous Driving, Day 15, Standard Aisle, Sunny
+  // 초기 생육 (D15) — 작물이 짧음. 카메라 down-pitch 한계와 다음 모종 이동 정확도 검증.
+  "id": "drive-D15-standard-sunny",
+  "version": "1.0",
+  "domain": "autonomous-driving",
+  "consumableBy": ["Twin", "Workbench"],
+
+  "world": {
+    "greenhouseConfig": "default-24x34-13beds",
+    "activeBeds": [3, 4, 5],
+    "plantPlacement": "showcase-D15"
+  },
+
+  "crop": {
+    "day": 15,
+    "seed": "0x1A7E",
+    "cultivar": "tomimaru",
+    "perturbation": {
+      "leafDensityScale": 1.0,
+      "internodeScale": 1.0,
+      "trussTimingOffset": 0,
+      "fruitSetRate": 1.0
+    }
+  },
+
+  "env": {
+    "manualHour": 12,
+    "lightingPreset": "default",
+    "wind": { "strength": 0.15, "direction": [1, 0, 0.1] },
+    "fogDensity": 0
+  },
+
+  "robot": {
+    "model": "via-agv-6dof-v1",
+    "startPose": { "rail": "aisle-3", "x": 0.0 },
+    "endEffector": "thinning-cutter",
+    "camera": {
+      "head": { "lens": 60, "mountHeight": 1.4, "pitch": -10, "yaw": 0 },
+      "endEffector": { "lens": 45, "mountHeight": 1.2, "pitch": 0, "yaw": 0 }
+    }
+  },
+
+  "task": {
+    "type": "drive-traverse",
+    "speedMps": 0.25,
+    "decisionTriggers": ["obstacle"],
+    "targets": "bed==3 || bed==4 || bed==5"
+  },
+
+  "verify": {
+    "successCriteria": [
+      { "metric": "fov-fruit-coverage",   "min": 0.85, "note": "D15엔 과실이 거의 없으므로 생장점 coverage로 대체 평가" },
+      { "metric": "collision-count",      "max": 0 },
+      { "metric": "path-length",          "max": 18.0 },
+      { "metric": "task-completion-time", "max": 90 }
+    ]
+  },
+
+  "meta": {
+    "parentId": null,
+    "createdBy": "via-pm",
+    "createdAt": "2026-06-06T10:00:00Z",
+    "description": "초기 생육 표준 통로 정오 햇빛. 베이스라인 시나리오."
+  }
+}

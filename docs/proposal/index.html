@@ -1,0 +1,51 @@
+<!doctype html>
+<!-- docsify entry — S8.b (RFP §16.7). pnpm dlx docsify-cli serve docs/proposal --port 8091 -->
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Phytosim · RFP 패키지</title>
+  <meta name="description" content="Phytosim Digital Twin RFP package — 외주 발주용 + 사내 구현 산출물" />
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/docsify@4/lib/themes/dark.css" />
+  <style>
+    :root {
+      --theme-color: #4080d0;
+      --sidebar-width: 18rem;
+    }
+    .markdown-section { max-width: 920px; }
+    .markdown-section h1, .markdown-section h2 { letter-spacing: -0.01em; }
+    .app-name-link { font-weight: 600; }
+    svg { max-width: 100%; }
+  </style>
+</head>
+<body>
+  <div id="app">로딩 중…</div>
+  <script>
+    window.$docsify = {
+      name: 'Phytosim RFP',
+      repo: '',
+      homepage: 'README.md',
+      loadSidebar: '_sidebar.md',
+      subMaxLevel: 2,
+      auto2top: true,
+      relativePath: true,
+      search: {
+        placeholder: '검색…',
+        noData: '결과 없음',
+        depth: 3,
+      },
+      pagination: {
+        previousText: '이전',
+        nextText: '다음',
+      },
+    };
+  </script>
+  <script src="//cdn.jsdelivr.net/npm/docsify@4"></script>
+  <script src="//cdn.jsdelivr.net/npm/docsify@4/lib/plugins/search.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/docsify@4/lib/plugins/zoom-image.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/prismjs@1/components/prism-bash.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/prismjs@1/components/prism-typescript.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/prismjs@1/components/prism-json.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/prismjs@1/components/prism-markdown.min.js"></script>
+</body>
+</html>

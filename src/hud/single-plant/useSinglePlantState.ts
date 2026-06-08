@@ -11,14 +11,35 @@ import { useEffect, useState } from 'react';
 import { useTwinStore } from '../../state/twinStore';
 import type { GrowthEngine, PlantPhysiologyState, PlantState } from '@farmsim/tomato-engine';
 import type { SkinMeshPlantHandle } from '../../scene/SkinMeshPlant';
-import { SHOWCASE_SEED } from '../../scene/SceneInfrastructure';
+import { SHOWCASE_SEED } from '../../scene/showcaseSeed';
 
 // Iter 35 Phase F — Multi-plant 확장 API (배열, length=1 currently).
 //   Iter 36에서 slider/loop로 1~N 확장. default index=0.
 
 let engineRef: GrowthEngine | null = null;
 let skinMeshPlants: SkinMeshPlantHandle[] = [];
+interface CameraRigLike {
+  setPreset: (n: string) => void;
+  setEePresetDynamic?: (params: {
+    bedTopY: number;
+    mountHeightCmAboveBed: number;
+    workingDistanceM: number;
+    targetY: number;
+    fovDeg: number;
+  }) => void;
+}
+let cameraRigRef: CameraRigLike | null = null;
 const listeners = new Set<() => void>();
+
+/** D11 — CameraRig holder (CameraDock에서 setPreset 호출). */
+export function setCameraRigRef(rig: CameraRigLike | null): void {
+  cameraRigRef = rig;
+  listeners.forEach((l) => l());
+}
+
+export function getCameraRig(): CameraRigLike | null {
+  return cameraRigRef;
+}
 
 export function setSinglePlantEngineRef(engine: GrowthEngine | null): void {
   engineRef = engine;

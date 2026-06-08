@@ -1,0 +1,67 @@
+{
+  // Phytosim Scenario · Thinning (적과), Day 70, Truss 3, Multi-fruit
+  // 중기 생육 (D70) — 3번째 화방에서 다중 과실 적과 의사결정.
+  "id": "thin-D70-truss3-multi",
+  "version": "1.0",
+  "domain": "thinning",
+  "consumableBy": ["Workbench"],
+
+  "world": {
+    "greenhouseConfig": "default-24x34-13beds",
+    "activeBeds": [3],
+    "plantPlacement": "single-plant-D70"
+  },
+
+  "crop": {
+    "day": 70,
+    "seed": "0x7A33",
+    "cultivar": "tomimaru",
+    "perturbation": {
+      "leafDensityScale": 1.0,
+      "internodeScale": 1.0,
+      "trussTimingOffset": 0,
+      "fruitSetRate": 1.0
+    }
+  },
+
+  "env": {
+    "manualHour": 11,
+    "lightingPreset": "default",
+    "wind": { "strength": 0.0, "direction": [0, 0, 0] },  // 정밀 작업 → 무풍
+    "fogDensity": 0
+  },
+
+  "robot": {
+    "model": "via-agv-6dof-v1",
+    "startPose": { "rail": "aisle-3", "x": 4.2 },         // 단일 작물 정면
+    "endEffector": "thinning-cutter",
+    "camera": {
+      "head": { "lens": 45, "mountHeight": 1.5, "pitch": 0, "yaw": 0 },
+      "endEffector": { "lens": 30, "mountHeight": 1.4, "pitch": 0, "yaw": 0 }
+    }
+  },
+
+  "task": {
+    "type": "thinning-decision",
+    "speedMps": 0,                                         // 정지 작업
+    "decisionTriggers": ["fruit-detected"],
+    "targets": "truss==3 && (diameterMm < 12 || occlusion > 0.4)",
+    "rule": "화방의 가장 작은 과실 또는 가림 40% 초과 과실을 제거"
+  },
+
+  "verify": {
+    "successCriteria": [
+      { "metric": "decision-accuracy",    "min": 0.85, "note": "알고리즘 vs 표준 매뉴얼 일치" },
+      { "metric": "reachability-rate",    "min": 0.90 },
+      { "metric": "mask-iou",             "min": 0.75 },
+      { "metric": "task-completion-time", "max": 30 }
+    ]
+  },
+
+  "meta": {
+    "parentId": null,
+    "createdBy": "via-pm",
+    "createdAt": "2026-06-06T10:00:00Z",
+    "description": "중기 적과 다중 과실 의사결정 검증. 알고리즘 vs 매뉴얼 정확도 핵심."
+  }
+}

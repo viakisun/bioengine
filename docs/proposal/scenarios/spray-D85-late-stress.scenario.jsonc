@@ -1,0 +1,19 @@
+{
+  // S2.e — 후기 스트레스 zone 식별 (잎 노화 + 통풍 부족 + 후기 LAI).
+  "id": "spray-D85-late-stress",
+  "version": "1.0",
+  "domain": "spray",
+  "consumableBy": ["Workbench", "Twin"],
+  "world": { "greenhouseConfig": "default-24x34-13beds", "activeBeds": [3, 4, 5, 6, 7], "plantPlacement": "showcase-D85" },
+  "crop": { "day": 85, "seed": "0x8521", "cultivar": "tomimaru", "perturbation": { "leafDensityScale": 1.15 } },
+  "env": { "manualHour": 13, "lightingPreset": "overcast", "wind": { "strength": 0.05, "direction": [1, 0, 0] } },
+  "robot": { "model": "via-agv-6dof-v1", "startPose": { "rail": "aisle-3", "x": 0 }, "endEffector": "none" },
+  "task": { "type": "spray-survey", "speedMps": 0.12, "decisionTriggers": ["stress-zone"], "targets": "leafYellowing > 0.3 && windFlow < 0.15", "rule": "후기 황화 + 통풍 부족 zone marking" },
+  "verify": {
+    "successCriteria": [
+      { "metric": "decision-accuracy", "min": 0.70 },
+      { "metric": "fov-fruit-coverage", "min": 0.55 }
+    ]
+  },
+  "meta": { "parentId": null, "createdBy": "via-pm", "createdAt": "2026-06-06T10:00:00Z", "description": "후기 스트레스 zone 식별 (방제)." }
+}

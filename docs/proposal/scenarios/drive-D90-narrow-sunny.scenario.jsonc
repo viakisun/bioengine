@@ -1,0 +1,20 @@
+{
+  // S1.g — 후기 생육, 좁은 통로, 정오 햇빛 (자율주행 표준 후기).
+  "id": "drive-D90-narrow-sunny",
+  "version": "1.0",
+  "domain": "autonomous-driving",
+  "consumableBy": ["Twin", "Workbench"],
+  "world": { "greenhouseConfig": "default-24x34-13beds", "activeBeds": [3, 4, 5], "plantPlacement": "showcase-D90" },
+  "crop": { "day": 90, "seed": "0x9001", "cultivar": "tomimaru", "perturbation": { "leafDensityScale": 1.1 } },
+  "env": { "manualHour": 12, "lightingPreset": "noon-bright", "wind": { "strength": 0.3, "direction": [1, 0, 0.2] } },
+  "robot": { "model": "via-agv-6dof-v1", "startPose": { "rail": "aisle-3", "x": 0.0 }, "endEffector": "thinning-cutter" },
+  "task": { "type": "drive-traverse", "speedMps": 0.2, "decisionTriggers": ["leaf-brushing", "obstacle"] },
+  "greenhouse": { "aisleWidthScale": 0.95 },
+  "verify": {
+    "successCriteria": [
+      { "metric": "fov-fruit-coverage", "min": 0.7 },
+      { "metric": "collision-count", "max": 0 }
+    ]
+  },
+  "meta": { "parentId": null, "createdBy": "via-pm", "createdAt": "2026-06-06T10:00:00Z", "description": "후기 생육 좁은 통로 정오 햇빛." }
+}

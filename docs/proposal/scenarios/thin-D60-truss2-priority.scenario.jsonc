@@ -1,0 +1,19 @@
+{
+  // S2.e — 2번째 화방 우선순위 적과 의사결정.
+  "id": "thin-D60-truss2-priority",
+  "version": "1.0",
+  "domain": "thinning",
+  "consumableBy": ["Workbench"],
+  "world": { "greenhouseConfig": "default-24x34-13beds", "activeBeds": [3], "plantPlacement": "single-plant-D60" },
+  "crop": { "day": 60, "seed": "0x6022", "cultivar": "tomimaru" },
+  "env": { "manualHour": 10, "lightingPreset": "default", "wind": { "strength": 0.0, "direction": [0, 0, 0] } },
+  "robot": { "model": "via-agv-6dof-v1", "startPose": { "rail": "aisle-3", "x": 4.2 }, "endEffector": "thinning-cutter" },
+  "task": { "type": "thinning-decision", "speedMps": 0, "decisionTriggers": ["fruit-detected"], "targets": "truss==2 && rank>=4", "rule": "화방 2의 4순위 이하 과실 제거 (3개 유지)" },
+  "verify": {
+    "successCriteria": [
+      { "metric": "decision-accuracy", "min": 0.88 },
+      { "metric": "task-completion-time", "max": 40 }
+    ]
+  },
+  "meta": { "parentId": null, "createdBy": "via-pm", "createdAt": "2026-06-06T10:00:00Z", "description": "화방 2 우선순위 적과." }
+}

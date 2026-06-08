@@ -1,0 +1,34 @@
+{
+  // S2.e — Foundry 가림 회귀 (visible_fraction 0~1 regression).
+  "id": "recog-batch-occlusion",
+  "version": "1.0",
+  "domain": "recognition",
+  "consumableBy": ["Foundry"],
+  "world": { "greenhouseConfig": "default-24x34-13beds", "activeBeds": [3, 4, 5], "plantPlacement": "multi-plant-mixed-stages" },
+  "crop": { "day": 85, "seed": "0xC8500", "cultivar": "tomimaru", "perturbation": { "leafDensityScale": 1.1 } },
+  "env": { "manualHour": 12, "lightingPreset": "default", "wind": { "strength": 0.2, "direction": [1, 0, 0.1] } },
+  "foundry": {
+    "matrix": {
+      "leaf-density-perturb": [0.8, 1.0, 1.2, 1.4],
+      "camera-angle": [0, 45, 90, 135, 180, 225, 270, 315],
+      "camera-height": [0.8, 1.2, 1.6]
+    },
+    "seeds": 16,
+    "outputs": ["coco-json", "mask-png"],
+    "framesPerCondition": 1,
+    "expectedFrames": 1536
+  },
+  "task": {
+    "type": "recognition-capture",
+    "speedMps": 0,
+    "targets": "fruit",
+    "labelClasses": ["fruit"]
+  },
+  "verify": {
+    "successCriteria": [
+      { "metric": "occlusion-error", "max": 0.10 },
+      { "metric": "mask-iou", "min": 0.85 }
+    ]
+  },
+  "meta": { "parentId": null, "createdBy": "via-pm", "createdAt": "2026-06-06T10:00:00Z", "description": "과실 가림 정도 회귀 학습용 데이터셋." }
+}

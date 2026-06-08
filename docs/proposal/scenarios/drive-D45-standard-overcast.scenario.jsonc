@@ -1,0 +1,19 @@
+{
+  // S1.g — 중기 생육, 표준 통로, 흐림 (중간 난이도 baseline).
+  "id": "drive-D45-standard-overcast",
+  "version": "1.0",
+  "domain": "autonomous-driving",
+  "consumableBy": ["Twin", "Workbench"],
+  "world": { "greenhouseConfig": "default-24x34-13beds", "activeBeds": [3, 4, 5], "plantPlacement": "showcase-D45" },
+  "crop": { "day": 45, "seed": "0x4501", "cultivar": "tomimaru" },
+  "env": { "manualHour": 13, "lightingPreset": "overcast", "wind": { "strength": 0.2, "direction": [1, 0, 0.1] } },
+  "robot": { "model": "via-agv-6dof-v1", "startPose": { "rail": "aisle-3", "x": 0.0 }, "endEffector": "none" },
+  "task": { "type": "drive-traverse", "speedMps": 0.22, "decisionTriggers": ["obstacle"] },
+  "verify": {
+    "successCriteria": [
+      { "metric": "fov-fruit-coverage", "min": 0.75 },
+      { "metric": "collision-count", "max": 0 }
+    ]
+  },
+  "meta": { "parentId": null, "createdBy": "via-pm", "createdAt": "2026-06-06T10:00:00Z", "description": "중기 생육 흐림 표준 baseline." }
+}

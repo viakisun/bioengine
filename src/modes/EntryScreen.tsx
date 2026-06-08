@@ -6,7 +6,7 @@
 
 import { useState } from 'react';
 import { BRAND, getBuildHash } from './brand';
-import { MODES, MODE_KEYS } from './registry';
+import { MODES, MODE_KEYS, PRIMARY_MODE_KEYS, LEGACY_MODE_KEYS } from './registry';
 import type { ModeKey, ModeQualityConfig, QualityLevel } from './types';
 import { ModeCard } from './ModeCard';
 import '../styles/phytosim.css';
@@ -95,16 +95,40 @@ export function EntryScreen({ onEnter }: EntryScreenProps) {
           </p>
         </div>
 
-        {/* Links */}
+        {/* Links — S8.d (RFP §16.7) 활성. Documentation/Changelog는 docsify(:8091). */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13 }}>
-          <a className="p-link" href="#" onClick={(e) => e.preventDefault()}>
-            Documentation
+          <a
+            className="p-link"
+            href={BRAND.docs ?? '#'}
+            target="_blank"
+            rel="noreferrer"
+            title="docsify 서버 (`pnpm dlx docsify-cli serve docs/proposal --port 8091`)"
+          >
+            Documentation ↗
           </a>
-          <a className="p-link" href="#" onClick={(e) => e.preventDefault()}>
-            Changelog
+          <a
+            className="p-link"
+            href={`${BRAND.docs ?? ''}#/02-final-report-template`}
+            target="_blank"
+            rel="noreferrer"
+            title="완료보고서 (사내 구현판 — S7 채움)"
+          >
+            Changelog ↗
           </a>
-          <a className="p-link" href="#" onClick={(e) => e.preventDefault()}>
+          <a
+            className="p-link"
+            href={BRAND.repo ?? '#'}
+            onClick={(e) => {
+              if (!BRAND.repo || BRAND.repo === '#') e.preventDefault();
+            }}
+            target="_blank"
+            rel="noreferrer"
+            title={BRAND.repo === '#' ? 'BRAND.repo 미설정 — brand.ts에서 채움' : BRAND.repo}
+          >
             GitHub
+            {(!BRAND.repo || BRAND.repo === '#') && (
+              <span style={{ marginLeft: 6, fontSize: 10, opacity: 0.6 }}>(미설정)</span>
+            )}
           </a>
         </div>
 
@@ -182,27 +206,145 @@ export function EntryScreen({ onEnter }: EntryScreenProps) {
           </p>
         </div>
 
-        {/* Mode cards grid */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
-            gap: 16,
-            maxWidth: 880,
-          }}
-        >
-          {MODE_KEYS.map((key) => (
-            <ModeCard
-              key={key}
-              mode={MODES[key]}
-              selectedQuality={qualityByMode[key]}
-              onSelectQuality={(q) =>
-                setQualityByMode((prev) => ({ ...prev, [key]: q }))
-              }
-              onEnter={() => handleEnter(key)}
-            />
-          ))}
-        </div>
+        {/* Value props (S1.c — 5 가치명제 노출) */}
+        <section aria-label="가치명제 5개">
+          <div
+            style={{
+              fontSize: 10,
+              fontWeight: 600,
+              textTransform: 'uppercase',
+              letterSpacing: '0.10em',
+              color: 'var(--p-fg-dim)',
+              marginBottom: 10,
+            }}
+          >
+            5 Value Propositions
+          </div>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+              gap: 10,
+              maxWidth: 880,
+            }}
+          >
+            {BRAND.valueProps.map((v) => (
+              <div
+                key={v.key}
+                className="p-surface"
+                style={{
+                  padding: '12px 14px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 4,
+                  borderRadius: 8,
+                }}
+                title={v.description}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: 'var(--p-fg)',
+                  }}
+                >
+                  <span
+                    style={{
+                      fontFamily: 'var(--p-mono, monospace)',
+                      fontSize: 11,
+                      color: 'var(--p-accent, #4080d0)',
+                      letterSpacing: '0.02em',
+                    }}
+                  >
+                    {v.key}
+                  </span>
+                  <span>{v.ko}</span>
+                </div>
+                <div style={{ fontSize: 11, lineHeight: 1.4, color: 'var(--p-fg-dim)' }}>
+                  {v.name}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Primary modes — Workbench / Foundry / Twin (RFP §15) */}
+        <section aria-label="주 모드">
+          <div
+            style={{
+              fontSize: 10,
+              fontWeight: 600,
+              textTransform: 'uppercase',
+              letterSpacing: '0.10em',
+              color: 'var(--p-fg-dim)',
+              marginBottom: 10,
+            }}
+          >
+            Phytosim Modes
+          </div>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
+              gap: 16,
+              maxWidth: 880,
+            }}
+          >
+            {PRIMARY_MODE_KEYS.map((key) => (
+              <ModeCard
+                key={key}
+                mode={MODES[key]}
+                selectedQuality={qualityByMode[key]}
+                onSelectQuality={(q) =>
+                  setQualityByMode((prev) => ({ ...prev, [key]: q }))
+                }
+                onEnter={() => handleEnter(key)}
+              />
+            ))}
+          </div>
+        </section>
+
+        {/* Legacy modes — Single-plant / Greenhouse (호환성 보존) */}
+        <section aria-label="Legacy 모드">
+          <div
+            style={{
+              fontSize: 10,
+              fontWeight: 600,
+              textTransform: 'uppercase',
+              letterSpacing: '0.10em',
+              color: 'var(--p-fg-dim)',
+              marginBottom: 10,
+            }}
+          >
+            Legacy (Iter 35 호환)
+          </div>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
+              gap: 16,
+              maxWidth: 880,
+            }}
+          >
+            {LEGACY_MODE_KEYS.map((key) => (
+              <ModeCard
+                key={key}
+                mode={MODES[key]}
+                selectedQuality={qualityByMode[key]}
+                onSelectQuality={(q) =>
+                  setQualityByMode((prev) => ({ ...prev, [key]: q }))
+                }
+                onEnter={() => handleEnter(key)}
+              />
+            ))}
+          </div>
+        </section>
+
+        {/* keep MODE_KEYS exported usage to silence "unused" if linter ever flags */}
+        <span data-mode-count={MODE_KEYS.length} style={{ display: 'none' }} />
       </main>
     </div>
   );

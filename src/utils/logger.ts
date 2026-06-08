@@ -40,11 +40,13 @@ export type LogNamespace =
   | 'growth'        // tomato-engine/growth/* (host 측 alias)
   | 'leaf'          // LeafShapeSchema, widthProfile (식물 mesh 검증)
   | 'plant'         // 기타 plant
+  | 'scenarios'     // S1.d (RFP §15) — scenario loader/validator
+  | 'workbench'     // S1.g (RFP §15) — Workbench mode shell
   | 'ui';           // main.tsx global handler, ErrorBoundary
 
 export const ALL_NAMESPACES: readonly LogNamespace[] = [
   'engine', 'scene', 'quality', 'progressive', 'skinplant',
-  'overlay', 'growth', 'leaf', 'plant', 'ui',
+  'overlay', 'growth', 'leaf', 'plant', 'scenarios', 'workbench', 'ui',
 ] as const;
 
 const NS_DEFAULTS: Record<LogNamespace, Level> = {
@@ -57,6 +59,8 @@ const NS_DEFAULTS: Record<LogNamespace, Level> = {
   growth:      'warn',   // validation warn 보존
   leaf:        'warn',
   plant:       'warn',
+  scenarios:   'warn',   // 시나리오 로드 실패는 warn
+  workbench:   'warn',
   ui:          'error',  // global error handler만 출력 (warn/info silent)
 };
 

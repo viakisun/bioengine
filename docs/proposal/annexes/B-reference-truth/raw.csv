@@ -1,0 +1,12 @@
+variable,day,measured,min,max,deviation_pct,status
+height,D28,22.4,18,28,-1.8,PASS
+height,D56,138,95,143,12.5,PASS
+height,D84,218,180,250,1.4,PASS
+nodeCount,D56,18,15,21,0.0,PASS
+firstTrussDAS,n/a,38,30,42,5.6,PASS
+trussInterval,D56,2.8,2.5,3.5,-6.7,PASS
+fruitDiameterT1,D75,38,30,52,-7.3,PASS
+ripenStageT1,D90,3.1,2.5,4.5,-11.4,PASS
+leafCount,D84,47,22,38,56.7,EXCEED
+lai,D84,3.2,2.5,4.5,-8.6,PASS
+stemDiameter,D84,9.8,8,13,-6.7,PASS

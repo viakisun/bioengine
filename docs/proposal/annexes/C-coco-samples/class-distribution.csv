@@ -1,0 +1,8 @@
+category_id,name,count,pct
+100,fruit-stage-0,1,10.0
+101,fruit-stage-1,2,20.0
+102,fruit-stage-2,2,20.0
+103,fruit-stage-3,2,20.0
+104,fruit-stage-4,2,20.0
+105,fruit-stage-5,1,10.0
+total,,10,100.0

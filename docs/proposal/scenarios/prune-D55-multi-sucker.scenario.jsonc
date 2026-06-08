@@ -1,0 +1,20 @@
+{
+  // S2.e — 중기 다중 곁순 제거 (3~5개 동시 식별).
+  "id": "prune-D55-multi-sucker",
+  "version": "1.0",
+  "domain": "pruning",
+  "consumableBy": ["Workbench"],
+  "world": { "greenhouseConfig": "default-24x34-13beds", "activeBeds": [3], "plantPlacement": "single-plant-D55" },
+  "crop": { "day": 55, "seed": "0x5511", "cultivar": "tomimaru" },
+  "env": { "manualHour": 10, "lightingPreset": "default", "wind": { "strength": 0.0, "direction": [0, 0, 0] } },
+  "robot": { "model": "via-agv-6dof-v1", "startPose": { "rail": "aisle-3", "x": 4.2 }, "endEffector": "thinning-cutter" },
+  "task": { "type": "pruning-sucker", "speedMps": 0, "decisionTriggers": ["sucker-detected"], "targets": "isSideShoot && budState=='growing' && nodeIdx<=20", "rule": "상위 20 노드의 활성 곁순 모두 제거" },
+  "verify": {
+    "successCriteria": [
+      { "metric": "decision-accuracy", "min": 0.90 },
+      { "metric": "reachability-rate", "min": 0.90 },
+      { "metric": "task-completion-time", "max": 50 }
+    ]
+  },
+  "meta": { "parentId": null, "createdBy": "via-pm", "createdAt": "2026-06-06T10:00:00Z", "description": "중기 다중 곁순 제거." }
+}

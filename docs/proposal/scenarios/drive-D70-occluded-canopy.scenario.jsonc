@@ -1,0 +1,19 @@
+{
+  // S2.e — 중후기 canopy 침범 (잎이 통로로 들어오기 시작).
+  "id": "drive-D70-occluded-canopy",
+  "version": "1.0",
+  "domain": "autonomous-driving",
+  "consumableBy": ["Twin", "Workbench"],
+  "world": { "greenhouseConfig": "default-24x34-13beds", "activeBeds": [3, 4, 5], "plantPlacement": "showcase-D70" },
+  "crop": { "day": 70, "seed": "0x7022", "cultivar": "tomimaru", "perturbation": { "leafDensityScale": 1.2 } },
+  "env": { "manualHour": 14, "lightingPreset": "default", "wind": { "strength": 0.35, "direction": [1, 0, 0.2] } },
+  "robot": { "model": "via-agv-6dof-v1", "startPose": { "rail": "aisle-3", "x": 0 }, "endEffector": "none" },
+  "task": { "type": "drive-traverse", "speedMps": 0.18, "decisionTriggers": ["leaf-brushing"] },
+  "verify": {
+    "successCriteria": [
+      { "metric": "fov-fruit-coverage", "min": 0.65 },
+      { "metric": "collision-count", "max": 1, "note": "canopy 침범 brushing 1회까지 허용" }
+    ]
+  },
+  "meta": { "parentId": null, "createdBy": "via-pm", "createdAt": "2026-06-06T10:00:00Z", "description": "중후기 canopy 잎 침범." }
+}

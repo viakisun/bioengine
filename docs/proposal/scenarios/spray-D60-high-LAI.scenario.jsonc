@@ -1,0 +1,19 @@
+{
+  // S1.g — 고밀도 잎 → 통풍 위험 구역 식별 (방제 의사결정).
+  "id": "spray-D60-high-LAI",
+  "version": "1.0",
+  "domain": "spray",
+  "consumableBy": ["Workbench", "Twin"],
+  "world": { "greenhouseConfig": "default-24x34-13beds", "activeBeds": [3, 4, 5], "plantPlacement": "showcase-D60" },
+  "crop": { "day": 60, "seed": "0x6201", "cultivar": "tomimaru", "perturbation": { "leafDensityScale": 1.25 } },
+  "env": { "manualHour": 12, "lightingPreset": "default", "wind": { "strength": 0.05, "direction": [1, 0, 0] } },
+  "robot": { "model": "via-agv-6dof-v1", "startPose": { "rail": "aisle-3", "x": 0 }, "endEffector": "none" },
+  "task": { "type": "spray-survey", "speedMps": 0.15, "decisionTriggers": ["high-density-zone"], "targets": "leafDensity > 0.75 && windFlow < 0.2", "rule": "통풍 부족 + 고밀도 잎 구역을 위험 zone으로 marking" },
+  "verify": {
+    "successCriteria": [
+      { "metric": "decision-accuracy", "min": 0.75 },
+      { "metric": "fov-fruit-coverage", "min": 0.6 }
+    ]
+  },
+  "meta": { "parentId": null, "createdBy": "via-pm", "createdAt": "2026-06-06T10:00:00Z", "description": "방제 위험 구역 식별 (고LAI + 통풍 부족)." }
+}

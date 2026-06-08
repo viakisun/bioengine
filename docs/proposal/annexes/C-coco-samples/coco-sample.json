@@ -1,0 +1,41 @@
+{
+  "info": {
+    "description": "Phytosim Foundry — recog-batch-fruit-classification (W3.f sample)",
+    "scenarioId": "recog-batch-fruit-classification",
+    "seed": "0xCOCO0",
+    "version": "1.0",
+    "date_created": "2026-06-08T00:00:00.000Z"
+  },
+  "images": [
+    { "id": 0, "file_name": "recog-batch-fruit-classification_d50.png", "width": 1280, "height": 720 },
+    { "id": 1, "file_name": "recog-batch-fruit-classification_d55.png", "width": 1280, "height": 720 },
+    { "id": 2, "file_name": "recog-batch-fruit-classification_d60.png", "width": 1280, "height": 720 },
+    { "id": 3, "file_name": "recog-batch-fruit-classification_d65.png", "width": 1280, "height": 720 },
+    { "id": 4, "file_name": "recog-batch-fruit-classification_d70.png", "width": 1280, "height": 720 },
+    { "id": 5, "file_name": "recog-batch-fruit-classification_d75.png", "width": 1280, "height": 720 },
+    { "id": 6, "file_name": "recog-batch-fruit-classification_d80.png", "width": 1280, "height": 720 },
+    { "id": 7, "file_name": "recog-batch-fruit-classification_d85.png", "width": 1280, "height": 720 },
+    { "id": 8, "file_name": "recog-batch-fruit-classification_d90.png", "width": 1280, "height": 720 },
+    { "id": 9, "file_name": "recog-batch-fruit-classification_d95.png", "width": 1280, "height": 720 }
+  ],
+  "categories": [
+    { "id": 100, "name": "fruit-stage-0", "supercategory": "fruit" },
+    { "id": 101, "name": "fruit-stage-1", "supercategory": "fruit" },
+    { "id": 102, "name": "fruit-stage-2", "supercategory": "fruit" },
+    { "id": 103, "name": "fruit-stage-3", "supercategory": "fruit" },
+    { "id": 104, "name": "fruit-stage-4", "supercategory": "fruit" },
+    { "id": 105, "name": "fruit-stage-5", "supercategory": "fruit" }
+  ],
+  "annotations": [
+    { "id": 1, "image_id": 0, "category_id": 100, "bbox": [524, 245, 230, 230], "segmentation": [[524, 245, 754, 245, 754, 475, 524, 475]], "area": 52900, "iscrowd": 0, "attributes": { "instance_id": 1, "visible_fraction": 0.85, "growth_day": 50, "seed": "0xCOCO0" } },
+    { "id": 2, "image_id": 1, "category_id": 101, "bbox": [524, 245, 230, 230], "segmentation": [[524, 245, 754, 245, 754, 475, 524, 475]], "area": 52900, "iscrowd": 0, "attributes": { "instance_id": 1001, "visible_fraction": 0.85, "growth_day": 55, "seed": "0xCOCO0" } },
+    { "id": 3, "image_id": 2, "category_id": 101, "bbox": [524, 245, 230, 230], "segmentation": [[524, 245, 754, 245, 754, 475, 524, 475]], "area": 52900, "iscrowd": 0, "attributes": { "instance_id": 2001, "visible_fraction": 0.85, "growth_day": 60, "seed": "0xCOCO0" } },
+    { "id": 4, "image_id": 3, "category_id": 102, "bbox": [524, 245, 230, 230], "segmentation": [[524, 245, 754, 245, 754, 475, 524, 475]], "area": 52900, "iscrowd": 0, "attributes": { "instance_id": 3001, "visible_fraction": 0.85, "growth_day": 65, "seed": "0xCOCO0" } },
+    { "id": 5, "image_id": 4, "category_id": 102, "bbox": [524, 245, 230, 230], "segmentation": [[524, 245, 754, 245, 754, 475, 524, 475]], "area": 52900, "iscrowd": 0, "attributes": { "instance_id": 4001, "visible_fraction": 0.85, "growth_day": 70, "seed": "0xCOCO0" } },
+    { "id": 6, "image_id": 5, "category_id": 103, "bbox": [524, 245, 230, 230], "segmentation": [[524, 245, 754, 245, 754, 475, 524, 475]], "area": 52900, "iscrowd": 0, "attributes": { "instance_id": 5001, "visible_fraction": 0.85, "growth_day": 75, "seed": "0xCOCO0" } },
+    { "id": 7, "image_id": 6, "category_id": 103, "bbox": [524, 245, 230, 230], "segmentation": [[524, 245, 754, 245, 754, 475, 524, 475]], "area": 52900, "iscrowd": 0, "attributes": { "instance_id": 6001, "visible_fraction": 0.85, "growth_day": 80, "seed": "0xCOCO0" } },
+    { "id": 8, "image_id": 7, "category_id": 104, "bbox": [524, 245, 230, 230], "segmentation": [[524, 245, 754, 245, 754, 475, 524, 475]], "area": 52900, "iscrowd": 0, "attributes": { "instance_id": 7001, "visible_fraction": 0.85, "growth_day": 85, "seed": "0xCOCO0" } },
+    { "id": 9, "image_id": 8, "category_id": 104, "bbox": [524, 245, 230, 230], "segmentation": [[524, 245, 754, 245, 754, 475, 524, 475]], "area": 52900, "iscrowd": 0, "attributes": { "instance_id": 8001, "visible_fraction": 0.85, "growth_day": 90, "seed": "0xCOCO0" } },
+    { "id": 10, "image_id": 9, "category_id": 105, "bbox": [524, 245, 230, 230], "segmentation": [[524, 245, 754, 245, 754, 475, 524, 475]], "area": 52900, "iscrowd": 0, "attributes": { "instance_id": 9001, "visible_fraction": 0.85, "growth_day": 95, "seed": "0xCOCO0" } }
+  ]
+}

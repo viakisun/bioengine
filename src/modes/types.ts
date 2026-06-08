@@ -5,8 +5,22 @@
 //
 // 진입점 architecture: App.tsx → ModeSelector → 선택 mode → Scene build.
 // Registry pattern으로 확장 가능 (Robot, Sandbox 등 후속 mode 추가 용이).
+//
+// S1.b (RFP §15) — Workbench·Foundry·Twin 3 모드 추가.
+//   기존 'single-plant'·'greenhouse'는 호환성 보존.
 
-export type ModeKey = 'single-plant' | 'greenhouse';
+export type ModeKey =
+  | 'single-plant'
+  | 'greenhouse'
+  | 'workbench'
+  | 'foundry'
+  | 'twin';
+
+/** 가치명제 매핑 (헤더 ValueChip 표시용). brand.ts ValuePropKey와 동일. */
+export type ModeValueProps = readonly ('V1' | 'V2' | 'V3' | 'V4' | 'V5')[];
+
+/** 모드 가용 상태 — S1에서 workbench=ready, foundry/twin=coming-soon. */
+export type ModeAvailability = 'ready' | 'coming-soon';
 
 /** Mode 진입 시 사용자가 선택할 수 있는 렌더링 품질. */
 export type QualityLevel = 'low' | 'medium' | 'high';
@@ -42,4 +56,8 @@ export interface ModeSpec {
    * 일부 모드는 일부 옵션만 의미 (예: single-plant는 medium/low 무의미).
    */
   availableQualityLevels: QualityLevel[];
+  /** 가치명제 매핑 (V1~V5 중 해당). 헤더 ValueChip 노출. S1.b 추가. */
+  valueProps?: ModeValueProps;
+  /** S1.b 추가 — 모드 가용 상태. coming-soon이면 카드 disabled. */
+  availability?: ModeAvailability;
 }

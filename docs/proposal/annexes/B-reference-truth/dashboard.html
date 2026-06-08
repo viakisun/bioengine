@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>Phytosim — Reference Truth Dashboard (W1.a 실 호출 sample)</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #111; color: #eee; padding: 24px; margin: 0; }
+  h1 { font-weight: 500; border-bottom: 1px solid #333; padding-bottom: 8px; }
+  table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+  th, td { padding: 6px 12px; text-align: left; border-bottom: 1px solid #333; }
+  th { background: #1a1a1a; font-weight: 500; }
+  .pass { color: #4ade80; }
+  .fail { color: #f87171; }
+  .meta { color: #888; font-size: 12px; margin-bottom: 24px; }
+  .header { display: flex; gap: 24px; align-items: baseline; margin-bottom: 12px; }
+  .badge { padding: 4px 10px; border-radius: 4px; font-size: 11px; font-weight: 500; }
+  .badge.pass { background: #064e3b; color: #4ade80; }
+  .badge.warn { background: #422006; color: #fbbf24; }
+  .bar { width: 100%; height: 14px; background: #1f2937; border-radius: 2px; position: relative; overflow: hidden; }
+  .bar-band { position: absolute; top: 0; bottom: 0; background: #064e3b; opacity: 0.5; }
+  .bar-mark { position: absolute; top: -2px; bottom: -2px; width: 2px; background: #4ade80; }
+  .bar-mark.fail { background: #f87171; }
+</style>
+</head>
+<body>
+  <h1>Reference Truth Dashboard <span class="meta" style="font-size:14px">(Phytosim · W1.a)</span></h1>
+  <div class="meta">
+    시드 SHOWCASE_SEED · engine.simulatePlantToMinute(seed, day*1440+12*60) 실 호출 · ±20% band 기준
+  </div>
+
+  <div class="header">
+    <h2 style="margin:0;font-weight:500">9 변수 × 측정 시점</h2>
+    <span class="badge pass">✓ 10 PASS</span>
+    <span class="badge warn">⚠ 1 EXCEED</span>
+  </div>
+
+  <table>
+    <thead>
+      <tr><th>변수</th><th>일자</th><th>측정 (sim)</th><th>표준 범위</th><th>편차 %</th><th>상태</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>height</td><td>D28</td><td>22.4 cm</td><td>18~28 cm</td><td>-1.8%</td><td class="pass">✓ PASS</td></tr>
+      <tr><td>height</td><td>D56</td><td>138 cm</td><td>95~143 cm</td><td>+12.5%</td><td class="pass">✓ PASS</td></tr>
+      <tr><td>height</td><td>D84</td><td>218 cm</td><td>180~250 cm</td><td>+1.4%</td><td class="pass">✓ PASS</td></tr>
+      <tr><td>nodeCount</td><td>D56</td><td>18</td><td>15~21</td><td>+0.0%</td><td class="pass">✓ PASS</td></tr>
+      <tr><td>firstTrussDAS</td><td>n/a</td><td>38</td><td>30~42</td><td>+5.6%</td><td class="pass">✓ PASS</td></tr>
+      <tr><td>trussInterval</td><td>D56</td><td>2.8</td><td>2.5~3.5</td><td>-6.7%</td><td class="pass">✓ PASS</td></tr>
+      <tr><td>fruitDiameterT1</td><td>D75</td><td>38 mm</td><td>30~52 mm</td><td>-7.3%</td><td class="pass">✓ PASS</td></tr>
+      <tr><td>ripenStageT1</td><td>D90</td><td>3.1</td><td>2.5~4.5</td><td>-11.4%</td><td class="pass">✓ PASS</td></tr>
+      <tr><td><strong>leafCount</strong></td><td><strong>D84</strong></td><td><strong>47</strong></td><td><strong>22~38</strong></td><td><strong>+56.7%</strong></td><td class="fail">⚠ EXCEED</td></tr>
+      <tr><td>lai</td><td>D84</td><td>3.2</td><td>2.5~4.5</td><td>-8.6%</td><td class="pass">✓ PASS</td></tr>
+      <tr><td>stemDiameter</td><td>D84</td><td>9.8 mm</td><td>8~13 mm</td><td>-6.7%</td><td class="pass">✓ PASS</td></tr>
+    </tbody>
+  </table>
+
+  <h2 style="margin-top:32px;font-weight:500">⚠ 초과 항목 후속 보정 plan</h2>
+  <p><strong>leafCount D84 +56.7%</strong> — V2 evolution candidate: LeafGrowthModel <code>phyllochronTT</code> 단축 또는 expansion rate 감속.
+  현재 Wave 1.a는 <code>N*0.85</code>로 근사 매핑 사용 — 실 LeafGrowthModel 파라미터 튜닝은 후속.</p>
+
+  <h2 style="margin-top:32px;font-weight:500">Cross-link</h2>
+  <ul>
+    <li><a href="summary.md">summary.md</a> — 1쪽 요약</li>
+    <li><a href="../../02-final-report-template.md#6-reference-truth-검증-결과">02 §6 본문</a></li>
+    <li><a href="../../../../src/modes/calibration/Calibration.tsx">Calibration.tsx</a> — 실 호출 source</li>
+  </ul>
+</body>
+</html>

@@ -1,0 +1,38 @@
+{
+  // S2.e — Foundry 다품종 분류 (cultivar 일반화 검증).
+  "id": "recog-batch-multi-cultivar",
+  "version": "1.0",
+  "domain": "recognition",
+  "consumableBy": ["Foundry"],
+  "world": { "greenhouseConfig": "default-24x34-13beds", "activeBeds": [3, 4, 5], "plantPlacement": "multi-plant-mixed-stages" },
+  "crop": { "day": 75, "seed": "0xCC750", "cultivar": "tomimaru" },
+  "env": { "manualHour": 12, "lightingPreset": "default", "wind": { "strength": 0.2, "direction": [1, 0, 0.1] } },
+  "foundry": {
+    "matrix": {
+      "growth-day": [60, 75, 90],
+      "camera-angle": [0, 60, 120, 180, 240, 300],
+      "camera-height": [1.0, 1.4, 1.8],
+      "cultivar": ["tomimaru", "momotaro", "roma"]
+    },
+    "seeds": 8,
+    "outputs": ["coco-json", "mask-png"],
+    "framesPerCondition": 1,
+    "expectedFrames": 1296
+  },
+  "task": {
+    "type": "recognition-capture",
+    "speedMps": 0,
+    "labelClasses": [
+      "fruit-stage-0", "fruit-stage-1", "fruit-stage-2",
+      "fruit-stage-3", "fruit-stage-4", "fruit-stage-5",
+      "cultivar-tomimaru", "cultivar-momotaro", "cultivar-roma"
+    ]
+  },
+  "verify": {
+    "successCriteria": [
+      { "metric": "mask-iou", "min": 0.80 },
+      { "metric": "label-class-balance", "min": 0.04 }
+    ]
+  },
+  "meta": { "parentId": null, "createdBy": "via-pm", "createdAt": "2026-06-06T10:00:00Z", "description": "다품종 cross-validation 데이터셋." }
+}

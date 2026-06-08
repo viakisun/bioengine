@@ -36,67 +36,9 @@ if (typeof window !== 'undefined' && import.meta.env?.DEV) {
 }
 
 export function SinglePlantOverlay() {
-  const minute = useTwinStore((s) => s.singlePlantMinute);
-  const playing = useTwinStore((s) => s.singlePlantPlaying);
-  const speed = useTwinStore((s) => s.singlePlantSpeed);
-  const setMinute = useTwinStore((s) => s.setSinglePlantMinute);
-  const defoliationHeightCm = useTwinStore((s) => s.defoliationHeightCm);
-
-  // Iter 35 PR 4 Phase P 후속 fix: BabylonEngine async init이 React mount보다 늦으면
-  //   getSinglePlantEngine() = null → 첫 useEffect 즉시 return → 영원히 update 안 됨.
-  //   refsReady가 listener로 set되면 useEffect 재실행 → 첫 frame 확보.
-  const [refsReady, setRefsReady] = useState(
-    () => !!getSinglePlantEngine() && !!getSinglePlantSkinMesh(),
-  );
-  useEffect(() => {
-    return subscribeSinglePlantRefs(() => {
-      setRefsReady(!!getSinglePlantEngine() && !!getSinglePlantSkinMesh());
-    });
-  }, []);
-
-  // Drive the live simulation as the user scrubs the timeline.
-  // Iter 35 PR 2: SkinMesh가 유일 plant renderer — useImplicitMesh toggle 부재.
-  // ★ S126 — multi-plant 지원: 모든 plant에 대해 update(day) 호출.
-  //   index 0 (showcase): physiology 적용 (truss/fruit overlay).
-  //   index 1+ (extras): physiology 없이 update — computeState만으로 build.
-  useEffect(() => {
-    const engine = getSinglePlantEngine();
-    const skins = getAllSinglePlantSkinMeshes();
-    log.debug(`effect: minute=${minute} refsReady=${refsReady} defoliation=${defoliationHeightCm} engine=${!!engine} plants=${skins.length}`);
-    if (!engine) return;
-    const day = Math.floor(minute / 1440);
-    // Showcase (index 0): full physiology.
-    const physiology = engine.simulatePlantToMinute(SHOWCASE_SEED, minute);
-    if (skins[0]) skins[0].update(day, physiology);
-    // Extras (index 1+): update without physiology (computeState only).
-    for (let i = 1; i < skins.length; i++) {
-      skins[i].update(day);
-    }
-  }, [minute, refsReady, defoliationHeightCm]);
-
-  // Playback loop — rAF, scales minute by speed × elapsed.
-  useEffect(() => {
-    if (!playing) return;
-    let raf = 0;
-    let last = performance.now();
-    const tick = () => {
-      const now = performance.now();
-      const dt = (now - last) / 1000;
-      last = now;
-      const advance = dt * speed;
-      const cur = useTwinStore.getState().singlePlantMinute;
-      const next = cur + advance;
-      if (next >= 120 * 24 * 60) {
-        useTwinStore.getState().setSinglePlantPlaying(false);
-        setMinute(120 * 24 * 60 - 1);
-        return;
-      }
-      setMinute(next);
-      raf = window.requestAnimationFrame(tick);
-    };
-    raf = window.requestAnimationFrame(tick);
-    return () => window.cancelAnimationFrame(raf);
-  }, [playing, speed, setMinute]);
+  // D0.b (RFP §17): useEffect 두 개 (minute→update + playback rAF)는 App.tsx의
+  //   usePlantPlayback hook으로 추출 — mode 무관 항상 동작.
+  //   본 컴포넌트는 legacy single-plant/greenhouse 모드의 HUD UI만 담당.
 
   return (
     <div

@@ -1,0 +1,70 @@
+{
+  // Phytosim Scenario · Autonomous Driving, Day 90, Narrow Aisle, Backlit
+  // 후기 생육 (D90) — 잎 밀도 최대, 통로 침범, 역광. 인식 난이도 高.
+  "id": "drive-D90-narrow-backlit",
+  "version": "1.0",
+  "domain": "autonomous-driving",
+  "consumableBy": ["Twin", "Workbench"],
+
+  "world": {
+    "greenhouseConfig": "default-24x34-13beds",
+    "activeBeds": [3, 4, 5],
+    "plantPlacement": "showcase-D90"
+  },
+
+  "crop": {
+    "day": 90,
+    "seed": "0x42A7",
+    "cultivar": "tomimaru",
+    "perturbation": {
+      "leafDensityScale": 1.15,        // 잎 밀도 +15%
+      "internodeScale": 1.0,
+      "trussTimingOffset": 0,
+      "fruitSetRate": 1.0
+    }
+  },
+
+  "env": {
+    "manualHour": 17,                  // 늦은 오후 → 역광
+    "lightingPreset": "golden",
+    "wind": { "strength": 0.4, "direction": [1, 0, 0.3] },
+    "fogDensity": 0
+  },
+
+  "robot": {
+    "model": "via-agv-6dof-v1",
+    "startPose": { "rail": "aisle-3", "x": 0.0 },
+    "endEffector": "thinning-cutter",
+    "camera": {
+      "head": { "lens": 60, "mountHeight": 1.6, "pitch": -5, "yaw": 0 },
+      "endEffector": { "lens": 45, "mountHeight": 1.5, "pitch": 0, "yaw": 0 }
+    }
+  },
+
+  "task": {
+    "type": "drive-traverse",
+    "speedMps": 0.18,                  // 잎 밀도·역광으로 인해 속도 감소
+    "decisionTriggers": ["leaf-brushing", "obstacle", "low-visibility"],
+    "targets": "bed==3 || bed==4 || bed==5"
+  },
+
+  "greenhouse": {
+    "aisleWidthScale": 0.95            // 좁은 통로 시뮬레이션
+  },
+
+  "verify": {
+    "successCriteria": [
+      { "metric": "fov-fruit-coverage",   "min": 0.55, "note": "역광·잎 가림으로 임계 낮춤" },
+      { "metric": "collision-count",      "max": 0 },
+      { "metric": "path-length",          "max": 22.0 },
+      { "metric": "task-completion-time", "max": 150 }
+    ]
+  },
+
+  "meta": {
+    "parentId": null,
+    "createdBy": "via-pm",
+    "createdAt": "2026-06-06T10:00:00Z",
+    "description": "후기 생육·역광·좁은 통로. 자율주행 한계 검증 시나리오."
+  }
+}
