@@ -53,8 +53,12 @@ export interface SceneInfrastructureHandle {
   extraPlants: SkinMeshPlantHandle[];
   /** §21 — PlantManager 인스턴스 (bedLayout 모드에서만 생성). runtime add/remove. */
   plantManager: PlantManager | null;
-  /** §21 — boot 시 사용된 SceneOptions (S4 update의 base). */
+  /** §21 — boot 시 사용된 SceneOptions (update의 base). */
   sceneOptions: SceneOptions;
+  /** §21 S4 — runtime 부분 업데이트. patch에 있는 필드만 적용.
+   *  지원: initialPlantCount, qualityPreset, cultivation.deleafHeightCm.
+   *  V2 후보: plantQuality, bedLayout, activeBedIndices, robot.traverseEnabled. */
+  update: (patch: Partial<SceneOptions>) => Promise<void>;
 }
 
 // §21 — URL parsing은 resolveSceneOptions (sceneOptions.ts) 으로 통합. 기존 6개 resolveXxx 제거.
@@ -279,13 +283,41 @@ export async function buildSceneInfrastructure(scene: Scene, options?: SceneOpti
   logBoot('log', `scene: 인프라 완료 (plants=${1 + extraPlants.length}, beds=${bedZPositions.length}, active=${activeBedIndices.length})`);
   await new Promise((r) => requestAnimationFrame(() => r(null)));
 
-  return {
+  // §21 S4 — SceneHandle.update(patch). 현재 mvp 지원 필드만 분기. 미지원은 무시.
+  const handle: SceneInfrastructureHandle = {
     growthEngine,
     skinMeshPlant,
     extraPlants,
     plantManager,
     sceneOptions: opts,
+    update: async (patch: Partial<SceneOptions>) => {
+      // initialPlantCount → PlantManager.setCount
+      if (patch.initialPlantCount !== undefined && plantManager) {
+        await plantManager.setCount(patch.initialPlantCount);
+        handle.sceneOptions = { ...handle.sceneOptions, initialPlantCount: patch.initialPlantCount };
+      }
+      // qualityPreset → twinStore.setRenderFX (BabylonEngine subscribe가 자동 apply)
+      if (patch.qualityPreset !== undefined && patch.qualityPreset !== null) {
+        const { useTwinStore } = await import('../state/twinStore');
+        const { QUALITY_PRESETS } = await import('./RenderQuality');
+        const preset = QUALITY_PRESETS[patch.qualityPreset];
+        if (preset) {
+          useTwinStore.getState().setRenderFX(preset.fx);
+          handle.sceneOptions = { ...handle.sceneOptions, qualityPreset: patch.qualityPreset };
+        }
+      }
+      // cultivation.deleafHeightCm → twinStore.setDefoliationHeightCm
+      if (patch.cultivation?.deleafHeightCm !== undefined) {
+        const { useTwinStore } = await import('../state/twinStore');
+        useTwinStore.getState().setDefoliationHeightCm(patch.cultivation.deleafHeightCm);
+        handle.sceneOptions = {
+          ...handle.sceneOptions,
+          cultivation: { ...(handle.sceneOptions.cultivation ?? {}), ...patch.cultivation },
+        };
+      }
+    },
   };
+  return handle;
 }
 
 /** Active beds around the main (center) bed. */

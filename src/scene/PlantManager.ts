@@ -16,6 +16,21 @@ import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { createSkinMeshPlant, type SkinMeshPlantHandle } from './SkinMeshPlant';
 import { SCENARIO } from '../data/mockScenario';
 
+// §21 S4 — Scene handle holder (PhenotypingControls·MemoryStats가 PlantManager 접근용).
+//   순환 import 회피 위해 SceneInfrastructureHandle은 type only export.
+import type { SceneInfrastructureHandle } from './SceneInfrastructure';
+
+let activeSceneHandle: SceneInfrastructureHandle | null = null;
+export function setActiveSceneHandle(handle: SceneInfrastructureHandle | null): void {
+  activeSceneHandle = handle;
+}
+export function getActiveSceneHandle(): SceneInfrastructureHandle | null {
+  return activeSceneHandle;
+}
+export function getActivePlantManager(): PlantManager | null {
+  return activeSceneHandle?.plantManager ?? null;
+}
+
 export type PlantRefRegister = (plant: SkinMeshPlantHandle | null, index: number) => void;
 
 export type SafeMaxStatus = 'ok' | 'near-limit' | 'at-limit' | 'no-mem-api';

@@ -8,6 +8,7 @@ import { setupScene, type SceneSetupHandle } from './SceneSetup';
 import { applyRenderQuality, QUALITY_PRESETS } from './RenderQuality';
 import { setupCamera, type CameraRig } from './CameraRig';
 import { buildSceneInfrastructure, type SceneInfrastructureHandle, SHOWCASE_SEED } from './SceneInfrastructure';
+import { resolveSceneOptions } from './sceneOptions';
 // Iter 35: GreenhouseContent (zones/heatmap/robot/path/supporting) + ProgressiveLoad
 //   제거 — single-plant only (Phase B+C, 사용자 결정).
 // Iter 35 PR 2 Phase O: QualityProbe archived (Skin 무관 general FX 측정).
@@ -25,6 +26,7 @@ import { installDockingOverlayHotkey } from './dockingOverlay/hotkeyToggle';
 import { setBootStage, logBoot, setEnvInfo, setEnvCounters, notify } from '../state/notify';
 import { setSinglePlantEngineRef, setSinglePlantSkinMeshRef, setCameraRigRef } from '../hud/single-plant/useSinglePlantState';
 import { setRuntimePlantRefRegister } from './runtimePlantApi';
+import { setActiveSceneHandle } from './PlantManager';
 import { createRobot } from './robot/Robot';
 import { createLogger } from '../utils/logger';
 const log = createLogger('engine');
@@ -319,12 +321,21 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
   setBootStage('greenhouse', '온실 인프라 빌드 시작', 0);
   let greenhouse: SceneInfrastructureHandle | null = null;
   try {
-    greenhouse = await buildSceneInfrastructure(scene);
+    // §21 — URL → SceneOptions 명시 변환 후 buildSceneInfrastructure에 전달.
+    const sceneOptions = resolveSceneOptions(
+      typeof location !== 'undefined' ? location.search : '',
+    );
+    greenhouse = await buildSceneInfrastructure(scene, sceneOptions);
     mark('greenhouse_build_complete');
     setSinglePlantEngineRef(greenhouse.growthEngine);
     setSinglePlantSkinMeshRef(greenhouse.skinMeshPlant, 0);
-    // §19 — runtimePlantApi에 SinglePlantSkinMeshRef register 주입 (순환 import 회피).
+    // §19/§21 — PlantManager.registerPlantRef + runtimePlantApi ctx register 둘 다 주입 (호환).
     setRuntimePlantRefRegister(setSinglePlantSkinMeshRef);
+    if (greenhouse.plantManager) {
+      // PlantManager.opts.registerPlantRef를 외부 callback으로 교체 (S5에서 일관화).
+      (greenhouse.plantManager as unknown as { opts: { registerPlantRef: typeof setSinglePlantSkinMeshRef } }).opts.registerPlantRef = setSinglePlantSkinMeshRef;
+    }
+    setActiveSceneHandle(greenhouse);
 
     // W2.e·f (§18) — 신규 Robot mesh (Babylon 9 스타일) — chassis + arm + effector.
     //   통로 안 (z=-0.8, y=0.3 = 휠 위) · rail X = 0 (식물 정면).
