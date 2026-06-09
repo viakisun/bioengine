@@ -161,10 +161,13 @@ export async function buildSceneInfrastructure(scene: Scene, options?: SceneOpti
     nutrientEC: 3.0,
   });
 
-  // ★ S136-C — Showcase plant at bed CENTER (slot 45 = middle), not corner.
+  // ★ S136-C — Showcase plant at bed CENTER, not corner.
   //   이전: SCENARIO.plants[0] (X=-14.9, 베드 _왼쪽 끝_) → camera 화면 밖.
-  //   이제: SCENARIO.plants[45] (X≈0, 베드 _중앙_) → 사용자 즉시 시야.
-  const showcaseSpec = SCENARIO.plants[45];
+  //   이제: 베드 _중앙_ slot (X≈+0.1) → 사용자 즉시 시야.
+  //   ★ 2026-06-09 — PLANTS_PER_BAG 3→5 변경 후 center slot 45→75 (둘 다 bag 15
+  //   hole 0 = X+0.1 동일 좌표). length/2로 자동 산출.
+  const SHOWCASE_SLOT = Math.floor(SCENARIO.plants.length / 2);
+  const showcaseSpec = SCENARIO.plants[SHOWCASE_SLOT];
   growthEngine.addPlant({ seed: SHOWCASE_SEED, cultivarName: 'tomimaru-muchoo' });
   const skinPos = new Vector3(showcaseSpec.position[0], SUBSTRATE_TOP_Y, bedZPositions[mainBedIdx]);
 
@@ -192,11 +195,10 @@ export async function buildSceneInfrastructure(scene: Scene, options?: SceneOpti
   const extraQuality = getActiveMode().quality.level;
   let extraPlants: SkinMeshPlantHandle[] = [];
   let plantManager: PlantManager | null = null;
-  const SHOWCASE_SLOT = 45;
 
   if (bedLayout) {
     // §21 — PlantManager + buildInitial (center-out round-robin, R1~R4 fix 캡슐화).
-    const slotOrder = computeSlotOrder(bedLayout.stride);
+    const slotOrder = computeSlotOrder(bedLayout.stride, SCENARIO.plants.length);
     const totalMax = slotOrder.length * activeBedIndices.length - 1;
     const initialN = Math.min(opts.initialPlantCount, totalMax);
 
@@ -236,15 +238,16 @@ export async function buildSceneInfrastructure(scene: Scene, options?: SceneOpti
     extraPlants = plantManager.getPlants();
   } else {
     // Legacy: ?extraPlants=N stride 분산. opts.extraPlants 우선, 없으면 mode default.
+    const totalSlots = SCENARIO.plants.length;
     const extraN = opts.extraPlants ?? (getActiveMode().quality.extraPlants ?? 0);
     const plantsPerBed = Math.max(1, Math.ceil(extraN / activeBedIndices.length));
-    const stride = Math.max(1, Math.floor(90 / plantsPerBed));
+    const stride = Math.max(1, Math.floor(totalSlots / plantsPerBed));
     let extraIdx = 0;
     for (let perBed = 0; perBed < plantsPerBed && extraIdx < extraN; perBed++) {
       for (const bedIdx of activeBedIndices) {
         if (extraIdx >= extraN) break;
-        let slot = (perBed * stride + Math.floor(stride / 2)) % 90;
-        if (bedIdx === mainBedIdx && slot === SHOWCASE_SLOT) slot = (slot + 1) % 90;
+        let slot = (perBed * stride + Math.floor(stride / 2)) % totalSlots;
+        if (bedIdx === mainBedIdx && slot === SHOWCASE_SLOT) slot = (slot + 1) % totalSlots;
         const spec = SCENARIO.plants[slot];
         if (!spec) continue;
         const seed = SHOWCASE_SEED + bedIdx * 100000 + slot * 1009;

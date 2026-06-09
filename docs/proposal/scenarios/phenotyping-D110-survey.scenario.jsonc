@@ -1,7 +1,10 @@
 {
-  // §19 Phenotyping survey — D110 후기 생육 phenotyping.
-  //   - 통로 z=-0.8 기준 좌 2 + 우 4 = 6 active beds
-  //   - hole 단위 stride 2 = 베드당 45 plant × 6 = 270 plant
+  // §19 Phenotyping survey — D80 중기 phenotyping (이전 D110은 토마토 과도 성숙 → D80으로 조정 2026-06-09).
+  //   - 통로 z=-0.8 기준 좌 2 + 우 2 = 4 active beds (사용자 2026-06-09 요청)
+  //   - stride 2 = "딱딱 하나 심고 옆 비우고 하나 심고" 패턴 (사용자 그림).
+  //     mockScenario PLANTS_PER_BAG 3→5 변경 후 X 간격 _0.2m 균등 grid_ →
+  //     stride 2 = 0.4m 정확 균등 (이전 3 holes는 bag 경계로 0.4/0.2 불규칙).
+  //     베드당 75 plant × 4 - 1 showcase = 최대 299 plant. 가운데 기준 linear.
   //   - Phenotyping robot 자동 traverse + gimbal pan auto
   //   - 적엽(deleaf) slider 0~80cm
   //   - 좌상단 384×288 짐벌 카메라 mini-viewport (16:9)
@@ -11,20 +14,20 @@
   "consumableBy": ["Workbench"],
   "world": {
     "greenhouseConfig": "default-24x34-13beds",
-    "activeBeds": [4, 5, 6, 7, 8, 9],
+    "activeBeds": [4, 5, 6, 7],
     "plantPlacement": "phenotyping-D110-sparse-h4",
     "bedLayout": {
       "leftCols": 2,
-      "rightCols": 4,
-      "stride": 4
+      "rightCols": 2,
+      "stride": 2
     }
   },
   "crop": {
-    "day": 110,
+    "day": 80,
     "seed": "0xD110",
     "cultivar": "tomimaru",
     "cultivation": {
-      "deleafHeightCm": 80,
+      "deleafHeightCm": 30,
       "deleafMaxCm": 80,
       "deleafEnabled": true
     }
@@ -63,6 +66,6 @@
   "meta": {
     "createdBy": "kisun@viasoft.ai",
     "createdAt": "2026-06-08",
-    "description": "D110 후기 생육 phenotyping. 좌2/우4 sparse 270 plant, 적엽 0~80cm slider, 짐벌 카메라 mini-viewport."
+    "description": "D80 중기 phenotyping (이전 D110에서 -30일 — 토마토 과도 성숙 회피). 좌2/우2 = 4 active beds, stride 2 (딱딱 하나 심고 옆 비우고) = 0.4m 정확 균등 grid, 가운데 기준 linear 확장, 최대 299 plant, 적엽 default 30cm (max 80cm slider), 짐벌 카메라 mini-viewport."
   }
 }

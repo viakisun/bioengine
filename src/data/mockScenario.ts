@@ -94,11 +94,14 @@ export interface Scenario {
 }
 
 const DURATION = 120;
-// 30 cocopeat grow bags × 3 plants per bag (alternating holes 1, 3, 5).
-// Matches real Kimje smart-farm practice — bags continuous along the
-// 30m bed, plants in every-other-hole at ~33cm spacing.
+// 30 cocopeat grow bags × 5 evenly-spaced holes per bag = 150 hole positions.
+// ★ 2026-06-09 FIX: 이전 PLANTS_PER_BAG=3 + offsets [-0.4, 0, +0.4]는 bag 경계
+// (-0.4 → +0.4 다음 bag = 0.2m 사이)로 X 간격 불규칙 (0.4/0.2/0.4/0.2) →
+// stride 적용해도 "랜덤"으로 시각 (사용자 보고). 5 holes evenly-spaced 변경:
+// X 간격 _완전 0.2m grid_ 균등 → stride 2 적용 시 정확 0.4m 균등 간격.
+// 사용자 그림: *X*X*X*X* (plant - 빈 - plant - 빈) 패턴 정확 매칭.
 const BAG_COUNT = 30;
-const PLANTS_PER_BAG = 3;
+const PLANTS_PER_BAG = 5;
 const PLANT_COUNT = BAG_COUNT * PLANTS_PER_BAG;
 const ZONE_COUNT = 6;
 const BED_LENGTH = 30;
@@ -107,9 +110,9 @@ const BED_Y = 0.95;
 // Bag center positions along x: 30 bags, 1m each, centered at world origin.
 // Each bag's center sits at -14.5 + bagIndex (0..29).
 const BAG_LENGTH = 1.0;
-// Hole offsets relative to bag center, for the 3 occupied holes (1, 3, 5)
-// out of 5 evenly-spaced holes per bag. Holes 2 and 4 stay empty.
-const PLANT_HOLE_OFFSETS = [-0.4, 0.0, +0.4] as const;
+// 5 holes per bag, evenly spaced at 0.2m intervals — matches Kimje farm
+// physical hole grid. bag 경계 효과 없음 (0.2m grid continuous across bags).
+const PLANT_HOLE_OFFSETS = [-0.4, -0.2, 0.0, +0.2, +0.4] as const;
 
 function buildPlant(id: number, rng: SeededRandom): PlantSpec {
   const bagIndex = Math.floor(id / PLANTS_PER_BAG);
