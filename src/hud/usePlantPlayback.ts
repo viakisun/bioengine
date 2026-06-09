@@ -30,12 +30,17 @@ export function usePlantPlayback() {
   // Iter 35 PR4 Phase P 후속 fix: BabylonEngine async init이 React mount보다 늦으면
   //   getSinglePlantEngine() = null → 첫 useEffect 즉시 return → 영원히 update 안 됨.
   //   refsReady가 listener로 set되면 useEffect 재실행 → 첫 frame 확보.
-  const [refsReady, setRefsReady] = useState(
-    () => !!getSinglePlantEngine() && getAllSinglePlantSkinMeshes().length > 0,
+  // ★ BUG FIX (2026-06-09): 이전엔 boolean refsReady였으나 _plant 수 변화 시_
+  //   useEffect dependency 트리거 안 됨 → 신규 plant의 update 호출 안 됨 →
+  //   mesh 영원히 안 만들어짐 (사용자 보고: "100/137 slider인데 시각 안 늘어남",
+  //   probe: rootNodeCount=97 / stemMeshCount=31 영구 정지). plantCount(number)로
+  //   변경해 _ref 추가 매번 effect 재실행_ → 모든 plants.update(day) 보장.
+  const [plantCount, setPlantCount] = useState(
+    () => getAllSinglePlantSkinMeshes().length,
   );
   useEffect(() => {
     return subscribeSinglePlantRefs(() => {
-      setRefsReady(!!getSinglePlantEngine() && getAllSinglePlantSkinMeshes().length > 0);
+      setPlantCount(getAllSinglePlantSkinMeshes().length);
     });
   }, []);
 
@@ -45,7 +50,7 @@ export function usePlantPlayback() {
     const engine = getSinglePlantEngine();
     const skins = getAllSinglePlantSkinMeshes();
     log.debug(
-      `effect: minute=${minute} refsReady=${refsReady} defoliation=${defoliationHeightCm} engine=${!!engine} plants=${skins.length}`,
+      `effect: minute=${minute} plantCount=${plantCount} defoliation=${defoliationHeightCm} engine=${!!engine} plants=${skins.length}`,
     );
     if (!engine) return;
     const day = Math.floor(minute / 1440);
@@ -54,7 +59,7 @@ export function usePlantPlayback() {
     for (let i = 1; i < skins.length; i++) {
       skins[i].update(day);
     }
-  }, [minute, refsReady, defoliationHeightCm]);
+  }, [minute, plantCount, defoliationHeightCm]);
 
   // Playback loop — rAF, scales minute by speed × elapsed.
   useEffect(() => {

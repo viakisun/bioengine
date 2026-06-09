@@ -15,6 +15,9 @@ import type { GrowthEngine } from '@farmsim/tomato-engine';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { createSkinMeshPlant, type SkinMeshPlantHandle } from './SkinMeshPlant';
 import { SCENARIO } from '../data/mockScenario';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('plant');
 
 // §21 S4 — Scene handle holder (PhenotypingControls·MemoryStats가 PlantManager 접근용).
 //   순환 import 회피 위해 SceneInfrastructureHandle은 type only export.
@@ -62,16 +65,21 @@ export interface SetCountOpts {
 }
 
 /**
- * 베드 1개 slot 순서 — slot 45 center → ±stride 양방향 확장.
- *   stride=4 예: 45, 41, 49, 37, 53, 33, 57, ...
+ * 베드 1개 slot 순서 — center → ±stride 양방향 linear 확장.
+ *   stride=2 + totalSlots=150 예: 75, 73, 77, 71, 79, 69, 81, ...
  *   로봇 통로 가운데(X=0) 부근부터 plant 분포.
+ *
+ * @param stride slot index step (1=연속, 2=하나 건너 하나, ...)
+ * @param totalSlots SCENARIO.plants.length (default 150 — 30 bags × 5 holes).
+ *   이전 90 default (3 holes/bag) 시 center=45였음. 변경 시 _호환성 유지_ 위해
+ *   totalSlots 명시 주입.
  */
-export function computeSlotOrder(stride: number): number[] {
-  const center = 45;
+export function computeSlotOrder(stride: number, totalSlots: number = 150): number[] {
+  const center = Math.floor(totalSlots / 2);
   const out: number[] = [center];
-  for (let mag = stride; mag < 90; mag += stride) {
+  for (let mag = stride; mag < totalSlots; mag += stride) {
     if (center - mag >= 0) out.push(center - mag);
-    if (center + mag < 90) out.push(center + mag);
+    if (center + mag < totalSlots) out.push(center + mag);
   }
   return out;
 }
@@ -270,22 +278,38 @@ export class PlantManager {
 
   // ── 내부 helper ────────────────────────────────────────────────────
 
-  /** plants.length 기반 slot resolve (round-robin + showcase skip). */
+  /** plants.length 기반 slot resolve (round-robin + showcase skip).
+   *
+   * ★ BUG FIX (2026-06-09): 이전 산식이 `idx = plants.length`로 매 호출 reset →
+   * showcase skip이 _누적 안 됨_ → bed 6 (mainBed) slot 45 자리가 _bed 7로
+   * 옮겨지지만 다음 plant가 _bed 7을 다시 사용_ → 중복 좌표 (사용자 발견:
+   * idx=2, idx=3 모두 bed 7 slot 45). Fix: plants.length를 _virtual cursor_로
+   * 변환 — showcase 자리를 _건너뛰는 1+1 offset_ 적용. 결과: 각 (bed, slot)
+   * 조합 _완전 유니크_, 비어있는 자리 = showcase (별도 plant).
+   */
   private resolveNextSlot(): { bedIdx: number; slot: number } | null {
     const beds = this.opts.activeBedIndices.length;
-    let idx = this.plants.length;
+    // Showcase 자리의 _virtual cursor 위치_ 산출 (slot-major iteration).
+    const showcaseRound = this.opts.slotOrder.indexOf(this.opts.showcaseSlot);
+    const showcaseBedRot = this.opts.activeBedIndices.indexOf(this.opts.mainBedIdx);
+    const showcaseCursor = showcaseRound >= 0 && showcaseBedRot >= 0
+      ? showcaseRound * beds + showcaseBedRot
+      : -1;
+    // plants.length → cursor: showcase 자리를 _건너뛰는 1 offset_.
+    let cursor = this.plants.length;
+    if (showcaseCursor >= 0 && cursor >= showcaseCursor) cursor++;
     for (let attempt = 0; attempt < this.opts.slotOrder.length * beds + 5; attempt++) {
-      const round = Math.floor(idx / beds);
+      const round = Math.floor(cursor / beds);
       if (round >= this.opts.slotOrder.length) return null;
-      const bedRot = idx % beds;
+      const bedRot = cursor % beds;
       const bedIdx = this.opts.activeBedIndices[bedRot];
       const slot = this.opts.slotOrder[round];
       if (bedIdx === this.opts.mainBedIdx && slot === this.opts.showcaseSlot) {
-        idx++;
-        continue;
+        cursor++;
+        continue;  // safety — 이론상 도달 불가 (위 offset으로 skip 처리), 방어용.
       }
       if (!SCENARIO.plants[slot]) {
-        idx++;
+        cursor++;
         continue;
       }
       return { bedIdx, slot };
@@ -298,17 +322,15 @@ export class PlantManager {
     // R1 가드 — heap 70% 초과 시 add 거부.
     const mem = perfMem();
     if (mem && mem.usedJSHeapSize > mem.jsHeapSizeLimit * SAFETY_RATIO) {
-      // eslint-disable-next-line no-console
-      console.warn(
-        `[PlantManager] addOne rejected: heap ${(SAFETY_RATIO * 100).toFixed(0)}% — used ${(mem.usedJSHeapSize / 1024 / 1024).toFixed(0)}MB / ${(mem.jsHeapSizeLimit / 1024 / 1024).toFixed(0)}MB`,
+      log.warn(
+        `addOne rejected: heap ${(SAFETY_RATIO * 100).toFixed(0)}% — used ${(mem.usedJSHeapSize / 1024 / 1024).toFixed(0)}MB / ${(mem.jsHeapSizeLimit / 1024 / 1024).toFixed(0)}MB`,
       );
       return -1;
     }
 
     const target = this.resolveNextSlot();
     if (!target) {
-      // eslint-disable-next-line no-console
-      console.warn(`[PlantManager] addOne: no slot at idx=${this.plants.length}`);
+      log.warn(`addOne: no slot at idx=${this.plants.length}`);
       return -1;
     }
     const { bedIdx, slot } = target;
@@ -324,10 +346,17 @@ export class PlantManager {
       plant.setVisible(true);
       this.plants.push(plant);
       this.opts.registerPlantRef(plant, this.plants.length);
+      // 작물 위치 디버그 로그 (사용자 요청 "어디에 있는거냐" 진단용).
+      // debug level — default silent, ?debug=plant URL 시만 출력. 진단 완료 후
+      // spam 방지 + opt-in 유지 (다시 진단 필요 시 즉시 노출 가능).
+      const idx = this.plants.length - 1;
+      log.debug(
+        `add idx=${String(idx).padStart(3)} bed=${bedIdx} slot=${String(slot).padStart(2)} `
+        + `X=${pos.x.toFixed(3)} Y=${pos.y.toFixed(3)} Z=${pos.z.toFixed(3)} seed=${seed}`,
+      );
       return this.plants.length - 1;
     } catch (e) {
-      // eslint-disable-next-line no-console
-      console.error(`[PlantManager] addOne failed at bed=${bedIdx} slot=${slot}:`, e);
+      log.error(`addOne failed at bed=${bedIdx} slot=${slot}:`, e);
       return -1;
     }
   }
