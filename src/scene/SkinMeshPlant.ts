@@ -1,5 +1,17 @@
 import { createLogger } from '../utils/logger';
 const log = createLogger('skinplant');
+
+// Floating candidates warn throttle — 30 plants × per-build warn은 spam.
+// Iter 23 audit이 peduncle 6-8mm 잔존 disconnect를 _구조적 잔존_으로 명시
+// (Iter 24가 약속한 peduncle 정식 fix가 안 됨). 임계값 3mm 자체는 정확하나
+// 매 build 출력은 노이즈 → 30초 1회 aggregate. 측정값은 __skinplantStats.
+// dockingDiag에 _그대로_ 보존 (진단 가능, 은닉 아님).
+const FLOATING_LOG_INTERVAL_MS = 30000;
+// Initialize to module-load time so the first "last Ns" label shows a real
+// elapsed window (not seconds since epoch).
+let _lastFloatingLogTime = Date.now();
+let _floatingAccumCount = 0;
+let _floatingAccumPlants = 0;
 // SkinMeshPlant — SSOT Phase 4 sibling of ShowcasePlant.
 //
 // Same ShowcasePlantHandle interface, same lifecycle, same materials,
@@ -481,11 +493,21 @@ export function createSkinMeshPlant(
     });
     log.debug(`per-edge-type breakdown:\n${typeRows.join('\n')}`);
     if (skin.stats.floatingCandidateCount > 0) {
-      log.warn(
-        `⚠ floating candidates=${skin.stats.floatingCandidateCount}: `
-        + skin.stats.floatingCandidateIds.slice(0, 8).join(', ')
-        + (skin.stats.floatingCandidateIds.length > 8 ? ' …' : ''),
-      );
+      _floatingAccumCount += skin.stats.floatingCandidateCount;
+      _floatingAccumPlants += 1;
+      const now = Date.now();
+      if (now - _lastFloatingLogTime > FLOATING_LOG_INTERVAL_MS) {
+        log.warn(
+          `⚠ floating aggregate (last ${Math.floor((now - _lastFloatingLogTime) / 1000)}s): `
+          + `${_floatingAccumCount} candidates across ${_floatingAccumPlants} builds. `
+          + `Latest: ${skin.stats.floatingCandidateIds.slice(0, 4).join(', ')}`
+          + (skin.stats.floatingCandidateIds.length > 4 ? ' …' : '')
+          + `. Per-build detail: __skinplantStats.dockingDiag`,
+        );
+        _lastFloatingLogTime = now;
+        _floatingAccumCount = 0;
+        _floatingAccumPlants = 0;
+      }
     }
     // Iter 18B PR 11 — extend __skinplantStats with skeleton validation + organ
     // anchor summary so the fidelity-assert harness can read everything from

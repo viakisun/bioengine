@@ -8,7 +8,10 @@ import { useEffect, useState } from 'react';
 import { useTwinStore } from '../state/twinStore';
 import { QUALITY_PRESETS } from '../scene/RenderQuality';
 import { getActivePlantManager, type SafeMaxStatus } from '../scene/PlantManager';
+import { createLogger } from '../utils/logger';
 import { FONT_MONO, C_FG, C_FG_MUTE, C_BORDER, C_ACCENT } from './single-plant/styles';
+
+const log = createLogger('plant');
 
 interface PhenotypingControlsProps {
   /** 기본 boot quality preset (URL ?qualityPreset). default 1. */
@@ -64,8 +67,7 @@ export function PhenotypingControls({ initialQuality = 1 }: PhenotypingControlsP
       setAvgKB(avgKB);
       if (geom !== prev) {
         prev = geom;
-        // eslint-disable-next-line no-console
-        console.log(`[PhenotypingControls] ctx: cur=${cur} safe=${safe.value} (${safe.status}) geom=${geom} avg=${avgKB.toFixed(0)}KB/plant`);
+        log.debug(`ctx: cur=${cur} safe=${safe.value} (${safe.status}) geom=${geom} avg=${avgKB.toFixed(0)}KB/plant`);
       }
     }, 500);
     return () => clearInterval(id);

@@ -8,6 +8,9 @@ import { useEffect } from 'react';
 import { getCameraRig } from './single-plant/useSinglePlantState';
 import { DOCK_PRESETS } from '../scene/CameraRig';
 import { useTwinStore } from '../state/twinStore';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('scene');
 
 export interface CameraView {
   /** 1~9 단축키. */
@@ -56,7 +59,7 @@ export function CameraDock({ active, onSelect, views = DEFAULT_VIEWS }: CameraDo
         if (presetName) rig.setPreset(presetName);
       }
     } catch (e) {
-      console.warn('CameraDock setPreset failed:', e);
+      log.warn('CameraDock setPreset failed:', e);
     }
   }, [active, eeParams]);
 

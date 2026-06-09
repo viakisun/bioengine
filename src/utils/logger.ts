@@ -58,7 +58,7 @@ const NS_DEFAULTS: Record<LogNamespace, Level> = {
   overlay:     'info',   // ★ hotkey toggle 같은 인터랙티브 feedback
   growth:      'warn',   // validation warn 보존
   leaf:        'warn',
-  plant:       'warn',
+  plant:       'warn',   // 진단 끝남 — add log는 debug level, ?debug=plant 시만 출력
   scenarios:   'warn',   // 시나리오 로드 실패는 warn
   workbench:   'warn',
   ui:          'error',  // global error handler만 출력 (warn/info silent)
