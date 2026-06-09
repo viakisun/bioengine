@@ -12,8 +12,11 @@
 // pre-bumped (parentSwellingScale) so the parent surface bulges into the
 // branch and hides the seam.
 //
-// Frame algorithm: same world-up-referenced Frenet-like frame used by
-// sweepTube (StemGenerator.ts:319-339). No parallel transport.
+// Frame algorithm: world-up-referenced makeFrame for ring 0, then parallel
+// transport (Rodrigues' rotation) for subsequent rings — Iter 31 v3.
+// Pre-Iter 31: every ring's frame was computed independently → 70° normal
+// jump at the |dot(t, UP)| > 0.99 binary threshold boundary (visible as
+// "twist + neck" at stem ring 2→3, ~6cm above substrate).
 //
 // Per-vertex / per-face metadata:
 //   - faceGroups: index-buffer range → edge id (primary lookup for Phase 5
@@ -293,6 +296,39 @@ function makeFrame(tangent: V3): Frame {
   return { tangent: t, normal: n, binormal: b };
 }
 
+// ★ Iter 31 v3 — parallel transport (Rodrigues' rotation) for inter-ring frame
+//   continuity. 이전 ring의 frame을 (prevTangent → newTangent) 축각 회전으로
+//   전달 → 인접 ring frame 항상 _continuous_. 0.99 threshold 경계 (예: ring N
+//   degenerate fallback → ring N+1 UP×t = 70° 점프) 시각 twist 해소.
+//   파일 헤더 (line 16) "No parallel transport" 의도를 본 fix로 뒤집음.
+function parallelTransportFrame(prev: Frame, prevTangent: V3, newTangent: V3): Frame {
+  const t = vnorm(newTangent);
+  const pt = vnorm(prevTangent);
+  const axis = vcross(pt, t);
+  const axisLen = vlen(axis);
+  if (axisLen < EPSILON) {
+    // tangents parallel — no rotation, keep prev normal/binormal
+    return { tangent: t, normal: prev.normal, binormal: prev.binormal };
+  }
+  const k = vscale(axis, 1 / axisLen);
+  const cosA = vdot(pt, t);
+  const sinA = axisLen;  // |unit × unit| = sinA
+  const rot = (v: V3): V3 => {
+    const kxv = vcross(k, v);
+    const kdv = vdot(k, v);
+    return {
+      x: v.x * cosA + kxv.x * sinA + k.x * kdv * (1 - cosA),
+      y: v.y * cosA + kxv.y * sinA + k.y * kdv * (1 - cosA),
+      z: v.z * cosA + kxv.z * sinA + k.z * kdv * (1 - cosA),
+    };
+  };
+  return {
+    tangent: t,
+    normal: vnorm(rot(prev.normal)),
+    binormal: vnorm(rot(prev.binormal)),
+  };
+}
+
 // ── emit a ring of radialSegs+1 vertices (UV seam closure) ─────────────
 
 function emitRing(
@@ -415,11 +451,18 @@ function emitTube(
     tangents[i] = vnorm(t);
   }
 
-  // Emit rings
+  // Emit rings.
+  // ★ Iter 31 v3 — parallel transport: ring 0 frame은 makeFrame, 이후 ring
+  //   frame은 _이전 ring frame을 (prevT → newT) 회전_으로 전달. 인접 ring
+  //   frame 항상 continuous → 0.99 threshold 경계의 70° normal 점프 (호리병/
+  //   twist 시각) 해소.
   const ringFirstIdxs: number[] = new Array(ringCount);
   const frames: Frame[] = new Array(ringCount);
+  frames[0] = makeFrame(tangents[0]);
+  for (let i = 1; i < ringCount; i++) {
+    frames[i] = parallelTransportFrame(frames[i - 1], tangents[i - 1], tangents[i]);
+  }
   for (let i = 0; i < ringCount; i++) {
-    frames[i] = makeFrame(tangents[i]);
     const v = i / (ringCount - 1);
     ringFirstIdxs[i] = emitRing(
       positionsAt[i], radiiAt[i], frames[i],
@@ -620,6 +663,20 @@ export function buildStemFamilyTubeNetwork(
   // disconnect와 직접 대응 = Q1 expectedToActual_mm.
   // 임계값 3mm = Iter 18C severity 정의 (yellow ≤ 3mm, red > 3mm)와 일관.
   const FLOATING_GAP_THRESHOLD_M = 0.003;
+  // Iter 31 — mainStem `p0.y`가 이 값 이하이면 hypocotyl base extension 생략
+  // (어린 묘 D5~7 발아 직후 0-length bone 회피).
+  const STEM_BASE_VISIBLE_THRESHOLD_M = 0.005;
+  // Iter 31 v2 — mainStem _root_의 stemCurve[0]은 hypocotyl 끝 (≈ 4cm).
+  // 하지만 같은 axis의 _apex tip extension_도 edge.type='mainStem'이고
+  // parentEdgeId: null로 capStart 분기 도달 (p0.y = stem 키 ≈ 1.5~2m).
+  // 본 상한으로 root mainStem만 base extension 적용 — apex extension에
+  // _가짜 1.9m 줄기_ prepend 방지 (사용자 보고 "호리병/얇은 segment").
+  const STEM_BASE_MAX_HEIGHT_M = 0.150;
+  // Iter 31 v4 — base extension cap을 cocopile 표면 _아래_로 묻음.
+  // Pyramid 옆구리 max drop = `MOUND_APEX_RISE + MOUND_BASE_SINK = 36mm`
+  // (CocopeatBags.ts). 40mm bury로 모든 stemCurve[0].xz에서 cap이 표면 아래
+  // 묻힘 → cap sphere 안 보이고 stem이 cocopile 옆구리에서 자연 emerge.
+  const STEM_BASE_BURY_DEPTH_M = 0.040;
   // Iter 18C — per-edge actual mesh root (embed + scale 적용 후 childStart).
   const renderedRootByEdgeId: Record<string, V3> = {};
   const parentContextByEdgeId: Record<string, {
@@ -770,6 +827,29 @@ export function buildStemFamilyTubeNetwork(
       }
     } else {
       capStart = true;  // root (mainStem) — base sits on ground
+
+      // ★ Iter 31 — root mainStem hypocotyl base extension to substrate (y=0).
+      //   stemCurve[0]은 hypocotyl 끝(D80 ≈ 4cm)에서 시작. 그 아래 하배축
+      //   구간은 모델에 존재하나(GrowthModel.hypocotylCm) stemCurve에 미포함
+      //   + cotyledons 드롭 → mesh 비어 "공중에 떠 있는 줄기" 보고. 본
+      //   분기는 sideShoot도 도달 (parentEdgeId: null) → mainStem 타입 가드
+      //   필수, 미적용 시 mid-air attach에서 substrate까지 phantom 줄기 생성.
+      if (
+        edge.type === 'mainStem'
+        && swollenBones[0].p0.y > STEM_BASE_VISIBLE_THRESHOLD_M
+        && swollenBones[0].p0.y < STEM_BASE_MAX_HEIGHT_M
+      ) {
+        const origFirst = swollenBones[0];
+        const baseFloor = RENDER_RADIUS_FLOOR_M_BY_TYPE[edge.type] ?? RENDER_RADIUS_FLOOR_M;
+        const baseExtensionBone: SkeletonBone = {
+          p0: { x: origFirst.p0.x, y: -STEM_BASE_BURY_DEPTH_M, z: origFirst.p0.z },
+          p1: origFirst.p0,  // byte-identical → SKELETON-EDGE-01 continuity
+          r0: Math.max(origFirst.r0 * 1.05, baseFloor),  // 약한 base flare
+          r1: Math.max(origFirst.r0, baseFloor),
+        };
+        effectiveBonePath = [baseExtensionBone, ...swollenBones];
+        // capStart=true 유지 — cap이 새 p0 (substrate)에 위치.
+      }
     }
 
     // Iter 18A: per-type effective render radius (after embed, swelling, scale).
