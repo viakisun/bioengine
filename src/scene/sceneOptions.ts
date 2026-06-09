@@ -16,6 +16,7 @@ const INITIAL_PLANTS_DEFAULT = 30;
 
 export type RobotProfile = 'agv-arm' | 'phenotyping' | 'none';
 export type PlantQuality = 'low' | 'medium' | 'high';
+export type VisualPreset = 'runtime' | 'realistic';
 
 export interface BedLayoutSpec {
   leftCols: number;
@@ -53,6 +54,7 @@ export interface SceneOptions {
 
   // 렌더
   qualityPreset: number | null;        // 1~10 또는 null (mode default 사용)
+  visualPreset: VisualPreset;          // runtime 기본, realistic=photo/screenshot
 
   // 시나리오 ID (boot 후 deep-link 자동 active 용)
   scenarioId: string | null;
@@ -76,6 +78,7 @@ export const DEFAULT_SCENE_OPTIONS: SceneOptions = {
     startX: 0,
   },
   qualityPreset: null,
+  visualPreset: 'runtime',
   scenarioId: null,
 };
 
@@ -169,6 +172,11 @@ export function resolveSceneOptions(
     const n = Number.parseInt(qpParam, 10);
     if (Number.isFinite(n) && n >= 1 && n <= 10) base.qualityPreset = n;
   }
+  const vpParam = sp.get('visualPreset');
+  if (vpParam === 'realistic' || sp.get('photoRealistic') === 'true') {
+    base.visualPreset = 'realistic';
+    if (qpParam === null) base.qualityPreset = 5;
+  }
 
   // scenarioId (?scenario=...)
   const scenIdParam = sp.get('scenario');
@@ -197,6 +205,9 @@ export function serializeSceneOptions(opts: SceneOptions): URLSearchParams {
   if (opts.robot.traverseEnabled) sp.set('robotTraverse', '1');
   if (opts.robot.gimbalView) sp.set('gimbalView', '1');
   if (opts.qualityPreset !== null) sp.set('qualityPreset', String(opts.qualityPreset));
+  if (opts.visualPreset !== DEFAULT_SCENE_OPTIONS.visualPreset) {
+    sp.set('visualPreset', opts.visualPreset);
+  }
   if (opts.initialPlantCount !== INITIAL_PLANTS_DEFAULT) {
     sp.set('initialPlants', String(opts.initialPlantCount));
   }
@@ -247,9 +258,9 @@ export function scenarioToOptions(scenario: ScenarioSpec): Partial<SceneOptions>
     }
   }
 
-  // phenotyping 도메인은 quality preset 1 (Minimum) 권장
+  // phenotyping 도메인은 runtime 기본 3. URL visualPreset=realistic/photoRealistic=true는 5.
   if (scenario.domain === 'phenotyping' && !patch.qualityPreset) {
-    patch.qualityPreset = 1;
+    patch.qualityPreset = 3;
   }
 
   return patch;

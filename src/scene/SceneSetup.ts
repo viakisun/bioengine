@@ -53,11 +53,11 @@ export async function setupScene(
   scene.imageProcessingConfiguration.toneMappingEnabled = true;
   scene.imageProcessingConfiguration.toneMappingType =
     ImageProcessingConfiguration.TONEMAPPING_ACES;
-  scene.imageProcessingConfiguration.exposure = 1.05;
+  scene.imageProcessingConfiguration.exposure = 1.0;
   scene.imageProcessingConfiguration.contrast = 1.2;       // 1.1 → 1.2 (depth)
 
   const hemi = new HemisphericLight('hemi', new Vector3(0, 1, 0), scene);
-  hemi.intensity = 0.40;                                    // 0.55 → 0.40
+  hemi.intensity = 0.34;
   hemi.diffuse = Color3.FromHexString('#e8e4d8');
   hemi.groundColor = Color3.FromHexString('#3a3530');
   hemi.specular = new Color3(0.4, 0.4, 0.4);
@@ -66,7 +66,7 @@ export async function setupScene(
   // straight-down stamps; also creates proper rim highlights on fruits.
   const sunDir = new Vector3(-0.55, -0.85, -0.45).normalize();
   const sun = new DirectionalLight('sun', sunDir, scene);
-  sun.intensity = 4.0;                                      // 3.2 → 4.0
+  sun.intensity = 3.0;
   sun.diffuse = Color3.FromHexString('#fff6d8');
   sun.specular = new Color3(1, 1, 1);
   sun.position = new Vector3(8, 12, 6);
@@ -76,6 +76,7 @@ export async function setupScene(
   const shadowGenerator = new ShadowGenerator(2048, sun);
   shadowGenerator.usePercentageCloserFiltering = true;
   shadowGenerator.filteringQuality = ShadowGenerator.QUALITY_MEDIUM;
+  shadowGenerator.darkness = 0.18;
   shadowGenerator.bias = 0.002;
   shadowGenerator.normalBias = 0.02;
 
@@ -100,7 +101,7 @@ export async function setupScene(
   pipeline.imageProcessing.toneMappingEnabled = true;
   pipeline.imageProcessing.toneMappingType = ImageProcessingConfiguration.TONEMAPPING_ACES;
   pipeline.imageProcessing.exposure = 1.0;
-  pipeline.imageProcessing.contrast = 1.1;
+  pipeline.imageProcessing.contrast = 1.12;
   pipeline.imageProcessing.vignetteEnabled = true;
   pipeline.imageProcessing.vignetteWeight = 1.6;
   pipeline.imageProcessing.vignetteStretch = 0.5;
@@ -111,8 +112,8 @@ export async function setupScene(
   if (options.backend === 'webgl2' && SSAO2RenderingPipeline.IsSupported) {
     try {
       ssao = new SSAO2RenderingPipeline('ssao', scene, 0.75, [camera]);
-      ssao.radius = 0.6;
-      ssao.totalStrength = 1.1;
+      ssao.radius = 0.42;
+      ssao.totalStrength = 1.35;
       ssao.samples = 16;
       ssao.maxZ = 30;
       ssao.minZAspect = 0.5;
@@ -145,7 +146,7 @@ function setupIBL(scene: Scene) {
     env.gammaSpace = false;
     env.level = 1.0;
     scene.environmentTexture = env;
-    scene.environmentIntensity = 0.6;
+    scene.environmentIntensity = 0.42;
     log.debug('IBL loaded from /hdri/environment.env');
   } catch (err) {
     log.warn('local IBL load failed:', err);

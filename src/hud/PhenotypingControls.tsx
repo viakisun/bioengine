@@ -14,7 +14,7 @@ import { FONT_MONO, C_FG, C_FG_MUTE, C_BORDER, C_ACCENT } from './single-plant/s
 const log = createLogger('plant');
 
 interface PhenotypingControlsProps {
-  /** 기본 boot quality preset (URL ?qualityPreset). default 1. */
+  /** 기본 boot quality preset (URL ?qualityPreset). default 3. */
   initialQuality?: number;
 }
 
@@ -38,7 +38,7 @@ const CHIP_STYLE = {
   boxSizing: 'content-box' as const,
 };
 
-export function PhenotypingControls({ initialQuality = 1 }: PhenotypingControlsProps) {
+export function PhenotypingControls({ initialQuality = 3 }: PhenotypingControlsProps) {
   const [quality, setQualityState] = useState(initialQuality);
   const [plantCount, setPlantCountState] = useState(0);
   const [plantSafeMax, setPlantSafeMax] = useState(0);

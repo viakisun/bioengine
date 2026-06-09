@@ -34,6 +34,16 @@ export const MorphologyRulesSchema = z.object({
   shoulderBulge: Ratio01,        // socket 아래 ring 바깥 swell
   ribAmp: Ratio01,               // radial ribbing baseline (cultivar modulated)
   asymmetryAmp: Ratio01,         // per-fruit asymmetry baseline
+  coherentAsymmetryAmp: Ratio01.optional(),
+  topDepressionRange: z.tuple([Ratio01, Ratio01]).optional(),
+  shoulderFullnessRange: z.tuple([RatioPositive, RatioPositive]).optional(),
+  bottomRoundness: Ratio01.optional(),
+  visualHeightWidthClamp: z.tuple([RatioPositive, RatioPositive]).optional(),
+  stemEndAnchorCos: Ratio01.optional(),
+  depressionBand: z.tuple([Ratio01, Ratio01]).optional(),
+  socketTintBand: z.tuple([Ratio01, Ratio01]).optional(),
+  socketDarkeningStrength: Ratio01.optional(),
+  socketTintStrength: Ratio01.optional(),
 });
 
 /**
@@ -71,6 +81,10 @@ export const MeshResolutionSchema = z.object({
 export const RipeningRulesSchema = z.object({
   stageCount: z.literal(6),
   blossomEndAdvanceFrac: Ratio01,
+  shoulderRetentionFrac: Ratio01.optional(),
+  blushStrength: Ratio01.optional(),
+  mottleSigma: Ratio01.optional(),
+  ripeColor: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'hex color string (#RRGGBB)').optional(),
 });
 
 /**
@@ -91,6 +105,9 @@ export const MaterialRulesSchema = z.object({
   stageRoughness: z.array(Ratio01),
   stageClearcoatIntensity: z.array(Ratio01),
   stageClearcoatRoughness: z.array(Ratio01),
+  microNormalTexture: z.string().optional(),
+  microNormalStrength: Ratio01.optional(),
+  roughnessTexture: z.string().optional(),
   subsurfaceTranslucency: SubsurfaceRulesSchema,
 });
 

@@ -102,6 +102,7 @@ import { LeafEngine, qualityFromDistance } from './leaf';
 import { getLeafletSkeletonNodesByParentLeaf } from '../plant/skeleton/PlantSkeletonGraph';
 // ★ Iter 39 L4 (S35) — application은 'tomato.json' 선택. engine은 spec 받음.
 import { getLeafSpec } from '../data/leaf';
+import { loadOptionalTextureSlot } from './TextureSlotLoader';
 const tomatoLeafSpec = getLeafSpec('tomato.json');
 
 // Iter 35 PR 2 Phase I — ShowcasePlant archived. SkinMeshPlantHandle interface는
@@ -175,7 +176,17 @@ function getSkinMeshMaterial(scene: Scene): PBRMaterial {
     mat = new PBRMaterial('skinplant_unifiedStemMat', scene);
     mat.albedoColor = new Color3(1, 1, 1);  // white — vertex color drives
     mat.metallic = 0;
-    mat.roughness = 0.75;
+    mat.roughness = 0.88;
+    const targetMat = mat;
+    loadOptionalTextureSlot(scene, '/textures/stem/stem_normal.png', {
+      gammaSpace: false,
+    }).then((tex) => {
+      if (tex) {
+        targetMat.bumpTexture = tex;
+        targetMat.invertNormalMapY = false;
+        targetMat.invertNormalMapX = false;
+      }
+    });
     cachedSkinMaterial.set(scene, mat);
   }
   return mat;
@@ -230,6 +241,17 @@ function meshPresetKeyFor(
   if (q === 'low') return 'aggressive';
   if (q === 'high') return 'baseline';
   return 'lite';
+}
+
+function leafVariantFor(
+  maturity: number,
+  yellowing: number,
+  stableIndex: number,
+): import('./leaf/LeafTexture').LeafTextureVariant {
+  if (yellowing > 0.22) return 'stressed';
+  if (maturity < 0.33) return 'young';
+  if (maturity > 0.82) return stableIndex % 3 === 0 ? 'old' : 'mature';
+  return stableIndex % 7 === 0 ? 'back' : 'mature';
 }
 
 export function createSkinMeshPlant(
@@ -305,7 +327,11 @@ export function createSkinMeshPlant(
         const mm = leaf.name.match(/_a(\d+)_n(\d+)$/);
         const ni = mm ? parseInt(mm[2], 10) : -1;
         const node = ni >= 0 && lastState ? lastState.nodes[ni] : null;
-        leaf.material = node && node.yellowing > 0.4 ? yellowLeafMat : leafMat;
+        leaf.material = node && node.yellowing > 0.4
+          ? yellowLeafMat
+          : node
+            ? LeafEngine.getMaterial(scene, leafVariantFor(node.leafMaturity ?? 0.5, node.yellowing ?? 0, ni))
+            : leafMat;
       }
     }
   }
@@ -933,7 +959,10 @@ export function createSkinMeshPlant(
               ? yellowLeafMat
               : useSimpleMat
                 ? LeafEngine.getSimpleMaterial(scene)
-                : leafMat;
+                : LeafEngine.getMaterial(
+                    scene,
+                    leafVariantFor(leafOrganState.expansionProgress ?? 0.5, yellowing, nodeIdx),
+                  );
             const leafBladeRootY = meshAnchorNode.pos.y;
             leafMesh.metadata = { ...(leafMesh.metadata ?? {}), leafBladeRootY };
             currentMeshes.push(leafMesh);

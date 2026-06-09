@@ -41,6 +41,7 @@ import {
   getYellowLeafMaterial,
   getSimpleLeafMaterial,
 } from './LeafMaterial';
+import type { LeafTextureVariant } from './LeafTexture';
 import type { LeafMeshQuality } from './LeafletProfile';
 
 /**
@@ -246,8 +247,8 @@ export const LeafEngine = {
   },
 
   /** Scene-cached leaf material (PBR with optional shader wind on WebGL2). */
-  getMaterial(scene: Scene): PBRMaterial {
-    return getLeafMaterial(scene);
+  getMaterial(scene: Scene, variant: LeafTextureVariant = 'mature'): PBRMaterial {
+    return getLeafMaterial(scene, variant);
   },
 
   /** Scene-cached yellow (senescent) leaf material. */

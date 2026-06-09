@@ -15,6 +15,7 @@ import { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { PBRMaterial } from '@babylonjs/core/Materials/PBR/pbrMaterial';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
+import { loadOptionalTextureSlot } from '../TextureSlotLoader';
 // Iter 35 PR 2 Phase L: SeededRandom + NodeState import 제거 (createStemMesh archived).
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -304,6 +305,16 @@ export function getStemMaterial(scene: Scene): PBRMaterial {
     mat.useAlphaFromAlbedoTexture = false;
     mat.metallic = 0;
     mat.roughness = 0.85;
+    const targetMat = mat;
+    loadOptionalTextureSlot(scene, '/textures/stem/stem_normal.png', {
+      gammaSpace: false,
+    }).then((tex) => {
+      if (tex) {
+        targetMat.bumpTexture = tex;
+        targetMat.invertNormalMapY = false;
+        targetMat.invertNormalMapX = false;
+      }
+    });
     mat.backFaceCulling = true;
     cachedStemMaterial.set(scene, mat);
   }

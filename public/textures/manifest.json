@@ -1,0 +1,69 @@
+{
+  "schemaVersion": "1.0",
+  "policy": "Only repo-redistributable textures may be placed under public/textures.",
+  "normalConvention": {
+    "babylonDefault": "OpenGL-style unless invertNormalMapY is explicitly true",
+    "phase1InvertNormalMapY": true
+  },
+  "slots": {
+    "leaf": {
+      "surfaceMeshStatus": "atlas files retained for future alpha-card path; not bound to current cut leaflet surface mesh",
+      "albedoVariants": [
+        "leaf/leaf_young_albedo.png",
+        "leaf/leaf_mature_albedo.png",
+        "leaf/leaf_old_albedo.png",
+        "leaf/leaf_back_albedo.png",
+        "leaf/leaf_stressed_albedo.png"
+      ],
+      "normal": "leaf/leaf_normal.png",
+      "backNormal": "leaf/leaf_back_normal.png",
+      "roughness": "leaf/leaf_roughness.png",
+      "alpha": "leaf/leaf_alpha.png",
+      "alphaStatus": "slot-only; clipping deferred"
+    },
+    "fruit": {
+      "microNormal": "fruit/tomato_micro_normal.png"
+    },
+    "stem": {
+      "normal": "stem/stem_normal.png"
+    }
+  },
+  "assets": [
+    {
+      "id": "cgbookcase-tomato-leaf-01",
+      "sourceUrl": "https://www.cgbookcase.com/textures/tomato-leaf-01",
+      "license": "CC0",
+      "downloadDate": "2026-06-09",
+      "runtimeResolution": "512x1024",
+      "normalConvention": "DirectX",
+      "roughnessPacking": "single-channel roughness PNG; sampled from green channel in Babylon metallicTexture workflow",
+      "phase1Usage": "retained but disabled for current surface mesh because this is a whole-leaf alpha atlas, not a tileable leaflet surface texture",
+      "modified": [
+        "leaf/leaf_young_albedo.png color-adjusted from front base color",
+        "leaf/leaf_old_albedo.png color-adjusted from front base color",
+        "leaf/leaf_stressed_albedo.png color-adjusted from front base color",
+        "leaf/leaf_alpha.png copied from front base color as slot placeholder; alpha clipping deferred"
+      ]
+    },
+    {
+      "id": "phase1-generated-fruit-micro-normal",
+      "sourceUrl": "generated locally in this repository",
+      "license": "project-generated",
+      "downloadDate": "not applicable",
+      "runtimeResolution": "512x512",
+      "normalConvention": "OpenGL",
+      "modified": false,
+      "notes": "Procedural micro normal placeholder for activating the fruit slot until a licensed tomato skin scan is selected."
+    },
+    {
+      "id": "phase1-generated-stem-normal",
+      "sourceUrl": "generated locally in this repository",
+      "license": "project-generated",
+      "downloadDate": "not applicable",
+      "runtimeResolution": "512x512",
+      "normalConvention": "OpenGL",
+      "modified": false,
+      "notes": "Procedural vertical fiber normal placeholder for activating the stem slot until a licensed stem scan is selected."
+    }
+  ]
+}

@@ -12,7 +12,17 @@
     "crownRecession": 0.18,
     "shoulderBulge": 0.05,
     "ribAmp": 1.0,
-    "asymmetryAmp": 1.0
+    "asymmetryAmp": 1.0,
+    "coherentAsymmetryAmp": 0.045,
+    "topDepressionRange": [0.00, 0.045],
+    "shoulderFullnessRange": [0.94, 1.10],
+    "bottomRoundness": 0.38,
+    "visualHeightWidthClamp": [0.82, 0.96],
+    "stemEndAnchorCos": 0.94,
+    "depressionBand": [0.86, 0.98],
+    "socketTintBand": [0.88, 0.985],
+    "socketDarkeningStrength": 0.28,
+    "socketTintStrength": 0.16
   },
   "meshResolution": {
     "high":     { "segments": 36, "rings": 22 },
@@ -21,15 +31,21 @@
   },
   "ripeningRules": {
     "stageCount": 6,
-    "blossomEndAdvanceFrac": 0.4
+    "blossomEndAdvanceFrac": 0.4,
+    "shoulderRetentionFrac": 0.45,
+    "blushStrength": 0.32,
+    "mottleSigma": 0.012,
+    "ripeColor": "#b92d22"
   },
   "materialRules": {
-    "stageRoughness":          [0.42, 0.395, 0.37,  0.345, 0.32,  0.295],
-    "stageClearcoatIntensity": [0.0,  0.0,   0.30,  0.42,  0.54,  0.66 ],
-    "stageClearcoatRoughness": [0.18, 0.168, 0.156, 0.144, 0.132, 0.120],
+    "stageRoughness":          [0.70, 0.66, 0.62, 0.59, 0.56, 0.53],
+    "stageClearcoatIntensity": [0.04, 0.06, 0.08, 0.10, 0.13, 0.15],
+    "stageClearcoatRoughness": [0.68, 0.64, 0.60, 0.57, 0.54, 0.50],
+    "microNormalTexture": "/textures/fruit/tomato_micro_normal.png",
+    "microNormalStrength": 0.045,
     "subsurfaceTranslucency": {
       "fromStage": 3,
-      "intensity": 0.15,
+      "intensity": 0.08,
       "tintColor": "#8b1a14"
     }
   }

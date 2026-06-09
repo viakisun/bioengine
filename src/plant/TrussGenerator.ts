@@ -2,6 +2,7 @@ import { Scene } from '@babylonjs/core/scene';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
+import { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData';
 import { PBRMaterial } from '@babylonjs/core/Materials/PBR/pbrMaterial';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { Vector3, Quaternion } from '@babylonjs/core/Maths/math.vector';
@@ -365,8 +366,9 @@ export function createTrussNodeFromBase(
             tomatoFruitSpec,
             { skipCalyxAndStem: true, lod: fruitLod },
           );
+          const fruitCenterV = toV3(site.fruit.fruitCenter);
           fruitNode.parent = root;
-          fruitNode.position = toV3(site.fruit.fruitCenter);
+          fruitNode.position = fruitCenterV;
 
           // body local +Y는 stem-end pole. fruitAxisDir은 fruitTop → fruitCenter
           // 방향이므로, local +Y를 -fruitAxisDir(= fruitCenter → fruitTop)에 맞춰
@@ -376,9 +378,16 @@ export function createTrussNodeFromBase(
             Vector3.Up(), targetUp, new Quaternion(),
           );
           const azimuth = Quaternion.RotationAxis(
-            targetUp, (site.index * 137.5 * Math.PI) / 180,
+            targetUp, ((site.index * 137.5) + calyxHash(site.index, site.fruit.diameterMm / 1000, 11) * 18) * Math.PI / 180,
           );
-          fruitNode.rotationQuaternion = tilt.multiply(azimuth);
+          const droopAxis = Vector3.Cross(targetUp, Vector3.Down());
+          const droopAngle = droopAxis.lengthSquared() > 1e-6
+            ? Math.min(0.026, Math.pow(site.fruit.diameterMm / 80, 2) * 0.018)
+            : 0;
+          const droop = droopAngle > 0
+            ? Quaternion.RotationAxis(droopAxis.normalize(), droopAngle)
+            : Quaternion.Identity();
+          fruitNode.rotationQuaternion = droop.multiply(tilt).multiply(azimuth);
 
           // Dev-only orientation guard. Wrong quaternion product order or
           // wrong axisDir interpretation can silently make things worse.
@@ -395,10 +404,11 @@ export function createTrussNodeFromBase(
           }
 
           // Calyx star at fruit top — sepals reflex opposite fruitAxisDir.
-          const sepalDir = targetUp;
+          const sepalDir = fruitTopV.subtract(fruitCenterV).normalize();
           addCalyxStar(
             scene, root, `${name}_calyx_${site.index}`,
             fruitTopV, sepalDir, site.fruit.diameterMm / 2 / 1000,
+            fruitLod, site.index, sepalDir,
           );
         }
         // fruit-set: also render small petal remnants if flower data present.
@@ -430,23 +440,146 @@ export function createTrussNodeFromBase(
  *   fruitR: fruit radius — controls calyx size + slight back-offset so
  *           sepals sit on the fruit's calyx well rather than floating.
  */
-// ★ S139-B — Calyx sepal source mesh cache (Instance source).
-//   Per-scene 1개 unit plane → 모든 calyx sepal이 createInstance로 공유.
-//   동기: PerfHUD 측정 결과 truss organ 2793 meshes 중 calyx sepals이
-//   가장 큰 비중 (~1500). 동일 geometry + scale만 다름 → Instance 적합.
-//   현재: 5 plane × N truss × 9 plants = ~수천 개 Mesh
-//   변경 후: 1 source + N InstancedMesh → 1 draw call (GPU batch)
-const cachedCalyxSource: WeakMap<Scene, Mesh> = new WeakMap();
-function getCalyxSource(scene: Scene): Mesh {
-  let m = cachedCalyxSource.get(scene);
-  if (!m) {
-    // unit plane (1×1) — per-instance scaling으로 sepalW × sepalLen 표현.
-    m = MeshBuilder.CreatePlane('calyx_src', { width: 1, height: 1 }, scene);
-    m.material = getCalyxMat(scene);
-    m.isVisible = false;  // source 자체는 안 보임; instances만 보임
-    m.alwaysSelectAsActiveMesh = true;  // instance가 화면 안에 있을 때 source도 active로 유지
-    cachedCalyxSource.set(scene, m);
+type CalyxVariant =
+  | 'calyx_5_a'
+  | 'calyx_5_b'
+  | 'calyx_6_a'
+  | 'calyx_6_b'
+  | 'calyx_7_a'
+  | 'calyx_7_b'
+  | 'calyx_5_simple';
+
+type CalyxTint = 'young' | 'mature' | 'dull';
+
+const cachedCalyxSource: WeakMap<Scene, Map<string, Mesh>> = new WeakMap();
+
+function calyxHash(index: number, fruitR: number, salt: number): number {
+  const x = Math.sin((index + 1) * 12.9898 + Math.round(fruitR * 100000) * 78.233 + salt * 37.719) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+function chooseCalyxVariant(index: number, fruitR: number, lod: 'high' | 'low' | 'ultraLow'): CalyxVariant | null {
+  if (lod === 'ultraLow') return null;
+  if (lod === 'low') return 'calyx_5_simple';
+  const variants: CalyxVariant[] = [
+    'calyx_5_a', 'calyx_5_b',
+    'calyx_6_a', 'calyx_6_b',
+    'calyx_7_a', 'calyx_7_b',
+  ];
+  return variants[Math.floor(calyxHash(index, fruitR, 1) * variants.length) % variants.length];
+}
+
+function chooseCalyxTint(index: number, fruitR: number): CalyxTint {
+  const h = calyxHash(index, fruitR, 2);
+  if (h < 0.25) return 'young';
+  if (h > 0.78) return 'dull';
+  return 'mature';
+}
+
+function buildCrownFrame(crownAxis: Vector3): { axis: Vector3; tangentU: Vector3; tangentV: Vector3 } {
+  const axis = crownAxis.normalize();
+  const ref = Math.abs(Vector3.Dot(axis, Vector3.Up())) < 0.9
+    ? Vector3.Up()
+    : new Vector3(1, 0, 0);
+  const tangentU = Vector3.Cross(ref, axis).normalize();
+  const tangentV = Vector3.Cross(axis, tangentU).normalize();
+  return { axis, tangentU, tangentV };
+}
+
+function buildCombinedCalyxVertexData(variant: CalyxVariant): VertexData {
+  const positions: number[] = [];
+  const colors: number[] = [];
+  const indices: number[] = [];
+
+  const count = variant.includes('_6_') ? 6 : variant.includes('_7_') ? 7 : 5;
+  const simple = variant === 'calyx_5_simple';
+  const alt = variant.endsWith('_b') ? 1 : 0;
+  const rows = simple ? 2 : 4;
+  const cols = 3;
+  const lengthBase = simple ? 0.42 : 0.62 + alt * 0.04;
+  const spreadBase = simple ? 0.42 : 0.62 + alt * 0.05;
+  const widthBase = simple ? 0.13 : 0.18;
+  const baseR = 0.055;
+
+  // Small central cap at the crown root. Local +Y points outward from the fruit.
+  const centerIdx = positions.length / 3;
+  positions.push(0, 0.006, 0);
+  colors.push(0.13, 0.22, 0.10, 1);
+
+  for (let s = 0; s < count; s++) {
+    const theta = (s / count) * Math.PI * 2 + alt * 0.12;
+    const radial = new Vector3(Math.cos(theta), 0, Math.sin(theta));
+    const lateral = new Vector3(-Math.sin(theta), 0, Math.cos(theta));
+    const baseStart = positions.length / 3;
+    const sepalLen = lengthBase * (0.90 + 0.18 * calyxHash(s + count * alt, lengthBase, 3));
+    const sepalSpread = spreadBase * (0.92 + 0.14 * calyxHash(s, spreadBase, 4));
+    const sepalWidth = widthBase * (0.86 + 0.18 * calyxHash(s, sepalLen, 5));
+    const curl = simple ? 0.006 : 0.014 + 0.006 * calyxHash(s, sepalLen, 6);
+    const baseY = 0.012 + 0.006 * calyxHash(s, sepalLen, 7);
+    const tipY = 0.024 + 0.011 * calyxHash(s, sepalLen, 8);
+
+    for (let r = 0; r < rows; r++) {
+      const t = r / (rows - 1);
+      const rowWidth = sepalWidth * (1 - t * 0.78);
+      const rowLift = baseY + (tipY - baseY) * t + curl * Math.sin(t * Math.PI);
+      const radialDist = baseR + sepalSpread * t;
+      for (let c = 0; c < cols; c++) {
+        const u = c / (cols - 1);
+        const side = (u - 0.5) * rowWidth;
+        const foldLift = (1 - Math.abs(u - 0.5) * 2) * (simple ? 0.002 : 0.004) * (1 - t * 0.35);
+        const p = radial.scale(radialDist).add(lateral.scale(side));
+        positions.push(p.x, rowLift + foldLift, p.z);
+        const baseShade = 1 - t;
+        const tipShade = t;
+        colors.push(
+          0.14 + 0.16 * tipShade,
+          0.25 + 0.28 * tipShade - 0.05 * baseShade,
+          0.10 + 0.08 * tipShade,
+          1,
+        );
+      }
+    }
+
+    // Close the base to the central cap.
+    indices.push(centerIdx, baseStart, baseStart + cols - 1);
+    for (let r = 0; r < rows - 1; r++) {
+      for (let c = 0; c < cols - 1; c++) {
+        const a = baseStart + r * cols + c;
+        const b = a + 1;
+        const d = a + cols;
+        const e = d + 1;
+        indices.push(a, d, b, b, d, e);
+      }
+    }
   }
+
+  const normals: number[] = [];
+  VertexData.ComputeNormals(positions, indices, normals);
+  const vd = new VertexData();
+  vd.positions = positions;
+  vd.indices = indices;
+  vd.normals = normals;
+  vd.colors = colors;
+  return vd;
+}
+
+function getCalyxSource(scene: Scene, variant: CalyxVariant, tint: CalyxTint): Mesh {
+  let bucket = cachedCalyxSource.get(scene);
+  if (!bucket) {
+    bucket = new Map();
+    cachedCalyxSource.set(scene, bucket);
+  }
+  const key = `${variant}:${tint}`;
+  const cached = bucket.get(key);
+  if (cached) return cached;
+
+  const m = new Mesh(`calyx_src_${key}`, scene);
+  buildCombinedCalyxVertexData(variant).applyToMesh(m);
+  m.material = getCalyxMat(scene, tint);
+  m.useVertexColors = true;
+  m.isVisible = false;
+  m.alwaysSelectAsActiveMesh = true;
+  bucket.set(key, m);
   return m;
 }
 
@@ -455,51 +588,58 @@ function addCalyxStar(
   parent: TransformNode,
   name: string,
   center: Vector3,
-  pedicelDir: Vector3,
+  crownAxis: Vector3,
   fruitR: number,
+  lod: 'high' | 'low' | 'ultraLow' = 'high',
+  stableIndex = 0,
+  expectedOutward?: Vector3,
 ): void {
-  const sepalCount = 5;
-  const sepalLen = Math.max(0.008, fruitR * 0.5);
-  const sepalW = sepalLen * 0.35;
-  const outwardAngle = (25 * Math.PI) / 180;
-  // Build a perpendicular basis (perp, perp2) around -pedicelDir.
-  const up = Math.abs(pedicelDir.y) > 0.95 ? new Vector3(1, 0, 0) : new Vector3(0, 1, 0);
-  const perp = Vector3.Cross(pedicelDir, up).normalize();
-  const perp2 = Vector3.Cross(pedicelDir, perp).normalize();
-  // Slight back-offset: place calyx base 30% of fruitR back along pedicel.
-  const calyxBase = center.subtract(pedicelDir.scale(fruitR * 0.3));
-  // ★ S139-B — instance source 사용.
-  const src = getCalyxSource(scene);
-  for (let s = 0; s < sepalCount; s++) {
-    const theta = (s / sepalCount) * Math.PI * 2;
-    const outwardComp = Math.sin(outwardAngle);
-    const backComp = -Math.cos(outwardAngle);
-    const dir = pedicelDir.scale(backComp)
-      .add(perp.scale(Math.cos(theta) * outwardComp))
-      .add(perp2.scale(Math.sin(theta) * outwardComp))
-      .normalize();
-    const tip = calyxBase.add(dir.scale(sepalLen));
-    const mid = calyxBase.add(dir.scale(sepalLen * 0.5));
-    const sepal = src.createInstance(`${name}_s${s}`);
-    sepal.parent = parent;
-    sepal.position = mid;
-    sepal.lookAt(tip);
-    // Unit plane → per-instance scaling으로 실제 sepal 크기 표현.
-    sepal.scaling.set(sepalW, sepalLen, 1);
-    // material/Color은 source 상속 (instance는 material override 불가)
+  const variant = chooseCalyxVariant(stableIndex, fruitR, lod);
+  if (variant === null) return;
+  const tint = chooseCalyxTint(stableIndex, fruitR);
+  const src = getCalyxSource(scene, variant, tint);
+  const calyx = src.createInstance(`${name}_${variant}`);
+  const outward = expectedOutward?.clone().normalize();
+  let axis = crownAxis.clone().normalize();
+  if (outward) {
+    const dot = Vector3.Dot(axis, outward);
+    if (dot < 0) {
+      axis = axis.scale(-1);
+    } else if (import.meta.env?.DEV && dot < 0.8) {
+      log.warn(`calyx axis weakly aligned with fruitTop-center outward axis (dot=${dot.toFixed(3)})`);
+    }
   }
+  const frame = buildCrownFrame(axis);
+  const tilt = Quaternion.FromUnitVectorsToRef(Vector3.Up(), frame.axis, new Quaternion());
+  const roll = Quaternion.RotationAxis(frame.axis, calyxHash(stableIndex, fruitR, 9) * Math.PI * 2);
+  const surfaceLift = fruitR * (lod === 'low' ? 0.012 : 0.016);
+  calyx.parent = parent;
+  calyx.position = center.add(frame.axis.scale(surfaceLift));
+  calyx.rotationQuaternion = tilt.multiply(roll);
+  const scale = Math.max(0.006, fruitR);
+  calyx.scaling.set(scale, scale, scale);
 }
 
-const cachedCalyxMat: WeakMap<Scene, PBRMaterial> = new WeakMap();
-function getCalyxMat(scene: Scene): PBRMaterial {
-  let m = cachedCalyxMat.get(scene);
+const cachedCalyxMat: WeakMap<Scene, Map<CalyxTint, PBRMaterial>> = new WeakMap();
+function getCalyxMat(scene: Scene, tint: CalyxTint = 'mature'): PBRMaterial {
+  let bucket = cachedCalyxMat.get(scene);
+  if (!bucket) {
+    bucket = new Map();
+    cachedCalyxMat.set(scene, bucket);
+  }
+  let m = bucket.get(tint);
   if (!m) {
-    m = new PBRMaterial('calyxMat', scene);
-    m.albedoColor = new Color3(CALYX_RGB.r, CALYX_RGB.g, CALYX_RGB.b);
+    m = new PBRMaterial(`calyxMat_${tint}`, scene);
+    const mult = tint === 'young' ? 1.16 : tint === 'dull' ? 0.78 : 1.0;
+    m.albedoColor = new Color3(
+      Math.min(1, CALYX_RGB.r * mult),
+      Math.min(1, CALYX_RGB.g * mult),
+      Math.min(1, CALYX_RGB.b * mult),
+    );
     m.metallic = 0;
     m.roughness = 0.85;
     m.backFaceCulling = false;
-    cachedCalyxMat.set(scene, m);
+    bucket.set(tint, m);
   }
   return m;
 }
@@ -658,8 +798,9 @@ export function createTrussFruitOrgansOnly(
             tomatoFruitSpec,
             { skipCalyxAndStem: true, lod: fruitLod },
           );
+          const fruitCenterV = toV3(site.fruit.fruitCenter);
           fruitNode.parent = root;
-          fruitNode.position = toV3(site.fruit.fruitCenter);
+          fruitNode.position = fruitCenterV;
 
           // body local +Y is stem-end pole; orient so it aligns with -fruitAxisDir.
           const targetUp = axisDirV.scale(-1).normalize();
@@ -667,15 +808,23 @@ export function createTrussFruitOrgansOnly(
             Vector3.Up(), targetUp, new Quaternion(),
           );
           const azimuth = Quaternion.RotationAxis(
-            targetUp, (site.index * 137.5 * Math.PI) / 180,
+            targetUp, ((site.index * 137.5) + calyxHash(site.index, site.fruit.diameterMm / 1000, 11) * 18) * Math.PI / 180,
           );
-          fruitNode.rotationQuaternion = tilt.multiply(azimuth);
+          const droopAxis = Vector3.Cross(targetUp, Vector3.Down());
+          const droopAngle = droopAxis.lengthSquared() > 1e-6
+            ? Math.min(0.026, Math.pow(site.fruit.diameterMm / 80, 2) * 0.018)
+            : 0;
+          const droop = droopAngle > 0
+            ? Quaternion.RotationAxis(droopAxis.normalize(), droopAngle)
+            : Quaternion.Identity();
+          fruitNode.rotationQuaternion = droop.multiply(tilt).multiply(azimuth);
 
           // Calyx star at fruit top — sepals reflex opposite fruitAxisDir.
-          const sepalDir = targetUp;
+          const sepalDir = fruitTopV.subtract(fruitCenterV).normalize();
           addCalyxStar(
             scene, root, `${name}_calyx_${site.index}`,
             fruitTopV, sepalDir, site.fruit.diameterMm / 2 / 1000,
+            fruitLod, site.index, sepalDir,
           );
         }
         if (site.stage === 'fruit-set' && site.flower) {

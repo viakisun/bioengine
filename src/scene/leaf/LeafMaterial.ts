@@ -22,8 +22,10 @@ import {
   mergeChunks,
 } from '@farmsim/tomato-geometry';
 import {
+  attachExternalLeafTextureSlots,
   getLeafColorTexture,
   getLeafNormalTexture,
+  type LeafTextureVariant,
 } from './LeafTexture';
 import { quatToMat4 } from './LeafMeshBuilder';
 import type { LeafMeshPatch } from './LeafMeshBuilder';
@@ -151,8 +153,20 @@ function cloneChunk(chunk: GeoChunk): GeoChunk {
   return out;
 }
 
-const cachedLeafMaterial = new WeakMap<Scene, PBRMaterial>();
+const cachedLeafMaterial = new WeakMap<Scene, Map<LeafTextureVariant, PBRMaterial>>();
 const cachedYellowLeafMaterial = new WeakMap<Scene, PBRMaterial>();
+
+const LEAF_VARIANT_TINT: Record<LeafTextureVariant, Color3> = {
+  young: Color3.FromHexString('#b7d36a'),
+  mature: Color3.FromHexString('#7fa84c'),
+  old: Color3.FromHexString('#5f7b35'),
+  back: Color3.FromHexString('#9caf82'),
+  stressed: Color3.FromHexString('#9e9b4f'),
+};
+
+function leafMatName(variant: LeafTextureVariant): string {
+  return variant === 'mature' ? 'leafMat' : `leafMat_${variant}`;
+}
 
 /**
  * Shader-side wind toggle.
@@ -175,21 +189,27 @@ export function isShaderWindEnabled() {
   return _useShaderWind;
 }
 
-export function getLeafMaterial(scene: Scene): PBRMaterial {
-  let mat = cachedLeafMaterial.get(scene);
+export function getLeafMaterial(scene: Scene, variant: LeafTextureVariant = 'mature'): PBRMaterial {
+  let bucket = cachedLeafMaterial.get(scene);
+  if (!bucket) {
+    bucket = new Map();
+    cachedLeafMaterial.set(scene, bucket);
+  }
+  let mat = bucket.get(variant);
   if (!mat) {
+    const tint = LEAF_VARIANT_TINT[variant] ?? LEAF_VARIANT_TINT.mature;
     if (_useShaderWind) {
-      const customMat = new PBRCustomMaterial('leafMat', scene);
-      customMat.albedoColor = new Color3(1, 1, 1);
+      const customMat = new PBRCustomMaterial(leafMatName(variant), scene);
+      customMat.albedoColor = tint;
       customMat.albedoTexture = getLeafColorTexture(scene);
       customMat.bumpTexture = getLeafNormalTexture(scene);
       customMat.invertNormalMapY = false;
       customMat.invertNormalMapX = false;
       customMat.metallic = 0.0;
-      customMat.roughness = 0.48;          // 0.6 → 0.48 — leaves have soft sheen
+      customMat.roughness = 0.82;
       customMat.backFaceCulling = false;
       customMat.twoSidedLighting = true;
-      customMat.environmentIntensity = 0.85;  // 0.6 → 0.85 — IBL fills shaded leaves
+      customMat.environmentIntensity = 0.45;
       // Phase B — per-leaf smooth color blend via baked vertex colors.
       // PBR material auto-detects vertex colors from the bound VertexBuffer
       // and multiplies them against the albedo texture (no flag needed).
@@ -198,12 +218,12 @@ export function getLeafMaterial(scene: Scene): PBRMaterial {
       // adds the subtle specular sheen visible on healthy leaves under
       // greenhouse lighting.
       customMat.clearCoat.isEnabled = true;
-      customMat.clearCoat.intensity = 0.35;
-      customMat.clearCoat.roughness = 0.25;
+      customMat.clearCoat.intensity = 0.08;
+      customMat.clearCoat.roughness = 0.55;
 
       customMat.subSurface.isTranslucencyEnabled = true;
-      customMat.subSurface.translucencyIntensity = 0.75;  // 0.45 → 0.75 (more backlight)
-      customMat.subSurface.tintColor = Color3.FromHexString('#3d8a25');  // brighter green
+      customMat.subSurface.translucencyIntensity = 0.28;
+      customMat.subSurface.tintColor = Color3.FromHexString('#4f7f2d');
       customMat.subSurface.minimumThickness = 0.05;
       customMat.subSurface.maximumThickness = 0.3;
 
@@ -257,30 +277,31 @@ export function getLeafMaterial(scene: Scene): PBRMaterial {
     } else {
       // WebGPU fallback path — plain PBRMaterial; wind comes from CPU
       // sine rotation on plant root TransformNodes (driven in BabylonEngine).
-      mat = new PBRMaterial('leafMat', scene);
-      mat.albedoColor = new Color3(1, 1, 1);
+      mat = new PBRMaterial(leafMatName(variant), scene);
+      mat.albedoColor = tint;
       mat.albedoTexture = getLeafColorTexture(scene);
       mat.bumpTexture = getLeafNormalTexture(scene);
       mat.invertNormalMapY = false;
       mat.invertNormalMapX = false;
       mat.metallic = 0.0;
-      mat.roughness = 0.48;
+      mat.roughness = 0.82;
       mat.backFaceCulling = false;
       mat.twoSidedLighting = true;
-      mat.environmentIntensity = 0.85;
+      mat.environmentIntensity = 0.45;
 
       mat.clearCoat.isEnabled = true;
-      mat.clearCoat.intensity = 0.35;
-      mat.clearCoat.roughness = 0.25;
+      mat.clearCoat.intensity = 0.08;
+      mat.clearCoat.roughness = 0.55;
 
       mat.subSurface.isTranslucencyEnabled = true;
-      mat.subSurface.translucencyIntensity = 0.75;
-      mat.subSurface.tintColor = Color3.FromHexString('#3d8a25');
+      mat.subSurface.translucencyIntensity = 0.28;
+      mat.subSurface.tintColor = Color3.FromHexString('#4f7f2d');
       mat.subSurface.minimumThickness = 0.05;
       mat.subSurface.maximumThickness = 0.3;
     }
 
-    cachedLeafMaterial.set(scene, mat);
+    attachExternalLeafTextureSlots(mat, scene, variant);
+    bucket.set(variant, mat);
   }
   return mat;
 }
@@ -291,16 +312,16 @@ export function getYellowLeafMaterial(scene: Scene): PBRMaterial {
     mat = new PBRMaterial('yellowLeafMat', scene);
     mat.albedoTexture = getLeafColorTexture(scene);
     mat.bumpTexture = getLeafNormalTexture(scene);
-    mat.albedoColor = Color3.FromHexString('#cccc80');
+    mat.albedoColor = Color3.FromHexString('#a3a05f');
     mat.metallic = 0.0;
-    mat.roughness = 0.6;
+    mat.roughness = 0.88;
     mat.backFaceCulling = false;
     mat.twoSidedLighting = true;
-    mat.environmentIntensity = 0.5;
+    mat.environmentIntensity = 0.35;
 
     mat.subSurface.isTranslucencyEnabled = true;
-    mat.subSurface.translucencyIntensity = 0.6;
-    mat.subSurface.tintColor = Color3.FromHexString('#a89030');
+    mat.subSurface.translucencyIntensity = 0.22;
+    mat.subSurface.tintColor = Color3.FromHexString('#85792d');
 
     cachedYellowLeafMaterial.set(scene, mat);
   }
@@ -331,10 +352,10 @@ export function getSimpleLeafMaterial(scene: Scene): PBRMaterial {
     mat.invertNormalMapY = false;
     mat.invertNormalMapX = false;
     mat.metallic = 0.0;
-    mat.roughness = 0.55;
+    mat.roughness = 0.86;
     mat.backFaceCulling = false;
     mat.twoSidedLighting = true;
-    mat.environmentIntensity = 0.65;
+    mat.environmentIntensity = 0.38;
     // No clearcoat, no subsurface, no shader wind — perf 우선.
     cachedSimpleLeafMaterial.set(scene, mat);
   }

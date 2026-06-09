@@ -62,7 +62,7 @@ export const RENDER_FX_DEFAULTS: RenderFXState = {
   glowLayerEnabled: false,
   lensFlareEnabled: false,
   ssaoSamples: 16,
-  leafSSSIntensity: 0.45,
+  leafSSSIntensity: 0.28,
   activeBedCount: 2,
 };
 
@@ -215,7 +215,7 @@ export const QUALITY_PRESETS: Record<number, QualityPreset> = {
       taaEnabled: true, ssrEnabled: true, dofEnabled: true,
       godRaysEnabled: true,
       glowLayerEnabled: true, lensFlareEnabled: true,
-      leafSSSIntensity: 0.6,
+      leafSSSIntensity: 0.34,
       activeBedCount: 8,
     },
   },
@@ -242,7 +242,7 @@ export const QUALITY_PRESETS: Record<number, QualityPreset> = {
       colorLutEnabled: true,
       chromaticAberrationEnabled: true, grainEnabled: true,
       glowLayerEnabled: true, lensFlareEnabled: true,
-      leafSSSIntensity: 0.95,
+      leafSSSIntensity: 0.38,
       activeBedCount: 13,
     },
   },
@@ -558,9 +558,9 @@ export function applyRenderQuality(
     }
   }
 
-  // Leaf SSS — push translucency into the cached PBRCustomMaterial
-  const leafMat = scene.getMaterialByName('leafMat');
-  if (leafMat && 'subSurface' in leafMat) {
+  // Leaf SSS — push translucency into all cached leaf variants.
+  for (const leafMat of scene.materials) {
+    if (!leafMat.name.startsWith('leafMat') || !('subSurface' in leafMat)) continue;
     const ss = (leafMat as {
       subSurface: { translucencyIntensity: number; isTranslucencyEnabled: boolean };
     }).subSurface;

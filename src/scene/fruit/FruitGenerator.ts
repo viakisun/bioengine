@@ -31,6 +31,7 @@ import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { SeededRandom } from '@farmsim/tomato-engine';
 import type { FruitState, CultivarSample } from '@farmsim/tomato-engine';
 import type { FruitSpec } from './FruitSpec';
+import { loadOptionalTextureSlot } from '../TextureSlotLoader';
 
 // ★ L7-A-3a/b (S63/S64) — SEGMENTS/RINGS/CROWN/SHOULDER 모두 spec 주입.
 //   FruitGenerator.ts 안 botanical/rendering magic 0 의무 (FRUIT-SPEC-BOTANICAL-PARAMETERS-01).
@@ -39,14 +40,76 @@ import type { FruitSpec } from './FruitSpec';
 // Body mesh — oblate, ribbed, asymmetric, per-vertex colored
 // ---------------------------------------------------------------------------
 
+type FruitLod = 'high' | 'low' | 'ultraLow';
+type RoughnessBand = 'matte' | 'normal' | 'sheen';
+
+function clamp01(v: number): number {
+  return Math.max(0, Math.min(1, v));
+}
+
+function clamp(v: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, v));
+}
+
+function mix(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}
+
+function smoothstep(edge0: number, edge1: number, x: number): number {
+  const t = clamp01((x - edge0) / Math.max(1e-6, edge1 - edge0));
+  return t * t * (3 - 2 * t);
+}
+
+function hexToRgb01(hex: string | undefined, fallback: [number, number, number]): [number, number, number] {
+  if (!hex || !/^#[0-9a-fA-F]{6}$/.test(hex)) return fallback;
+  return [
+    parseInt(hex.slice(1, 3), 16) / 255,
+    parseInt(hex.slice(3, 5), 16) / 255,
+    parseInt(hex.slice(5, 7), 16) / 255,
+  ];
+}
+
+function stableUnit(seed: number, salt: number): number {
+  const x = Math.sin((seed + 1) * (salt * 12.9898 + 78.233)) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+function stableSigned(seed: number, salt: number): number {
+  return stableUnit(seed, salt) * 2 - 1;
+}
+
+function roughnessBandFor(fruit: FruitState, genome: CultivarSample): RoughnessBand {
+  const h = stableUnit((genome.mottleSeed ?? fruit.index * 131) + fruit.index * 17, 5);
+  if (h < 0.28) return 'matte';
+  if (h > 0.76) return 'sheen';
+  return 'normal';
+}
+
+function roughnessOffsetFor(band: RoughnessBand): number {
+  switch (band) {
+    case 'matte': return 0.045;
+    case 'sheen': return -0.035;
+    default: return 0;
+  }
+}
+
+function clearcoatOffsetFor(band: RoughnessBand): number {
+  switch (band) {
+    case 'matte': return -0.015;
+    case 'sheen': return 0.018;
+    default: return 0;
+  }
+}
+
 function buildFruitBodyVertexData(
   fruit: FruitState,
   genome: CultivarSample,
   spec: FruitSpec,
-  lod: 'high' | 'low' | 'ultraLow' = 'high',
+  lod: FruitLod = 'high',
 ): VertexData {
   const positions: number[] = [];
   const colors: number[] = [];
+  const uvs: number[] = [];
   const indices: number[] = [];
 
   // ★ L7-A-3b (S64) — resolution from spec.meshResolution.
@@ -60,18 +123,37 @@ function buildFruitBodyVertexData(
   // Vertex grid (RINGS+1 rings × SEGMENTS+1 columns)
   // The pole rings collapse to a single point; the top pole has the
   // crown recession applied. φ = polar angle (0 = +Y top, π = -Y bottom)
-  const h = genome.heightWidthRatio;
+  const visualClamp = spec.morphologyRules.visualHeightWidthClamp ?? [0.72, 1.6];
+  const h = clamp(genome.heightWidthRatio, visualClamp[0], visualClamp[1]);
   const rib = genome.ribbingStrength;
   const lc = genome.loculeCount;
-
-  // Per-vertex asymmetry RNG — same seed → same shape each rebuild.
-  const asymRng = new SeededRandom(genome.asymmetrySeed);
-  // warm up
-  asymRng.next(); asymRng.next(); asymRng.next();
 
   // Mottle RNG used for per-vertex color noise
   const mottleRng = new SeededRandom(genome.mottleSeed);
   mottleRng.next(); mottleRng.next();
+
+  const lodShapeScale = lod === 'high' ? 1 : lod === 'low' ? 0.45 : 0;
+  const seed = genome.asymmetrySeed ?? fruit.index * 7919 + 1234;
+  const coherentAmp = (spec.morphologyRules.coherentAsymmetryAmp ?? 0.035) * lodShapeScale;
+  const scaleX = 1 + stableSigned(seed, 2) * 0.055 * lodShapeScale;
+  const scaleZ = 1 + stableSigned(seed, 3) * 0.065 * lodShapeScale;
+  const shoulderRange = spec.morphologyRules.shoulderFullnessRange ?? [0.96, 1.08];
+  const shoulderFullness = mix(shoulderRange[0], shoulderRange[1], stableUnit(seed, 4));
+  const topDepressionRange = spec.morphologyRules.topDepressionRange ?? [0, 0.025];
+  const stemEndAnchorCos = spec.morphologyRules.stemEndAnchorCos ?? 0.94;
+  const depressionBand = spec.morphologyRules.depressionBand ?? [0.86, 0.98];
+  const socketTintBand = spec.morphologyRules.socketTintBand ?? [0.88, 0.985];
+  const socketDarkeningStrength = spec.morphologyRules.socketDarkeningStrength ?? 0.22;
+  const socketTintStrength = spec.morphologyRules.socketTintStrength ?? 0.12;
+  const topDepressionExtra = mix(topDepressionRange[0], topDepressionRange[1], stableUnit(seed, 6)) * lodShapeScale;
+  const bottomRoundness = (spec.morphologyRules.bottomRoundness ?? 0.25) * lodShapeScale;
+  const asymPhase1 = stableUnit(seed, 7) * Math.PI * 2;
+  const asymPhase2 = stableUnit(seed, 8) * Math.PI * 2;
+  const crownAnchorY = h * stemEndAnchorCos;
+  const ripeColor = hexToRgb01(spec.ripeningRules.ripeColor, [185 / 255, 45 / 255, 34 / 255]);
+  const shoulderRetentionFrac = spec.ripeningRules.shoulderRetentionFrac ?? 0.4;
+  const blushStrength = spec.ripeningRules.blushStrength ?? 0.25;
+  const mottleSigma = spec.ripeningRules.mottleSigma ?? 0.015;
 
   // Per-vertex grid
   for (let r = 0; r <= RINGS; r++) {
@@ -84,6 +166,7 @@ function buildFruitBodyVertexData(
       let x = sinP * Math.cos(theta);
       let y = cosP * h;
       let z = sinP * Math.sin(theta);
+      const topAnchorMask = smoothstep(stemEndAnchorCos, 1.0, cosP);
 
       // Locule ribbing: cos(lc·θ) bumps that follow the locule walls
       // from the bottom (blossom-end) up past the equator. Beefsteak's
@@ -115,38 +198,55 @@ function buildFruitBodyVertexData(
         z *= ribFactor;
       }
 
-      // Stem-end socket: deeper dent at top pole — the pedicel tip lands
-      // here, so a visible cavity (not a smooth dome) reads as a real
-      // stem scar. Falls off within ~15% of top hemisphere.
-      if (cosP > 0.85) {
-        const recessSweep = (cosP - 0.85) / 0.15;  // 0..1
-        y -= CROWN_RECESSION * recessSweep;
-      } else if (cosP > 0.70) {
+      // Stem-end socket: keep the attachment pole stable and depress only
+      // the surrounding ring. A wide depression makes close-up fruits read
+      // like flattened disks, so the geometry band stays narrow.
+      const socketDepressionMask =
+        smoothstep(depressionBand[0], (depressionBand[0] + depressionBand[1]) * 0.5, cosP) *
+        (1 - smoothstep(depressionBand[1], 1.0, cosP));
+      if (socketDepressionMask > 0) {
+        y -= (CROWN_RECESSION + topDepressionExtra) * socketDepressionMask;
+      }
+      if (cosP > 0.70 && cosP <= depressionBand[0]) {
         // Shoulder bulge: slight outward swell on the ring just below
         // the socket — gives the stem-end → shoulder → body transition
         // its rounded "tomato shoulders" silhouette instead of a flat
         // dome rising directly to the dent.
         const bulgeSweep = 1 - (cosP - 0.70) / 0.15;  // 1..0
-        const bulge = SHOULDER_BULGE * bulgeSweep;
+        const bulge = SHOULDER_BULGE * bulgeSweep * shoulderFullness;
         x *= 1 + bulge;
         z *= 1 + bulge;
       }
 
-      // Per-vertex asymmetry — Gaussian noise scaled by the cultivar's
-      // (per-fruit-sampled) asymmetryAmp. The raw amp generates visible
-      // lumpiness because every vertex picks an independent offset →
-      // bumpy normals → cauliflower under specular lighting. Damp to 15%
-      // of the cultivar value (was 30%) — still varies per fruit, but
-      // silhouette stays smoothly round. Reduces "쭈글쭈글" perception.
-      const asymAmp = (genome.asymmetryAmp ?? 0.05) * 0.15;
-      const ax = asymRng.gaussian(0, asymAmp);
-      const ay = asymRng.gaussian(0, asymAmp * 0.8);
-      const az = asymRng.gaussian(0, asymAmp);
-      x *= 1 + ax;
-      y *= 1 + ay;
-      z *= 1 + az;
+      // Coherent fruit-level asymmetry. Keep the crown pole anchored so
+      // the pedicel/calyx attachment remains stable after deformation.
+      if (lodShapeScale > 0) {
+        const anchorPreserve = 1 - topAnchorMask;
+        const angularAsym =
+          Math.sin(theta + asymPhase1) * 0.65 +
+          Math.sin(theta * 2 + asymPhase2) * 0.35;
+        const verticalWeight = Math.pow(Math.max(0, sinP), 0.75);
+        const radialScale = 1 + angularAsym * coherentAmp * verticalWeight * anchorPreserve;
+        x *= mix(1, scaleX, anchorPreserve) * radialScale;
+        z *= mix(1, scaleZ, anchorPreserve) * radialScale;
+
+        if (cosP < -0.25) {
+          const bottomT = clamp01((-0.25 - cosP) / 0.70);
+          const bottomMask = bottomT * bottomT * (3 - 2 * bottomT);
+          x *= 1 + bottomRoundness * 0.025 * bottomMask;
+          z *= 1 + bottomRoundness * 0.025 * bottomMask;
+          y += bottomRoundness * 0.065 * bottomMask;
+        }
+      }
+
+      if (topAnchorMask > 0.98) {
+        x = 0;
+        z = 0;
+        y = crownAnchorY;
+      }
 
       positions.push(x, y, z);
+      uvs.push(s / SEGMENTS, r / RINGS);
 
       // Per-vertex color — blossom-end first ripening.
       // Y > 0 = stem-end (top), Y < 0 = blossom-end (bottom).
@@ -173,7 +273,7 @@ function buildFruitBodyVertexData(
       // stem-end green retention frac — body 상단 (cosP > 0) 영역에 적용.
       // 실제 토마토의 shoulder 가 가장 오래 green 유지하는 관찰 일치.
       // 미래 task: cultivar genome 별 분배 (beefsteak 더 강하게 등).
-      const STEM_END_GREEN_RETENTION_FRAC = 0.4;
+      const STEM_END_GREEN_RETENTION_FRAC = shoulderRetentionFrac;
 
       // shiftFrac > 0 → push toward riper (more red); < 0 → toward green.
       // y is in cultivar-relative units (-h..+h). Negative y = blossom-end.
@@ -187,20 +287,34 @@ function buildFruitBodyVertexData(
         shiftFrac = (-yNorm) * STEM_END_GREEN_RETENTION_FRAC * stageStrength;
       }
 
-      // Blend toward fully-ripe red. shiftFrac > 0 → more red; < 0 → more green.
-      // FruitState 가 cultivar full-ripe RGB 를 따로 전달 안 하므로 baseline
-      // 으로 [195/255, 30/255, 22/255] 가정 (color array 의 stage 5 와 일치).
-      const ripeR = Math.min(1, baseRGB[0] + shiftFrac * 0.25);
-      const ripeG = Math.max(0, baseRGB[1] - shiftFrac * 0.25);
-      const ripeB = Math.max(0, baseRGB[2] - shiftFrac * 0.05);
+      const greenMute = fruit.ripenStage <= 1 ? 0.18 : 0.08;
+      const mutedBase: [number, number, number] = [
+        mix(baseRGB[0], 0.33, greenMute),
+        mix(baseRGB[1], 0.42, greenMute),
+        mix(baseRGB[2], 0.24, greenMute),
+      ];
+
+      const blush = clamp01(Math.max(0, -yNorm) * blushStrength * stageStrength);
+      const redBlend = clamp01(Math.max(0, shiftFrac) + blush);
+      const greenRetain = clamp01(Math.max(0, -shiftFrac));
+      const ripeR = mix(mutedBase[0], ripeColor[0], redBlend);
+      const ripeG = mix(mutedBase[1], ripeColor[1], redBlend) + greenRetain * 0.08;
+      const ripeB = mix(mutedBase[2], ripeColor[2], redBlend);
 
       // Marbled mottling — per-vertex Gaussian color jitter. σ 0.035 → 0.015
       // 으로 축소: 이전엔 high-frequency speckle 이 표면 전체에 흩뿌려져
       // "쭈글쭈글" 인상에 기여. 더 부드러운 변동만 유지.
-      const mott = mottleRng.gaussian(0, 0.015);
-      const r2 = Math.max(0, Math.min(1, ripeR * (1 + mott)));
-      const g2 = Math.max(0, Math.min(1, ripeG * (1 + mott * 0.7)));
-      const b2 = Math.max(0, Math.min(1, ripeB * (1 + mott * 0.5)));
+      const mott = mottleRng.gaussian(0, mottleSigma);
+      const crownDark = cosP > 0.76
+        ? 1 - smoothstep(0.76, 0.98, cosP) * socketDarkeningStrength
+        : 1;
+      const socketGreenBrown =
+        smoothstep(socketTintBand[0], (socketTintBand[0] + socketTintBand[1]) * 0.5, cosP) *
+        (1 - smoothstep(socketTintBand[1], 1.0, cosP)) *
+        socketTintStrength;
+      const r2 = clamp01((ripeR * (1 + mott) - socketGreenBrown * 0.12) * crownDark);
+      const g2 = clamp01((ripeG * (1 + mott * 0.7) + socketGreenBrown * 0.04) * crownDark);
+      const b2 = clamp01((ripeB * (1 + mott * 0.5) - socketGreenBrown * 0.08) * crownDark);
 
       colors.push(r2, g2, b2, 1.0);
     }
@@ -219,12 +333,24 @@ function buildFruitBodyVertexData(
 
   const normals: number[] = [];
   VertexData.ComputeNormals(positions, indices, normals);
+  for (let r = 0; r <= RINGS; r++) {
+    const first = r * colsPerRow;
+    const last = first + SEGMENTS;
+    const nx = normals[first * 3] + normals[last * 3];
+    const ny = normals[first * 3 + 1] + normals[last * 3 + 1];
+    const nz = normals[first * 3 + 2] + normals[last * 3 + 2];
+    const len = Math.hypot(nx, ny, nz) || 1;
+    normals[first * 3] = normals[last * 3] = nx / len;
+    normals[first * 3 + 1] = normals[last * 3 + 1] = ny / len;
+    normals[first * 3 + 2] = normals[last * 3 + 2] = nz / len;
+  }
 
   const vd = new VertexData();
   vd.positions = positions;
   vd.indices = indices;
   vd.normals = normals;
   vd.colors = colors;
+  vd.uvs = uvs;
   return vd;
 }
 
@@ -287,10 +413,34 @@ function buildCalyxVertexData(): VertexData {
   return vd;
 }
 
-/** Per-scene cache of fruit body materials, keyed by ripening stage (0-5). */
-const cachedBodyMaterials: WeakMap<Scene, PBRMaterial[]> = new WeakMap();
+/** Per-scene cache of fruit body materials, keyed by spec/stage/band/LOD/texture mask. */
+const cachedBodyMaterials: WeakMap<Scene, Map<string, PBRMaterial>> = new WeakMap();
 /** ★ L7-B-2 (S67) — Per-scene cache of _simple_ fruit body materials (no clearcoat/subsurface). */
-const cachedSimpleBodyMaterials: WeakMap<Scene, PBRMaterial[]> = new WeakMap();
+const cachedSimpleBodyMaterials: WeakMap<Scene, Map<string, PBRMaterial>> = new WeakMap();
+
+function fruitSpecId(spec: FruitSpec): string {
+  return `${spec.taxonomy.family}:${spec.taxonomy.genus}:${spec.taxonomy.species}:${spec.taxonomy.commonName}`;
+}
+
+function fruitMaterialKey(
+  spec: FruitSpec,
+  stage: number,
+  band: RoughnessBand,
+  lod: FruitLod,
+  microNormalEnabled: boolean,
+  roughnessTextureEnabled: boolean,
+  microNormalStrengthBucket: string,
+): string {
+  return [
+    fruitSpecId(spec),
+    stage,
+    band,
+    lod,
+    microNormalEnabled ? 'N1' : 'N0',
+    roughnessTextureEnabled ? 'R1' : 'R0',
+    microNormalStrengthBucket,
+  ].join(':');
+}
 
 /**
  * Stage-based simple body material (★ L7-B-2 S67, 보완 #5).
@@ -306,35 +456,84 @@ const cachedSimpleBodyMaterials: WeakMap<Scene, PBRMaterial[]> = new WeakMap();
 function getSimpleBodyMaterial(scene: Scene, stage: number, spec: FruitSpec): PBRMaterial {
   let bucket = cachedSimpleBodyMaterials.get(scene);
   if (!bucket) {
-    bucket = new Array<PBRMaterial>(spec.ripeningRules.stageCount);
+    bucket = new Map();
     cachedSimpleBodyMaterials.set(scene, bucket);
   }
-  if (bucket[stage]) return bucket[stage];
-  const mat = new PBRMaterial(`fruitBodyMatSimple_stage${stage}`, scene);
+  const key = fruitMaterialKey(spec, stage, 'normal', 'ultraLow', false, false, 'B0');
+  const cached = bucket.get(key);
+  if (cached) return cached;
+  const mat = new PBRMaterial(`fruitBodyMatSimple_${key}`, scene);
   // White albedo → vertex color fully drives surface color (stage color 유지).
   mat.albedoColor = new Color3(1, 1, 1);
   mat.metallic = 0;
   // Roughness만 spec (clearcoat/subsurface 모두 off).
   mat.roughness = spec.materialRules.stageRoughness[stage];
-  bucket[stage] = mat;
+  bucket.set(key, mat);
   return mat;
 }
 
-function getBodyMaterial(scene: Scene, stage: number, spec: FruitSpec): PBRMaterial {
+function getBodyMaterial(
+  scene: Scene,
+  stage: number,
+  spec: FruitSpec,
+  lod: FruitLod,
+  band: RoughnessBand,
+): PBRMaterial {
   let bucket = cachedBodyMaterials.get(scene);
   if (!bucket) {
-    bucket = new Array<PBRMaterial>(spec.ripeningRules.stageCount);
+    bucket = new Map();
     cachedBodyMaterials.set(scene, bucket);
   }
-  if (bucket[stage]) return bucket[stage];
-  const mat = new PBRMaterial(`fruitBodyMat_stage${stage}`, scene);
+  const matRules = spec.materialRules;
+  const microNormalEnabled = lod === 'high' && !!matRules.microNormalTexture;
+  const roughnessTextureEnabled = lod === 'high' && !!matRules.roughnessTexture;
+  const microNormalStrength = clamp(matRules.microNormalStrength ?? 0.045, 0.0, 0.12);
+  const microNormalStrengthBucket = microNormalEnabled
+    ? `B${Math.round(microNormalStrength * 1000)}`
+    : 'B0';
+  const key = fruitMaterialKey(
+    spec,
+    stage,
+    band,
+    lod,
+    microNormalEnabled,
+    roughnessTextureEnabled,
+    microNormalStrengthBucket,
+  );
+  const cached = bucket.get(key);
+  if (cached) return cached;
+  const mat = new PBRMaterial(`fruitBodyMat_${key}`, scene);
   // White albedo → vertex color fully drives surface color.
   mat.albedoColor = new Color3(1, 1, 1);
   mat.metallic = 0;
   // ★ L7-A-3c (S64) — PBR coefficients from spec.materialRules (산식 → 배열).
-  const matRules = spec.materialRules;
-  mat.roughness = matRules.stageRoughness[stage];
-  const cc = matRules.stageClearcoatIntensity[stage];
+  mat.roughness = clamp(matRules.stageRoughness[stage] + roughnessOffsetFor(band), 0.50, 0.76);
+  if (microNormalEnabled) {
+    loadOptionalTextureSlot(scene, matRules.microNormalTexture, {
+      gammaSpace: false,
+    }).then((tex) => {
+      if (tex) {
+        tex.level = microNormalStrength;
+        mat.bumpTexture = tex;
+        mat.invertNormalMapY = false;
+        mat.invertNormalMapX = false;
+      }
+    });
+  }
+  if (roughnessTextureEnabled) {
+    loadOptionalTextureSlot(scene, matRules.roughnessTexture, {
+      gammaSpace: false,
+    }).then((tex) => {
+      if (tex) {
+        mat.metallicTexture = tex;
+        mat.useRoughnessFromMetallicTextureAlpha = false;
+        mat.useRoughnessFromMetallicTextureGreen = true;
+        mat.useMetallnessFromMetallicTextureBlue = false;
+        mat.metallic = 0;
+      }
+    });
+  }
+  const cc = clamp(matRules.stageClearcoatIntensity[stage] + clearcoatOffsetFor(band), 0.03, 0.22);
   mat.clearCoat.isEnabled = cc > 0;
   mat.clearCoat.intensity = cc;
   mat.clearCoat.roughness = matRules.stageClearcoatRoughness[stage];
@@ -346,7 +545,7 @@ function getBodyMaterial(scene: Scene, stage: number, spec: FruitSpec): PBRMater
     mat.subSurface.minimumThickness = 0.5;
     mat.subSurface.maximumThickness = 1.5;
   }
-  bucket[stage] = mat;
+  bucket.set(key, mat);
   return mat;
 }
 
@@ -474,9 +673,10 @@ export function createFruitNode(
   // (scene, stage) — per-fruit color variation already lives in the
   // vertex-color buffer.
   // ★ L7-B-2 (S67) — far LOD (ultraLow) → simple material (clearcoat/subsurface off).
+  const roughnessBand = roughnessBandFor(fruit, genome);
   body.material = lod === 'ultraLow'
     ? getSimpleBodyMaterial(scene, stage, spec)
-    : getBodyMaterial(scene, stage, spec);
+    : getBodyMaterial(scene, stage, spec, lod, roughnessBand);
 
   // ---------- Calyx + stem stub (visible-size fruits only) ----------
   // Skip on `low` LOD to keep the supporting-canopy mesh count

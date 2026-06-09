@@ -200,7 +200,7 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
   // (more grey-cyan) for the canvas so the bed/plants stand out without
   // a hard edge against the surrounding panels.
   scene.clearColor = new Color4(0.86, 0.87, 0.85, 1);
-  scene.ambientColor = new Color3(0.22, 0.22, 0.22);
+  scene.ambientColor = new Color3(0.12, 0.12, 0.12);
 
   // dev 진단 편의 — playwright / DevTools 에서 scene/engine/store 접근 가능.
   // Iter 35 PR 2 Phase O: qualityProbe() + isProbeRunning() 제거 (QualityProbe archived).
@@ -675,13 +675,17 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
   // Iter 35 PR 4 Phase Q2: hudDay 제거 — singlePlantMinute 표시는 BottomPlaybackBar 담당.
   // Iter 35: hudRobot 제거 — single-plant only.
 
-  // Resolve cached leaf material once for per-frame wind uniform update
-  let cachedLeafMatRef: Material | null = null;
-  function getLeafMatForUniform(): Material | null {
-    if (!cachedLeafMatRef && scene) {
-      cachedLeafMatRef = scene.getMaterialByName('leafMat');
+  // Resolve cached leaf materials for per-frame wind uniform update.
+  let cachedLeafMatCount = -1;
+  let cachedLeafMatRefs: Material[] = [];
+  function getLeafMatsForUniform(): Material[] {
+    if (cachedLeafMatCount !== scene.materials.length) {
+      cachedLeafMatCount = scene.materials.length;
+      cachedLeafMatRefs = scene.materials.filter((m) =>
+        m.name === 'leafMat' || m.name.startsWith('leafMat_')
+      );
     }
-    return cachedLeafMatRef;
+    return cachedLeafMatRefs;
   }
 
   // Reusable interaction-uniform buffers — avoid per-frame allocations.
@@ -730,8 +734,8 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
     // Push wind uniforms each frame — WebGL2 only.
     // On WebGPU we use the CPU sine fallback further down.
     if (isShaderWindEnabled()) {
-      const lm = getLeafMatForUniform();
-      if (lm && typeof lm.getEffect === 'function') {
+      for (const lm of getLeafMatsForUniform()) {
+        if (typeof lm.getEffect !== 'function') continue;
         const eff = lm.getEffect();
         if (eff) {
           eff.setFloat('windTime', now / 1000);

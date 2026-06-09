@@ -122,6 +122,7 @@ export function Workbench() {
     const minute = s.crop.day * 1440 + 12 * 60; // 시나리오 day 정오로 시작
     useTwinStore.getState().setSinglePlantMinute(minute);
     // D0.e env hook
+    useTwinStore.getState().applyLightingPreset(s.env.lightingPreset);
     useTwinStore.getState().setLighting({ manualHour: s.env.manualHour });
     if (s.env.wind) {
       useTwinStore.getState().setWindStrength(s.env.wind.strength);
@@ -353,7 +354,7 @@ export function Workbench() {
         <>
           <PhenotypingControls
             initialQuality={parseInt(
-              new URLSearchParams(window.location.search).get('qualityPreset') ?? '1',
+              new URLSearchParams(window.location.search).get('qualityPreset') ?? '3',
               10,
             )}
           />
