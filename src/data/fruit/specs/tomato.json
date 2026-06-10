@@ -35,14 +35,23 @@
     "shoulderRetentionFrac": 0.45,
     "blushStrength": 0.32,
     "mottleSigma": 0.012,
-    "ripeColor": "#b92d22"
+    "ripeColor": "#b92d22",
+    "visualPatchStrength": 0.16,
+    "visualPatchScale": 5.8,
+    "visualBlushStrength": 0.22,
+    "visualShoulderRetention": 0.52,
+    "turningColor": "#c86b43",
+    "pinkColor": "#c8746d"
   },
   "materialRules": {
-    "stageRoughness":          [0.70, 0.66, 0.62, 0.59, 0.56, 0.53],
-    "stageClearcoatIntensity": [0.04, 0.06, 0.08, 0.10, 0.13, 0.15],
-    "stageClearcoatRoughness": [0.68, 0.64, 0.60, 0.57, 0.54, 0.50],
+    "stageRoughness":          [0.64, 0.61, 0.58, 0.55, 0.52, 0.50],
+    "stageClearcoatIntensity": [0.06, 0.08, 0.10, 0.12, 0.15, 0.18],
+    "stageClearcoatRoughness": [0.64, 0.61, 0.58, 0.56, 0.54, 0.52],
     "microNormalTexture": "/textures/fruit/tomato_micro_normal.png",
-    "microNormalStrength": 0.045,
+    "microNormalStrength": 0.06,
+    "roughnessTexture": "/textures/fruit/tomato_roughness_512.png",
+    "roughnessTextureChannel": "green",
+    "skinVariantCount": 3,
     "subsurfaceTranslucency": {
       "fromStage": 3,
       "intensity": 0.08,

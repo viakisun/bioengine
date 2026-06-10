@@ -82,6 +82,12 @@ test.describe('Iter 39 Phase L7 — Fruit data-driven architecture', () => {
     expect(parsed.ripeningRules.blushStrength).toBeCloseTo(0.32, 6);
     expect(parsed.ripeningRules.mottleSigma).toBeCloseTo(0.012, 6);
     expect(parsed.ripeningRules.ripeColor).toBe('#b92d22');
+    expect(parsed.ripeningRules.visualPatchStrength).toBeCloseTo(0.16, 6);
+    expect(parsed.ripeningRules.visualPatchScale).toBeCloseTo(5.8, 6);
+    expect(parsed.ripeningRules.visualBlushStrength).toBeCloseTo(0.22, 6);
+    expect(parsed.ripeningRules.visualShoulderRetention).toBeCloseTo(0.52, 6);
+    expect(parsed.ripeningRules.turningColor).toBe('#c86b43');
+    expect(parsed.ripeningRules.pinkColor).toBe('#c8746d');
   });
 
   test('FRUIT-SPEC-TAXONOMY-01: spec.taxonomy 4 fields 필수 (multi-crop, 원칙 #44)', async () => {
@@ -157,13 +163,13 @@ test.describe('Iter 39 Phase L7 — Fruit data-driven architecture', () => {
   test('FRUIT-MATERIAL-PARITY-01: spec.materialRules 값이 hardcoded 산식과 동일 (S64)', async () => {
     // L7-A-3c (S64) — material 산식 → spec 배열 변환 byte-identical 검증.
     //
-    // Phase 1 realism patch: reduce plastic-like clearcoat and raise
-    // roughness while keeping the values data-driven in tomato.json.
+    // Patch 3 skin pass: keep stage response data-driven while moving from
+    // matte clay toward a softer tomato cuticle sheen.
     const raw = await readTomatoFruitJson();
     const parsed = parseFruitSpec(raw);
-    const expectedRoughness = [0.70, 0.66, 0.62, 0.59, 0.56, 0.53];
-    const expectedClearcoatIntensity = [0.04, 0.06, 0.08, 0.10, 0.13, 0.15];
-    const expectedClearcoatRoughness = [0.68, 0.64, 0.60, 0.57, 0.54, 0.50];
+    const expectedRoughness = [0.64, 0.61, 0.58, 0.55, 0.52, 0.50];
+    const expectedClearcoatIntensity = [0.06, 0.08, 0.10, 0.12, 0.15, 0.18];
+    const expectedClearcoatRoughness = [0.64, 0.61, 0.58, 0.56, 0.54, 0.52];
 
     for (let stage = 0; stage < parsed.ripeningRules.stageCount; stage++) {
       expect(
@@ -185,7 +191,10 @@ test.describe('Iter 39 Phase L7 — Fruit data-driven architecture', () => {
     expect(parsed.materialRules.subsurfaceTranslucency.intensity).toBeCloseTo(0.08, 6);
     expect(parsed.materialRules.subsurfaceTranslucency.tintColor).toBe('#8b1a14');
     expect(parsed.materialRules.microNormalTexture).toBe('/textures/fruit/tomato_micro_normal.png');
-    expect(parsed.materialRules.microNormalStrength).toBeCloseTo(0.045, 6);
+    expect(parsed.materialRules.microNormalStrength).toBeCloseTo(0.06, 6);
+    expect(parsed.materialRules.roughnessTexture).toBe('/textures/fruit/tomato_roughness_512.png');
+    expect(parsed.materialRules.roughnessTextureChannel).toBe('green');
+    expect(parsed.materialRules.skinVariantCount).toBe(3);
   });
 
   test('FRUIT-ENGINE-API-01: FruitEngine namespace 1 method (createFruit) (S65)', async () => {
@@ -275,6 +284,7 @@ test.describe('Iter 39 Phase L7 — Fruit data-driven architecture', () => {
     expect(body, 'stage in material key').toMatch(/\bstage\b/);
     expect(body, 'roughness band in material key').toMatch(/\bband\b/);
     expect(body, 'LOD in material key').toMatch(/\blod\b/);
+    expect(body, 'skin variant in material key').toMatch(/\bskinVariant\b/);
     expect(body, 'micro normal mask in material key').toMatch(/microNormalEnabled\s*\?\s*['"]N1['"]/);
     expect(body, 'roughness texture mask in material key').toMatch(/roughnessTextureEnabled\s*\?\s*['"]R1['"]/);
     expect(body, 'micro normal strength bucket in material key').toMatch(/microNormalStrengthBucket/);
@@ -307,18 +317,72 @@ test.describe('Iter 39 Phase L7 — Fruit data-driven architecture', () => {
       path.join(REPO_ROOT, 'src/scene/fruit/FruitGenerator.ts'),
       'utf-8',
     );
-    expect(src, 'micro normal high-LOD gate').toMatch(
-      /const\s+microNormalEnabled\s*=\s*lod\s*===\s*['"]high['"]\s*&&\s*!!matRules\.microNormalTexture/,
-    );
-    expect(src, 'roughness texture high-LOD gate').toMatch(
-      /const\s+roughnessTextureEnabled\s*=\s*lod\s*===\s*['"]high['"]\s*&&\s*!!matRules\.roughnessTexture/,
-    );
+    expect(src, 'roughness texture high-LOD detail gate').toMatch(/const\s+highDetail\s*=\s*lod\s*===\s*['"]high['"]/);
+    expect(src, 'micro normal high-LOD gate').toMatch(/const\s+microNormalEnabled\s*=\s*highDetail\s*&&\s*!!matRules\.microNormalTexture/);
+    expect(src, 'roughness texture references optional slot').toMatch(/!!matRules\.roughnessTexture/);
+    expect(src, 'roughness texture honors green channel metadata').toMatch(/matRules\.roughnessTextureChannel\s*\?\?\s*['"]green['"]/);
     expect(src, 'micro normal optional loader').toMatch(/loadOptionalTextureSlot\s*\(\s*scene\s*,\s*matRules\.microNormalTexture/);
-    expect(src, 'roughness optional loader').toMatch(/loadOptionalTextureSlot\s*\(\s*scene\s*,\s*matRules\.roughnessTexture/);
+    expect(src, 'roughness optional loader').toMatch(/loadOptionalTextureSlot\s*\(\s*scene\s*,\s*roughnessUrl/);
     expect(src, 'micro normal strength clamped').toMatch(
       /const\s+microNormalStrength\s*=\s*clamp\s*\(\s*matRules\.microNormalStrength\s*\?\?\s*0\.045/,
     );
-    expect(src, 'micro normal strength applied').toMatch(/tex\.level\s*=\s*microNormalStrength/);
+    expect(src, 'micro normal strength applied').toMatch(/tex\.level\s*=\s*debugMode\s*===\s*['"]normal['"]/);
+  });
+
+  test('FRUIT-REALISM-PATCH3-TEXTURES-01: generated roughness texture metadata and old normal path are present', async () => {
+    await expect(
+      fs.access(path.join(REPO_ROOT, 'public/textures/fruit/tomato_micro_normal.png')),
+      'existing micro normal path remains valid',
+    ).resolves.toBeUndefined();
+    await expect(
+      fs.access(path.join(REPO_ROOT, 'public/textures/fruit/tomato_roughness_512.png')),
+      'generated roughness map exists',
+    ).resolves.toBeUndefined();
+
+    const manifest = JSON.parse(
+      await fs.readFile(path.join(REPO_ROOT, 'public/textures/manifest.json'), 'utf-8'),
+    );
+    expect(manifest.slots.fruit.microNormal).toBe('fruit/tomato_micro_normal.png');
+    expect(manifest.slots.fruit.roughness).toBe('fruit/tomato_roughness_512.png');
+    const roughnessAsset = manifest.assets.find(
+      (a: { id?: string }) => a.id === 'patch3-generated-fruit-roughness-512',
+    );
+    expect(roughnessAsset).toBeTruthy();
+    expect(roughnessAsset.license).toBe('project-generated');
+    expect(roughnessAsset.runtimeResolution).toBe('512x512');
+    expect(roughnessAsset.gammaSpace).toBe(false);
+    expect(roughnessAsset.channels.G).toContain('roughness');
+  });
+
+  test('FRUIT-REALISM-PATCH3-DEBUG-01: texture debug modes and skin variants are wired', async () => {
+    const src = await fs.readFile(
+      path.join(REPO_ROOT, 'src/scene/fruit/FruitGenerator.ts'),
+      'utf-8',
+    );
+    expect(src, 'debug mode type').toMatch(/type\s+FruitDebugTextureMode\s*=\s*['"]off['"][\s\S]*['"]normal['"][\s\S]*['"]roughness['"][\s\S]*['"]roughnessLighting['"]/);
+    expect(src, 'debug query parameter').toMatch(/get\(['"]fruitDebugTexture['"]\)/);
+    expect(src, 'roughness debug disables vertex colors').toMatch(/body\.useVertexColors\s*=\s*fruitDebugTexture\s*!==\s*['"]roughness['"]/);
+    expect(src, 'debug normal exaggerates level').toMatch(/debugMode\s*===\s*['"]normal['"]\s*\?\s*0\.2\s*:\s*microNormalStrength/);
+    expect(src, 'roughness debug uses albedoTexture').toMatch(/mat\.albedoTexture\s*=\s*tex/);
+    expect(src, 'skin variant selector').toMatch(/function\s+skinVariantFor/);
+    expect(src, 'skin variant transform').toMatch(/function\s+skinVariantTextureTransform/);
+  });
+
+  test('FRUIT-REALISM-PATCH3-RIPENING-01: mixed ripeness remains visual-only and deterministic', async () => {
+    const src = await fs.readFile(
+      path.join(REPO_ROOT, 'src/scene/fruit/FruitGenerator.ts'),
+      'utf-8',
+    );
+    const fnMatch = src.match(/function buildFruitBodyVertexData[\s\S]*?return vd;\s*\n\}/);
+    expect(fnMatch, 'buildFruitBodyVertexData function').toBeTruthy();
+    const body = fnMatch![0];
+    expect(body, 'turning color from spec').toMatch(/spec\.ripeningRules\.turningColor/);
+    expect(body, 'pink color from spec').toMatch(/spec\.ripeningRules\.pinkColor/);
+    expect(body, 'patch strength from spec').toMatch(/spec\.ripeningRules\.visualPatchStrength/);
+    expect(body, 'fruit-local angular patches').toMatch(/Math\.sin\(theta\s*\*\s*visualPatchScale\s*\+\s*patchPhase1\)/);
+    expect(body, 'middle-stage only mixed ripening').toMatch(/fruit\.ripenStage\s*>=\s*2\s*&&\s*fruit\.ripenStage\s*<=\s*4/);
+    expect(body, 'stage 5 red-dominant variation').toMatch(/fruit\.ripenStage\s*>=\s*5/);
+    expect(body, 'smooth shoulder mask').toMatch(/smoothstep\(0\.58,\s*0\.94,\s*cosP\)/);
   });
 
   test('FRUIT-REALISM-SHAPE-ANCHOR-01: coherent deformation preserves crown/top anchor', async () => {

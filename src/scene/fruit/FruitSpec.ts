@@ -85,6 +85,12 @@ export const RipeningRulesSchema = z.object({
   blushStrength: Ratio01.optional(),
   mottleSigma: Ratio01.optional(),
   ripeColor: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'hex color string (#RRGGBB)').optional(),
+  visualPatchStrength: Ratio01.optional(),
+  visualPatchScale: RatioPositive.optional(),
+  visualBlushStrength: Ratio01.optional(),
+  visualShoulderRetention: Ratio01.optional(),
+  turningColor: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'hex color string (#RRGGBB)').optional(),
+  pinkColor: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'hex color string (#RRGGBB)').optional(),
 });
 
 /**
@@ -108,6 +114,8 @@ export const MaterialRulesSchema = z.object({
   microNormalTexture: z.string().optional(),
   microNormalStrength: Ratio01.optional(),
   roughnessTexture: z.string().optional(),
+  roughnessTextureChannel: z.enum(['green']).optional(),
+  skinVariantCount: z.number().int().min(1).max(6).optional(),
   subsurfaceTranslucency: SubsurfaceRulesSchema,
 });
 

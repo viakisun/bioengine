@@ -30,6 +30,8 @@ Expected phase-1 slots:
 - `leaf/leaf_roughness.png`
 - `leaf/leaf_alpha.png` (slot only; alpha clipping is deferred)
 - `fruit/tomato_micro_normal.png`
+- `fruit/tomato_roughness_512.png`
+- `fruit/tomato_roughness_debug_checker.png` (debug/manual validation only)
 - `stem/stem_normal.png`
 
 Included assets:
@@ -44,10 +46,22 @@ Included assets:
   - Phase 1 runtime usage: retained but disabled on the current cut leaflet surface mesh. These files are whole-leaf alpha atlas maps, so direct UV binding stamps the leaf silhouette and dark background onto each generated leaflet. Use them later with a dedicated alpha-card/atlas mesh path.
   - Modified: young/old/stressed albedo variants are deterministic color-adjusted derivatives of the front base color. Back/base/normal/roughness are unmodified runtime files.
 - `fruit/tomato_micro_normal.png`: project-generated procedural normal map.
-  - Source: generated locally for this repository.
+  - Source: generated locally by `scripts/generate-tomato-skin-textures.mjs`.
+  - Seed: 11042
   - Runtime resolution: 512 x 512 PNG
   - Normal convention: OpenGL.
-  - Purpose: low-amplitude placeholder to activate the fruit micro-normal slot until a licensed tomato skin scan is selected.
+  - Purpose: low-amplitude tomato cuticle normal for high-LOD highlight breakup until a licensed tomato skin scan is selected.
+- `fruit/tomato_roughness_512.png`: project-generated procedural roughness map.
+  - Source: generated locally by `scripts/generate-tomato-skin-textures.mjs`.
+  - Seed: 11042
+  - Runtime resolution: 512 x 512 PNG
+  - Gamma: non-color data (`gammaSpace=false`).
+  - Channel packing: grayscale map; green channel is the canonical roughness channel for the Babylon metallicTexture workflow.
+  - Intended use: high-LOD fruit highlight breakup while scalar stage roughness remains the primary stage control.
+- `fruit/tomato_roughness_debug_checker.png`: project-generated debug checker.
+  - Source: generated locally by `scripts/generate-tomato-skin-textures.mjs`.
+  - Runtime resolution: 512 x 512 PNG
+  - Purpose: manual `fruitDebugTexture=roughnessLighting` validation; not intended as production skin texture.
 - `stem/stem_normal.png`: project-generated procedural normal map.
   - Source: generated locally for this repository.
   - Runtime resolution: 512 x 512 PNG

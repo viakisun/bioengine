@@ -22,7 +22,10 @@
       "alphaStatus": "slot-only; clipping deferred"
     },
     "fruit": {
-      "microNormal": "fruit/tomato_micro_normal.png"
+      "microNormal": "fruit/tomato_micro_normal.png",
+      "microNormal512Alias": "fruit/tomato_micro_normal.png",
+      "roughness": "fruit/tomato_roughness_512.png",
+      "roughnessDebugChecker": "fruit/tomato_roughness_debug_checker.png"
     },
     "stem": {
       "normal": "stem/stem_normal.png"
@@ -47,13 +50,47 @@
     },
     {
       "id": "phase1-generated-fruit-micro-normal",
-      "sourceUrl": "generated locally in this repository",
+      "sourceUrl": "generated locally in this repository by scripts/generate-tomato-skin-textures.mjs",
       "license": "project-generated",
       "downloadDate": "not applicable",
       "runtimeResolution": "512x512",
+      "seed": 11042,
       "normalConvention": "OpenGL",
       "modified": false,
-      "notes": "Procedural micro normal placeholder for activating the fruit slot until a licensed tomato skin scan is selected."
+      "notes": "Low-amplitude procedural tomato cuticle normal used for high-LOD highlight breakup without photo albedo."
+    },
+    {
+      "id": "patch3-generated-fruit-roughness-512",
+      "sourceUrl": "generated locally in this repository by scripts/generate-tomato-skin-textures.mjs",
+      "license": "project-generated",
+      "downloadDate": "not applicable",
+      "runtimeResolution": "512x512",
+      "seed": 11042,
+      "channels": {
+        "R": "roughness debug visibility",
+        "G": "roughness used by Babylon metallicTexture workflow",
+        "B": "roughness debug visibility",
+        "A": "opaque"
+      },
+      "gammaSpace": false,
+      "intendedUse": "high-lod fruit roughness highlight breakup",
+      "roughnessPacking": "grayscale PNG; green channel is the canonical roughness channel",
+      "modified": false,
+      "notes": "Procedural fruit skin roughness with low-frequency wax/cloud variation and fine grain. Scalar stage roughness remains the primary stage control."
+    },
+    {
+      "id": "patch3-generated-fruit-roughness-debug-checker",
+      "sourceUrl": "generated locally in this repository by scripts/generate-tomato-skin-textures.mjs",
+      "license": "project-generated",
+      "downloadDate": "not applicable",
+      "runtimeResolution": "512x512",
+      "seed": 11042,
+      "channels": {
+        "G": "debug roughness checker"
+      },
+      "gammaSpace": false,
+      "intendedUse": "manual fruitDebugTexture roughness path validation only",
+      "modified": false
     },
     {
       "id": "phase1-generated-stem-normal",

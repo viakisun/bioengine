@@ -42,6 +42,8 @@ import { loadOptionalTextureSlot } from '../TextureSlotLoader';
 
 type FruitLod = 'high' | 'low' | 'ultraLow';
 type RoughnessBand = 'matte' | 'normal' | 'sheen';
+type SkinVariant = 'A' | 'B' | 'C';
+type FruitDebugTextureMode = 'off' | 'normal' | 'roughness' | 'roughnessLighting';
 
 function clamp01(v: number): number {
   return Math.max(0, Math.min(1, v));
@@ -83,6 +85,33 @@ function roughnessBandFor(fruit: FruitState, genome: CultivarSample): RoughnessB
   if (h < 0.28) return 'matte';
   if (h > 0.76) return 'sheen';
   return 'normal';
+}
+
+function skinVariantFor(fruit: FruitState, genome: CultivarSample, count: number): SkinVariant {
+  const n = Math.max(1, Math.min(3, Math.floor(count)));
+  const h = stableUnit((genome.mottleSeed ?? fruit.index * 131) + fruit.index * 31, 19);
+  const idx = Math.min(n - 1, Math.floor(h * n));
+  return idx === 0 ? 'A' : idx === 1 ? 'B' : 'C';
+}
+
+function skinVariantTextureTransform(variant: SkinVariant): {
+  uOffset: number;
+  vOffset: number;
+  uScale: number;
+  vScale: number;
+} {
+  switch (variant) {
+    case 'B': return { uOffset: 0.37, vOffset: 0.19, uScale: 1.13, vScale: 1.13 };
+    case 'C': return { uOffset: 0.71, vOffset: 0.43, uScale: 0.91, vScale: 0.91 };
+    default: return { uOffset: 0, vOffset: 0, uScale: 1, vScale: 1 };
+  }
+}
+
+function getFruitDebugTextureMode(): FruitDebugTextureMode {
+  if (typeof location === 'undefined') return 'off';
+  const raw = new URLSearchParams(location.search).get('fruitDebugTexture');
+  if (raw === 'normal' || raw === 'roughness' || raw === 'roughnessLighting') return raw;
+  return 'off';
 }
 
 function roughnessOffsetFor(band: RoughnessBand): number {
@@ -151,9 +180,17 @@ function buildFruitBodyVertexData(
   const asymPhase2 = stableUnit(seed, 8) * Math.PI * 2;
   const crownAnchorY = h * stemEndAnchorCos;
   const ripeColor = hexToRgb01(spec.ripeningRules.ripeColor, [185 / 255, 45 / 255, 34 / 255]);
+  const turningColor = hexToRgb01(spec.ripeningRules.turningColor, [215 / 255, 122 / 255, 56 / 255]);
+  const pinkColor = hexToRgb01(spec.ripeningRules.pinkColor, [216 / 255, 121 / 255, 112 / 255]);
   const shoulderRetentionFrac = spec.ripeningRules.shoulderRetentionFrac ?? 0.4;
   const blushStrength = spec.ripeningRules.blushStrength ?? 0.25;
   const mottleSigma = spec.ripeningRules.mottleSigma ?? 0.015;
+  const visualPatchStrength = spec.ripeningRules.visualPatchStrength ?? 0.0;
+  const visualPatchScale = spec.ripeningRules.visualPatchScale ?? 2.4;
+  const visualBlushStrength = spec.ripeningRules.visualBlushStrength ?? blushStrength;
+  const visualShoulderRetention = spec.ripeningRules.visualShoulderRetention ?? shoulderRetentionFrac;
+  const patchPhase1 = stableUnit(seed, 21) * Math.PI * 2;
+  const patchPhase2 = stableUnit(seed, 22) * Math.PI * 2;
 
   // Per-vertex grid
   for (let r = 0; r <= RINGS; r++) {
@@ -297,9 +334,64 @@ function buildFruitBodyVertexData(
       const blush = clamp01(Math.max(0, -yNorm) * blushStrength * stageStrength);
       const redBlend = clamp01(Math.max(0, shiftFrac) + blush);
       const greenRetain = clamp01(Math.max(0, -shiftFrac));
-      const ripeR = mix(mutedBase[0], ripeColor[0], redBlend);
-      const ripeG = mix(mutedBase[1], ripeColor[1], redBlend) + greenRetain * 0.08;
-      const ripeB = mix(mutedBase[2], ripeColor[2], redBlend);
+      let ripeR = mix(mutedBase[0], ripeColor[0], redBlend);
+      let ripeG = mix(mutedBase[1], ripeColor[1], redBlend) + greenRetain * 0.08;
+      let ripeB = mix(mutedBase[2], ripeColor[2], redBlend);
+
+      // Visual-only mixed ripening. Middle stages are deliberately
+      // ambiguous: green shoulder, orange turning zones, pink blush, and
+      // red blossom-end advance can coexist on one fruit. Masks stay in
+      // fruit-local polar coordinates so they rotate with the body.
+      if (fruit.ripenStage >= 2 && fruit.ripenStage <= 4 && visualPatchStrength > 0) {
+        const fromStage2 = (fruit.ripenStage - 2) + fruit.ripenFraction;
+        const shoulderMask = smoothstep(0.58, 0.94, cosP);
+        const blossomMask = smoothstep(0.12, 0.72, -yNorm);
+        const sideMask = Math.pow(Math.max(0, sinP), 0.65) * (1 - topAnchorMask);
+        const angularPatch = clamp01(
+          0.5 +
+          0.18 * Math.sin(theta * visualPatchScale + patchPhase1 + cosP * 1.4) +
+          0.12 * Math.sin(theta * (visualPatchScale * 1.73 + 0.35) + patchPhase2 - cosP * 2.1) +
+          0.06 * Math.sin(theta * (visualPatchScale * 0.47 + 4.1) + patchPhase1 * 0.3),
+        );
+        const shoulderHold = clamp01(shoulderMask * visualShoulderRetention * stageStrength);
+        const turningMask = clamp01(
+          visualPatchStrength *
+          stageStrength *
+          sideMask *
+          (0.18 + angularPatch * 0.34) *
+          (1 - shoulderHold * 0.72),
+        );
+        const pinkMask = clamp01(
+          visualBlushStrength *
+          stageStrength *
+          sideMask *
+          blossomMask *
+          smoothstep(0.85, 2.45, fromStage2) *
+          (0.16 + angularPatch * 0.30),
+        );
+
+        ripeR = mix(ripeR, turningColor[0], turningMask * (1 - pinkMask * 0.25));
+        ripeG = mix(ripeG, turningColor[1], turningMask * (1 - pinkMask * 0.25));
+        ripeB = mix(ripeB, turningColor[2], turningMask * (1 - pinkMask * 0.25));
+        ripeR = mix(ripeR, pinkColor[0], pinkMask);
+        ripeG = mix(ripeG, pinkColor[1], pinkMask);
+        ripeB = mix(ripeB, pinkColor[2], pinkMask);
+
+        const retainedGreen: [number, number, number] = [0.30, 0.42, 0.22];
+        ripeR = mix(ripeR, retainedGreen[0], shoulderHold * 0.16);
+        ripeG = mix(ripeG, retainedGreen[1], shoulderHold * 0.16);
+        ripeB = mix(ripeB, retainedGreen[2], shoulderHold * 0.16);
+      } else if (fruit.ripenStage >= 5) {
+        const maturePatch =
+          0.5 +
+          0.3 * Math.sin(theta * visualPatchScale + patchPhase1) +
+          0.2 * Math.sin(theta * (visualPatchScale * 0.47 + 0.4) + patchPhase2);
+        const redVariation = clamp01((0.5 + maturePatch * 0.5) * Math.pow(Math.max(0, sinP), 0.8));
+        const shoulderMute = smoothstep(0.52, 0.96, cosP) * 0.08;
+        ripeR = clamp01(ripeR * (0.96 + redVariation * 0.06 - shoulderMute));
+        ripeG = clamp01(ripeG * (0.94 + redVariation * 0.04 + shoulderMute * 0.6));
+        ripeB = clamp01(ripeB * (0.94 + redVariation * 0.03));
+      }
 
       // Marbled mottling — per-vertex Gaussian color jitter. σ 0.035 → 0.015
       // 으로 축소: 이전엔 high-frequency speckle 이 표면 전체에 흩뿌려져
@@ -427,18 +519,22 @@ function fruitMaterialKey(
   stage: number,
   band: RoughnessBand,
   lod: FruitLod,
+  skinVariant: SkinVariant,
   microNormalEnabled: boolean,
   roughnessTextureEnabled: boolean,
   microNormalStrengthBucket: string,
+  debugMode: FruitDebugTextureMode = 'off',
 ): string {
   return [
     fruitSpecId(spec),
     stage,
     band,
     lod,
+    skinVariant,
     microNormalEnabled ? 'N1' : 'N0',
     roughnessTextureEnabled ? 'R1' : 'R0',
     microNormalStrengthBucket,
+    debugMode,
   ].join(':');
 }
 
@@ -459,7 +555,7 @@ function getSimpleBodyMaterial(scene: Scene, stage: number, spec: FruitSpec): PB
     bucket = new Map();
     cachedSimpleBodyMaterials.set(scene, bucket);
   }
-  const key = fruitMaterialKey(spec, stage, 'normal', 'ultraLow', false, false, 'B0');
+  const key = fruitMaterialKey(spec, stage, 'normal', 'ultraLow', 'A', false, false, 'B0');
   const cached = bucket.get(key);
   if (cached) return cached;
   const mat = new PBRMaterial(`fruitBodyMatSimple_${key}`, scene);
@@ -478,6 +574,8 @@ function getBodyMaterial(
   spec: FruitSpec,
   lod: FruitLod,
   band: RoughnessBand,
+  skinVariant: SkinVariant,
+  debugMode: FruitDebugTextureMode,
 ): PBRMaterial {
   let bucket = cachedBodyMaterials.get(scene);
   if (!bucket) {
@@ -485,20 +583,26 @@ function getBodyMaterial(
     cachedBodyMaterials.set(scene, bucket);
   }
   const matRules = spec.materialRules;
-  const microNormalEnabled = lod === 'high' && !!matRules.microNormalTexture;
-  const roughnessTextureEnabled = lod === 'high' && !!matRules.roughnessTexture;
+  const highDetail = lod === 'high';
+  const debugUsesRoughness = debugMode === 'roughness' || debugMode === 'roughnessLighting';
+  const microNormalEnabled = highDetail && !!matRules.microNormalTexture;
+  const roughnessTextureEnabled = highDetail && !!matRules.roughnessTexture && (
+    debugUsesRoughness || (matRules.roughnessTextureChannel ?? 'green') === 'green'
+  );
   const microNormalStrength = clamp(matRules.microNormalStrength ?? 0.045, 0.0, 0.12);
   const microNormalStrengthBucket = microNormalEnabled
-    ? `B${Math.round(microNormalStrength * 1000)}`
+    ? `B${Math.round((debugMode === 'normal' ? 0.2 : microNormalStrength) * 1000)}`
     : 'B0';
   const key = fruitMaterialKey(
     spec,
     stage,
     band,
     lod,
+    skinVariant,
     microNormalEnabled,
     roughnessTextureEnabled,
     microNormalStrengthBucket,
+    debugMode,
   );
   const cached = bucket.get(key);
   if (cached) return cached;
@@ -513,7 +617,7 @@ function getBodyMaterial(
       gammaSpace: false,
     }).then((tex) => {
       if (tex) {
-        tex.level = microNormalStrength;
+        tex.level = debugMode === 'normal' ? 0.2 : microNormalStrength;
         mat.bumpTexture = tex;
         mat.invertNormalMapY = false;
         mat.invertNormalMapX = false;
@@ -521,15 +625,28 @@ function getBodyMaterial(
     });
   }
   if (roughnessTextureEnabled) {
-    loadOptionalTextureSlot(scene, matRules.roughnessTexture, {
+    const t = skinVariantTextureTransform(skinVariant);
+    const roughnessUrl = debugMode === 'roughnessLighting'
+      ? matRules.roughnessTexture?.replace('_512.png', '_debug_checker.png')
+      : matRules.roughnessTexture;
+    loadOptionalTextureSlot(scene, roughnessUrl, {
       gammaSpace: false,
+      ...t,
     }).then((tex) => {
       if (tex) {
-        mat.metallicTexture = tex;
-        mat.useRoughnessFromMetallicTextureAlpha = false;
-        mat.useRoughnessFromMetallicTextureGreen = true;
-        mat.useMetallnessFromMetallicTextureBlue = false;
-        mat.metallic = 0;
+        if (debugMode === 'roughness') {
+          mat.albedoTexture = tex;
+          mat.albedoColor = new Color3(1, 1, 1);
+          mat.roughness = 1;
+          mat.clearCoat.isEnabled = false;
+          mat.subSurface.isTranslucencyEnabled = false;
+        } else {
+          mat.metallicTexture = tex;
+          mat.useRoughnessFromMetallicTextureAlpha = false;
+          mat.useRoughnessFromMetallicTextureGreen = true;
+          mat.useMetallnessFromMetallicTextureBlue = false;
+          mat.metallic = 0;
+        }
       }
     });
   }
@@ -663,7 +780,8 @@ export function createFruitNode(
   buildFruitBodyVertexData(fruit, genome, spec, lod).applyToMesh(body);
   body.scaling = new Vector3(radiusM, radiusM, radiusM);
   body.parent = root;
-  body.useVertexColors = true;
+  const fruitDebugTexture = getFruitDebugTextureMode();
+  body.useVertexColors = fruitDebugTexture !== 'roughness';
 
   const stage = Math.max(0, Math.min(5, fruit.ripenStage));
   // PBRMaterial creation is dominated by shader-permutation compile
@@ -674,9 +792,10 @@ export function createFruitNode(
   // vertex-color buffer.
   // ★ L7-B-2 (S67) — far LOD (ultraLow) → simple material (clearcoat/subsurface off).
   const roughnessBand = roughnessBandFor(fruit, genome);
+  const skinVariant = skinVariantFor(fruit, genome, spec.materialRules.skinVariantCount ?? 1);
   body.material = lod === 'ultraLow'
     ? getSimpleBodyMaterial(scene, stage, spec)
-    : getBodyMaterial(scene, stage, spec, lod, roughnessBand);
+    : getBodyMaterial(scene, stage, spec, lod, roughnessBand, skinVariant, fruitDebugTexture);
 
   // ---------- Calyx + stem stub (visible-size fruits only) ----------
   // Skip on `low` LOD to keep the supporting-canopy mesh count

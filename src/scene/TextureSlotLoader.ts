@@ -8,6 +8,10 @@ interface TextureSlotOptions {
   wrapU?: number;
   wrapV?: number;
   anisotropicFilteringLevel?: number;
+  uOffset?: number;
+  vOffset?: number;
+  uScale?: number;
+  vScale?: number;
 }
 
 const textureSlotCache = new WeakMap<Scene, Map<string, Promise<Texture | null>>>();
@@ -36,7 +40,15 @@ export function loadOptionalTextureSlot(
 ): Promise<Texture | null> {
   if (!url || typeof fetch === 'undefined') return Promise.resolve(null);
   const cache = sceneCache(scene);
-  const cacheKey = `${url}|${options.gammaSpace ? 'g' : 'l'}|${options.invertY ? 'iy' : 'n'}`;
+  const cacheKey = [
+    url,
+    options.gammaSpace ? 'g' : 'l',
+    options.invertY ? 'iy' : 'n',
+    options.uOffset ?? 0,
+    options.vOffset ?? 0,
+    options.uScale ?? 1,
+    options.vScale ?? 1,
+  ].join('|');
   const cached = cache.get(cacheKey);
   if (cached) return cached;
 
@@ -59,6 +71,10 @@ export function loadOptionalTextureSlot(
         tex.gammaSpace = options.gammaSpace ?? true;
         if (options.wrapU !== undefined) tex.wrapU = options.wrapU;
         if (options.wrapV !== undefined) tex.wrapV = options.wrapV;
+        if (options.uOffset !== undefined) tex.uOffset = options.uOffset;
+        if (options.vOffset !== undefined) tex.vOffset = options.vOffset;
+        if (options.uScale !== undefined) tex.uScale = options.uScale;
+        if (options.vScale !== undefined) tex.vScale = options.vScale;
         if (options.anisotropicFilteringLevel !== undefined) {
           tex.anisotropicFilteringLevel = options.anisotropicFilteringLevel;
         }
