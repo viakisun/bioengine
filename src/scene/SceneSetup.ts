@@ -53,11 +53,17 @@ export async function setupScene(
   scene.imageProcessingConfiguration.toneMappingEnabled = true;
   scene.imageProcessingConfiguration.toneMappingType =
     ImageProcessingConfiguration.TONEMAPPING_ACES;
-  scene.imageProcessingConfiguration.exposure = 1.0;
-  scene.imageProcessingConfiguration.contrast = 1.2;       // 1.1 → 1.2 (depth)
+  scene.imageProcessingConfiguration.exposure = 1.05;       // Phase A
+  scene.imageProcessingConfiguration.contrast = 1.2;        // 1.1 → 1.2 (depth)
+
+  // Phase A — Fog (subtle linear distance fog). 동적 값은 applyLightingToScene 에서.
+  scene.fogMode = Scene.FOGMODE_LINEAR;
+  scene.fogColor = Color3.FromHexString('#dce4ec');
+  scene.fogStart = 15;
+  scene.fogEnd = 45;
 
   const hemi = new HemisphericLight('hemi', new Vector3(0, 1, 0), scene);
-  hemi.intensity = 0.34;
+  hemi.intensity = 0.55;                                    // Phase A: 0.34 → 0.55
   hemi.diffuse = Color3.FromHexString('#e8e4d8');
   hemi.groundColor = Color3.FromHexString('#3a3530');
   hemi.specular = new Color3(0.4, 0.4, 0.4);
@@ -66,7 +72,7 @@ export async function setupScene(
   // straight-down stamps; also creates proper rim highlights on fruits.
   const sunDir = new Vector3(-0.55, -0.85, -0.45).normalize();
   const sun = new DirectionalLight('sun', sunDir, scene);
-  sun.intensity = 3.0;
+  sun.intensity = 3.4;                                      // Phase A: 3.0 → 3.4
   sun.diffuse = Color3.FromHexString('#fff6d8');
   sun.specular = new Color3(1, 1, 1);
   sun.position = new Vector3(8, 12, 6);
@@ -88,22 +94,22 @@ export async function setupScene(
   pipeline.fxaaEnabled = true;
 
   pipeline.bloomEnabled = true;
-  pipeline.bloomThreshold = 0.85;
-  pipeline.bloomWeight = 0.3;
+  pipeline.bloomThreshold = 0.78;  // Phase A
+  pipeline.bloomWeight = 0.42;     // Phase A
   pipeline.bloomKernel = 48;
   pipeline.bloomScale = 0.5;
 
   pipeline.sharpenEnabled = true;
-  pipeline.sharpen.edgeAmount = 0.2;
+  pipeline.sharpen.edgeAmount = 0.32;  // Phase A
   pipeline.sharpen.colorAmount = 1.0;
 
   pipeline.imageProcessingEnabled = true;
   pipeline.imageProcessing.toneMappingEnabled = true;
   pipeline.imageProcessing.toneMappingType = ImageProcessingConfiguration.TONEMAPPING_ACES;
-  pipeline.imageProcessing.exposure = 1.0;
-  pipeline.imageProcessing.contrast = 1.12;
+  pipeline.imageProcessing.exposure = 1.05;   // Phase A
+  pipeline.imageProcessing.contrast = 1.15;   // Phase A
   pipeline.imageProcessing.vignetteEnabled = true;
-  pipeline.imageProcessing.vignetteWeight = 1.6;
+  pipeline.imageProcessing.vignetteWeight = 2.0;  // Phase A
   pipeline.imageProcessing.vignetteStretch = 0.5;
   pipeline.imageProcessing.vignetteColor.set(0, 0, 0, 1);
 
@@ -146,7 +152,7 @@ function setupIBL(scene: Scene) {
     env.gammaSpace = false;
     env.level = 1.0;
     scene.environmentTexture = env;
-    scene.environmentIntensity = 0.42;
+    scene.environmentIntensity = 0.7;  // Phase A: 0.42 → 0.7 (IBL 반사/굴절 살림)
     log.debug('IBL loaded from /hdri/environment.env');
   } catch (err) {
     log.warn('local IBL load failed:', err);

@@ -19,6 +19,10 @@
     rel="stylesheet"
     href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap"
   />
+  <link
+    rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap"
+  />
 
   <style>
     :root {
@@ -60,7 +64,82 @@
       --shadow:
         0 16px 40px -12px rgba(30, 40, 30, 0.18),
         0 4px 12px -4px rgba(30, 40, 30, 0.08);
+
+      /* ───── Instrument Workstation tokens (dark charcoal docked shell) ───── */
+      /* Background scale */
+      --iw-bg-0: #06070a;   /* deepest — viewport stage canvas backdrop */
+      --iw-bg-1: #0b0d0f;   /* chrome base — body */
+      --iw-bg-2: #0e1115;   /* panels (header, rail, inspector, footer) */
+      --iw-bg-3: #15181d;   /* embedded chips / buttons / inputs */
+      /* Foreground scale */
+      --iw-fg-hi:   #e7eaee;
+      --iw-fg-mid:  #b9c1ca;
+      --iw-fg-dim:  #959ea8;
+      --iw-fg-mute: #616b75;
+      --iw-fg-faint:#4d5660;
+      --iw-fg-ghost:#3b434c;
+      /* Lines / dividers */
+      --iw-line-1: rgba(255, 255, 255, 0.07);
+      --iw-line-2: rgba(255, 255, 255, 0.10);
+      --iw-line-3: rgba(255, 255, 255, 0.18);
+      /* Single accent (azure) */
+      --iw-accent:       #4d9fff;
+      --iw-accent-soft:  rgba(77, 159, 255, 0.12);
+      --iw-accent-line:  rgba(77, 159, 255, 0.30);
+      /* Status (data signals only — used sparingly) */
+      --iw-ok:    #3fb950;
+      --iw-warn:  #d8a629;
+      --iw-err:   #f0584c;
+      /* Font stacks */
+      --iw-font-ui:   'Space Grotesk', 'Inter', system-ui, sans-serif;
+      --iw-font-mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
     }
+
+    /* Instrument Workstation root chrome reset (when iw-shell class on body) */
+    body.iw-shell {
+      background: var(--iw-bg-1);
+      color: var(--iw-fg-hi);
+      font-family: var(--iw-font-ui);
+    }
+    body.iw-shell ::-webkit-scrollbar { width: 8px; height: 8px; }
+    body.iw-shell ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 4px; }
+    body.iw-shell ::-webkit-scrollbar-track { background: transparent; }
+    .iw-mono { font-family: var(--iw-font-mono); font-feature-settings: 'tnum' 1; }
+
+    /* iw range slider */
+    .iw-range {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 3px;
+      border-radius: 3px;
+      background: rgba(255, 255, 255, 0.14);
+      outline: none;
+    }
+    .iw-range::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--iw-accent);
+      cursor: pointer;
+      border: 2px solid var(--iw-bg-1);
+      box-shadow: 0 0 0 1px rgba(77, 159, 255, 0.4);
+    }
+    .iw-range::-moz-range-thumb {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--iw-accent);
+      cursor: pointer;
+      border: 2px solid var(--iw-bg-1);
+      box-shadow: 0 0 0 1px rgba(77, 159, 255, 0.4);
+    }
+
+    /* REC blink + toast in animation */
+    @keyframes iw-recblink { 0%, 55% { opacity: 1; } 56%, 100% { opacity: 0.25; } }
+    @keyframes iw-toastin { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
 

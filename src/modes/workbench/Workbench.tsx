@@ -23,12 +23,10 @@ import { useComposerStore } from '../composer/composerStore';
 import { Calibration } from '../calibration/Calibration';
 import { RobotPlaceholder } from './RobotPlaceholder';
 import { TaskPanel } from './TaskPanel';
-import { ValueChip } from '../../hud/ValueChip';
 import { TimelineBar, type TimelinePlayback } from '../../hud/TimelineBar';
 import { CameraDock } from '../../hud/CameraDock';
 import { EeCameraTuner } from '../../hud/EeCameraTuner';
-import { lockSeed, getActiveSeed } from '../../core/Determinism';
-import { MODES } from '../registry';
+import { lockSeed } from '../../core/Determinism';
 import { useTwinStore } from '../../state/twinStore';
 import type { ScenarioSpec } from '../../scenarios/types';
 import { getScenarioById } from '../../scenarios/loader';
@@ -44,10 +42,13 @@ import {
   extractTrussOrdinalFromTarget,
 } from '../../scene/plant/PlantHighlight';
 import { getSinglePlantSkinMesh } from '../../hud/single-plant/useSinglePlantState';
-import { DefoliationSlider } from '../../hud/single-plant/DefoliationSlider';
 import { GimbalView } from '../../hud/GimbalView';
-import { PhenotypingControls } from '../../hud/PhenotypingControls';
-import { MemoryStats } from '../../hud/MemoryStats';
+// Instrument Workstation chrome
+import { TopCommandBar } from '../../hud/instrument/TopCommandBar';
+import { SettingsDrawer } from '../../hud/instrument/SettingsDrawer';
+import { StatsHud } from '../../hud/instrument/StatsHud';
+import { Toast } from '../../hud/instrument/Toast';
+import { RobotTransport } from '../../hud/instrument/RobotTransport';
 
 const log = createLogger('workbench');
 
@@ -69,6 +70,26 @@ export function Workbench() {
   const setPlaySpeedStore = useTwinStore((s) => s.setSinglePlantSpeed);
   const day = minute / 1440;
   const setDay = (d: number) => setMinute(d * 1440 + 12 * 60);
+
+  // Instrument Workstation shell — body class for token reset + Esc/? hotkeys.
+  useEffect(() => {
+    document.body.classList.add('iw-shell');
+    const handler = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        useTwinStore.getState().toggleUiMode();
+      } else if (e.key === '?' || e.key === '~') {
+        e.preventDefault();
+        useTwinStore.getState().toggleStatsOpen();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => {
+      document.body.classList.remove('iw-shell');
+      window.removeEventListener('keydown', handler);
+    };
+  }, []);
 
   // §19 deep-link — URL `?scenario=ID` 로 진입 시 Picker 거치지 않고 자동 active.
   //   reload 후 들어왔을 때 사용자가 카드를 다시 클릭하지 않아도 시나리오 적용.
@@ -264,117 +285,52 @@ export function Workbench() {
 
   if (!active) return null;
 
-  const valueProps = MODES.workbench.valueProps ?? [];
-  const activeSeed = getActiveSeed();
-
   return (
     <>
-      {/* Header overlay — ValueChip + 시나리오 정보 + Picker 재진입 */}
-      <div
-        className="phytosim-workbench-header"
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          height: 44,
-          padding: '0 16px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 16,
-          background: 'rgba(0, 0, 0, 0.75)',
-          backdropFilter: 'blur(8px)',
-          color: 'var(--p-fg, #ddd)',
-          fontSize: 12,
-          zIndex: 1000,
-          borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-        }}
-      >
-        <span
-          className="p-mono"
-          style={{
-            fontWeight: 600,
-            letterSpacing: '0.01em',
-          }}
-        >
-          Workbench
-        </span>
-        <ValueChip active={valueProps} compact />
-        <span style={{ flex: 1 }} />
-        <span style={{ color: 'var(--p-fg-muted, #aaa)' }}>
-          scenario: <strong className="p-mono">{active.id}</strong>
-        </span>
-        {activeSeed && (
-          <span className="p-mono" style={{ fontSize: 11, color: 'var(--p-fg-dim, #888)' }}>
-            seed {activeSeed}
-          </span>
-        )}
-        <button
-          className="p-btn"
-          onClick={() => setView('picker')}
-          style={{ padding: '4px 10px', fontSize: 11 }}
-        >
-          다른 시나리오
-        </button>
-        <button
-          className="p-btn"
-          onClick={() => handleCompose(active)}
-          style={{ padding: '4px 10px', fontSize: 11 }}
-          title="현재 시나리오를 Composer에서 fork"
-        >
-          Fork
-        </button>
-        <button
-          className="p-btn"
-          onClick={() => setView('calibration')}
-          style={{ padding: '4px 10px', fontSize: 11 }}
-          title="Reference Truth Calibration — 문헌 ±20% 검증"
-        >
-          Calibration
-        </button>
-      </div>
+      {/* ░░░ TOP COMMAND BAR (46px) ░░░ */}
+      <TopCommandBar
+        scenarioId={active.id}
+        day={day}
+        onPicker={() => setView('picker')}
+        onFork={() => handleCompose(active)}
+        onCalibration={() => setView('calibration')}
+      />
 
-      {/* S4.c — Camera Dock (1~9 단축키) */}
+      {/* ░░░ LEFT SENSOR RAIL (62px) ░░░ */}
       <CameraDock active={cameraView} onSelect={setCameraView} />
 
-      {/* D11 (사용자 피드백) — EE/Depth 활성 시 산업 파라미터 조절 UI */}
+      {/* ░░░ EE Camera tuner — only when EE/Depth view active ░░░ */}
       <EeCameraTuner activeView={cameraView} />
 
-      {/* D1 (RFP §17) — TaskPanel (시나리오 도메인·작업·메트릭) */}
-      <TaskPanel scenario={active} />
+      {/* ░░░ CENTER VIEWPORT OVERLAYS ░░░ */}
+      {/* PiP gimbal view (top-left of viewport) */}
+      {active.domain === 'phenotyping' && <GimbalView scenarioId={active.id} />}
 
-      {/* S4.a — Robot placeholder (mvp) */}
+      {/* Robot transport dock (bottom-left of viewport) */}
+      {active.domain === 'phenotyping' && <RobotTransport />}
+
+      {/* Stats HUD (toggleable, top-right of viewport) */}
+      <StatsHud />
+
+      {/* Toast (auto-dismiss WebGPU notice) */}
+      <Toast />
+
+      {/* Robot placeholder (other camera modes) */}
       <RobotPlaceholder activeView={cameraView} />
 
-      {/* §19 phenotyping — 적엽 slider + 짐벌 카메라 + runtime controls (Quality·Plant count) */}
-      {active.domain === 'phenotyping' && active.crop.cultivation?.deleafEnabled && (
-        <DefoliationSlider max={active.crop.cultivation.deleafMaxCm ?? 100} />
-      )}
-      {active.domain === 'phenotyping' && (
-        <>
-          <PhenotypingControls
-            initialQuality={parseInt(
-              new URLSearchParams(window.location.search).get('qualityPreset') ?? '3',
-              10,
-            )}
-          />
-          <GimbalView scenarioId={active.id} />
-          <MemoryStats />
-        </>
-      )}
+      {/* ░░░ RIGHT EXPERIMENT INSPECTOR (344px, collapses in drive mode) ░░░ */}
+      <TaskPanel scenario={active} />
 
-      {/* Bottom overlay — TimelineBar */}
-      <div
-        style={{
-          position: 'fixed',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          zIndex: 1000,
-        }}
-      >
-        <TimelineBar playback={playback} minDay={0} maxDay={120} />
-      </div>
+      {/* ░░░ BOTTOM SIM TRANSPORT (54px) ░░░ */}
+      <TimelineBar playback={playback} minDay={0} maxDay={120} />
+
+      {/* ░░░ SETTINGS DRAWER (right slide-in) ░░░ */}
+      <SettingsDrawer
+        defoliationEnabled={!!(active.domain === 'phenotyping' && active.crop.cultivation?.deleafEnabled)}
+        defoliationMaxCm={active.crop.cultivation?.deleafMaxCm ?? 100}
+        onOpenCalibration={() => setView('calibration')}
+        onFork={() => handleCompose(active)}
+      />
     </>
   );
 }

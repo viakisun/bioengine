@@ -26,6 +26,7 @@ import { setBootStage, logBoot, setEnvInfo, setEnvCounters, notify } from '../st
 import { setSinglePlantEngineRef, setSinglePlantSkinMeshRef, setCameraRigRef } from '../hud/single-plant/useSinglePlantState';
 import { setActiveSceneHandle } from './PlantManager';
 import { createRobot } from './robot/Robot';
+import { railRef, initRobotRail, gimbalCamRef } from './robot/robotControlState';
 import { createLogger } from '../utils/logger';
 const log = createLogger('engine');
 
@@ -154,6 +155,16 @@ function applyLightingToScene(scene: Scene, setup: SceneSetupHandle, L: Lighting
   if (setup.ssao) {
     setup.ssao.totalStrength = L.ssaoEnabled ? L.ssaoStrength : 0;
     setup.ssao.radius = L.ssaoRadius;
+  }
+
+  // Phase A — Fog (subtle linear distance fog).
+  if (L.fogEnabled) {
+    scene.fogMode = Scene.FOGMODE_LINEAR;
+    scene.fogColor = Color3.FromHexString(L.fogColorHex);
+    scene.fogStart = L.fogStart;
+    scene.fogEnd = L.fogEnd;
+  } else {
+    scene.fogMode = Scene.FOGMODE_NONE;
   }
 }
 
@@ -341,44 +352,67 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
 
       // 레일 ping-pong 주행 — robot.traverseEnabled 시 활성.
       // Phenotyping: 가는 방향 (+X) 좌측(Z+) 베드, 오는 방향 (-X) 우측(Z-) 베드 촬영.
+      //
+      // Iter 31 Phase R — auto/paused/manual 분기 + Zustand store 연동.
+      //   - railX 위치는 module-scope `railRef` (60fps 리렌더 회피)
+      //   - mode/speed/gimbal 각도는 store 구독 (UI에서 변경)
       if (robotOpts.traverseEnabled) {
         const TRAVERSE_RANGE = robotOpts.traverseRangeM;
-        const TRAVERSE_SPEED = robotOpts.traverseSpeedMps;
-        let railX = robotOpts.startX;
-        let dir = 1;
-        robot.setGimbalLookSide('left');
+        // Boot 시 store에 default speed 시드 (race-free: action 호출만)
+        useTwinStore.getState().setRobotSpeed(robotOpts.traverseSpeedMps);
+        initRobotRail(robotOpts.startX, TRAVERSE_RANGE);
+        robot.setGimbalLookSide('left'); // 초기 lens 방향
+
         scene.onBeforeRenderObservable.add(() => {
+          const r = useTwinStore.getState().robot;
           const dt = scene.getEngine().getDeltaTime() / 1000;
-          railX += dir * TRAVERSE_SPEED * dt;
-          if (railX > TRAVERSE_RANGE) {
-            railX = TRAVERSE_RANGE;
-            dir = -1;
-            robot.setGimbalLookSide('right');
-          } else if (railX < -TRAVERSE_RANGE) {
-            railX = -TRAVERSE_RANGE;
-            dir = 1;
-            robot.setGimbalLookSide('left');
+
+          if (r.mode === 'auto') {
+            railRef.current += railRef.dir * r.speedMps * dt;
+            if (railRef.current > TRAVERSE_RANGE) {
+              railRef.current = TRAVERSE_RANGE;
+              railRef.dir = -1;
+              if (!r.gimbal.manualOverride) robot.setGimbalLookSide('right');
+            } else if (railRef.current < -TRAVERSE_RANGE) {
+              railRef.current = -TRAVERSE_RANGE;
+              railRef.dir = 1;
+              if (!r.gimbal.manualOverride) robot.setGimbalLookSide('left');
+            }
           }
-          robot.setRailPosition(railX);
+          // mode === 'paused' or 'manual': railRef는 UI가 직접 mutate (자동 갱신 없음)
+
+          robot.setRailPosition(railRef.current);
+
+          // Gimbal 동기: manualOverride면 store 값으로 pan 덮어쓰기. pitch는 항상 store.
+          if (r.gimbal.manualOverride) {
+            robot.setGimbalPan(r.gimbal.panRad);
+          }
+          robot.setGimbalPitch(r.gimbal.pitchRad);
         });
       }
 
       // §19 phenotyping — 짐벌 카메라 mini-viewport (좌상단 384×288 @ 1600×900).
-      //   robotOpts.gimbalView 시 활성. UniversalCamera + parent=gimbalPivot.
+      //   robotOpts.gimbalView 시 활성. UniversalCamera + parent=gimbalPitchPivot.
       if (profile === 'phenotyping' && robotOpts.gimbalView) {
-        // Lens mesh가 pivot 앞 z=0.1에 있음 → cam을 z=0.18로 옮겨서 lens가 cam 뒤로 빠지게.
-        //   추가로 minZ=0.1로 올려 lens body 자체도 near plane으로 clip.
+        // Iter 31 Phase R+ — PTZ 표준: lens 가 회전축 위(X=0, Z=0)에 있어 view origin
+        //   = pan/pitch 교점 = 로봇 X/Z 중심. pan 회전 시 view origin 고정 (in-place
+        //   회전, swing 없음). robot mesh 는 layerMask 로 제외되므로 lens/body 가시
+        //   우려 없음 (이전 z=0.18 offset 이유 무효).
         const gimbalCam = new UniversalCamera(
           'gimbal-cam',
-          new Vector3(0, 0, 0.18),
+          new Vector3(0, 0, 0),
           scene,
         );
-        gimbalCam.parent = robot.gimbalPivot;
+        // pitch pivot 자식으로 부착해 pan + pitch 모두 자동 적용.
+        gimbalCam.parent = robot.gimbalPitchPivot;
         gimbalCam.setTarget(new Vector3(0, 0, 1.5));
         gimbalCam.fov = (60 * Math.PI) / 180;
         gimbalCam.minZ = 0.1;
         gimbalCam.maxZ = 60;
-        gimbalCam.viewport = new Viewport(0.07, 0.62, 0.24, 0.32);
+        // Viewport 는 GimbalView (DOM PiP) 가 자기 bounding rect 으로 동적 동기.
+        //   초기값은 좌상단 PiP 위치/크기 (74,58 → 236×138 on 1600×900 canvas).
+        gimbalCam.viewport = new Viewport(0.046, 0.782, 0.148, 0.153);
+        gimbalCamRef.current = gimbalCam;
 
         // Robot 전체를 gimbalCam에서 제외 — chassis · strut · wheel · gimbal mount · lens 등.
         //   layerMask 비트 0x10000000 = robot 전용. main cam은 default 0x0FFFFFFF에 포함됨.

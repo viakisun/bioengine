@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>FarmSim UI Cleanup — Cleanroom Mockup</title>
+<meta name="viewport" content="width=1600">
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --p-fg: #e6e7ea;
+    --p-fg-dim: #8a8d94;
+    --p-fg-muted: #aaaeb5;
+    --p-accent: #4080d0;
+    --p-success: #34d399;
+    --p-warn: #fbbf24;
+    --p-error: #ef4444;
+    --p-info: #60a5fa;
+    --p-panel: rgba(12, 14, 18, 0.62);
+    --p-panel-strong: rgba(8, 10, 14, 0.78);
+    --p-border: rgba(255, 255, 255, 0.08);
+  }
+  html, body {
+    font-family: 'Pretendard', ui-sans-serif, system-ui, sans-serif;
+    background: #0a0a0c;
+    color: var(--p-fg);
+    margin: 0;
+    overflow: hidden;
+  }
+  .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+  .panel {
+    background: var(--p-panel);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid var(--p-border);
+    border-radius: 8px;
+  }
+  .panel-strong {
+    background: var(--p-panel-strong);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--p-border);
+  }
+  .btn {
+    padding: 4px 10px;
+    border-radius: 5px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.10);
+    color: var(--p-fg);
+    font-size: 11px;
+    cursor: pointer;
+    transition: background 0.12s;
+  }
+  .btn:hover { background: rgba(255,255,255,0.08); }
+  .btn-accent {
+    background: rgba(64,128,208,0.18);
+    border-color: rgba(64,128,208,0.45);
+    color: var(--p-fg);
+  }
+  .btn-accent:hover { background: rgba(64,128,208,0.28); }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 12px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.08);
+    font-size: 10px;
+    color: var(--p-fg-dim);
+    letter-spacing: 0.02em;
+  }
+  .eyebrow {
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--p-fg-dim);
+  }
+  /* Slider */
+  .slider {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 100%;
+    height: 4px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 2px;
+    outline: none;
+  }
+  .slider::-webkit-slider-thumb {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--p-accent);
+    cursor: pointer;
+  }
+  .slider::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--p-accent);
+    cursor: pointer;
+    border: none;
+  }
+  /* REC blink */
+  @keyframes rec-blink { 0%,100%{opacity:1} 50%{opacity:.35} }
+  .rec-dot { animation: rec-blink 1s ease-in-out infinite; }
+
+  /* Heatmap */
+  .heat-cell { aspect-ratio: 1; border-radius: 3px; }
+  .heat-low { background: #4ade80; }     /* green - 통풍 양호 */
+  .heat-mid { background: #fbbf24; }     /* amber - 주의 */
+  .heat-hi  { background: #ef4444; }     /* red - 고밀도 */
+
+  /* Mode toggle highlight */
+  .mode-pill {
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 600;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--p-border);
+    color: var(--p-fg-dim);
+    cursor: pointer;
+  }
+  .mode-pill.active {
+    background: rgba(64,128,208,0.18);
+    border-color: rgba(64,128,208,0.55);
+    color: var(--p-fg);
+  }
+
+  /* Scene placeholder — abstract greenhouse gradient with plant silhouettes hint */
+  .scene-bg {
+    background:
+      radial-gradient(ellipse at 50% 25%, rgba(220,228,236,0.95), rgba(180,200,210,0.55) 35%, rgba(70,90,80,0.55) 70%, rgba(20,28,24,0.95) 100%),
+      linear-gradient(to bottom, rgba(160,170,160,0.4), rgba(50,60,50,0.4));
+  }
+  .scene-bg::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      radial-gradient(circle at 8% 65%, rgba(180,40,40,0.5) 0, transparent 4%),
+      radial-gradient(circle at 12% 50%, rgba(60,160,80,0.4) 0, transparent 4%),
+      radial-gradient(circle at 88% 55%, rgba(180,40,40,0.45) 0, transparent 4%),
+      radial-gradient(circle at 92% 70%, rgba(190,80,60,0.5) 0, transparent 4%),
+      radial-gradient(circle at 5% 80%, rgba(150,30,30,0.4) 0, transparent 5%),
+      radial-gradient(circle at 95% 85%, rgba(170,45,45,0.4) 0, transparent 5%);
+    pointer-events: none;
+  }
+
+  /* Drawer transition */
+  .drawer {
+    transform: translateX(110%);
+    transition: transform 220ms cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+  .drawer.open { transform: translateX(0); }
+  .drawer-backdrop {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 220ms;
+  }
+  .drawer-backdrop.open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* Mode hide */
+  body.mode-drive .analysis-only { display: none !important; }
+</style>
+</head>
+<body class="text-[13px]">
+
+<!-- ============================================================ -->
+<!-- Mockup top control bar (NOT part of the actual UI — meta) -->
+<!-- ============================================================ -->
+<div class="fixed top-0 left-0 right-0 z-[10000] flex items-center gap-2 px-3 py-1.5 bg-black/70 backdrop-blur border-b border-white/10 text-[10px]">
+  <span class="text-amber-300 font-semibold">MOCKUP</span>
+  <span class="text-gray-400">FarmSim UI Cleanup · cleanroom.html</span>
+  <span class="flex-1"></span>
+  <span class="text-gray-500">Mode →</span>
+  <button class="mode-pill active" data-mode="analysis" onclick="setMode('analysis')">분석</button>
+  <button class="mode-pill" data-mode="drive" onclick="setMode('drive')">Drive</button>
+  <span class="text-gray-500 ml-3">Settings →</span>
+  <button class="mode-pill" onclick="toggleSettings()" id="settingsBtn">⚙</button>
+  <span class="text-gray-500 ml-3">Stats →</span>
+  <button class="mode-pill" onclick="toggleStats()" id="statsBtn">FPS</button>
+  <span class="text-gray-500 ml-3">단축키: <span class="mono text-gray-300">Esc</span> drive · <span class="mono text-gray-300">⚙</span> settings · <span class="mono text-gray-300">?</span> stats</span>
+</div>
+
+<!-- ============================================================ -->
+<!-- Full-screen 3D scene placeholder (always behind everything) -->
+<!-- ============================================================ -->
+<div class="fixed inset-0 scene-bg" style="top: 28px;"></div>
+
+<!-- ============================================================ -->
+<!-- TOP HEADER (slim, single row) -->
+<!-- ============================================================ -->
+<header class="fixed left-0 right-0 z-50 flex items-center gap-3 px-4 py-2 panel rounded-none border-x-0 border-t-0" style="top: 28px;">
+  <span class="font-semibold tracking-wide">⌘ Workbench</span>
+  <div class="flex gap-1 ml-1">
+    <span class="chip">V1</span>
+    <span class="chip">V2</span>
+    <span class="chip" style="background:rgba(64,128,208,.18);border-color:rgba(64,128,208,.45);color:var(--p-fg)">V3</span>
+    <span class="chip">V4</span>
+    <span class="chip">V5</span>
+  </div>
+
+  <span class="mx-3 text-gray-500">·</span>
+
+  <span class="mono text-[11px] text-gray-300">phenotyping-D110-survey</span>
+  <span class="chip">seed 0xD110</span>
+  <span class="chip" style="color:var(--p-success);border-color:rgba(52,211,153,.25)">D80</span>
+
+  <span class="flex-1"></span>
+
+  <!-- mini FPS badge (always visible) -->
+  <span class="chip mono" id="fpsBadge" style="color:var(--p-warn);border-color:rgba(251,191,36,.25)">5 FPS · 2.3GB</span>
+
+  <button class="btn ml-2" onclick="toggleSettings()">⚙ Settings</button>
+
+  <!-- collapsed scenario menu -->
+  <button class="btn">⋯ Menu</button>
+</header>
+
+<!-- ============================================================ -->
+<!-- LEFT — Camera Dock (always visible, slim) -->
+<!-- ============================================================ -->
+<aside class="fixed left-3 z-40 panel p-1.5 flex flex-col gap-1" style="top: 88px;">
+  <button class="text-[10px] mono w-12 py-1.5 rounded text-gray-500 hover:text-gray-300">1 Obj</button>
+  <button class="text-[10px] mono w-12 py-1.5 rounded text-gray-500 hover:text-gray-300">2 EE</button>
+  <button class="text-[10px] mono w-12 py-1.5 rounded font-semibold" style="background:rgba(64,128,208,.18);border:1px solid rgba(64,128,208,.45);color:var(--p-fg)">3 Head</button>
+  <button class="text-[10px] mono w-12 py-1.5 rounded text-gray-500 hover:text-gray-300">4 Top</button>
+  <button class="text-[10px] mono w-12 py-1.5 rounded text-gray-500 hover:text-gray-300">5 Side</button>
+  <button class="text-[10px] mono w-12 py-1.5 rounded text-gray-500 hover:text-gray-300">6 Depth</button>
+  <button class="text-[10px] mono w-12 py-1.5 rounded text-gray-500 hover:text-gray-300">7 Mask</button>
+  <button class="text-[10px] mono w-12 py-1.5 rounded text-gray-500 hover:text-gray-300">8 Frust</button>
+  <button class="text-[10px] mono w-12 py-1.5 rounded text-gray-500 hover:text-gray-300">9 Free</button>
+</aside>
+
+<!-- ============================================================ -->
+<!-- TOP-LEFT — GimbalView (analysis mode only) -->
+<!-- ============================================================ -->
+<div class="fixed z-40 analysis-only" style="left: 88px; top: 88px; width: 340px;">
+  <!-- Mini viewport -->
+  <div class="panel relative overflow-hidden" style="height: 200px;">
+    <!-- viewport "live" placeholder -->
+    <div class="absolute inset-0 scene-bg"></div>
+
+    <!-- top bar — REC + label -->
+    <div class="absolute top-0 left-0 right-0 px-2 py-1.5 flex items-center gap-1.5 text-[10px]"
+         style="background:linear-gradient(180deg,rgba(0,0,0,.6) 0%,rgba(0,0,0,0) 100%)">
+      <span class="rec-dot w-2 h-2 rounded-full" style="background:#ef4444;box-shadow:0 0 6px rgba(239,68,68,.8)"></span>
+      <span class="font-bold tracking-wider">REC</span>
+      <span class="flex-1"></span>
+      <span class="text-gray-400">GIMBAL CAM</span>
+    </div>
+
+    <!-- bottom bar — scenario + mode -->
+    <div class="absolute bottom-0 left-0 right-0 px-2 py-1 flex items-center text-[10px]"
+         style="background:linear-gradient(0deg,rgba(0,0,0,.65) 0%,rgba(0,0,0,0) 100%)">
+      <span class="text-gray-300 mono">D80.5 · -1.55m</span>
+      <span class="flex-1"></span>
+      <span class="font-bold" style="color:var(--p-warn)">PAUSED</span>
+    </div>
+  </div>
+
+  <!-- control strip (slim, single row) -->
+  <div class="panel mt-1.5 p-1.5 flex items-center gap-1.5">
+    <button class="btn px-2 py-1">▶</button>
+    <button class="btn px-2 py-1">⏹</button>
+    <button class="btn btn-accent px-2 py-1 text-[10px]">AUTO</button>
+    <input type="range" class="slider flex-1 mx-1" min="-14" max="14" step="0.05" value="-1.55">
+    <span class="mono text-[10px] text-gray-300" style="min-width: 50px; text-align: right;">-1.55m</span>
+    <button class="btn px-2 py-1" title="reset cam">↺</button>
+  </div>
+
+  <!-- hint -->
+  <div class="text-[9px] text-gray-500 text-center mt-1 tracking-wide">
+    Space=⏸ · A/D=±5cm · drag=look · dbl-click=reset cam
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- RIGHT — TASK PANEL (analysis mode only) -->
+<!-- ============================================================ -->
+<aside class="fixed right-3 z-40 panel-strong rounded-lg p-4 analysis-only" style="top: 88px; bottom: 64px; width: 320px;">
+
+  <!-- Header -->
+  <div class="flex items-baseline gap-2">
+    <h2 class="text-base font-semibold">생육 분석</h2>
+    <span class="chip" style="color:var(--p-success);border-color:rgba(52,211,153,.3)">D80 · 후기</span>
+  </div>
+  <div class="mt-1 text-[11px] text-gray-400">방제 zone 식별 · <span class="mono">0.3 m/s</span></div>
+
+  <!-- Heatmap -->
+  <div class="mt-5">
+    <div class="eyebrow mb-2">Leaf density zone</div>
+    <div class="grid grid-cols-8 gap-1">
+      <!-- 32 cells in 4 rows -->
+      <div class="heat-cell heat-low"></div>
+      <div class="heat-cell heat-low"></div>
+      <div class="heat-cell heat-mid"></div>
+      <div class="heat-cell heat-mid"></div>
+      <div class="heat-cell heat-mid"></div>
+      <div class="heat-cell heat-hi"></div>
+      <div class="heat-cell heat-mid"></div>
+      <div class="heat-cell heat-hi"></div>
+
+      <div class="heat-cell heat-low"></div>
+      <div class="heat-cell heat-mid"></div>
+      <div class="heat-cell heat-mid"></div>
+      <div class="heat-cell heat-hi"></div>
+      <div class="heat-cell heat-hi"></div>
+      <div class="heat-cell heat-mid"></div>
+      <div class="heat-cell heat-mid"></div>
+      <div class="heat-cell heat-hi"></div>
+
+      <div class="heat-cell heat-mid"></div>
+      <div class="heat-cell heat-mid"></div>
+      <div class="heat-cell heat-hi"></div>
+      <div class="heat-cell heat-hi"></div>
+      <div class="heat-cell heat-hi"></div>
+      <div class="heat-cell heat-mid"></div>
+      <div class="heat-cell heat-hi"></div>
+      <div class="heat-cell heat-hi"></div>
+
+      <div class="heat-cell heat-low"></div>
+      <div class="heat-cell heat-mid"></div>
+      <div class="heat-cell heat-hi"></div>
+      <div class="heat-cell heat-mid"></div>
+      <div class="heat-cell heat-hi"></div>
+      <div class="heat-cell heat-mid"></div>
+      <div class="heat-cell heat-hi"></div>
+      <div class="heat-cell heat-mid"></div>
+    </div>
+
+    <div class="flex gap-3 mt-2 text-[10px] text-gray-400">
+      <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm heat-low"></span>양호</span>
+      <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm heat-mid"></span>주의</span>
+      <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm heat-hi"></span>고밀도</span>
+    </div>
+  </div>
+
+  <!-- Rules / targets -->
+  <div class="mt-5">
+    <div class="eyebrow mb-2">Targets · Rule</div>
+    <div class="text-[12px]">all-fruits</div>
+    <div class="text-[11px] text-gray-400 mt-0.5">left-bed-on-forward, right-bed-on-return</div>
+  </div>
+
+  <!-- Verify -->
+  <div class="mt-5">
+    <div class="eyebrow mb-2">Verify (1)</div>
+    <div class="flex items-center justify-between text-[12px]">
+      <span>coverage-pct</span>
+      <span class="mono text-gray-300">— <span class="text-gray-500 ml-1">≥ 0.85</span></span>
+    </div>
+    <div class="text-[10px] mt-1" style="color:var(--p-warn)">0 PASS</div>
+  </div>
+
+  <div class="border-t border-white/10 my-5"></div>
+
+  <!-- Robot (integrated, was separate badge) -->
+  <div>
+    <div class="eyebrow mb-2">Robot</div>
+    <div class="text-[12px]">via-agv-6dof-v1</div>
+    <div class="text-[11px] text-gray-400 mt-0.5">Head RGB · 60° front</div>
+  </div>
+
+  <!-- footer note -->
+  <div class="absolute left-4 right-4 bottom-3 text-[9px] text-gray-600 leading-relaxed">
+    W1.e mvp 측정 — 일부 메트릭은 GrowthEngine 실측, 일부는 시나리오 metadata 기반 추정.
+  </div>
+</aside>
+
+<!-- ============================================================ -->
+<!-- BOTTOM — Timeline (always visible) -->
+<!-- ============================================================ -->
+<footer class="fixed left-0 right-0 bottom-0 z-50 panel rounded-none border-x-0 border-b-0 px-4 py-2 flex items-center gap-3">
+  <button class="btn">▶</button>
+  <span class="text-[11px] mono text-gray-300">D80.5 / 120</span>
+  <div class="relative flex-1 mx-2">
+    <div class="h-1 rounded-full bg-white/8"></div>
+    <div class="absolute top-0 left-0 h-1 rounded-full" style="background:var(--p-accent);width:67%"></div>
+    <div class="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full" style="left:67%;transform:translate(-50%, -50%);background:var(--p-accent);box-shadow:0 0 0 2px rgba(0,0,0,.4)"></div>
+  </div>
+  <div class="flex items-center gap-0.5">
+    <button class="btn px-2 py-1 text-[10px]">0.5×</button>
+    <button class="btn btn-accent px-2 py-1 text-[10px]">1×</button>
+    <button class="btn px-2 py-1 text-[10px]">2×</button>
+    <button class="btn px-2 py-1 text-[10px]">4×</button>
+    <button class="btn px-2 py-1 text-[10px]">8×</button>
+  </div>
+  <span class="mono text-[10px] text-gray-500 ml-2 w-10 text-right">67%</span>
+  <button class="btn ml-1" onclick="toggleSettings()" title="Settings">⚙</button>
+</footer>
+
+<!-- ============================================================ -->
+<!-- STATS HUD (toggleable, default hidden) -->
+<!-- ============================================================ -->
+<aside id="statsHud" class="fixed z-40 panel p-3 hidden" style="top: 88px; right: 340px; width: 180px;">
+  <div class="eyebrow mb-2">Performance</div>
+  <div class="space-y-1 text-[11px] mono">
+    <div class="flex justify-between"><span class="text-gray-400">FPS</span><span style="color:var(--p-warn)">5</span></div>
+    <div class="flex justify-between"><span class="text-gray-400">JS Heap</span><span>2264 / 4096 MB</span></div>
+    <div class="h-1 rounded-full bg-white/8 my-1">
+      <div class="h-1 rounded-full" style="width:55%;background:var(--p-info)"></div>
+    </div>
+    <div class="flex justify-between text-gray-500 text-[10px]"><span>55.3% used</span><span>2317 MB reserved</span></div>
+    <div class="flex justify-between mt-2"><span class="text-gray-400">Mesh</span><span>1613 / 14671</span></div>
+    <div class="flex justify-between"><span class="text-gray-400">Vertices</span><span>27.2M</span></div>
+    <div class="flex justify-between"><span class="text-gray-400">Draw calls</span><span class="text-gray-500">—</span></div>
+    <div class="flex justify-between"><span class="text-gray-400">Plants</span><span>76 / 299</span></div>
+  </div>
+  <button class="btn mt-3 w-full text-[10px]" onclick="toggleStats()">Close (?)</button>
+</aside>
+
+<!-- ============================================================ -->
+<!-- SETTINGS DRAWER (right slide-in) -->
+<!-- ============================================================ -->
+<div id="drawerBackdrop" class="drawer-backdrop fixed inset-0 z-[59] bg-black/40" onclick="toggleSettings()"></div>
+<aside id="settingsDrawer" class="drawer fixed top-7 right-0 bottom-0 z-[60] panel-strong w-[340px] p-5 overflow-y-auto rounded-none border-y-0 border-r-0">
+  <div class="flex items-center justify-between">
+    <h2 class="text-base font-semibold">Settings</h2>
+    <button class="btn" onclick="toggleSettings()">✕</button>
+  </div>
+
+  <!-- Sim params -->
+  <div class="mt-6">
+    <div class="eyebrow mb-2">Sim parameters</div>
+
+    <!-- 작물 -->
+    <div class="mt-3">
+      <div class="flex items-baseline justify-between">
+        <span class="text-[12px] text-gray-300">작물 수</span>
+        <span class="mono text-[11px] text-gray-300">76 <span class="text-gray-500">/97 (299)</span></span>
+      </div>
+      <input type="range" class="slider mt-1.5" min="1" max="299" value="76">
+      <div class="text-[10px] text-gray-500 mt-0.5">베드당 활성 식물 수</div>
+    </div>
+
+    <!-- 품질 -->
+    <div class="mt-4">
+      <div class="flex items-baseline justify-between">
+        <span class="text-[12px] text-gray-300">렌더 품질</span>
+        <span class="mono text-[11px] text-gray-300">Lv 9 <span class="text-gray-500">Extreme</span></span>
+      </div>
+      <input type="range" class="slider mt-1.5" min="1" max="10" value="9">
+      <div class="text-[10px] text-gray-500 mt-0.5">고사양 — God Rays + Lens Flare</div>
+    </div>
+
+    <!-- 적엽 -->
+    <div class="mt-4">
+      <div class="flex items-baseline justify-between">
+        <span class="text-[12px] text-gray-300">적엽 (defoliation)</span>
+        <span class="mono text-[11px] text-gray-300">30 <span class="text-gray-500">/80cm · OFF</span></span>
+      </div>
+      <input type="range" class="slider mt-1.5" min="0" max="80" value="30">
+    </div>
+  </div>
+
+  <!-- HUD toggles -->
+  <div class="mt-7">
+    <div class="eyebrow mb-2">HUD overlays</div>
+    <label class="flex items-center justify-between py-1.5 cursor-pointer">
+      <span class="text-[12px]">Stats HUD</span>
+      <input type="checkbox" class="w-4 h-4 accent-blue-500" onchange="toggleStats()">
+    </label>
+    <label class="flex items-center justify-between py-1.5 cursor-pointer">
+      <span class="text-[12px]">Memory warnings</span>
+      <input type="checkbox" class="w-4 h-4 accent-blue-500" checked>
+    </label>
+    <label class="flex items-center justify-between py-1.5 cursor-pointer">
+      <span class="text-[12px]">Perf overlay</span>
+      <input type="checkbox" class="w-4 h-4 accent-blue-500">
+    </label>
+    <label class="flex items-center justify-between py-1.5 cursor-pointer">
+      <span class="text-[12px]">Gimbal mini-view</span>
+      <input type="checkbox" class="w-4 h-4 accent-blue-500" checked>
+    </label>
+  </div>
+
+  <!-- Scenario actions -->
+  <div class="mt-7">
+    <div class="eyebrow mb-2">Scenario</div>
+    <div class="flex flex-col gap-2">
+      <button class="btn w-full">📋 다른 시나리오</button>
+      <button class="btn w-full">⑂ Fork (현재 시나리오)</button>
+      <button class="btn w-full">🎯 Calibration</button>
+    </div>
+  </div>
+
+  <!-- Reset -->
+  <div class="mt-7">
+    <button class="btn w-full" style="background:rgba(239,68,68,.08);border-color:rgba(239,68,68,.25);color:var(--p-error)">Reset to defaults</button>
+  </div>
+</aside>
+
+<!-- ============================================================ -->
+<!-- Toast (transient, auto-dismiss) -->
+<!-- ============================================================ -->
+<div id="toast" class="fixed z-50 panel-strong px-3 py-2 rounded text-[11px] flex items-center gap-2"
+     style="top: 80px; right: 16px; transform: translateY(-8px); opacity: 0; transition: all 200ms;">
+  <span style="color:var(--p-warn)">⚠</span>
+  <span>SSAO · DOF · God Rays · Lens Flare 비활성화 (WebGPU)</span>
+  <button class="btn ml-1 px-1.5 py-0 text-[10px]" onclick="hideToast()">✕</button>
+</div>
+
+<!-- ============================================================ -->
+<script>
+  function setMode(m) {
+    document.body.classList.toggle('mode-drive', m === 'drive');
+    document.body.classList.toggle('mode-analysis', m === 'analysis');
+    document.querySelectorAll('.mode-pill[data-mode]').forEach(b => {
+      b.classList.toggle('active', b.dataset.mode === m);
+    });
+  }
+  function toggleSettings() {
+    document.getElementById('settingsDrawer').classList.toggle('open');
+    document.getElementById('drawerBackdrop').classList.toggle('open');
+  }
+  function toggleStats() {
+    document.getElementById('statsHud').classList.toggle('hidden');
+  }
+  function hideToast() {
+    document.getElementById('toast').style.transform = 'translateY(-8px)';
+    document.getElementById('toast').style.opacity = '0';
+  }
+
+  // Auto-show toast briefly on load (demo)
+  setTimeout(() => {
+    const t = document.getElementById('toast');
+    t.style.transform = 'translateY(0)';
+    t.style.opacity = '1';
+    setTimeout(hideToast, 5000);
+  }, 800);
+
+  // Hotkeys
+  document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (e.key === 'Escape') {
+      const isDrive = document.body.classList.contains('mode-drive');
+      setMode(isDrive ? 'analysis' : 'drive');
+    } else if (e.key === '?' || e.key === '/') {
+      toggleStats();
+    }
+  });
+</script>
+
+</body>
+</html>

@@ -1,118 +1,217 @@
-// §19 phenotyping — Gimbal camera mini-viewport HUD overlay.
+// Instrument Workstation — Gimbal Camera PiP (top-left of viewport stage)
 //
-// Babylon `Scene.activeCameras = [main, gimbalCam]` 가 좌상단 384×288 영역에 gimbal cam
-// 픽셀을 그린다 (BabylonEngine.ts). 본 컴포넌트는 그 영역에 border + label + REC dot +
-// 좌표 표시 DOM overlay (pointer-events: none — 위로 클릭 통과).
+// Babylon renders the gimbal cam pixels into this region (see BabylonEngine
+// gimbalCam.viewport). This component draws the PiP frame (REC + label), and
+// hosts drag-to-look pan/pitch.
 //
-// 위치는 Babylon Viewport (0.02, 0.62, 0.24, 0.32) 와 동일 percent — top/left/width/height
-// 동일 비율로 설정.
+// Transport controls (▶/⏸/⏹/AUTO + Rail/Speed sliders + hotkeys) live in the
+// separate <RobotTransport /> dock, no longer here.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { useTwinStore } from '../state/twinStore';
+import { nudgeRail, syncGimbalViewportToRect, gimbalCamRef } from '../scene/robot/robotControlState';
 
 interface GimbalViewProps {
   scenarioId: string;
 }
 
+const SENS_PAN = Math.PI / 200;
+const SENS_PITCH = Math.PI / 400;
+const NUDGE_M = 0.05;
+
 export function GimbalView({ scenarioId }: GimbalViewProps) {
-  // Robot rail X 좌표 — Babylon onBeforeRenderObservable에서 직접 update 안 함.
-  //   대신 표시용으로 store 값 또는 시간 기반 추정. mvp는 클럭 — viewport 자체가
-  //   실제 시점이므로 좌표는 informational만.
-  const [tick, setTick] = useState(0);
+  const mode = useTwinStore((s) => s.robot.mode);
+  const manualOverride = useTwinStore((s) => s.robot.gimbal.manualOverride);
+  const setRobotMode = useTwinStore((s) => s.setRobotMode);
+  const nudgeGimbal = useTwinStore((s) => s.nudgeGimbal);
+  const resetGimbal = useTwinStore((s) => s.resetGimbal);
+
+  // Drag state
+  const dragRef = useRef<{ active: boolean; lastX: number; lastY: number; pointerId: number | null }>({
+    active: false, lastX: 0, lastY: 0, pointerId: null,
+  });
+  // Frame ref — used to sync Babylon gimbal cam viewport to DOM rect
+  const frameRef = useRef<HTMLDivElement>(null);
+
+  // Babylon gimbal cam viewport ↔ DOM video panel sync
+  //   - GimbalView mounts before BabylonEngine boot completes, so gimbalCamRef
+  //     is null at first. We poll every 100ms until cam is registered, then
+  //     hand off to ResizeObserver for ongoing layout changes.
   useEffect(() => {
-    const id = setInterval(() => setTick((t) => t + 1), 100);
-    return () => clearInterval(id);
+    const el = frameRef.current;
+    if (!el) return;
+    const update = () => {
+      const r = el.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) {
+        syncGimbalViewportToRect({ left: r.left, top: r.top, width: r.width, height: r.height });
+      }
+    };
+    // Poll until cam is registered (Babylon boot async ~2-5s).
+    let pollId: ReturnType<typeof setTimeout> | null = null;
+    let attempts = 0;
+    const pollSync = () => {
+      update();
+      if (gimbalCamRef.current) return; // cam exists — sync took effect
+      if (attempts++ > 100) return;     // 10s budget — give up after that
+      pollId = setTimeout(pollSync, 100);
+    };
+    pollSync();
+    // Steady-state observers (resize, scroll, inspector collapse, etc).
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    return () => {
+      if (pollId) clearTimeout(pollId);
+      ro.disconnect();
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
+    };
   }, []);
 
-  // dir 추정 — Babylon에서 dir state 노출 안 함. 시간 기반 ping-pong 추정:
-  //   주기 = 2 × 14m / 0.3 m/s = 93.3s. 시작 0초 = 좌→우 (+X 가는 방향).
-  const periodMs = (2 * 14 / 0.3) * 1000;
-  const phase = (Date.now() % periodMs) / periodMs; // 0~1
-  const dirLabel = phase < 0.5 ? 'FORWARD' : 'RETURN';
-  const sideLabel = phase < 0.5 ? 'LEFT BED' : 'RIGHT BED';
+  // Keyboard — Space=pause toggle, A/D=manual nudge
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.key === ' ') {
+        e.preventDefault();
+        const cur = useTwinStore.getState().robot.mode;
+        setRobotMode(cur === 'paused' ? 'auto' : 'paused');
+      } else if (e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') {
+        nudgeRail(-NUDGE_M);
+        if (useTwinStore.getState().robot.mode !== 'manual') setRobotMode('manual');
+      } else if (e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') {
+        nudgeRail(+NUDGE_M);
+        if (useTwinStore.getState().robot.mode !== 'manual') setRobotMode('manual');
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [setRobotMode]);
 
-  // CameraDock(좌측 vertical column, width ~76px)과 수평 분리 — left 7% (1600 viewport=112px).
-  //   Babylon viewport도 동일 좌표 (x=0.07, y=0.62, w=0.24, h=0.32)로 동기.
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.stopPropagation(); e.preventDefault();
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    dragRef.current = { active: true, lastX: e.clientX, lastY: e.clientY, pointerId: e.pointerId };
+  };
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragRef.current.active) return;
+    e.stopPropagation();
+    const dx = e.clientX - dragRef.current.lastX;
+    const dy = e.clientY - dragRef.current.lastY;
+    dragRef.current.lastX = e.clientX;
+    dragRef.current.lastY = e.clientY;
+    if (dx !== 0 || dy !== 0) nudgeGimbal(dx * SENS_PAN, -dy * SENS_PITCH);
+  };
+  const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragRef.current.active) return;
+    e.stopPropagation();
+    dragRef.current.active = false;
+    if (dragRef.current.pointerId !== null) {
+      try { (e.target as HTMLElement).releasePointerCapture(dragRef.current.pointerId); } catch { /* */ }
+      dragRef.current.pointerId = null;
+    }
+  };
+  const onDoubleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    resetGimbal();
+  };
+
+  const modeColor = mode === 'auto' ? 'var(--iw-ok)' : mode === 'paused' ? 'var(--iw-warn)' : 'var(--iw-accent)';
+  const modeLabel = mode.toUpperCase();
+
   return (
-    <div
-      style={{
-        position: 'fixed',
-        left: '7%',
-        top: '6%',
-        width: '24%',
-        height: '32%',
-        pointerEvents: 'none',
-        zIndex: 900, // ValueChip(1000) 아래로
-        border: '2px solid rgba(0,0,0,0.85)',
-        boxShadow: '0 4px 14px rgba(0,0,0,0.35)',
-        borderRadius: 2,
-        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-        color: '#eee',
-        fontSize: 11,
-        // 픽셀은 Babylon이 그림 — DOM은 border + 텍스트만
-      }}
-      aria-label="Gimbal camera viewport"
-    >
-      {/* Top bar — 시나리오 + REC */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          padding: '4px 8px',
-          background: 'linear-gradient(180deg, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0) 100%)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-        }}
-      >
-        <span
-          style={{
-            width: 8,
-            height: 8,
-            borderRadius: '50%',
-            background: '#ef4444',
-            boxShadow: '0 0 6px rgba(239,68,68,0.8)',
-            animation: 'gimbal-rec-blink 1s ease-in-out infinite',
-          }}
-        />
-        <span style={{ fontWeight: 700, letterSpacing: '0.06em', fontSize: 10 }}>REC</span>
-        <span style={{ flex: 1 }} />
-        <span style={{ fontSize: 10, opacity: 0.8 }}>GIMBAL CAM</span>
-      </div>
+    <div style={pipS}>
+      {/* Outer frame — dark chrome wrapping the 3 stacked panels */}
+      <div style={outerS}>
 
-      {/* Bottom bar — 시나리오 ID + 방향 + 좌표 */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          padding: '4px 8px',
-          background: 'linear-gradient(0deg, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0) 100%)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          fontSize: 10,
-        }}
-      >
-        <span style={{ opacity: 0.85 }}>{scenarioId}</span>
-        <span style={{ flex: 1 }} />
-        <span style={{ fontWeight: 700, color: phase < 0.5 ? '#34d399' : '#fbbf24' }}>
-          {dirLabel}
-        </span>
-        <span style={{ opacity: 0.7 }}>·</span>
-        <span style={{ opacity: 0.9 }}>{sideLabel}</span>
-      </div>
+        {/* (1) Top label row — REC + GIMBAL CAM (separate row, not overlay) */}
+        <div style={topRowS}>
+          <span className="iw-mono" style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'var(--iw-fg-hi)' }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--iw-err)', animation: 'iw-recblink 1.6s infinite' }} />
+            REC
+          </span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {manualOverride && (
+              <span className="iw-mono" style={{ fontSize: 9, color: 'var(--iw-warn)', fontWeight: 600 }}>MANUAL</span>
+            )}
+            <span className="iw-mono" style={{ color: 'var(--iw-fg-mid)' }}>GIMBAL CAM</span>
+          </span>
+        </div>
 
-      {/* CSS keyframes — REC blink */}
-      <style>{`
-        @keyframes gimbal-rec-blink {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.35; }
-        }
-      `}</style>
+        {/* (2) Inner video panel — Babylon viewport syncs to THIS rect only */}
+        <div ref={frameRef} style={videoPanelS}>
+          <div
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+            onPointerCancel={onPointerUp}
+            onDoubleClick={onDoubleClick}
+            style={{ position: 'absolute', inset: 0, pointerEvents: 'auto', touchAction: 'none', cursor: 'grab' }}
+            aria-label="Drag to rotate gimbal, double-click to reset"
+          />
+        </div>
+
+        {/* (3) Bottom status row — scenario + mode */}
+        <div style={bottomRowS}>
+          <span className="iw-mono" style={{ color: 'var(--iw-fg-mute)' }}>{scenarioId}</span>
+          <span className="iw-mono" style={{ color: modeColor, fontWeight: 600 }}>{modeLabel}</span>
+        </div>
+
+      </div>
     </div>
   );
 }
+
+// ─── styles ─────────────────────────────────────
+const pipS: React.CSSProperties = {
+  position: 'fixed',
+  top: 58,
+  left: 74,
+  width: 472,        // 2× width
+  zIndex: 1020,
+  pointerEvents: 'none',
+};
+
+const outerS: React.CSSProperties = {
+  background: 'transparent',            // ← video panel 영역까지 dark fill 되지 않도록
+  border: '1px solid var(--iw-line-3)',
+  borderRadius: 9,
+  overflow: 'hidden',
+  boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
+  display: 'flex',
+  flexDirection: 'column',
+};
+
+const topRowS: React.CSSProperties = {
+  height: 28,
+  flex: '0 0 28px',
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  padding: '0 12px',
+  borderBottom: '1px solid var(--iw-line-1)',
+  background: 'var(--iw-bg-2)',
+  fontSize: 11,
+  pointerEvents: 'none',
+};
+
+const videoPanelS: React.CSSProperties = {
+  position: 'relative',
+  flex: '0 0 276px',
+  height: 276,                         // 2× height — video area only
+  background: 'transparent',           // Babylon shows through here
+};
+
+const bottomRowS: React.CSSProperties = {
+  height: 28,
+  flex: '0 0 28px',
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  padding: '0 12px',
+  borderTop: '1px solid var(--iw-line-1)',
+  background: 'var(--iw-bg-2)',
+  fontSize: 11,
+  pointerEvents: 'none',
+};

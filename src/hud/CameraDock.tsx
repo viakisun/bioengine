@@ -77,26 +77,39 @@ export function CameraDock({ active, onSelect, views = DEFAULT_VIEWS }: CameraDo
     return () => window.removeEventListener('keydown', handler);
   }, [onSelect, views]);
 
+  // Instrument Workstation — left sensor rail (62px wide, docked under top bar).
   return (
-    <div
+    <nav
       className="phytosim-cameradock"
       role="toolbar"
-      aria-label="카메라 뷰 전환 (1~9)"
+      aria-label="Sensor rail (1-9)"
       style={{
         position: 'fixed',
-        top: 56,
-        left: 8,
+        top: 46,
+        left: 0,
+        bottom: 54,
+        width: 62,
+        zIndex: 999,
+        background: 'var(--iw-bg-2)',
+        borderRight: '1px solid var(--iw-line-1)',
         display: 'flex',
         flexDirection: 'column',
-        gap: 4,
-        padding: 6,
-        background: 'rgba(0, 0, 0, 0.6)',
-        backdropFilter: 'blur(8px)',
-        borderRadius: 8,
-        border: '1px solid rgba(255,255,255,0.08)',
-        zIndex: 999,
+        paddingTop: 8,
+        fontFamily: 'var(--iw-font-ui)',
       }}
     >
+      <div
+        className="iw-mono"
+        style={{
+          fontSize: 9,
+          letterSpacing: '0.12em',
+          color: 'var(--iw-fg-faint)',
+          textAlign: 'center',
+          padding: '4px 0 8px',
+        }}
+      >
+        VIEW
+      </div>
       {views.map((v) => {
         const isActive = active === v.key;
         return (
@@ -107,36 +120,34 @@ export function CameraDock({ active, onSelect, views = DEFAULT_VIEWS }: CameraDo
             aria-label={v.description}
             aria-pressed={isActive}
             style={{
-              width: 52,
-              padding: '5px 4px',
               display: 'flex',
+              flexDirection: 'column',
               alignItems: 'center',
-              justifyContent: 'space-between',
-              background: isActive ? 'rgba(64,128,208,0.22)' : 'transparent',
-              border: `1px solid ${isActive ? 'rgba(64,128,208,0.55)' : 'transparent'}`,
-              borderRadius: 5,
-              color: 'var(--p-fg, #ddd)',
+              gap: 2,
+              width: '100%',
+              padding: '7px 0',
+              background: isActive ? 'var(--iw-accent-soft)' : 'transparent',
+              border: 'none',
+              borderLeft: isActive ? '2px solid var(--iw-accent)' : '2px solid transparent',
+              color: isActive ? 'var(--iw-fg-hi)' : 'var(--iw-fg-dim)',
               cursor: 'pointer',
-              fontSize: 10,
-              lineHeight: 1.1,
-              letterSpacing: '0.02em',
+              fontFamily: 'var(--iw-font-ui)',
             }}
           >
             <span
-              className="p-mono"
+              className="iw-mono"
               style={{
-                fontSize: 9,
-                color: isActive ? 'var(--p-fg, #ddd)' : 'var(--p-fg-dim, #888)',
-                width: 12,
-                textAlign: 'left',
+                fontSize: 10,
+                color: isActive ? 'var(--iw-accent)' : 'var(--iw-fg-faint)',
+                fontWeight: 600,
               }}
             >
               {v.key}
             </span>
-            <span style={{ fontWeight: isActive ? 600 : 400 }}>{v.short}</span>
+            <span style={{ fontSize: 10, fontWeight: 500, letterSpacing: '0.01em' }}>{v.short}</span>
           </button>
         );
       })}
-    </div>
+    </nav>
   );
 }

@@ -83,6 +83,13 @@ export interface LightingState {
   ssaoEnabled: boolean;
   ssaoStrength: number;
   ssaoRadius: number;
+
+  // Fog / atmosphere — Phase A (Greenhouse realism).
+  //   subtle linear fog: 멀리만 살짝 흐릿한 공기감. 가까운 식물은 영향 거의 없음.
+  fogEnabled: boolean;
+  fogColorHex: string;
+  fogStart: number;   // m, 이 거리부터 fog 시작
+  fogEnd: number;     // m, 이 거리에서 완전 불투명
 }
 
 // ──────────────────────────────────────────────────────────────────
@@ -175,37 +182,50 @@ export const SKELETON_DEFAULTS: SkeletonConfig = {
 
 // Defaults mirror SceneSetup.ts hardcoded values so toggling between
 // "default" preset and the boot state is a no-op.
+//
+// Phase A (Greenhouse realism) — 회색-디버그 톤을 사진적 baseline 으로 상향.
+//   특히 Lv6+ quality preset 들이 lightingPatch 에서 _override 하지 않는_ 필드
+//   (sun/hemi/hdri/contrast/shadowDarkness/ambientGray) 를 끌어올려야 실제
+//   부팅 화면(Lv8 Ultra default)에 반영됨. bloom/vignette/sharpen/ssao 는
+//   Lv5 baseline 에만 영향 (Lv6+ 는 preset patch 가 덮어씀) — 그래도 일관성
+//   유지를 위해 함께 상향.
 export const LIGHTING_DEFAULTS: LightingState = {
   manualHour: 12,
 
-  sunIntensity: 3.0,
+  sunIntensity: 3.4,                    // 3.0 → 3.4 (직사광 강화, 날카로움 회피)
   sunColorHex: '#fff6d8',
 
-  hemiIntensity: 0.34,
+  hemiIntensity: 0.55,                  // 0.34 → 0.55 (산란광 보강, 회색톤 탈출)
   hemiColorHex: '#e8e4d8',
   hemiGroundColorHex: '#3a3530',
-  hdriIntensity: 0.42,
+  hdriIntensity: 0.7,                   // 0.42 → 0.7 (IBL 반사/굴절 살아남)
   ambientGray: 0.12,
 
   shadowsEnabled: true,
-  shadowDarkness: 0.18,
+  shadowDarkness: 0.22,                 // 0.18 → 0.22 (입체감)
   shadowBias: 0.002,
   shadowNormalBias: 0.02,
 
-  exposure: 1.0,
-  contrast: 1.1,
+  exposure: 1.05,                       // 1.0 → 1.05 (미세 brighten)
+  contrast: 1.15,                       // 1.1 → 1.15 (depth)
   toneMapping: 'aces',
 
   bloomEnabled: true,
-  bloomThreshold: 0.85,
-  bloomWeight: 0.3,
+  bloomThreshold: 0.78,                 // 0.85 → 0.78
+  bloomWeight: 0.42,                    // 0.3 → 0.42
   vignetteEnabled: true,
-  vignetteWeight: 1.6,
+  vignetteWeight: 2.0,                  // 1.6 → 2.0 (영화적 frame)
   sharpenEnabled: true,
-  sharpenEdge: 0.2,
+  sharpenEdge: 0.32,                    // 0.2 → 0.32
   ssaoEnabled: true,
-  ssaoStrength: 1.35,
+  ssaoStrength: 1.6,                    // 1.35 → 1.6
   ssaoRadius: 0.42,
+
+  // Fog — subtle linear distance fog. 가까운 식물은 영향 없음, 멀리만 흐릿.
+  fogEnabled: true,
+  fogColorHex: '#dce4ec',               // 차갑고 옅은 흰
+  fogStart: 15,
+  fogEnd: 45,
 };
 
 const LIGHTING_PRESETS: Record<LightingPresetName, Partial<LightingState>> = {
@@ -226,6 +246,10 @@ const LIGHTING_PRESETS: Record<LightingPresetName, Partial<LightingState>> = {
     bloomWeight: 0.5,
     vignetteEnabled: true,
     vignetteWeight: 2.4,
+    // Fog: 따뜻한 황금시간 안개, 멀리까지 보이게.
+    fogColorHex: '#e8d4b8',
+    fogStart: 20,
+    fogEnd: 60,
   },
   overcast: {
     manualHour: 12,
@@ -241,6 +265,10 @@ const LIGHTING_PRESETS: Record<LightingPresetName, Partial<LightingState>> = {
     bloomEnabled: false,
     vignetteEnabled: true,
     vignetteWeight: 0.8,
+    // Fog: 흐린 날 — 가까이까지 차갑고 진하게.
+    fogColorHex: '#c8d0d8',
+    fogStart: 10,
+    fogEnd: 30,
   },
   'noon-bright': {
     manualHour: 12,
@@ -256,6 +284,10 @@ const LIGHTING_PRESETS: Record<LightingPresetName, Partial<LightingState>> = {
     bloomEnabled: true,
     bloomThreshold: 0.88,
     bloomWeight: 0.35,
+    // Fog: 정오 — 옅고 멀리까지.
+    fogColorHex: '#e0e8f0',
+    fogStart: 25,
+    fogEnd: 70,
   },
   'grow-light': {
     manualHour: 22,
@@ -273,6 +305,10 @@ const LIGHTING_PRESETS: Record<LightingPresetName, Partial<LightingState>> = {
     bloomWeight: 0.7,
     vignetteEnabled: true,
     vignetteWeight: 2.6,
+    // Fog: 야간 그로우 — 어둠 + 가까이서 안개.
+    fogColorHex: '#0a0610',
+    fogStart: 8,
+    fogEnd: 25,
   },
 };
 
@@ -516,6 +552,48 @@ interface TwinState {
   // Iter 35 PR 2 Phase J: chart/metrics/inspector setters 제거.
   // Iter 35 PR 2 Phase K: setSinglePlantTopFilter 제거.
 
+  /** Iter 31 Phase R — 로봇 traverse + 짐벌 카메라 수동 제어 슬라이스.
+   *  ⚠️ 매 프레임 변하는 railX/dir 은 store에 두지 않음 (60fps 리렌더 회피).
+   *  → BabylonEngine 모듈 스코프 ref 로 관리. UI는 mode/gimbal/speed만 구독. */
+  robot: {
+    /** 'auto' = ping-pong 자동 traverse, 'paused' = 정지, 'manual' = 슬라이더/WASD 직접 제어. */
+    mode: 'auto' | 'paused' | 'manual';
+    /** Auto 모드 속도 (m/s). 0~1. 0 = 사실상 정지. */
+    speedMps: number;
+    gimbal: {
+      /** Pan (y rotation, rad). wrap(-π, π]. */
+      panRad: number;
+      /** Pitch (x rotation, rad). clamp(-π/3, π/3). */
+      pitchRad: number;
+      /** true = 사용자 drag 후. auto 모드라도 setGimbalLookSide 자동 호출 안 함. */
+      manualOverride: boolean;
+    };
+  };
+  setRobotMode: (m: 'auto' | 'paused' | 'manual') => void;
+  setRobotSpeed: (v: number) => void;
+  setGimbalPan: (rad: number) => void;
+  setGimbalPitch: (rad: number) => void;
+  /** Drag 1회당 합성 update (1 setState로 pan+pitch 동시). */
+  nudgeGimbal: (dPanRad: number, dPitchRad: number) => void;
+  /** Pan=0, pitch=0, manualOverride=false → 다음 auto frame에서 setGimbalLookSide 복귀. */
+  resetGimbal: () => void;
+
+  /** Instrument Workstation UI shell — 'analysis' (default) hides nothing,
+   *  'drive' collapses the right inspector for fullscreen viewport. */
+  uiMode: 'analysis' | 'drive';
+  setUiMode: (m: 'analysis' | 'drive') => void;
+  toggleUiMode: () => void;
+  /** Settings drawer (right slide-in). */
+  settingsOpen: boolean;
+  setSettingsOpen: (v: boolean) => void;
+  /** Stats HUD overlay (corner). */
+  statsOpen: boolean;
+  setStatsOpen: (v: boolean) => void;
+  toggleStatsOpen: () => void;
+  /** Auto-dismiss toast for WebGPU/etc. notifications. */
+  shellToast: { kind: 'webgpu' | 'info' | null; visible: boolean };
+  dismissShellToast: () => void;
+
   // -- Boot progress + notifications + live log + env --
   boot: BootSnapshot;
   notifications: Notification[];
@@ -753,6 +831,66 @@ export const useTwinStore = create<TwinState>((set) => ({
     set((state) => ({ eeCameraParams: { ...state.eeCameraParams, [key]: value } })),
   setSinglePlantCamera: (c) => set({ singlePlantCamera: c }),
   // Iter 35 PR 2 Phase J + K: chart/metrics/inspector/topFilter setters 제거.
+
+  // Iter 31 Phase R — 로봇 + 짐벌 카메라 수동 제어 슬라이스.
+  robot: {
+    mode: 'auto',
+    speedMps: 0.3, // sceneOptions.traverseSpeedMps default — boot 시 setRobotSpeed로 덮어씀
+    gimbal: {
+      panRad: 0,
+      pitchRad: 0,
+      manualOverride: false,
+    },
+  },
+  setRobotMode: (m) => set((s) => ({ robot: { ...s.robot, mode: m } })),
+  setRobotSpeed: (v) =>
+    set((s) => ({ robot: { ...s.robot, speedMps: Math.max(0, Math.min(1, v)) } })),
+  setGimbalPan: (rad) => {
+    // wrap to (-π, π]
+    const TWO_PI = Math.PI * 2;
+    let w = ((rad + Math.PI) % TWO_PI + TWO_PI) % TWO_PI - Math.PI;
+    if (w === -Math.PI) w = Math.PI;
+    set((s) => ({ robot: { ...s.robot, gimbal: { ...s.robot.gimbal, panRad: w, manualOverride: true } } }));
+  },
+  setGimbalPitch: (rad) => {
+    const LIM = Math.PI / 3;
+    const c = Math.max(-LIM, Math.min(LIM, rad));
+    set((s) => ({ robot: { ...s.robot, gimbal: { ...s.robot.gimbal, pitchRad: c, manualOverride: true } } }));
+  },
+  nudgeGimbal: (dPanRad, dPitchRad) =>
+    set((s) => {
+      const TWO_PI = Math.PI * 2;
+      const LIM = Math.PI / 3;
+      let pan = s.robot.gimbal.panRad + dPanRad;
+      pan = ((pan + Math.PI) % TWO_PI + TWO_PI) % TWO_PI - Math.PI;
+      if (pan === -Math.PI) pan = Math.PI;
+      const pitch = Math.max(-LIM, Math.min(LIM, s.robot.gimbal.pitchRad + dPitchRad));
+      return {
+        robot: {
+          ...s.robot,
+          gimbal: { panRad: pan, pitchRad: pitch, manualOverride: true },
+        },
+      };
+    }),
+  resetGimbal: () =>
+    set((s) => ({
+      robot: {
+        ...s.robot,
+        gimbal: { panRad: 0, pitchRad: 0, manualOverride: false },
+      },
+    })),
+
+  // Instrument Workstation UI shell state
+  uiMode: 'analysis',
+  setUiMode: (m) => set({ uiMode: m }),
+  toggleUiMode: () => set((s) => ({ uiMode: s.uiMode === 'analysis' ? 'drive' : 'analysis' })),
+  settingsOpen: false,
+  setSettingsOpen: (v) => set({ settingsOpen: v }),
+  statsOpen: false,
+  setStatsOpen: (v) => set({ statsOpen: v }),
+  toggleStatsOpen: () => set((s) => ({ statsOpen: !s.statsOpen })),
+  shellToast: { kind: 'webgpu', visible: true },
+  dismissShellToast: () => set({ shellToast: { kind: null, visible: false } }),
 
   // -- Boot progress + notifications + live log + env --
   boot: {

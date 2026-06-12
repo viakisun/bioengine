@@ -25,6 +25,7 @@ import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { PBRMaterial } from '@babylonjs/core/Materials/PBR/pbrMaterial';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
+import { getCarbonFiberTexture } from './CarbonFiberTexture';
 
 export type EndEffectorKind = 'gripper' | 'cutter' | 'none';
 export type RobotProfile = 'agv-arm' | 'phenotyping';
@@ -33,12 +34,17 @@ export interface RobotHandle {
   root: TransformNode;
   chassis: Mesh;
   eePivot: TransformNode;
-  /** Phenotyping 짐벌 pivot — 외부에서 ArcRotateCamera 부착해 RTT/viewport 렌더 가능. */
+  /** Phenotyping 짐벌 pivot (outer / pan / Y 회전). */
   gimbalPivot: TransformNode;
+  /** Phenotyping 짐벌 pitch pivot (inner / pitch / X 회전).
+   *  카메라는 이 노드의 자식으로 부착해야 pan + pitch 가 둘 다 적용됨. */
+  gimbalPitchPivot: TransformNode;
   setEndEffector: (kind: EndEffectorKind) => void;
   setRailPosition: (railX: number) => void;
   /** Phenotyping 모드: 짐벌 카메라 pan 각도 (radian, 0=정면, +π/2=좌측, -π/2=우측). */
   setGimbalPan: (rad: number) => void;
+  /** Phenotyping 모드: 짐벌 카메라 pitch 각도 (radian, +=위, -=아래). ±π/3 로 clamp. */
+  setGimbalPitch: (rad: number) => void;
   /** Phenotyping 모드: 'left' = 좌측 베드(Z+), 'right' = 우측 베드(Z-) 촬영. */
   setGimbalLookSide: (side: 'left' | 'right' | 'front') => void;
   dispose: () => void;
@@ -296,52 +302,267 @@ export function createRobot(scene: Scene, config: RobotConfig = {}): RobotHandle
   eePivot.parent = joint3;
   eePivot.position = new Vector3(0, 0.1, 0);
 
-  // ── Phenotyping gimbal camera (chassis 위 중앙) ──
-  // Mount: 짧은 cylinder. Pan pivot (Y 회전), 그 위에 camera 박스.
+  // ── Phenotyping gimbal camera (mechatronic detail) ──
+  //
+  // 계층:
+  //   chassis
+  //     ├── mount post (고정, Ø5×18cm)
+  //     └── gimbalPivot (pan = Y rotation)
+  //         ├── pan 모터 housing, pan 풀리 (pan과 함께)
+  //         ├── yoke 좌·우 arm (pan과 함께)
+  //         ├── tilt 모터 housing (yoke 고정 — pitch 시 정지)
+  //         └── gimbalPitchPivot (pitch = X rotation)
+  //             ├── 외부 carbon-fiber 케이지 (suspended cage)
+  //             ├── camera body (케이지 내부 suspended)
+  //             ├── 좌/우 lens + dome (스테레오)
+  //             ├── 중앙 CMOS sensor
+  //             ├── LED ×4 (인디케이터)
+  //             └── tilt 풀리 (케이지와 함께 회전)
+  //
+  // gimbalPivot Y = chassis_top + 0.25 (이전 +0.18 → +7cm 상향).
+  //   pan 모터/풀리/yoke가 회전축 _아래_ 약 10cm 공간을 차지.
   const gimbalPivot = new TransformNode('robot:gimbal-pivot', scene);
   gimbalPivot.parent = chassis;
-  gimbalPivot.position = new Vector3(0, CHASSIS_H / 2 + 0.18, 0); // chassis top + 18cm
+  gimbalPivot.position = new Vector3(0, CHASSIS_H / 2 + 0.25, 0);
+  const gimbalPitchPivot = new TransformNode('robot:gimbal-pitch-pivot', scene);
+  gimbalPitchPivot.parent = gimbalPivot;
   let gimbalCameraMesh: Mesh | null = null;
   if (profile === 'phenotyping') {
-    const gimbalMat = new PBRMaterial('robot:mat:gimbal', scene);
-    gimbalMat.albedoColor = new Color3(0.12, 0.12, 0.13);
-    gimbalMat.metallic = 0.7;
-    gimbalMat.roughness = 0.4;
+    // ── Materials ──
+    // (1) Carbon fiber — 외부 케이지 + yoke arm
+    const carbonMat = new PBRMaterial('robot:mat:carbon', scene);
+    carbonMat.albedoTexture = getCarbonFiberTexture(scene);
+    carbonMat.metallic = 0.0;
+    carbonMat.roughness = 0.4;
+    carbonMat.clearCoat.isEnabled = true;
+    carbonMat.clearCoat.intensity = 0.3;
+    carbonMat.clearCoat.roughness = 0.2;
 
-    // mount post
+    // (2) Anodized aluminum — 풀리/기어
+    const aluminumMat = new PBRMaterial('robot:mat:aluminum', scene);
+    aluminumMat.albedoColor = Color3.FromHexString('#c8c9cc');
+    aluminumMat.metallic = 0.92;
+    aluminumMat.roughness = 0.25;
+    aluminumMat.environmentIntensity = 1.2;
+
+    // (3) Glass lens dome
+    const lensDomeMat = new PBRMaterial('robot:mat:lens-dome', scene);
+    lensDomeMat.albedoColor = Color3.FromHexString('#0a0a1a');
+    lensDomeMat.metallic = 0.0;
+    lensDomeMat.roughness = 0.05;
+    lensDomeMat.alpha = 0.3;
+    lensDomeMat.indexOfRefraction = 1.5;
+    lensDomeMat.clearCoat.isEnabled = true;
+    lensDomeMat.clearCoat.intensity = 1.0;
+    lensDomeMat.clearCoat.roughness = 0.02;
+    lensDomeMat.backFaceCulling = false;
+
+    // (4) Matte black plastic — 모터 하우징
+    const plasticMat = new PBRMaterial('robot:mat:plastic', scene);
+    plasticMat.albedoColor = Color3.FromHexString('#1c1c1e');
+    plasticMat.metallic = 0.05;
+    plasticMat.roughness = 0.7;
+
+    // (5) lens 내부 (어두운 광학 표면)
+    const lensMat = new PBRMaterial('robot:mat:lens', scene);
+    lensMat.albedoColor = new Color3(0.02, 0.05, 0.12);
+    lensMat.metallic = 0.95;
+    lensMat.roughness = 0.15;
+
+    // (6) Camera body — 어두운 하우징 (PBR 알루미늄 그레이)
+    const bodyMat = new PBRMaterial('robot:mat:cam-body', scene);
+    bodyMat.albedoColor = Color3.FromHexString('#2a2a2c');
+    bodyMat.metallic = 0.55;
+    bodyMat.roughness = 0.45;
+
+    // ── mount post (고정, chassis 자식) ──
     const mount = MeshBuilder.CreateCylinder(
       'robot:gimbal-mount',
       { diameter: 0.05, height: 0.18, tessellation: 12 },
       scene,
     );
-    mount.material = gimbalMat;
+    mount.material = plasticMat;
     mount.parent = chassis;
     mount.position = new Vector3(0, CHASSIS_H / 2 + 0.09, 0);
 
-    // camera body (pan pivot 자식)
+    // =================================================================
+    // gimbalPivot LOCAL — pan과 함께 회전, pitch 무관
+    // =================================================================
+    // Pan 풀리 — mount post 위, 회전축 정중앙
+    const panPulley = MeshBuilder.CreateCylinder(
+      'robot:gimbal-pan-pulley',
+      { diameter: 0.020, height: 0.005, tessellation: 20 },
+      scene,
+    );
+    panPulley.material = aluminumMat;
+    panPulley.parent = gimbalPivot;
+    panPulley.position = new Vector3(0, -0.055, 0);
+
+    // Pan 모터 housing — 옆쪽 offset
+    const panMotor = MeshBuilder.CreateBox(
+      'robot:gimbal-pan-motor',
+      { width: 0.04, height: 0.04, depth: 0.05 },
+      scene,
+    );
+    panMotor.material = plasticMat;
+    panMotor.parent = gimbalPivot;
+    panMotor.position = new Vector3(0.040, -0.075, 0);
+
+    // Yoke arm 좌·우 — pan pivot에서 위로 올라가 카메라 좌우 측면을 잡음
+    for (const side of [-1, 1] as const) {
+      const yokeArm = MeshBuilder.CreateCylinder(
+        `robot:gimbal-yoke-${side > 0 ? 'r' : 'l'}`,
+        { diameter: 0.006, height: 0.05, tessellation: 8 },
+        scene,
+      );
+      yokeArm.material = carbonMat;
+      yokeArm.parent = gimbalPivot;
+      yokeArm.position = new Vector3(side * 0.058, -0.025, 0);
+    }
+
+    // Tilt 모터 housing — yoke 우측 끝, pitch 회전 시 정지 (실제 belt-driven 짐벌)
+    const tiltMotor = MeshBuilder.CreateBox(
+      'robot:gimbal-tilt-motor',
+      { width: 0.04, height: 0.04, depth: 0.04 },
+      scene,
+    );
+    tiltMotor.material = plasticMat;
+    tiltMotor.parent = gimbalPivot;
+    tiltMotor.position = new Vector3(0.085, 0, 0);
+
+    // =================================================================
+    // gimbalPitchPivot LOCAL — pan + pitch 모두 따름
+    // =================================================================
+    // 회전축 중심 = (0, 0, 0). lens 광학 중심이 여기에 정렬.
+
+    // (a) Camera body — 케이지 내부 중앙 suspended
     const camBody = MeshBuilder.CreateBox(
       'robot:gimbal-camera',
-      { width: 0.18, height: 0.12, depth: 0.14 },
+      { width: 0.10, height: 0.06, depth: 0.05 },
       scene,
     );
-    camBody.material = gimbalMat;
-    camBody.parent = gimbalPivot;
+    camBody.material = bodyMat;
+    camBody.parent = gimbalPitchPivot;
     camBody.position = new Vector3(0, 0, 0);
 
-    // lens (살짝 앞으로 튀어나옴) — 정면을 가리키는 cylinder
-    const lensMat = new PBRMaterial('robot:mat:lens', scene);
-    lensMat.albedoColor = new Color3(0.02, 0.05, 0.12);
-    lensMat.metallic = 0.95;
-    lensMat.roughness = 0.15;
-    const lens = MeshBuilder.CreateCylinder(
-      'robot:gimbal-lens',
-      { diameter: 0.07, height: 0.08, tessellation: 16 },
+    // (b) 좌/우 lens 외통 (cylinder, Z 방향)
+    for (const side of [-1, 1] as const) {
+      const lens = MeshBuilder.CreateCylinder(
+        `robot:gimbal-lens-${side > 0 ? 'r' : 'l'}`,
+        { diameter: 0.025, height: 0.025, tessellation: 20 },
+        scene,
+      );
+      lens.material = lensMat;
+      lens.parent = gimbalPitchPivot;
+      lens.rotation.x = Math.PI / 2;
+      lens.position = new Vector3(side * 0.030, 0, 0.030);
+
+      // (c) lens dome (반투명 글래스, sphere)
+      const lensDome = MeshBuilder.CreateSphere(
+        `robot:gimbal-lens-dome-${side > 0 ? 'r' : 'l'}`,
+        { diameter: 0.025, segments: 16 },
+        scene,
+      );
+      lensDome.material = lensDomeMat;
+      lensDome.parent = gimbalPitchPivot;
+      lensDome.position = new Vector3(side * 0.030, 0, 0.043);
+    }
+
+    // (d) 중앙 노출 CMOS sensor — 작은 정사각형
+    const sensor = MeshBuilder.CreateBox(
+      'robot:gimbal-sensor',
+      { width: 0.020, height: 0.020, depth: 0.003 },
       scene,
     );
-    lens.material = lensMat;
-    lens.parent = gimbalPivot;
-    lens.rotation.x = Math.PI / 2; // Z 방향 (정면)
-    lens.position = new Vector3(0, 0, 0.1);
+    const sensorMat = new PBRMaterial('robot:mat:sensor', scene);
+    sensorMat.albedoColor = Color3.FromHexString('#2a3850');
+    sensorMat.metallic = 0.85;
+    sensorMat.roughness = 0.18;
+    sensor.material = sensorMat;
+    sensor.parent = gimbalPitchPivot;
+    sensor.position = new Vector3(0, 0, 0.026);
+
+    // (e) LED ×4 — front face 상단 row, 다양한 색
+    const ledColors: Array<[number, number, number]> = [
+      [0.2, 0.95, 0.4],   // green
+      [0.95, 0.85, 0.2],  // yellow
+      [0.95, 0.55, 0.15], // orange
+      [0.9, 0.2, 0.2],    // red
+    ];
+    for (let i = 0; i < 4; i++) {
+      const ledMat = new StandardMaterial(`robot:mat:gimbal-led-${i}`, scene);
+      const [r, g, b] = ledColors[i];
+      ledMat.diffuseColor = new Color3(r, g, b);
+      ledMat.emissiveColor = new Color3(r * 0.9, g * 0.9, b * 0.9);
+      const ledSphere = MeshBuilder.CreateSphere(
+        `robot:gimbal-led-${i}`,
+        { diameter: 0.003, segments: 6 },
+        scene,
+      );
+      ledSphere.material = ledMat;
+      ledSphere.parent = gimbalPitchPivot;
+      // i=0..3 → X = -0.012..+0.012 (간격 8mm)
+      ledSphere.position = new Vector3(-0.012 + i * 0.008, 0.022, 0.026);
+    }
+
+    // (f) Carbon fiber 외부 케이지 — 12 rail (4 길이방향 + 4 전면 cross + 4 후면 cross)
+    //     케이지 내경 = X·Y ±0.055/±0.04, 길이 Z=±0.05
+    //     카메라 body(±0.05 × ±0.03 × ±0.025)와 약 5~15mm 클리어런스.
+    const CAGE_HALF_W = 0.055;
+    const CAGE_HALF_H = 0.040;
+    const CAGE_HALF_D = 0.050;
+    const RAIL_DIA = 0.005;
+    // 길이방향 rail 4개 (Z 방향)
+    for (const sx of [-1, 1] as const) {
+      for (const sy of [-1, 1] as const) {
+        const rail = MeshBuilder.CreateCylinder(
+          `robot:gimbal-cage-z-${sx > 0 ? 'r' : 'l'}${sy > 0 ? 't' : 'b'}`,
+          { diameter: RAIL_DIA, height: CAGE_HALF_D * 2, tessellation: 8 },
+          scene,
+        );
+        rail.material = carbonMat;
+        rail.parent = gimbalPitchPivot;
+        rail.rotation.x = Math.PI / 2;
+        rail.position = new Vector3(sx * CAGE_HALF_W, sy * CAGE_HALF_H, 0);
+      }
+    }
+    // 전·후 face cross — 각 face에 4 변 (위·아래·좌·우)
+    for (const sz of [-1, 1] as const) {
+      // 상·하 (가로, X 방향, width 11cm)
+      for (const sy of [-1, 1] as const) {
+        const cross = MeshBuilder.CreateCylinder(
+          `robot:gimbal-cage-x-${sz > 0 ? 'f' : 'r'}${sy > 0 ? 't' : 'b'}`,
+          { diameter: RAIL_DIA, height: CAGE_HALF_W * 2, tessellation: 8 },
+          scene,
+        );
+        cross.material = carbonMat;
+        cross.parent = gimbalPitchPivot;
+        cross.rotation.z = Math.PI / 2;
+        cross.position = new Vector3(0, sy * CAGE_HALF_H, sz * CAGE_HALF_D);
+      }
+      // 좌·우 (세로, Y 방향, height 8cm)
+      for (const sx of [-1, 1] as const) {
+        const cross = MeshBuilder.CreateCylinder(
+          `robot:gimbal-cage-y-${sz > 0 ? 'f' : 'r'}${sx > 0 ? 'r' : 'l'}`,
+          { diameter: RAIL_DIA, height: CAGE_HALF_H * 2, tessellation: 8 },
+          scene,
+        );
+        cross.material = carbonMat;
+        cross.parent = gimbalPitchPivot;
+        cross.position = new Vector3(sx * CAGE_HALF_W, 0, sz * CAGE_HALF_D);
+      }
+    }
+
+    // (g) Tilt 풀리 (오른쪽, pitch와 함께 회전)
+    const tiltPulley = MeshBuilder.CreateCylinder(
+      'robot:gimbal-tilt-pulley',
+      { diameter: 0.018, height: 0.005, tessellation: 20 },
+      scene,
+    );
+    tiltPulley.material = aluminumMat;
+    tiltPulley.parent = gimbalPitchPivot;
+    tiltPulley.rotation.z = Math.PI / 2; // X 축으로 눕힘
+    tiltPulley.position = new Vector3(0.060, 0, 0);
 
     gimbalCameraMesh = camBody;
   }
@@ -424,6 +645,14 @@ export function createRobot(scene: Scene, config: RobotConfig = {}): RobotHandle
     gimbalPivot.rotation.y = rad;
   }
 
+  /** Pitch (상/하). ±π/3 (≈ ±60°) 로 clamp — gimbal lock 방지 + 물리적 한계.
+   *  +rad = 위쪽, -rad = 아래쪽. */
+  const PITCH_LIMIT = Math.PI / 3;
+  function setGimbalPitch(rad: number): void {
+    const clamped = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, rad));
+    gimbalPitchPivot.rotation.x = clamped;
+  }
+
   /** 좌측(+Z) / 우측(-Z) 베드를 lens가 가리키도록 pan.
    *  lens default = +Z 방향 (gimbal local). 따라서:
    *    'left'  (+Z 측면) = rotation.y = 0
@@ -447,9 +676,11 @@ export function createRobot(scene: Scene, config: RobotConfig = {}): RobotHandle
     chassis,
     eePivot,
     gimbalPivot,
+    gimbalPitchPivot,
     setEndEffector,
     setRailPosition,
     setGimbalPan,
+    setGimbalPitch,
     setGimbalLookSide,
     dispose,
   };

@@ -250,6 +250,36 @@ export function LightingTab() {
         step={0.05}
       />
 
+      <Eyebrow>대기감 (Fog)</Eyebrow>
+      <ToggleBtn on={L.fogEnabled} onClick={() => set({ fogEnabled: !L.fogEnabled })}>
+        Fog {L.fogEnabled ? 'ON' : 'OFF'}
+      </ToggleBtn>
+      <ColorRow
+        label="Fog 색"
+        value={L.fogColorHex}
+        onChange={(hex) => set({ fogColorHex: hex })}
+      />
+      <SliderRow
+        label="시작 거리"
+        value={L.fogStart}
+        onChange={(v) => set({ fogStart: v })}
+        valueText={`${L.fogStart.toFixed(0)} m`}
+        min={0}
+        max={50}
+        step={1}
+        disabled={!L.fogEnabled}
+      />
+      <SliderRow
+        label="끝 거리"
+        value={L.fogEnd}
+        onChange={(v) => set({ fogEnd: v })}
+        valueText={`${L.fogEnd.toFixed(0)} m`}
+        min={10}
+        max={150}
+        step={1}
+        disabled={!L.fogEnabled}
+      />
+
       <Eyebrow>SSAO {ssaoUnavailable && '(WebGPU 미지원)'}</Eyebrow>
       <ToggleBtn
         on={L.ssaoEnabled}
