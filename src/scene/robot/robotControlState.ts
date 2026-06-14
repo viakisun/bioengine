@@ -44,12 +44,10 @@ export function nudgeRail(dx: number): void {
 
 // ── Gimbal cam viewport sync (DOM PiP frame ↔ Babylon viewport) ──────────
 
-/** Babylon UniversalCamera 인스턴스 (gimbal cam). BabylonEngine 이 부팅 후 set. */
-export const gimbalCamRef: {
-  current: {
-    viewport: { x: number; y: number; width: number; height: number };
-  } | null;
-} = { current: null };
+/** Babylon UniversalCamera 인스턴스 (gimbal cam). BabylonEngine 이 부팅 후 set.
+ *  Phenotyping detection 이 isInFrustum / globalPosition 등 직접 호출. */
+import type { UniversalCamera } from '@babylonjs/core/Cameras/universalCamera';
+export const gimbalCamRef: { current: UniversalCamera | null } = { current: null };
 
 /** GimbalView 의 DOM 프레임 bounding rect 을 받아 Babylon viewport (normalized 0..1,
  *  y는 bottom-up) 를 정확히 정렬. canvas 크기는 window.innerW/H 로 가정 (full-window canvas).

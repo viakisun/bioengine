@@ -15,7 +15,7 @@
 //   - 시나리오 crop.day 기반으로 초기 day 설정
 //   - end-effector 카메라 전환 단축키 (S4)
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Picker } from '../scenarios/Picker';
 import { Composer } from '../composer/Composer';
 import { MyScenarios } from '../composer/MyScenarios';
@@ -49,6 +49,15 @@ import { SettingsDrawer } from '../../hud/instrument/SettingsDrawer';
 import { StatsHud } from '../../hud/instrument/StatsHud';
 import { Toast } from '../../hud/instrument/Toast';
 import { RobotTransport } from '../../hud/instrument/RobotTransport';
+import { SurveyResultSheet } from '../../hud/instrument/SurveyResultSheet';
+import { SurveyHistoryDrawer } from '../../hud/instrument/SurveyHistoryDrawer';
+// Phenotyping survey engine
+import { planSurveyZones } from '../../scenarios/phenotyping/zonePlan';
+import { createSurveyRunner, type SurveyRunner } from '../../scenarios/phenotyping/surveyRunner';
+import { surveyStore, newSurveyId, type SurveyRecord, type ZoneRecord } from '../../scenarios/phenotyping/surveyStore';
+import { getActivePlantManager } from '../../scene/PlantManager';
+import { getSinglePlantEngine } from '../../hud/single-plant/useSinglePlantState';
+import { railRef, gimbalCamRef } from '../../scene/robot/robotControlState';
 
 const log = createLogger('workbench');
 
@@ -283,6 +292,183 @@ export function Workbench() {
     return <Calibration onCancel={() => setView(active ? 'workbench' : 'picker')} />;
   }
 
+  // ── Phenotyping survey orchestration ──────────────────────────────
+  // Maintain a single SurveyRunner per workbench mount.  Wire its
+  // callbacks into twinStore.phenotypingSurvey + surveyStore (IndexedDB).
+  const surveyRunnerRef = useRef<SurveyRunner | null>(null);
+  const surveyRecordRef = useRef<SurveyRecord | null>(null);
+  const surveyStatus = useTwinStore((s) => s.phenotypingSurvey.status);
+
+  const initSurveyRunner = (): SurveyRunner | null => {
+    if (!active || active.domain !== 'phenotyping') return null;
+    if (surveyRunnerRef.current) return surveyRunnerRef.current;
+    const mgr = getActivePlantManager();
+    const eng = getSinglePlantEngine();
+    const cam = gimbalCamRef.current;
+    if (!mgr || !eng || !cam) return null;
+    const scene = cam.getScene();
+    const zones = planSurveyZones({ scenario: active, plantManager: mgr });
+    if (zones.length === 0) return null;
+
+    useTwinStore.getState().surveySetTotalZones(zones.length);
+
+    const runner = createSurveyRunner({
+      zones, scene, camera: cam,
+      plantManager: mgr,
+      growthEngine: eng,
+      getMinute: () => useTwinStore.getState().singlePlantMinute,
+      setRobotMode: (m) => useTwinStore.getState().setRobotMode(m),
+      setGimbalSide: (s) => {
+        // Use store action for manual pan override
+        if (s === 'left') useTwinStore.getState().setGimbalPan(0);
+        else if (s === 'right') useTwinStore.getState().setGimbalPan(Math.PI);
+        else useTwinStore.getState().setGimbalPan(-Math.PI / 2);
+      },
+      onPhaseChange: (phase, zi) => {
+        const zone = zones[zi];
+        useTwinStore.getState().surveySetPhase(phase, zone?.id ?? null);
+      },
+      onZoneCaptured: (result) => {
+        useTwinStore.getState().surveyRecordZone(result.zoneId, {
+          completedAt: result.capturedAt,
+          targetBedId: result.zone.targetBedId,
+          bedSide: result.zone.bedSide,
+          direction: result.zone.direction,
+          fruitCount: result.rawCount,
+          weightedCount: result.weightedCount,
+          expectedFruitCount: result.expectedFruitCount,
+          coverage: result.coverage,
+          avgConfidence: result.avgConfidence,
+          bins: result.bins,
+          weightedBins: result.weightedBins,
+        });
+        // Append zone to record for persistence
+        if (surveyRecordRef.current) {
+          const zr: ZoneRecord = {
+            zoneId: result.zoneId,
+            index: result.zone.index,
+            direction: result.zone.direction,
+            bedSide: result.zone.bedSide,
+            targetBedId: result.zone.targetBedId,
+            railX: result.zone.railX,
+            capturedAt: result.capturedAt,
+            fruits: result.fruits,
+            fruitCount: result.rawCount,
+            weightedCount: result.weightedCount,
+            expectedFruitCount: result.expectedFruitCount,
+            coverage: result.coverage,
+            avgConfidence: result.avgConfidence,
+            bins: result.bins,
+            weightedBins: result.weightedBins,
+          };
+          surveyRecordRef.current.zones.push(zr);
+        }
+      },
+      onDone: () => {
+        useTwinStore.getState().surveySetStatus('done');
+        const rec = surveyRecordRef.current;
+        if (!rec) return;
+        rec.completedAt = new Date().toISOString();
+        rec.status = 'completed';
+        rec.elapsedMs = useTwinStore.getState().phenotypingSurvey.elapsedMs;
+        // Path length: rail traverse (forward + return) ≈ 2 × range × #passes
+        rec.pathLengthM = 2 * 14 * (zones.filter((z) => z.direction === 'forward').length > 0 ? 1 : 0
+          + (zones.filter((z) => z.direction === 'return').length > 0 ? 1 : 0));
+        // Totals = aggregate
+        const t = { fruitCount: 0, weightedCount: 0, coverage: 0, avgConfidence: 0,
+          bins: { green: 0, breaker: 0, turning: 0, pink: 0, red: 0 },
+          weightedBins: { green: 0, breaker: 0, turning: 0, pink: 0, red: 0 } };
+        for (const z of rec.zones) {
+          t.fruitCount += z.fruitCount;
+          t.weightedCount += z.weightedCount;
+          (['green', 'breaker', 'turning', 'pink', 'red'] as const).forEach((b) => {
+            t.bins[b] += z.bins[b] ?? 0;
+            t.weightedBins[b] += z.weightedBins[b] ?? 0;
+          });
+        }
+        t.coverage = rec.zones.length === 0 ? 0
+          : rec.zones.reduce((a, z) => a + z.coverage, 0) / rec.zones.length;
+        t.avgConfidence = rec.zones.length === 0 ? 0
+          : rec.zones.reduce((a, z) => a + z.avgConfidence, 0) / rec.zones.length;
+        rec.totals = { zoneCount: rec.zones.length, ...t };
+        surveyStore.save(rec)
+          .then(() => useTwinStore.getState().setLastSurveyId(rec.id))
+          .catch((err) => log.warn('surveyStore.save failed:', err));
+      },
+    });
+    surveyRunnerRef.current = runner;
+    return runner;
+  };
+
+  const onStartSurvey = () => {
+    const runner = initSurveyRunner();
+    if (!runner || !active) return;
+    // Reset previous state and create new in-progress record
+    useTwinStore.getState().surveyReset();
+    const mgr = getActivePlantManager();
+    const zones = mgr ? planSurveyZones({ scenario: active, plantManager: mgr }) : [];
+    useTwinStore.getState().surveySetTotalZones(zones.length);
+
+    const id = newSurveyId();
+    surveyRecordRef.current = {
+      id,
+      schemaVersion: '1.0',
+      startedAt: new Date().toISOString(),
+      completedAt: null,
+      status: 'in-progress',
+      scenarioId: active.id,
+      scenarioVersion: active.version ?? 'unknown',
+      cropDay: active.crop.day,
+      cropSeed: String(active.crop.seed),
+      cropCultivar: active.crop.cultivar ?? 'unknown',
+      cropMinute: useTwinStore.getState().singlePlantMinute,
+      envLightingPreset: active.env.lightingPreset,
+      envManualHour: active.env.manualHour,
+      robotProfile: active.robot?.profile ?? 'phenotyping',
+      cameraConfig: {
+        lensFovDeg: active.robot?.camera?.head?.lens ?? 60,
+        mountHeightM: active.robot?.camera?.head?.mountHeight ?? 1.28,
+      },
+      rule: active.task.rule ?? 'left-bed-on-forward,right-bed-on-return',
+      detector: {
+        version: 'gt-v1',
+        workingDistanceM: { min: 0.3, max: 3.0 },
+        referenceSolidAngleSr: 4e-4,
+        occlusionMode: 'none',
+      },
+      zones: [],
+      totals: { zoneCount: 0, fruitCount: 0, weightedCount: 0,
+        bins: { green: 0, breaker: 0, turning: 0, pink: 0, red: 0 },
+        weightedBins: { green: 0, breaker: 0, turning: 0, pink: 0, red: 0 },
+        coverage: 0, avgConfidence: 0 },
+      pathLengthM: 0,
+      elapsedMs: 0,
+    };
+    useTwinStore.getState().surveySetStatus('running');
+    runner.start();
+  };
+
+  const onPauseSurvey = () => {
+    surveyRunnerRef.current?.pause();
+    useTwinStore.getState().surveySetStatus('paused');
+  };
+  const onResumeSurvey = () => {
+    surveyRunnerRef.current?.resume();
+    useTwinStore.getState().surveySetStatus('running');
+  };
+  const onResetSurvey = () => {
+    surveyRunnerRef.current?.stop();
+    useTwinStore.getState().surveyReset();
+    surveyRecordRef.current = null;
+  };
+
+  // Cleanup on unmount
+  useEffect(() => () => {
+    surveyRunnerRef.current?.stop();
+    surveyRunnerRef.current = null;
+    surveyRecordRef.current = null;
+  }, []);
+
   if (!active) return null;
 
   return (
@@ -306,8 +492,18 @@ export function Workbench() {
       {/* PiP gimbal view (top-left of viewport) */}
       {active.domain === 'phenotyping' && <GimbalView scenarioId={active.id} />}
 
-      {/* Robot transport dock (bottom-left of viewport) */}
-      {active.domain === 'phenotyping' && <RobotTransport />}
+      {/* Robot transport dock (bottom-left of viewport) — with survey controls when phenotyping */}
+      {active.domain === 'phenotyping' && (
+        <RobotTransport
+          surveyControls={{
+            status: surveyStatus,
+            onStart: onStartSurvey,
+            onPause: onPauseSurvey,
+            onResume: onResumeSurvey,
+            onReset: onResetSurvey,
+          }}
+        />
+      )}
 
       {/* Stats HUD (toggleable, top-right of viewport) */}
       <StatsHud />
@@ -331,6 +527,15 @@ export function Workbench() {
         onOpenCalibration={() => setView('calibration')}
         onFork={() => handleCompose(active)}
       />
+
+      {/* ░░░ SURVEY HISTORY DRAWER (right slide-in, IndexedDB) ░░░ */}
+      <SurveyHistoryDrawer />
+
+      {/* ░░░ SURVEY RESULT SHEET (modal, auto-opens on completion) ░░░ */}
+      <SurveyResultSheet />
+
+      {/* Reference unused vars to silence noUnusedLocals if any */}
+      <span style={{ display: 'none' }} aria-hidden>{railRef.current}</span>
     </>
   );
 }

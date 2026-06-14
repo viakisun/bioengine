@@ -9,7 +9,18 @@ import { useEffect, useRef } from 'react';
 import { useTwinStore } from '../../state/twinStore';
 import { railRef, setRail } from '../../scene/robot/robotControlState';
 
-export function RobotTransport() {
+interface RobotTransportProps {
+  /** Phenotyping survey controls. Caller wires these to surveyRunner. */
+  surveyControls?: {
+    status: 'idle' | 'running' | 'paused' | 'done';
+    onStart: () => void;
+    onPause: () => void;
+    onResume: () => void;
+    onReset: () => void;
+  };
+}
+
+export function RobotTransport({ surveyControls }: RobotTransportProps = {}) {
   const mode = useTwinStore((s) => s.robot.mode);
   const speedMps = useTwinStore((s) => s.robot.speedMps);
   const setRobotMode = useTwinStore((s) => s.setRobotMode);
@@ -59,6 +70,37 @@ export function RobotTransport() {
         <div style={{ flex: 1 }} />
         <button onClick={() => setRail(0)} style={ghostBtnS} title="Reset rail X">reset</button>
       </div>
+
+      {/* Row 1b: Phenotyping survey button (only when controls wired) */}
+      {surveyControls && (
+        <div style={{ marginBottom: 11 }}>
+          {surveyControls.status === 'idle' && (
+            <button onClick={surveyControls.onStart} style={surveyPrimaryBtnS}>
+              ▶ START SURVEY
+            </button>
+          )}
+          {surveyControls.status === 'running' && (
+            <button onClick={surveyControls.onPause} style={surveySecondaryBtnS}>
+              ❚❚ PAUSE SURVEY
+            </button>
+          )}
+          {surveyControls.status === 'paused' && (
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button onClick={surveyControls.onResume} style={{ ...surveyPrimaryBtnS, flex: 1 }}>
+                ▶ RESUME
+              </button>
+              <button onClick={surveyControls.onReset} style={surveySecondaryBtnS}>
+                ⟲
+              </button>
+            </div>
+          )}
+          {surveyControls.status === 'done' && (
+            <button onClick={surveyControls.onReset} style={surveySecondaryBtnS}>
+              ⟲ NEW RUN
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Row 2: Rail X */}
       <div style={labelRowS}>
@@ -183,4 +225,32 @@ const hintS: React.CSSProperties = {
   color: 'var(--iw-fg-faint)',
   marginTop: 9,
   letterSpacing: '0.02em',
+};
+
+const surveyPrimaryBtnS: React.CSSProperties = {
+  width: '100%',
+  fontFamily: 'var(--iw-font-mono)',
+  fontSize: 11,
+  fontWeight: 600,
+  letterSpacing: '0.08em',
+  color: '#06070a',
+  background: 'var(--iw-accent)',
+  border: '1px solid var(--iw-accent)',
+  borderRadius: 6,
+  height: 30,
+  cursor: 'pointer',
+};
+
+const surveySecondaryBtnS: React.CSSProperties = {
+  fontFamily: 'var(--iw-font-mono)',
+  fontSize: 11,
+  fontWeight: 600,
+  letterSpacing: '0.08em',
+  color: 'var(--iw-accent)',
+  background: 'var(--iw-accent-soft)',
+  border: '1px solid var(--iw-accent-line)',
+  borderRadius: 6,
+  height: 30,
+  padding: '0 14px',
+  cursor: 'pointer',
 };

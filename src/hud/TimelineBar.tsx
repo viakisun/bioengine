@@ -60,6 +60,9 @@ export function TimelineBar({ playback, minDay = 0, maxDay = 120 }: TimelineBarP
         <span style={{ color: 'var(--iw-fg-faint)' }}> / {maxDay}</span>
       </div>
 
+      <SurveyTimelineChip />
+
+
       {/* Custom progress bar with click-to-scrub */}
       <div
         style={progressWrapS}
@@ -107,6 +110,36 @@ export function TimelineBar({ playback, minDay = 0, maxDay = 120 }: TimelineBarP
 
       <button onClick={() => setSettingsOpen(true)} style={gearBtnS} title="Settings">⚙</button>
     </footer>
+  );
+}
+
+function SurveyTimelineChip() {
+  const sv = useTwinStore((s) => s.phenotypingSurvey);
+  if (sv.status === 'idle' && sv.completedZones === 0) return null;
+  const zones = Object.values(sv.zones);
+  const avgCoverage = zones.length === 0 ? 0 : zones.reduce((a, z) => a + z.coverage, 0) / zones.length;
+  const totalWeighted = zones.reduce((a, z) => a + z.weightedCount, 0);
+  return (
+    <span
+      className="iw-mono"
+      style={{
+        fontSize: 11,
+        color: 'var(--iw-fg-dim)',
+        background: 'var(--iw-bg-3)',
+        border: '1px solid var(--iw-line-1)',
+        padding: '3px 8px',
+        borderRadius: 4,
+        whiteSpace: 'nowrap',
+      }}
+      title="phenotyping survey progress · avg coverage · total weighted fruit count"
+    >
+      <span style={{ color: 'var(--iw-fg-mute)' }}>survey </span>
+      <span style={{ color: 'var(--iw-fg-hi)' }}>z{sv.completedZones}/{sv.totalZones}</span>
+      <span style={{ color: 'var(--iw-fg-faint)' }}> · </span>
+      <span style={{ color: avgCoverage >= 0.85 ? 'var(--iw-ok)' : 'var(--iw-fg-mid)' }}>{(avgCoverage * 100).toFixed(0)}%</span>
+      <span style={{ color: 'var(--iw-fg-faint)' }}> · w</span>
+      <span style={{ color: 'var(--iw-accent)' }}>{totalWeighted.toFixed(0)}</span>
+    </span>
   );
 }
 

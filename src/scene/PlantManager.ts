@@ -104,6 +104,10 @@ export class PlantManager {
   private readonly growthEngine: GrowthEngine;
   private readonly opts: PlantManagerOpts;
   private readonly plants: SkinMeshPlantHandle[] = [];
+  /** Parallel array — plants[i].bedIdx for phenotyping survey bed-of-interest filter. */
+  private readonly plantBedIdx: number[] = [];
+  /** Parallel array — plants[i].seed (engine 호출용). */
+  private readonly plantSeed: number[] = [];
   /** boot 시작 시점 heap (R2: avgKB 계산 baseline). */
   private heapAtStartBytes: number;
 
@@ -133,6 +137,42 @@ export class PlantManager {
   /** Geometry 최대 — slotOrder × activeBeds (showcase 1 제외). */
   getGeomMax(): number {
     return this.opts.slotOrder.length * this.opts.activeBedIndices.length - 1;
+  }
+
+  // ── Phenotyping survey API ─────────────────────────────────────────
+
+  /** Active bed indices in order they were registered (absolute bed ids). */
+  getActiveBedIndices(): readonly number[] {
+    return this.opts.activeBedIndices;
+  }
+
+  /** World Z of given bed (absolute bedIdx, NOT the activeBedIndices index). */
+  getBedZ(bedIdx: number): number {
+    return this.opts.bedZPositions[bedIdx];
+  }
+
+  /** Substrate top Y (all beds share). */
+  getSubstrateTopY(): number {
+    return this.opts.substrateTopY;
+  }
+
+  /** Bed index of given plant (parallel array, populated on add). */
+  getPlantBedIdx(plantIdx: number): number | undefined {
+    return this.plantBedIdx[plantIdx];
+  }
+
+  /** Engine seed of given plant (for engine.simulatePlantToMinute). */
+  getPlantSeed(plantIdx: number): number | undefined {
+    return this.plantSeed[plantIdx];
+  }
+
+  /** All plant indices belonging to the given bed. */
+  getPlantsInBed(bedIdx: number): number[] {
+    const out: number[] = [];
+    for (let i = 0; i < this.plantBedIdx.length; i++) {
+      if (this.plantBedIdx[i] === bedIdx) out.push(i);
+    }
+    return out;
   }
 
   /** Heap 한계 70% 기반 안전 max + status. R1 fix: at-limit 시 reason 명시. */
@@ -274,6 +314,8 @@ export class PlantManager {
       }
     }
     this.plants.length = 0;
+    this.plantBedIdx.length = 0;
+    this.plantSeed.length = 0;
   }
 
   // ── 내부 helper ────────────────────────────────────────────────────
@@ -345,6 +387,8 @@ export class PlantManager {
       });
       plant.setVisible(true);
       this.plants.push(plant);
+      this.plantBedIdx.push(bedIdx);
+      this.plantSeed.push(seed);
       this.opts.registerPlantRef(plant, this.plants.length);
       // 작물 위치 디버그 로그 (사용자 요청 "어디에 있는거냐" 진단용).
       // debug level — default silent, ?debug=plant URL 시만 출력. 진단 완료 후
@@ -365,6 +409,8 @@ export class PlantManager {
   private removeOne(): boolean {
     if (this.plants.length === 0) return false;
     const last = this.plants.pop();
+    this.plantBedIdx.pop();
+    this.plantSeed.pop();
     if (!last) return false;
     this.opts.registerPlantRef(null, this.plants.length + 1);
     try {

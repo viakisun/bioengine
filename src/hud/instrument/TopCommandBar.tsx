@@ -17,6 +17,7 @@ export function TopCommandBar({ scenarioId, day, onPicker, onFork, onCalibration
   const uiMode = useTwinStore((s) => s.uiMode);
   const setUiMode = useTwinStore((s) => s.setUiMode);
   const setSettingsOpen = useTwinStore((s) => s.setSettingsOpen);
+  const setHistoryDrawerOpen = useTwinStore((s) => s.setHistoryDrawerOpen);
   const toggleStatsOpen = useTwinStore((s) => s.toggleStatsOpen);
   const seed = getActiveSeed();
   const fps = usePerfStat();
@@ -74,6 +75,7 @@ export function TopCommandBar({ scenarioId, day, onPicker, onFork, onCalibration
         {fps == null ? '—' : `${fps} FPS`}
       </div>
 
+      <button style={iconBtnS} onClick={() => setHistoryDrawerOpen(true)} title="Survey history">📊</button>
       <button style={iconBtnS} onClick={() => setSettingsOpen(true)} title="Settings">⚙</button>
       <button style={iconBtnS} onClick={toggleStatsOpen} title="Toggle stats (?)">⋯</button>
     </header>

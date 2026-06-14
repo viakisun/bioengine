@@ -125,12 +125,13 @@ export function GimbalView({ scenarioId }: GimbalViewProps) {
       {/* Outer frame — dark chrome wrapping the 3 stacked panels */}
       <div style={outerS}>
 
-        {/* (1) Top label row — REC + GIMBAL CAM (separate row, not overlay) */}
+        {/* (1) Top label row — REC + survey phase chip + GIMBAL CAM */}
         <div style={topRowS}>
           <span className="iw-mono" style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'var(--iw-fg-hi)' }}>
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--iw-err)', animation: 'iw-recblink 1.6s infinite' }} />
             REC
           </span>
+          <SurveyPhaseChip />
           <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {manualOverride && (
               <span className="iw-mono" style={{ fontSize: 9, color: 'var(--iw-warn)', fontWeight: 600 }}>MANUAL</span>
@@ -164,6 +165,43 @@ export function GimbalView({ scenarioId }: GimbalViewProps) {
 }
 
 // ─── styles ─────────────────────────────────────
+function SurveyPhaseChip() {
+  const sv = useTwinStore((s) => s.phenotypingSurvey);
+  if (sv.status === 'idle') return null;
+  const phase = sv.currentPhase;
+  let label = '';
+  let color = 'var(--iw-fg-mute)';
+  if (phase === 'moving') {
+    label = `→ z${sv.completedZones}/${sv.totalZones}`;
+  } else if (phase === 'settling') {
+    label = '· settling';
+  } else if (phase === 'capturing') {
+    label = `● CAPTURING z${sv.completedZones + 1}`;
+    color = 'var(--iw-accent)';
+  } else if (phase === 'done') {
+    label = '✓ done';
+    color = 'var(--iw-ok)';
+  }
+  if (!label) return null;
+  return (
+    <span
+      className="iw-mono"
+      style={{
+        fontSize: 9,
+        color,
+        fontWeight: 600,
+        letterSpacing: '0.04em',
+        background: 'rgba(0,0,0,0.4)',
+        padding: '1px 6px',
+        borderRadius: 3,
+        animation: phase === 'capturing' ? 'iw-recblink 1.4s infinite' : undefined,
+      }}
+    >
+      {label}
+    </span>
+  );
+}
+
 const pipS: React.CSSProperties = {
   position: 'fixed',
   top: 58,

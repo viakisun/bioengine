@@ -16,6 +16,7 @@
 import type { ScenarioSpec } from './types';
 import { getSinglePlantEngine } from '../hud/single-plant/useSinglePlantState';
 import { SHOWCASE_SEED } from '../scene/SceneInfrastructure';
+import { useTwinStore } from '../state/twinStore';
 
 export interface MetricResult {
   metric: string;
@@ -36,6 +37,16 @@ export function measureMetric(
   let note = metric.note;
 
   switch (metric.metric) {
+    case 'coverage-pct': {
+      // Real measurement from twinStore.phenotypingSurvey: weighted coverage
+      // averaged across completed zones. Reflects bed-of-interest filter +
+      // working-distance gate + solid-angle confidence (see detect.ts).
+      // Falls back to 0 if no zones captured yet.
+      const zones = useTwinStore.getState().phenotypingSurvey.zones;
+      const arr = Object.values(zones);
+      value = arr.length === 0 ? 0 : arr.reduce((a, z) => a + z.coverage, 0) / arr.length;
+      break;
+    }
     case 'fov-fruit-coverage': {
       // 간이: 현재 식물의 total fruit 개수 / 화면 max 표현 가능 (~20).
       // 실제 ray cast는 V2.

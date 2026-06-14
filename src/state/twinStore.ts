@@ -594,6 +594,57 @@ interface TwinState {
   shellToast: { kind: 'webgpu' | 'info' | null; visible: boolean };
   dismissShellToast: () => void;
 
+  /** History drawer (saved survey records). */
+  historyDrawerOpen: boolean;
+  setHistoryDrawerOpen: (v: boolean) => void;
+  /** Last completed survey id — drives auto-open of SurveyResultSheet. */
+  lastSurveyId: string | null;
+  setLastSurveyId: (id: string | null) => void;
+  /** Currently viewed survey (from history) — null means showing live. */
+  viewingSurveyId: string | null;
+  setViewingSurveyId: (id: string | null) => void;
+
+  /** Phenotyping survey live state. zones populated as runner captures each. */
+  phenotypingSurvey: {
+    status: 'idle' | 'running' | 'paused' | 'done';
+    currentZoneId: string | null;
+    currentPhase: 'idle' | 'moving' | 'settling' | 'capturing' | 'done';
+    totalZones: number;
+    completedZones: number;
+    startedAtMs: number | null;
+    elapsedMs: number;
+    zones: Record<string, {
+      completedAt: string;
+      targetBedId: number;
+      bedSide: 'left' | 'right';
+      direction: 'forward' | 'return';
+      fruitCount: number;
+      weightedCount: number;
+      expectedFruitCount: number;
+      coverage: number;
+      avgConfidence: number;
+      bins: { green: number; breaker: number; turning: number; pink: number; red: number };
+      weightedBins: { green: number; breaker: number; turning: number; pink: number; red: number };
+    }>;
+  };
+  surveySetTotalZones: (n: number) => void;
+  surveySetStatus: (s: 'idle' | 'running' | 'paused' | 'done') => void;
+  surveySetPhase: (p: 'idle' | 'moving' | 'settling' | 'capturing' | 'done', zoneId: string | null) => void;
+  surveyRecordZone: (zoneId: string, data: {
+    completedAt: string;
+    targetBedId: number;
+    bedSide: 'left' | 'right';
+    direction: 'forward' | 'return';
+    fruitCount: number;
+    weightedCount: number;
+    expectedFruitCount: number;
+    coverage: number;
+    avgConfidence: number;
+    bins: { green: number; breaker: number; turning: number; pink: number; red: number };
+    weightedBins: { green: number; breaker: number; turning: number; pink: number; red: number };
+  }) => void;
+  surveyReset: () => void;
+
   // -- Boot progress + notifications + live log + env --
   boot: BootSnapshot;
   notifications: Notification[];
@@ -891,6 +942,57 @@ export const useTwinStore = create<TwinState>((set) => ({
   toggleStatsOpen: () => set((s) => ({ statsOpen: !s.statsOpen })),
   shellToast: { kind: 'webgpu', visible: true },
   dismissShellToast: () => set({ shellToast: { kind: null, visible: false } }),
+
+  historyDrawerOpen: false,
+  setHistoryDrawerOpen: (v) => set({ historyDrawerOpen: v }),
+  lastSurveyId: null,
+  setLastSurveyId: (id) => set({ lastSurveyId: id }),
+  viewingSurveyId: null,
+  setViewingSurveyId: (id) => set({ viewingSurveyId: id }),
+
+  phenotypingSurvey: {
+    status: 'idle',
+    currentZoneId: null,
+    currentPhase: 'idle',
+    totalZones: 0,
+    completedZones: 0,
+    startedAtMs: null,
+    elapsedMs: 0,
+    zones: {},
+  },
+  surveySetTotalZones: (n) =>
+    set((s) => ({ phenotypingSurvey: { ...s.phenotypingSurvey, totalZones: n } })),
+  surveySetStatus: (status) =>
+    set((s) => {
+      const startedAtMs = status === 'running' && s.phenotypingSurvey.startedAtMs == null
+        ? performance.now()
+        : s.phenotypingSurvey.startedAtMs;
+      return { phenotypingSurvey: { ...s.phenotypingSurvey, status, startedAtMs } };
+    }),
+  surveySetPhase: (currentPhase, currentZoneId) =>
+    set((s) => ({ phenotypingSurvey: { ...s.phenotypingSurvey, currentPhase, currentZoneId } })),
+  surveyRecordZone: (zoneId, data) =>
+    set((s) => {
+      const zones = { ...s.phenotypingSurvey.zones, [zoneId]: data };
+      const completedZones = Object.keys(zones).length;
+      const elapsedMs = s.phenotypingSurvey.startedAtMs == null
+        ? 0
+        : performance.now() - s.phenotypingSurvey.startedAtMs;
+      return { phenotypingSurvey: { ...s.phenotypingSurvey, zones, completedZones, elapsedMs } };
+    }),
+  surveyReset: () =>
+    set({
+      phenotypingSurvey: {
+        status: 'idle',
+        currentZoneId: null,
+        currentPhase: 'idle',
+        totalZones: 0,
+        completedZones: 0,
+        startedAtMs: null,
+        elapsedMs: 0,
+        zones: {},
+      },
+    }),
 
   // -- Boot progress + notifications + live log + env --
   boot: {
