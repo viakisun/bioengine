@@ -168,19 +168,24 @@ export function GimbalView({ scenarioId }: GimbalViewProps) {
 function SurveyPhaseChip() {
   const sv = useTwinStore((s) => s.phenotypingSurvey);
   if (sv.status === 'idle') return null;
-  const phase = sv.currentPhase;
+  const phase = sv.phase;
   let label = '';
   let color = 'var(--iw-fg-mute)';
-  if (phase === 'moving') {
-    label = `→ z${sv.completedZones}/${sv.totalZones}`;
-  } else if (phase === 'settling') {
-    label = '· settling';
-  } else if (phase === 'capturing') {
-    label = `● CAPTURING z${sv.completedZones + 1}`;
+  let blink = false;
+  if (phase === 'traversing-forward') { label = `→ scanning L (${(sv.progress * 100).toFixed(0)}%)`; }
+  else if (phase === 'traversing-return') { label = `← scanning R (${(sv.progress * 100).toFixed(0)}%)`; }
+  else if (phase === 'stitching-forward' || phase === 'stitching-return') {
+    label = '· stitching panorama';
+  } else if (phase === 'detecting-forward' || phase === 'detecting-return') {
+    label = `● DETECTING ${sv.detectorId}`;
     color = 'var(--iw-accent)';
+    blink = true;
   } else if (phase === 'done') {
     label = '✓ done';
     color = 'var(--iw-ok)';
+  } else if (phase === 'aborted') {
+    label = '✗ aborted';
+    color = 'var(--iw-err)';
   }
   if (!label) return null;
   return (
@@ -194,7 +199,7 @@ function SurveyPhaseChip() {
         background: 'rgba(0,0,0,0.4)',
         padding: '1px 6px',
         borderRadius: 3,
-        animation: phase === 'capturing' ? 'iw-recblink 1.4s infinite' : undefined,
+        animation: blink ? 'iw-recblink 1.4s infinite' : undefined,
       }}
     >
       {label}

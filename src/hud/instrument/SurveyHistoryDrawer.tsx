@@ -101,8 +101,7 @@ export function SurveyHistoryDrawer() {
           )}
           {!loading && records.map((r) => {
             const date = new Date(r.startedAt);
-            const cov = (r.totals.coverage * 100).toFixed(0);
-            const covColor = r.totals.coverage >= 0.85 ? 'var(--iw-ok)' : r.totals.coverage >= 0.6 ? 'var(--iw-warn)' : 'var(--iw-err)';
+            const statusColor = r.status === 'completed' ? 'var(--iw-ok)' : r.status === 'aborted' ? 'var(--iw-err)' : 'var(--iw-warn)';
             return (
               <div
                 key={r.id}
@@ -114,14 +113,17 @@ export function SurveyHistoryDrawer() {
                   <span className="iw-mono" style={{ fontSize: 11, color: 'var(--iw-fg-hi)' }}>
                     {r.scenarioId}
                   </span>
-                  <span className="iw-mono" style={{ fontSize: 10, color: covColor, fontWeight: 600 }}>
-                    {cov}%
+                  <span className="iw-mono" style={{ fontSize: 10, color: statusColor, fontWeight: 600 }}>
+                    {r.status}
                   </span>
                 </div>
                 <div className="iw-mono" style={{ fontSize: 10, color: 'var(--iw-fg-mute)', display: 'flex', gap: 10 }}>
                   <span>d{r.cropDay}</span>
                   <span>{r.cropSeed}</span>
-                  <span>{r.totals.fruitCount}f · {r.totals.weightedCount.toFixed(0)}w</span>
+                  <span style={{ color: 'var(--iw-accent)' }}>{r.totals.fruitCount}f</span>
+                </div>
+                <div className="iw-mono" style={{ fontSize: 9, color: 'var(--iw-fg-faint)', marginTop: 3 }}>
+                  detector: {r.detectorLabel}
                 </div>
                 <div className="iw-mono" style={{ fontSize: 9, color: 'var(--iw-fg-faint)', marginTop: 3, display: 'flex', justifyContent: 'space-between' }}>
                   <span>{date.toLocaleString()}</span>

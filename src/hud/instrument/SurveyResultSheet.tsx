@@ -8,8 +8,8 @@ import { useEffect, useState } from 'react';
 import { useTwinStore } from '../../state/twinStore';
 import { surveyStore, downloadBlob, type SurveyRecord } from '../../scenarios/phenotyping/surveyStore';
 import { RipenessHistogram } from './charts/RipenessHistogram';
-import { BedZoneHeatmap, type ZoneCell } from './charts/BedZoneHeatmap';
 import { KpiCard } from './charts/KpiCard';
+import { PanoramaViewer } from './PanoramaViewer';
 
 export function SurveyResultSheet() {
   const lastSurveyId = useTwinStore((s) => s.lastSurveyId);
@@ -64,15 +64,6 @@ function SurveyResultContent({ record, onClose }: { record: SurveyRecord; onClos
   const elapsedSec = Math.round(record.elapsedMs / 1000);
   const t = record.totals;
 
-  const zoneCells: ZoneCell[] = record.zones.map((z, i) => ({
-    zoneId: z.zoneId,
-    bedId: z.targetBedId,
-    index: i,
-    bedSide: z.bedSide,
-    weightedCount: z.weightedCount,
-    bins: z.bins,
-  }));
-
   function onExport() {
     surveyStore.exportJSON(record.id).then((blob) => {
       const filename = `phytosim-survey-${record.scenarioId}-d${record.cropDay}-${record.id.slice(0, 8)}.json`;
@@ -85,6 +76,20 @@ function SurveyResultContent({ record, onClose }: { record: SurveyRecord; onClos
     surveyStore.delete(record.id).then(onClose);
   }
 
+  // Detections grouped per side
+  const leftPano = record.panoramas.find((p) => p.side === 'left');
+  const rightPano = record.panoramas.find((p) => p.side === 'right');
+  const leftDetections = record.detections.filter((d) => {
+    if (!leftPano) return false;
+    const w = d.worldX;
+    return w == null || (w >= leftPano.railStartX && w <= leftPano.railEndX);
+  });
+  const rightDetections = record.detections.filter((d) => {
+    if (!rightPano) return false;
+    const w = d.worldX;
+    return w == null || (w >= rightPano.railStartX && w <= rightPano.railEndX);
+  });
+
   return (
     <>
       {/* Header */}
@@ -95,6 +100,9 @@ function SurveyResultContent({ record, onClose }: { record: SurveyRecord; onClos
             {record.scenarioId} · day {record.cropDay} · seed {record.cropSeed}
             <span style={{ color: 'var(--iw-fg-faint)' }}> · {startedDate.toLocaleString()}</span>
           </div>
+          <div className="iw-mono" style={{ fontSize: 10, color: 'var(--iw-fg-mute)', marginTop: 2 }}>
+            detector: <span style={{ color: 'var(--iw-accent)' }}>{record.detector.label}</span>
+          </div>
         </div>
         <button onClick={onClose} style={closeXBtnS} aria-label="close">×</button>
       </div>
@@ -102,36 +110,43 @@ function SurveyResultContent({ record, onClose }: { record: SurveyRecord; onClos
       <div style={bodyS}>
         {/* KPI grid */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 22 }}>
-          <KpiCard label="Zones" value={t.zoneCount} />
-          <KpiCard label="Fruits (raw)" value={t.fruitCount} />
-          <KpiCard label="Weighted" value={t.weightedCount.toFixed(1)} color="var(--iw-accent)" />
-          <KpiCard
-            label="Coverage"
-            value={(t.coverage * 100).toFixed(0)}
-            unit="%"
-            color={t.coverage >= 0.85 ? 'var(--iw-ok)' : t.coverage >= 0.6 ? 'var(--iw-warn)' : 'var(--iw-err)'}
-          />
+          <KpiCard label="Fruits" value={t.fruitCount} color="var(--iw-accent)" />
           <KpiCard label="Avg conf" value={t.avgConfidence.toFixed(2)} />
-          <KpiCard label="Path" value={record.pathLengthM.toFixed(1)} unit="m" />
-          <KpiCard label="Elapsed" value={elapsedSec} unit="s" />
+          <KpiCard label="Panoramas" value={record.panoramas.length} unit={record.panoramas.length > 0 ? `· ${record.totals.panoramaWidthPx}px` : undefined} />
           <KpiCard
             label="Status"
             value={record.status}
             color={record.status === 'completed' ? 'var(--iw-ok)' : 'var(--iw-warn)'}
           />
+          <KpiCard label="Frames" value={record.capture.frameCount} />
+          <KpiCard label="Path" value={record.pathLengthM.toFixed(1)} unit="m" />
+          <KpiCard label="Elapsed" value={elapsedSec} unit="s" />
+          <KpiCard label="Speed" value={record.capture.speedMps.toFixed(2)} unit="m/s" />
         </div>
 
         {/* Ripeness histogram */}
         <SectionHeader label="RIPENESS DISTRIBUTION" />
         <div style={{ marginBottom: 22 }}>
-          <RipenessHistogram bins={t.bins} weightedBins={t.weightedBins} height={140} />
+          <RipenessHistogram bins={t.bins} height={140} showToggle={false} />
         </div>
 
-        {/* Bed × Zone heatmap */}
-        <SectionHeader label="BED × ZONE" trailing={`${zoneCells.length} cells`} />
-        <div style={{ marginBottom: 22 }}>
-          <BedZoneHeatmap zones={zoneCells} />
-        </div>
+        {/* Panoramas with bbox overlay */}
+        {leftPano && (
+          <>
+            <SectionHeader label="LEFT BED PANORAMA" trailing={`${leftPano.widthPx}×${leftPano.heightPx} · ${leftDetections.length} det`} />
+            <div style={{ marginBottom: 22 }}>
+              <PanoramaViewer panorama={leftPano} detections={leftDetections} displayHeight={200} />
+            </div>
+          </>
+        )}
+        {rightPano && (
+          <>
+            <SectionHeader label="RIGHT BED PANORAMA" trailing={`${rightPano.widthPx}×${rightPano.heightPx} · ${rightDetections.length} det`} />
+            <div style={{ marginBottom: 22 }}>
+              <PanoramaViewer panorama={rightPano} detections={rightDetections} displayHeight={200} />
+            </div>
+          </>
+        )}
 
         {/* Run metadata */}
         <SectionHeader label="RUN METADATA" />
@@ -143,7 +158,9 @@ function SurveyResultContent({ record, onClose }: { record: SurveyRecord; onClos
           <Meta k="robot" v={record.robotProfile} />
           <Meta k="camera" v={`${record.cameraConfig.lensFovDeg}° · h${record.cameraConfig.mountHeightM}m`} />
           <Meta k="rule" v={record.rule} />
-          <Meta k="detector" v={`${record.detector.version} · wd ${record.detector.workingDistanceM.min}~${record.detector.workingDistanceM.max}m`} />
+          <Meta k="detector" v={`${record.detector.id} (${record.detector.source})`} />
+          <Meta k="capture" v={`${record.capture.frameCount} frames · ${record.capture.captureEveryM}m spacing`} />
+          <Meta k="pxPerM" v={`${record.totals.pxPerM}`} />
         </div>
 
         {/* Actions */}

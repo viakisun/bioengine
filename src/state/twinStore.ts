@@ -604,45 +604,47 @@ interface TwinState {
   viewingSurveyId: string | null;
   setViewingSurveyId: (id: string | null) => void;
 
-  /** Phenotyping survey live state. zones populated as runner captures each. */
+  /** Phenotyping survey v2 live state — continuous traverse + stitching + detect. */
   phenotypingSurvey: {
     status: 'idle' | 'running' | 'paused' | 'done';
-    currentZoneId: string | null;
-    currentPhase: 'idle' | 'moving' | 'settling' | 'capturing' | 'done';
-    totalZones: number;
-    completedZones: number;
+    /** Current pipeline phase. */
+    phase:
+      | 'idle'
+      | 'traversing-forward'
+      | 'stitching-forward'
+      | 'detecting-forward'
+      | 'traversing-return'
+      | 'stitching-return'
+      | 'detecting-return'
+      | 'done'
+      | 'aborted';
+    /** 0..1 overall progress (rail completion + post-process). */
+    progress: number;
+    /** Live frame counter (current pass). */
+    frameCount: number;
     startedAtMs: number | null;
     elapsedMs: number;
-    zones: Record<string, {
-      completedAt: string;
-      targetBedId: number;
-      bedSide: 'left' | 'right';
-      direction: 'forward' | 'return';
+    /** Detection counts updated after each detector run. */
+    totals: {
       fruitCount: number;
-      weightedCount: number;
-      expectedFruitCount: number;
-      coverage: number;
-      avgConfidence: number;
       bins: { green: number; breaker: number; turning: number; pink: number; red: number };
-      weightedBins: { green: number; breaker: number; turning: number; pink: number; red: number };
-    }>;
+      avgConfidence: number;
+    };
+    /** Last successful side's panorama key (for live preview). */
+    lastPanoramaKey: string | null;
+    /** Selected detector id (persisted via local set). */
+    detectorId: 'hsv-v1' | 'onnx-yolo-v1' | 'ground-truth';
+    /** ONNX model download progress 0..1 (only meaningful for onnx-yolo-v1). */
+    detectorLoadProgress: number;
   };
-  surveySetTotalZones: (n: number) => void;
   surveySetStatus: (s: 'idle' | 'running' | 'paused' | 'done') => void;
-  surveySetPhase: (p: 'idle' | 'moving' | 'settling' | 'capturing' | 'done', zoneId: string | null) => void;
-  surveyRecordZone: (zoneId: string, data: {
-    completedAt: string;
-    targetBedId: number;
-    bedSide: 'left' | 'right';
-    direction: 'forward' | 'return';
-    fruitCount: number;
-    weightedCount: number;
-    expectedFruitCount: number;
-    coverage: number;
-    avgConfidence: number;
-    bins: { green: number; breaker: number; turning: number; pink: number; red: number };
-    weightedBins: { green: number; breaker: number; turning: number; pink: number; red: number };
-  }) => void;
+  surveySetPhase: (p: 'idle' | 'traversing-forward' | 'stitching-forward' | 'detecting-forward' | 'traversing-return' | 'stitching-return' | 'detecting-return' | 'done' | 'aborted') => void;
+  surveySetProgress: (p: number) => void;
+  surveySetFrameCount: (n: number) => void;
+  surveySetTotals: (totals: { fruitCount: number; bins: { green: number; breaker: number; turning: number; pink: number; red: number }; avgConfidence: number }) => void;
+  surveySetLastPanoramaKey: (k: string | null) => void;
+  surveySetDetectorId: (id: 'hsv-v1' | 'onnx-yolo-v1' | 'ground-truth') => void;
+  surveySetDetectorLoadProgress: (p: number) => void;
   surveyReset: () => void;
 
   // -- Boot progress + notifications + live log + env --
@@ -952,47 +954,57 @@ export const useTwinStore = create<TwinState>((set) => ({
 
   phenotypingSurvey: {
     status: 'idle',
-    currentZoneId: null,
-    currentPhase: 'idle',
-    totalZones: 0,
-    completedZones: 0,
+    phase: 'idle',
+    progress: 0,
+    frameCount: 0,
     startedAtMs: null,
     elapsedMs: 0,
-    zones: {},
+    totals: { fruitCount: 0, bins: { green: 0, breaker: 0, turning: 0, pink: 0, red: 0 }, avgConfidence: 0 },
+    lastPanoramaKey: null,
+    detectorId: 'hsv-v1',
+    detectorLoadProgress: 0,
   },
-  surveySetTotalZones: (n) =>
-    set((s) => ({ phenotypingSurvey: { ...s.phenotypingSurvey, totalZones: n } })),
   surveySetStatus: (status) =>
     set((s) => {
       const startedAtMs = status === 'running' && s.phenotypingSurvey.startedAtMs == null
         ? performance.now()
         : s.phenotypingSurvey.startedAtMs;
-      return { phenotypingSurvey: { ...s.phenotypingSurvey, status, startedAtMs } };
+      const elapsedMs = startedAtMs == null ? 0 : performance.now() - startedAtMs;
+      return { phenotypingSurvey: { ...s.phenotypingSurvey, status, startedAtMs, elapsedMs } };
     }),
-  surveySetPhase: (currentPhase, currentZoneId) =>
-    set((s) => ({ phenotypingSurvey: { ...s.phenotypingSurvey, currentPhase, currentZoneId } })),
-  surveyRecordZone: (zoneId, data) =>
+  surveySetPhase: (phase) =>
+    set((s) => ({ phenotypingSurvey: { ...s.phenotypingSurvey, phase } })),
+  surveySetProgress: (progress) =>
+    set((s) => ({ phenotypingSurvey: { ...s.phenotypingSurvey, progress: Math.max(0, Math.min(1, progress)) } })),
+  surveySetFrameCount: (frameCount) =>
+    set((s) => ({ phenotypingSurvey: { ...s.phenotypingSurvey, frameCount } })),
+  surveySetTotals: (totals) =>
     set((s) => {
-      const zones = { ...s.phenotypingSurvey.zones, [zoneId]: data };
-      const completedZones = Object.keys(zones).length;
-      const elapsedMs = s.phenotypingSurvey.startedAtMs == null
-        ? 0
-        : performance.now() - s.phenotypingSurvey.startedAtMs;
-      return { phenotypingSurvey: { ...s.phenotypingSurvey, zones, completedZones, elapsedMs } };
+      const startedAtMs = s.phenotypingSurvey.startedAtMs;
+      const elapsedMs = startedAtMs == null ? 0 : performance.now() - startedAtMs;
+      return { phenotypingSurvey: { ...s.phenotypingSurvey, totals, elapsedMs } };
     }),
+  surveySetLastPanoramaKey: (k) =>
+    set((s) => ({ phenotypingSurvey: { ...s.phenotypingSurvey, lastPanoramaKey: k } })),
+  surveySetDetectorId: (id) =>
+    set((s) => ({ phenotypingSurvey: { ...s.phenotypingSurvey, detectorId: id } })),
+  surveySetDetectorLoadProgress: (p) =>
+    set((s) => ({ phenotypingSurvey: { ...s.phenotypingSurvey, detectorLoadProgress: Math.max(0, Math.min(1, p)) } })),
   surveyReset: () =>
-    set({
+    set((s) => ({
       phenotypingSurvey: {
         status: 'idle',
-        currentZoneId: null,
-        currentPhase: 'idle',
-        totalZones: 0,
-        completedZones: 0,
+        phase: 'idle',
+        progress: 0,
+        frameCount: 0,
         startedAtMs: null,
         elapsedMs: 0,
-        zones: {},
+        totals: { fruitCount: 0, bins: { green: 0, breaker: 0, turning: 0, pink: 0, red: 0 }, avgConfidence: 0 },
+        lastPanoramaKey: null,
+        detectorId: s.phenotypingSurvey.detectorId,  // preserve user selection
+        detectorLoadProgress: 0,
       },
-    }),
+    })),
 
   // -- Boot progress + notifications + live log + env --
   boot: {

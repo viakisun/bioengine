@@ -16,30 +16,64 @@ export interface RobotRailState {
   current: number;
   rangeM: number;
   dir: 1 | -1;
+  /** Target X for smooth-motion path. null means "no active target" — manual
+   *  setRail/nudgeRail callers leave this null so the smooth loop ignores. */
+  target: number | null;
+  /** Speed cap for smooth motion (m/s). Survey runner reads scenario.task.speedMps. */
+  smoothSpeedMps: number;
 }
 
 export const railRef: RobotRailState = {
   current: 0,
   rangeM: 14,
   dir: 1,
+  target: null,
+  smoothSpeedMps: 0.3,
 };
 
 export function initRobotRail(startX: number, rangeM: number): void {
   railRef.current = clampRail(startX, rangeM);
   railRef.rangeM = rangeM;
   railRef.dir = 1;
+  railRef.target = null;
 }
 
 export function clampRail(x: number, rangeM = railRef.rangeM): number {
   return Math.max(-rangeM, Math.min(rangeM, x));
 }
 
+/** Instant teleport. Used by manual UI sliders / WASD. Clears any active target. */
 export function setRail(x: number): void {
   railRef.current = clampRail(x);
+  railRef.target = null;
 }
 
 export function nudgeRail(dx: number): void {
   railRef.current = clampRail(railRef.current + dx);
+  railRef.target = null;
+}
+
+/** Set a smooth-motion target. BabylonEngine traverse loop will interpolate
+ *  railRef.current toward this at smoothSpeedMps. Cleared on arrival. */
+export function setRailTarget(targetX: number, speedMps?: number): void {
+  railRef.target = clampRail(targetX);
+  if (speedMps != null && speedMps > 0) railRef.smoothSpeedMps = speedMps;
+}
+
+/** Advance railRef.current toward target by speedMps × dt. Returns true if
+ *  arrived (target cleared) this tick, false otherwise. */
+export function tickSmoothMotion(dt: number): boolean {
+  const t = railRef.target;
+  if (t == null) return false;
+  const remaining = t - railRef.current;
+  const maxStep = railRef.smoothSpeedMps * dt;
+  if (Math.abs(remaining) <= maxStep) {
+    railRef.current = t;
+    railRef.target = null;
+    return true;
+  }
+  railRef.current = clampRail(railRef.current + Math.sign(remaining) * maxStep);
+  return false;
 }
 
 // ── Gimbal cam viewport sync (DOM PiP frame ↔ Babylon viewport) ──────────

@@ -11,7 +11,6 @@ import { measureAllForScenario, type MetricResult } from '../../scenarios/metric
 import { useTwinStore } from '../../state/twinStore';
 import { railRef } from '../../scene/robot/robotControlState';
 import { RipenessHistogram } from '../../hud/instrument/charts/RipenessHistogram';
-import { BedZoneHeatmap, type ZoneCell } from '../../hud/instrument/charts/BedZoneHeatmap';
 import { KpiCard } from '../../hud/instrument/charts/KpiCard';
 import { ProgressBar } from '../../hud/instrument/charts/ProgressBar';
 
@@ -258,17 +257,8 @@ export function TaskPanel({ scenario }: TaskPanelProps) {
 
 function PhenotypingLiveSection() {
   const sv = useTwinStore((s) => s.phenotypingSurvey);
-  const completed = Object.values(sv.zones);
 
-  // Aggregate totals across captured zones
-  const totals = aggregateTotals(sv.zones);
-  const progress = sv.totalZones === 0 ? 0 : sv.completedZones / sv.totalZones;
-  const elapsedSec = sv.elapsedMs / 1000;
-  const eta = sv.completedZones > 0 && sv.totalZones > sv.completedZones
-    ? Math.round(elapsedSec / sv.completedZones * (sv.totalZones - sv.completedZones))
-    : null;
-
-  if (sv.status === 'idle' && completed.length === 0) {
+  if (sv.status === 'idle' && sv.totals.fruitCount === 0) {
     return (
       <div style={{ marginBottom: 22 }}>
         <SubHead label="PHENOTYPING SURVEY" trailing="idle" />
@@ -282,142 +272,80 @@ function PhenotypingLiveSection() {
           lineHeight: 1.5,
         }}>
           Press <span style={{ color: 'var(--iw-accent)', fontWeight: 600 }}>START SURVEY</span> in the
-          robot transport dock to begin zone-by-zone fruit recognition. Results appear here in real time.
+          robot transport dock. The robot will traverse the rail, capture frames, stitch them into a
+          panorama, then run the selected detector ({sv.detectorId}) once on the full image.
         </div>
       </div>
     );
   }
 
+  const phaseLabel = formatPhase(sv.phase);
+  const elapsedSec = sv.elapsedMs / 1000;
+  const dominantBin = (Object.entries(sv.totals.bins) as Array<[keyof typeof sv.totals.bins, number]>)
+    .reduce((a, b) => (b[1] > a[1] ? b : a), ['green', 0] as [keyof typeof sv.totals.bins, number])[0];
+
   return (
     <div style={{ marginBottom: 22 }}>
-      {/* Progress */}
       <SubHead
         label="SURVEY PROGRESS"
         trailing={
           <span>
-            {sv.completedZones}/{sv.totalZones} · {sv.status}
-            {eta != null && <span style={{ color: 'var(--iw-fg-faint)' }}> · ETA {eta}s</span>}
+            {(sv.progress * 100).toFixed(0)}% · <span style={{ color: 'var(--iw-fg-mid)' }}>{phaseLabel}</span>
+            <span style={{ color: 'var(--iw-fg-faint)' }}> · {elapsedSec.toFixed(0)}s</span>
           </span>
         }
       />
       <div style={{ marginBottom: 14 }}>
-        <ProgressBar value={progress} />
+        <ProgressBar value={sv.progress} />
       </div>
+
+      {/* ONNX load progress (only when downloading) */}
+      {sv.phase.startsWith('detecting') && sv.detectorId === 'onnx-yolo-v1' && sv.detectorLoadProgress > 0 && sv.detectorLoadProgress < 1 && (
+        <div style={{ marginBottom: 14 }}>
+          <SubHead label="MODEL DOWNLOAD" trailing={`${(sv.detectorLoadProgress * 100).toFixed(0)}%`} />
+          <ProgressBar value={sv.detectorLoadProgress} color="var(--iw-warn)" />
+        </div>
+      )}
 
       {/* KPI grid */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 14 }}>
-        <KpiCard label="Fruits (raw)" value={totals.fruitCount} />
+        <KpiCard label="Fruits" value={sv.totals.fruitCount} />
+        <KpiCard label="Frames" value={sv.frameCount} />
         <KpiCard
-          label="Weighted"
-          value={totals.weightedCount.toFixed(1)}
-          color="var(--iw-accent)"
+          label="Dominant"
+          value={dominantBin}
+          color={dominantBin === 'red' || dominantBin === 'pink' ? 'var(--iw-err)' : dominantBin === 'turning' || dominantBin === 'breaker' ? 'var(--iw-warn)' : 'var(--iw-ok)'}
         />
-        <KpiCard
-          label="Coverage"
-          value={(totals.coverage * 100).toFixed(0)}
-          unit="%"
-          color={totals.coverage >= 0.85 ? 'var(--iw-ok)' : totals.coverage >= 0.6 ? 'var(--iw-warn)' : 'var(--iw-err)'}
-        />
-        <KpiCard
-          label="Avg conf"
-          value={totals.avgConfidence.toFixed(2)}
-        />
+        <KpiCard label="Avg conf" value={sv.totals.avgConfidence.toFixed(2)} />
       </div>
 
       {/* Ripeness histogram */}
       <SubHead label="RIPENESS DISTRIBUTION" />
       <div style={{ marginBottom: 14 }}>
-        <RipenessHistogram bins={totals.bins} weightedBins={totals.weightedBins} height={110} />
+        <RipenessHistogram bins={sv.totals.bins} height={110} showToggle={false} />
       </div>
 
-      {/* Bed × Zone heatmap */}
-      <SubHead label="BED × ZONE" />
-      <div style={{ marginBottom: 14 }}>
-        <BedZoneHeatmap
-          zones={completed
-            .sort((a, b) => a.completedAt.localeCompare(b.completedAt))
-            .map((z, i): ZoneCell => ({
-              zoneId: Object.keys(sv.zones).find((k) => sv.zones[k] === z) ?? `z-${i}`,
-              bedId: z.targetBedId,
-              index: i,
-              bedSide: z.bedSide,
-              weightedCount: z.weightedCount,
-              bins: z.bins,
-            }))}
-        />
+      {/* Detector badge */}
+      <div className="iw-mono" style={{ fontSize: 10, color: 'var(--iw-fg-mute)', marginTop: 6 }}>
+        detector: <span style={{ color: 'var(--iw-fg-hi)' }}>{sv.detectorId}</span>
       </div>
-
-      {/* Last zone card */}
-      {sv.currentZoneId && sv.zones[sv.currentZoneId] && (
-        <>
-          <SubHead label="LAST CAPTURE" trailing={sv.currentZoneId} />
-          <div style={{
-            background: 'var(--iw-bg-2)',
-            border: '1px solid var(--iw-line-1)',
-            borderRadius: 6,
-            padding: '10px 11px',
-            fontFamily: 'var(--iw-font-mono)',
-            fontSize: 11,
-          }}>
-            {(() => {
-              const z = sv.zones[sv.currentZoneId];
-              return (
-                <>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--iw-fg-mid)', margin: '3px 0' }}>
-                    <span style={{ color: 'var(--iw-fg-mute)' }}>bed</span>
-                    {z.targetBedId} · {z.bedSide}
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--iw-fg-mid)', margin: '3px 0' }}>
-                    <span style={{ color: 'var(--iw-fg-mute)' }}>fruits</span>
-                    {z.fruitCount} <span style={{ color: 'var(--iw-fg-faint)' }}>/ {z.expectedFruitCount} expected</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--iw-fg-mid)', margin: '3px 0' }}>
-                    <span style={{ color: 'var(--iw-fg-mute)' }}>weighted</span>
-                    {z.weightedCount.toFixed(2)}
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--iw-fg-mid)', margin: '3px 0' }}>
-                    <span style={{ color: 'var(--iw-fg-mute)' }}>coverage</span>
-                    {(z.coverage * 100).toFixed(0)}%
-                  </div>
-                </>
-              );
-            })()}
-          </div>
-        </>
-      )}
     </div>
   );
 }
 
-function aggregateTotals(zones: Record<string, {
-  fruitCount: number;
-  weightedCount: number;
-  expectedFruitCount: number;
-  coverage: number;
-  avgConfidence: number;
-  bins: Record<'green' | 'breaker' | 'turning' | 'pink' | 'red', number>;
-  weightedBins: Record<'green' | 'breaker' | 'turning' | 'pink' | 'red', number>;
-}>) {
-  const arr = Object.values(zones);
-  const totals = {
-    fruitCount: 0,
-    weightedCount: 0,
-    coverage: 0,
-    avgConfidence: 0,
-    bins: { green: 0, breaker: 0, turning: 0, pink: 0, red: 0 },
-    weightedBins: { green: 0, breaker: 0, turning: 0, pink: 0, red: 0 },
-  };
-  for (const z of arr) {
-    totals.fruitCount += z.fruitCount;
-    totals.weightedCount += z.weightedCount;
-    (Object.keys(totals.bins) as Array<keyof typeof totals.bins>).forEach((b) => {
-      totals.bins[b] += z.bins[b] ?? 0;
-      totals.weightedBins[b] += z.weightedBins[b] ?? 0;
-    });
+function formatPhase(p: string): string {
+  switch (p) {
+    case 'idle': return 'idle';
+    case 'traversing-forward': return 'traversing left bed';
+    case 'stitching-forward': return 'stitching left panorama';
+    case 'detecting-forward': return 'detecting (left)';
+    case 'traversing-return': return 'traversing right bed';
+    case 'stitching-return': return 'stitching right panorama';
+    case 'detecting-return': return 'detecting (right)';
+    case 'done': return 'done';
+    case 'aborted': return 'aborted';
+    default: return p;
   }
-  totals.coverage = arr.length === 0 ? 0 : arr.reduce((a, z) => a + z.coverage, 0) / arr.length;
-  totals.avgConfidence = arr.length === 0 ? 0 : arr.reduce((a, z) => a + z.avgConfidence, 0) / arr.length;
-  return totals;
 }
 
 function TabBtn({ label, active, disabled, badge, onClick }: {

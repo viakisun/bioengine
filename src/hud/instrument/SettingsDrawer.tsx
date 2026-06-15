@@ -136,6 +136,10 @@ export function SettingsDrawer({ defoliationMaxCm = 100, defoliationEnabled, onO
             </Field>
           )}
 
+          {/* Detector selection (phenotyping survey) */}
+          <SectionHeader topGap>DETECTION ALGORITHM</SectionHeader>
+          <DetectorRadio />
+
           {/* Debug overlays */}
           <SectionHeader topGap>DEBUG OVERLAYS</SectionHeader>
           <Toggle label="Stats HUD" on={statsOpen} onClick={() => setStatsOpen(!statsOpen)} />
@@ -289,3 +293,64 @@ const accentBtnS: React.CSSProperties = {
   padding: 10,
   cursor: 'pointer',
 };
+
+// ── Detector radio (phenotyping survey) ────────────────────────────
+
+const DETECTOR_OPTIONS = [
+  { id: 'hsv-v1' as const, label: 'HSV color', hint: 'pixel thresholding · no model, fast' },
+  { id: 'onnx-yolo-v1' as const, label: 'ONNX YOLOv8', hint: 'COCO model (apple/orange → tomato), ~12MB' },
+  { id: 'ground-truth' as const, label: 'Ground Truth', hint: 'simulator oracle (no CV)' },
+];
+
+function DetectorRadio() {
+  const current = useTwinStore((s) => s.phenotypingSurvey.detectorId);
+  const setId = useTwinStore((s) => s.surveySetDetectorId);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {DETECTOR_OPTIONS.map((opt) => {
+        const active = current === opt.id;
+        return (
+          <button
+            key={opt.id}
+            onClick={() => setId(opt.id)}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'flex-start',
+              gap: 3,
+              padding: '8px 10px',
+              borderRadius: 6,
+              border: `1px solid ${active ? 'var(--iw-accent)' : 'var(--iw-line-2)'}`,
+              background: active ? 'var(--iw-accent-soft)' : 'var(--iw-bg-3)',
+              color: 'var(--iw-fg-hi)',
+              cursor: 'pointer',
+              fontFamily: 'var(--iw-font-ui)',
+              textAlign: 'left',
+            }}
+          >
+            <span style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              fontSize: 12,
+              fontWeight: active ? 600 : 500,
+              color: active ? 'var(--iw-accent)' : 'var(--iw-fg-hi)',
+            }}>
+              <span style={{
+                width: 9,
+                height: 9,
+                borderRadius: '50%',
+                border: `1px solid ${active ? 'var(--iw-accent)' : 'var(--iw-fg-mute)'}`,
+                background: active ? 'var(--iw-accent)' : 'transparent',
+              }} />
+              {opt.label}
+            </span>
+            <span className="iw-mono" style={{ fontSize: 10, color: 'var(--iw-fg-mute)' }}>
+              {opt.hint}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}

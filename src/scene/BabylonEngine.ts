@@ -26,7 +26,7 @@ import { setBootStage, logBoot, setEnvInfo, setEnvCounters, notify } from '../st
 import { setSinglePlantEngineRef, setSinglePlantSkinMeshRef, setCameraRigRef } from '../hud/single-plant/useSinglePlantState';
 import { setActiveSceneHandle } from './PlantManager';
 import { createRobot } from './robot/Robot';
-import { railRef, initRobotRail, gimbalCamRef } from './robot/robotControlState';
+import { railRef, initRobotRail, gimbalCamRef, tickSmoothMotion } from './robot/robotControlState';
 import { createLogger } from '../utils/logger';
 const log = createLogger('engine');
 
@@ -378,8 +378,12 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
               railRef.dir = 1;
               if (!r.gimbal.manualOverride) robot.setGimbalLookSide('left');
             }
+          } else if (r.mode === 'manual') {
+            // Smooth-motion target driven by survey runner (or any external caller).
+            // setRail/nudgeRail clear target → tickSmoothMotion is no-op.
+            tickSmoothMotion(dt);
           }
-          // mode === 'paused' or 'manual': railRef는 UI가 직접 mutate (자동 갱신 없음)
+          // mode === 'paused': no motion.
 
           robot.setRailPosition(railRef.current);
 

@@ -51,13 +51,12 @@ import { Toast } from '../../hud/instrument/Toast';
 import { RobotTransport } from '../../hud/instrument/RobotTransport';
 import { SurveyResultSheet } from '../../hud/instrument/SurveyResultSheet';
 import { SurveyHistoryDrawer } from '../../hud/instrument/SurveyHistoryDrawer';
-// Phenotyping survey engine
-import { planSurveyZones } from '../../scenarios/phenotyping/zonePlan';
+// Phenotyping survey v2 engine
 import { createSurveyRunner, type SurveyRunner } from '../../scenarios/phenotyping/surveyRunner';
-import { surveyStore, newSurveyId, type SurveyRecord, type ZoneRecord } from '../../scenarios/phenotyping/surveyStore';
+import { newSurveyId } from '../../scenarios/phenotyping/surveyStore';
 import { getActivePlantManager } from '../../scene/PlantManager';
 import { getSinglePlantEngine } from '../../hud/single-plant/useSinglePlantState';
-import { railRef, gimbalCamRef } from '../../scene/robot/robotControlState';
+import { gimbalCamRef } from '../../scene/robot/robotControlState';
 
 const log = createLogger('workbench');
 
@@ -254,6 +253,15 @@ export function Workbench() {
     [day, playing, playSpeed, setMinute, setPlaying, setPlaySpeedStore],
   );
 
+  // ── Phenotyping survey v2 orchestration (HOOKS first, before returns) ──
+  const surveyRunnerRef = useRef<SurveyRunner | null>(null);
+  const surveyStatus = useTwinStore((s) => s.phenotypingSurvey.status);
+
+  useEffect(() => () => {
+    surveyRunnerRef.current?.stop();
+    surveyRunnerRef.current = null;
+  }, []);
+
   if (view === 'picker') {
     return (
       <Picker
@@ -292,14 +300,8 @@ export function Workbench() {
     return <Calibration onCancel={() => setView(active ? 'workbench' : 'picker')} />;
   }
 
-  // ── Phenotyping survey orchestration ──────────────────────────────
-  // Maintain a single SurveyRunner per workbench mount.  Wire its
-  // callbacks into twinStore.phenotypingSurvey + surveyStore (IndexedDB).
-  const surveyRunnerRef = useRef<SurveyRunner | null>(null);
-  const surveyRecordRef = useRef<SurveyRecord | null>(null);
-  const surveyStatus = useTwinStore((s) => s.phenotypingSurvey.status);
-
-  const initSurveyRunner = (): SurveyRunner | null => {
+  // ── Phenotyping survey v2 handlers (plain functions, can use scenario var) ──
+  const buildRunner = (): SurveyRunner | null => {
     if (!active || active.domain !== 'phenotyping') return null;
     if (surveyRunnerRef.current) return surveyRunnerRef.current;
     const mgr = getActivePlantManager();
@@ -307,93 +309,48 @@ export function Workbench() {
     const cam = gimbalCamRef.current;
     if (!mgr || !eng || !cam) return null;
     const scene = cam.getScene();
-    const zones = planSurveyZones({ scenario: active, plantManager: mgr });
-    if (zones.length === 0) return null;
 
-    useTwinStore.getState().surveySetTotalZones(zones.length);
+    // Resolve nearest left + right beds for the rule.
+    const activeBeds = mgr.getActiveBedIndices();
+    const bedsWithZ = activeBeds.map((b) => ({ bedIdx: b, z: mgr.getBedZ(b) }));
+    const leftBeds = bedsWithZ.filter((b) => b.z > -0.8).sort((a, b) => (a.z + 0.8) - (b.z + 0.8));
+    const rightBeds = bedsWithZ.filter((b) => b.z < -0.8).sort((a, b) => (-0.8 - a.z) - (-0.8 - b.z));
+    const leftBedId  = leftBeds[0]?.bedIdx  ?? null;
+    const rightBedId = rightBeds[0]?.bedIdx ?? null;
+
+    const railRangeM = 14; // matches sceneOptions default
+    const speedMps = Math.max(0.05, active.task.speedMps || 0.3);
 
     const runner = createSurveyRunner({
-      zones, scene, camera: cam,
+      scene,
+      camera: cam,
       plantManager: mgr,
       growthEngine: eng,
-      getMinute: () => useTwinStore.getState().singlePlantMinute,
+      railRangeM,
+      speedMps,
+      captureEveryM: 0.3,
+      frameWidthPx: 320,
+      frameHeightPx: 180,
+      leftBedId,
+      rightBedId,
+      bedZ: {
+        left:  leftBedId  != null ? mgr.getBedZ(leftBedId)  : null,
+        right: rightBedId != null ? mgr.getBedZ(rightBedId) : null,
+      },
+      setGimbalPan: (rad) => useTwinStore.getState().setGimbalPan(rad),
       setRobotMode: (m) => useTwinStore.getState().setRobotMode(m),
-      setGimbalSide: (s) => {
-        // Use store action for manual pan override
-        if (s === 'left') useTwinStore.getState().setGimbalPan(0);
-        else if (s === 'right') useTwinStore.getState().setGimbalPan(Math.PI);
-        else useTwinStore.getState().setGimbalPan(-Math.PI / 2);
-      },
-      onPhaseChange: (phase, zi) => {
-        const zone = zones[zi];
-        useTwinStore.getState().surveySetPhase(phase, zone?.id ?? null);
-      },
-      onZoneCaptured: (result) => {
-        useTwinStore.getState().surveyRecordZone(result.zoneId, {
-          completedAt: result.capturedAt,
-          targetBedId: result.zone.targetBedId,
-          bedSide: result.zone.bedSide,
-          direction: result.zone.direction,
-          fruitCount: result.rawCount,
-          weightedCount: result.weightedCount,
-          expectedFruitCount: result.expectedFruitCount,
-          coverage: result.coverage,
-          avgConfidence: result.avgConfidence,
-          bins: result.bins,
-          weightedBins: result.weightedBins,
-        });
-        // Append zone to record for persistence
-        if (surveyRecordRef.current) {
-          const zr: ZoneRecord = {
-            zoneId: result.zoneId,
-            index: result.zone.index,
-            direction: result.zone.direction,
-            bedSide: result.zone.bedSide,
-            targetBedId: result.zone.targetBedId,
-            railX: result.zone.railX,
-            capturedAt: result.capturedAt,
-            fruits: result.fruits,
-            fruitCount: result.rawCount,
-            weightedCount: result.weightedCount,
-            expectedFruitCount: result.expectedFruitCount,
-            coverage: result.coverage,
-            avgConfidence: result.avgConfidence,
-            bins: result.bins,
-            weightedBins: result.weightedBins,
-          };
-          surveyRecordRef.current.zones.push(zr);
-        }
-      },
-      onDone: () => {
+      onPhaseChange: (phase) => useTwinStore.getState().surveySetPhase(phase),
+      onProgress: (p) => useTwinStore.getState().surveySetProgress(p),
+      onFrameCount: (n) => useTwinStore.getState().surveySetFrameCount(n),
+      onTotals: (totals) => useTwinStore.getState().surveySetTotals(totals),
+      onPanoramaSaved: (side, meta) => useTwinStore.getState().surveySetLastPanoramaKey(meta.blobKey),
+      onDetectorLoadProgress: (p) => useTwinStore.getState().surveySetDetectorLoadProgress(p),
+      onDone: (record) => {
         useTwinStore.getState().surveySetStatus('done');
-        const rec = surveyRecordRef.current;
-        if (!rec) return;
-        rec.completedAt = new Date().toISOString();
-        rec.status = 'completed';
-        rec.elapsedMs = useTwinStore.getState().phenotypingSurvey.elapsedMs;
-        // Path length: rail traverse (forward + return) ≈ 2 × range × #passes
-        rec.pathLengthM = 2 * 14 * (zones.filter((z) => z.direction === 'forward').length > 0 ? 1 : 0
-          + (zones.filter((z) => z.direction === 'return').length > 0 ? 1 : 0));
-        // Totals = aggregate
-        const t = { fruitCount: 0, weightedCount: 0, coverage: 0, avgConfidence: 0,
-          bins: { green: 0, breaker: 0, turning: 0, pink: 0, red: 0 },
-          weightedBins: { green: 0, breaker: 0, turning: 0, pink: 0, red: 0 } };
-        for (const z of rec.zones) {
-          t.fruitCount += z.fruitCount;
-          t.weightedCount += z.weightedCount;
-          (['green', 'breaker', 'turning', 'pink', 'red'] as const).forEach((b) => {
-            t.bins[b] += z.bins[b] ?? 0;
-            t.weightedBins[b] += z.weightedBins[b] ?? 0;
-          });
-        }
-        t.coverage = rec.zones.length === 0 ? 0
-          : rec.zones.reduce((a, z) => a + z.coverage, 0) / rec.zones.length;
-        t.avgConfidence = rec.zones.length === 0 ? 0
-          : rec.zones.reduce((a, z) => a + z.avgConfidence, 0) / rec.zones.length;
-        rec.totals = { zoneCount: rec.zones.length, ...t };
-        surveyStore.save(rec)
-          .then(() => useTwinStore.getState().setLastSurveyId(rec.id))
-          .catch((err) => log.warn('surveyStore.save failed:', err));
+        useTwinStore.getState().setLastSurveyId(record.id);
+      },
+      onError: (err) => {
+        log.warn('Survey error:', err);
       },
     });
     surveyRunnerRef.current = runner;
@@ -401,21 +358,14 @@ export function Workbench() {
   };
 
   const onStartSurvey = () => {
-    const runner = initSurveyRunner();
+    const runner = buildRunner();
     if (!runner || !active) return;
-    // Reset previous state and create new in-progress record
     useTwinStore.getState().surveyReset();
-    const mgr = getActivePlantManager();
-    const zones = mgr ? planSurveyZones({ scenario: active, plantManager: mgr }) : [];
-    useTwinStore.getState().surveySetTotalZones(zones.length);
-
+    useTwinStore.getState().surveySetStatus('running');
     const id = newSurveyId();
-    surveyRecordRef.current = {
+    const detectorId = useTwinStore.getState().phenotypingSurvey.detectorId;
+    void runner.start({
       id,
-      schemaVersion: '1.0',
-      startedAt: new Date().toISOString(),
-      completedAt: null,
-      status: 'in-progress',
       scenarioId: active.id,
       scenarioVersion: active.version ?? 'unknown',
       cropDay: active.crop.day,
@@ -430,22 +380,10 @@ export function Workbench() {
         mountHeightM: active.robot?.camera?.head?.mountHeight ?? 1.28,
       },
       rule: active.task.rule ?? 'left-bed-on-forward,right-bed-on-return',
-      detector: {
-        version: 'gt-v1',
-        workingDistanceM: { min: 0.3, max: 3.0 },
-        referenceSolidAngleSr: 4e-4,
-        occlusionMode: 'none',
-      },
-      zones: [],
-      totals: { zoneCount: 0, fruitCount: 0, weightedCount: 0,
-        bins: { green: 0, breaker: 0, turning: 0, pink: 0, red: 0 },
-        weightedBins: { green: 0, breaker: 0, turning: 0, pink: 0, red: 0 },
-        coverage: 0, avgConfidence: 0 },
-      pathLengthM: 0,
-      elapsedMs: 0,
-    };
-    useTwinStore.getState().surveySetStatus('running');
-    runner.start();
+      notes: undefined,
+      tags: undefined,
+      detectorId,
+    });
   };
 
   const onPauseSurvey = () => {
@@ -458,16 +396,9 @@ export function Workbench() {
   };
   const onResetSurvey = () => {
     surveyRunnerRef.current?.stop();
-    useTwinStore.getState().surveyReset();
-    surveyRecordRef.current = null;
-  };
-
-  // Cleanup on unmount
-  useEffect(() => () => {
-    surveyRunnerRef.current?.stop();
     surveyRunnerRef.current = null;
-    surveyRecordRef.current = null;
-  }, []);
+    useTwinStore.getState().surveyReset();
+  };
 
   if (!active) return null;
 
@@ -534,8 +465,6 @@ export function Workbench() {
       {/* ░░░ SURVEY RESULT SHEET (modal, auto-opens on completion) ░░░ */}
       <SurveyResultSheet />
 
-      {/* Reference unused vars to silence noUnusedLocals if any */}
-      <span style={{ display: 'none' }} aria-hidden>{railRef.current}</span>
     </>
   );
 }

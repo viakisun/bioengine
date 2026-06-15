@@ -38,13 +38,12 @@ export function measureMetric(
 
   switch (metric.metric) {
     case 'coverage-pct': {
-      // Real measurement from twinStore.phenotypingSurvey: weighted coverage
-      // averaged across completed zones. Reflects bed-of-interest filter +
-      // working-distance gate + solid-angle confidence (see detect.ts).
-      // Falls back to 0 if no zones captured yet.
-      const zones = useTwinStore.getState().phenotypingSurvey.zones;
-      const arr = Object.values(zones);
-      value = arr.length === 0 ? 0 : arr.reduce((a, z) => a + z.coverage, 0) / arr.length;
+      // Phenotyping survey v2: detection count vs theoretical max as proxy.
+      // No more zone-based coverage; just normalize fruit count to a
+      // reasonable expectation (75 plants × 8 fruits/plant per bed × 2 beds = 1200).
+      const sv = useTwinStore.getState().phenotypingSurvey;
+      const REF_EXPECTED = 800; // rough mid-season ripe count expectation
+      value = Math.min(1, sv.totals.fruitCount / REF_EXPECTED);
       break;
     }
     case 'fov-fruit-coverage': {
