@@ -35,6 +35,8 @@ export interface FrameCapturerOpts {
   captureEveryM: number;
   /** Cap on stored frames (memory safety). default 500. */
   maxFrames?: number;
+  /** Per-frame callback for live processing (e.g. real-time HSV detection). */
+  onFrameCaptured?: (frame: CapturedFrame) => void;
 }
 
 export class FrameCapturer {
@@ -123,14 +125,21 @@ export class FrameCapturer {
       const panRad = (cam.parent && 'parent' in cam.parent && cam.parent.parent && 'rotation' in cam.parent.parent
         ? ((cam.parent.parent as unknown as { rotation: { y: number } }).rotation.y)
         : 0);
-      this.frames.push({
+      const frame: CapturedFrame = {
         railX,
         pixels,
         width: this.opts.width,
         height: this.opts.height,
         cameraPose: { worldX: pos.x, worldY: pos.y, worldZ: pos.z, panRad },
         timestampMs: performance.now(),
-      });
+      };
+      this.frames.push(frame);
+      try {
+        this.opts.onFrameCaptured?.(frame);
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn('[frameCapture] onFrameCaptured callback threw:', err);
+      }
       return true;
     } catch (err) {
       // eslint-disable-next-line no-console

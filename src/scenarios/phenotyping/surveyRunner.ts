@@ -22,7 +22,7 @@ import type { PlantManager } from '../../scene/PlantManager';
 import { railRef, setRailTarget, setRail, clampRail } from '../../scene/robot/robotControlState';
 import { FrameCapturer, type CapturedFrame } from './frameCapture';
 import { stitchFrames, imageDataToPng } from './stitcher';
-import { getDetector, type Detector, type DetectorContext, type DetectorId, type FruitDetection, type RipenessBin } from './detectors';
+import { getDetector, hsvDetector, type Detector, type DetectorContext, type DetectorId, type FruitDetection, type RipenessBin } from './detectors';
 import { surveyStore, type SurveyRecord, type PanoramaMeta } from './surveyStore';
 
 export type SurveyPhase =
@@ -103,6 +103,77 @@ export function createSurveyRunner(opts: SurveyRunnerOpts): SurveyRunner {
     opts.onPhaseChange?.(p);
   }
 
+  // ── Per-frame live HSV detection ─────────────────────────────────
+  // Runs HSV directly on the captured 320×180 ImageData (~10ms).  For each
+  // detection, raycasts from camera through bbox center to find world point
+  // on plant meshes.  Pushes to liveDetections so GimbalDetectionOverlay
+  // shows circles in real-time as robot moves.
+  async function runPerFrameHsv(frame: CapturedFrame, bedId: number, bedZ: number): Promise<void> {
+    // Wrap pixels in ImageData. Copy into a fresh ArrayBuffer to avoid the
+    // SharedArrayBuffer-vs-ArrayBuffer typing mismatch.
+    const clamped = new Uint8ClampedArray(frame.pixels.length);
+    clamped.set(frame.pixels);
+    const imgData = new ImageData(clamped, frame.width, frame.height);
+    // Dummy ctx — frame-level detection uses frame coords, panorama mapping unused
+    const ctx: DetectorContext = {
+      panorama: { pxPerM: 1, railStartX: 0, railEndX: 0 },
+      bedZ, targetBedId: bedId,
+      minute: 0,
+      plantManager: opts.plantManager,
+      growthEngine: opts.growthEngine,
+    };
+    let dets: FruitDetection[];
+    try {
+      dets = await hsvDetector.detect(imgData, ctx);
+    } catch { return; }
+    if (dets.length === 0) return;
+
+    // Project each bbox center → world via Babylon raycast
+    const engine = opts.scene.getEngine();
+    const canvas = engine.getRenderingCanvas() as HTMLCanvasElement | null;
+    if (!canvas) return;
+    const cw = canvas.width;
+    const ch = canvas.height;
+    const vp = opts.camera.viewport;
+    const liveItems: Array<{ worldX: number; worldY: number; worldZ: number; bin: 'green' | 'breaker' | 'turning' | 'pink' | 'red'; confidence: number }> = [];
+
+    for (const d of dets) {
+      const cxFrame = d.bbox.x + d.bbox.w / 2;
+      const cyFrame = d.bbox.y + d.bbox.h / 2;
+      // Convert frame px → screen px (account for camera viewport on main canvas)
+      const screenX = vp.x * cw + (cxFrame / frame.width) * (vp.width * cw);
+      const screenY = (1 - vp.y - vp.height) * ch + (cyFrame / frame.height) * (vp.height * ch);
+      const ray = opts.scene.createPickingRay(screenX, screenY, null, opts.camera);
+      const pick = opts.scene.pickWithRay(ray, (m) => m.isPickable && m.isVisible);
+      if (pick?.hit && pick.pickedPoint) {
+        liveItems.push({
+          worldX: pick.pickedPoint.x,
+          worldY: pick.pickedPoint.y,
+          worldZ: pick.pickedPoint.z,
+          bin: d.bin,
+          confidence: d.confidence,
+        });
+      } else {
+        // Fallback: project to bed Z plane assuming horizontal aim
+        const cam = opts.camera;
+        const camPos = cam.globalPosition ?? cam.position;
+        // Use ray direction directly — intersect with z=bedZ plane
+        const t = (bedZ - camPos.z) / (ray.direction.z || 0.001);
+        if (t > 0 && t < 10) {
+          liveItems.push({
+            worldX: camPos.x + ray.direction.x * t,
+            worldY: camPos.y + ray.direction.y * t,
+            worldZ: bedZ,
+            bin: d.bin,
+            confidence: d.confidence,
+          });
+        }
+      }
+    }
+    if (liveItems.length > 0) opts.onLiveDetections?.(liveItems);
+  }
+
+
   function detach(): void {
     if (observer) {
       opts.scene.onBeforeRenderObservable.remove(observer);
@@ -134,12 +205,21 @@ export function createSurveyRunner(opts: SurveyRunnerOpts): SurveyRunner {
 
     // ── Traverse phase ──
     setPhase(forward ? 'traversing-forward' : 'traversing-return');
+    const detectorIdForLive = record?.detector.id;
     capturer = new FrameCapturer({
       scene: opts.scene,
       camera: opts.camera,
       width: opts.frameWidthPx ?? 320,
       height: opts.frameHeightPx ?? 180,
       captureEveryM: opts.captureEveryM ?? 0.3,
+      onFrameCaptured: (frame) => {
+        // Per-frame live HSV detection — runs only for HSV detector (fast ~10ms).
+        // ONNX is too slow per-frame (~500ms); GT skipped (no pixel work).
+        // Detections are raycast from camera through bbox center to find world
+        // position on plant meshes. Pushed to liveDetections store → overlay.
+        if (detectorIdForLive !== 'hsv-v1') return;
+        void runPerFrameHsv(frame, bedId, bedZ);
+      },
     });
     capturer.arm();
     setRail(startX);
