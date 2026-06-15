@@ -345,6 +345,7 @@ export function Workbench() {
       onTotals: (totals) => useTwinStore.getState().surveySetTotals(totals),
       onPanoramaSaved: (side, meta) => useTwinStore.getState().surveySetLastPanoramaKey(meta.blobKey),
       onDetectorLoadProgress: (p) => useTwinStore.getState().surveySetDetectorLoadProgress(p),
+      onLiveDetections: (items) => useTwinStore.getState().surveyAppendLiveDetections(items),
       onDone: (record) => {
         useTwinStore.getState().surveySetStatus('done');
         useTwinStore.getState().setLastSurveyId(record.id);

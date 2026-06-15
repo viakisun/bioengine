@@ -10,6 +10,7 @@
 import { useEffect, useRef } from 'react';
 import { useTwinStore } from '../state/twinStore';
 import { nudgeRail, syncGimbalViewportToRect, gimbalCamRef } from '../scene/robot/robotControlState';
+import { GimbalDetectionOverlay } from './instrument/GimbalDetectionOverlay';
 
 interface GimbalViewProps {
   scenarioId: string;
@@ -142,6 +143,9 @@ export function GimbalView({ scenarioId }: GimbalViewProps) {
 
         {/* (2) Inner video panel — Babylon viewport syncs to THIS rect only */}
         <div ref={frameRef} style={videoPanelS}>
+          {/* Live detection overlay (SVG bbox/dots over current camera view) */}
+          <GimbalDetectionOverlay />
+          {/* Drag-to-look handler (above overlay, must capture pointer) */}
           <div
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}

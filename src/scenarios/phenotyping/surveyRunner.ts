@@ -19,7 +19,7 @@ import type { Observer } from '@babylonjs/core/Misc/observable';
 import type { UniversalCamera } from '@babylonjs/core/Cameras/universalCamera';
 import type { GrowthEngine } from '@farmsim/tomato-engine';
 import type { PlantManager } from '../../scene/PlantManager';
-import { railRef, setRailTarget, setRail } from '../../scene/robot/robotControlState';
+import { railRef, setRailTarget, setRail, clampRail } from '../../scene/robot/robotControlState';
 import { FrameCapturer, type CapturedFrame } from './frameCapture';
 import { stitchFrames, imageDataToPng } from './stitcher';
 import { getDetector, type Detector, type DetectorContext, type DetectorId, type FruitDetection, type RipenessBin } from './detectors';
@@ -69,6 +69,13 @@ export interface SurveyRunnerOpts {
   onTotals?: (totals: { fruitCount: number; bins: Record<RipenessBin, number>; avgConfidence: number }) => void;
   onPanoramaSaved?: (side: 'left' | 'right', meta: PanoramaMeta) => void;
   onDetectorLoadProgress?: (p: number) => void;
+  /** Fired after each side's detection completes. Detections augmented with
+   *  worldY (panorama Y → height interp) + worldZ (bed Z). */
+  onLiveDetections?: (items: Array<{
+    worldX: number; worldY: number; worldZ: number;
+    bin: 'green' | 'breaker' | 'turning' | 'pink' | 'red';
+    confidence: number;
+  }>) => void;
   onDone?: (record: SurveyRecord) => void;
   onError?: (err: Error) => void;
   /** Pan radians per gimbal side (default 0 / π / -π/2). */
@@ -108,9 +115,18 @@ export function createSurveyRunner(opts: SurveyRunnerOpts): SurveyRunner {
     const bedId = side === 'left' ? opts.leftBedId : opts.rightBedId;
     const bedZ = side === 'left' ? opts.bedZ.left : opts.bedZ.right;
     if (bedId == null || bedZ == null) {
-      // skip — no bed on that side
+      // eslint-disable-next-line no-console
+      console.warn(`[surveyRunner] skip ${side} pass — no bed (bedId=${bedId} bedZ=${bedZ})`);
       return;
     }
+    // Use railRef's actual rangeM (single source of truth) — runner.opts.railRangeM
+    // may diverge from BabylonEngine's TRAVERSE_RANGE causing |current - endX| never < 0.05.
+    const range = Math.min(opts.railRangeM, railRef.rangeM);
+    const startX = clampRail(forward ? -range : range, range);
+    const endX = clampRail(forward ? range : -range, range);
+    // eslint-disable-next-line no-console
+    console.info(`[surveyRunner] runPass side=${side} forward=${forward} bedId=${bedId} bedZ=${bedZ.toFixed(2)} startX=${startX} endX=${endX} range=${range}`);
+
     // Aim gimbal at target side
     opts.setGimbalPan(side === 'left' ? PAN_LEFT : PAN_RIGHT);
 
@@ -124,36 +140,43 @@ export function createSurveyRunner(opts: SurveyRunnerOpts): SurveyRunner {
       captureEveryM: opts.captureEveryM ?? 0.3,
     });
     capturer.arm();
-    const startX = forward ? -opts.railRangeM : opts.railRangeM;
-    const endX = forward ? opts.railRangeM : -opts.railRangeM;
     setRail(startX);
     opts.setRobotMode('manual');
     setRailTarget(endX, opts.speedMps);
 
-    // Wait for arrival, ticking progress
+    // Wait for arrival, ticking progress. Polling interval cleanup via shared id.
     await new Promise<void>((resolve) => {
+      let intervalId: ReturnType<typeof setInterval> | null = null;
+      const done = () => {
+        if (intervalId != null) { clearInterval(intervalId); intervalId = null; }
+        resolve();
+      };
       const checker = () => {
-        if (cancelled) { resolve(); return; }
+        if (cancelled) { done(); return; }
         const frames = capturer?.getFrames().length ?? 0;
         if (frames !== totalFrameCount) {
           totalFrameCount = frames;
           opts.onFrameCount?.(totalFrameCount);
         }
-        // Overall progress: each pass contributes 50%, half of that is traverse
         const passFraction = forward ? 0 : 0.5;
         const passProgress = Math.abs(railRef.current - startX) / Math.max(0.01, Math.abs(endX - startX));
         opts.onProgress?.(passFraction + passProgress * 0.4); // traverse = 40% of pass
-        // Arrived?
         const arrived = railRef.target == null && Math.abs(railRef.current - endX) < 0.05;
         if (arrived) {
           capturer?.disarm();
-          resolve();
+          done();
         }
       };
-      const id = setInterval(checker, 100);
-      // Cleanup when resolved (resolve clears interval via own variable capture)
-      const origResolve = resolve;
-      resolve = () => { clearInterval(id); origResolve(); };
+      intervalId = setInterval(checker, 100);
+      // Safety timeout — 120s per pass. Forces resolve so we never hang forever.
+      setTimeout(() => {
+        if (intervalId != null) {
+          // eslint-disable-next-line no-console
+          console.warn(`[surveyRunner] ${side} pass traverse timeout — railX=${railRef.current.toFixed(2)} target=${railRef.target} endX=${endX}`);
+          capturer?.disarm();
+          done();
+        }
+      }, 120000);
     });
     if (cancelled) return;
 
@@ -214,6 +237,23 @@ export function createSurveyRunner(opts: SurveyRunnerOpts): SurveyRunner {
       const sideDetections = await detector.detect(stitched.imageData, ctx);
       detections.push(...sideDetections);
       record!.detections.push(...sideDetections);
+      // Live overlay items: stamp world Y (panorama Y → plant height interp)
+      // and world Z (bed Z of this side). worldX already on detection.
+      const heightPx = stitched.imageData.height;
+      // Plants live roughly from y=substrateTop (~0.95m) to ~2.2m at D80.
+      // panorama y=0 (top) maps to ~2.2m, y=heightPx (bottom) maps to ~0.95m.
+      const yTop = 2.2;
+      const yBot = 0.95;
+      const liveItems = sideDetections
+        .filter((d) => d.worldX != null)
+        .map((d) => ({
+          worldX: d.worldX as number,
+          worldY: yTop - ((d.bbox.y + d.bbox.h / 2) / heightPx) * (yTop - yBot),
+          worldZ: bedZ,
+          bin: d.bin,
+          confidence: d.confidence,
+        }));
+      opts.onLiveDetections?.(liveItems);
       // Update live totals
       const bins = bucketize(detections);
       const avgConfidence = detections.length === 0

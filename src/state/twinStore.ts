@@ -636,6 +636,15 @@ interface TwinState {
     detectorId: 'hsv-v1' | 'onnx-yolo-v1' | 'ground-truth';
     /** ONNX model download progress 0..1 (only meaningful for onnx-yolo-v1). */
     detectorLoadProgress: number;
+    /** Detections projected into world space for live PiP overlay.
+     *  worldY ≈ mid-plant height (1.5 m), worldZ = bedZ of the scanned side. */
+    liveDetections: Array<{
+      worldX: number;
+      worldY: number;
+      worldZ: number;
+      bin: 'green' | 'breaker' | 'turning' | 'pink' | 'red';
+      confidence: number;
+    }>;
   };
   surveySetStatus: (s: 'idle' | 'running' | 'paused' | 'done') => void;
   surveySetPhase: (p: 'idle' | 'traversing-forward' | 'stitching-forward' | 'detecting-forward' | 'traversing-return' | 'stitching-return' | 'detecting-return' | 'done' | 'aborted') => void;
@@ -645,6 +654,11 @@ interface TwinState {
   surveySetLastPanoramaKey: (k: string | null) => void;
   surveySetDetectorId: (id: 'hsv-v1' | 'onnx-yolo-v1' | 'ground-truth') => void;
   surveySetDetectorLoadProgress: (p: number) => void;
+  surveyAppendLiveDetections: (items: Array<{
+    worldX: number; worldY: number; worldZ: number;
+    bin: 'green' | 'breaker' | 'turning' | 'pink' | 'red';
+    confidence: number;
+  }>) => void;
   surveyReset: () => void;
 
   // -- Boot progress + notifications + live log + env --
@@ -963,6 +977,7 @@ export const useTwinStore = create<TwinState>((set) => ({
     lastPanoramaKey: null,
     detectorId: 'hsv-v1',
     detectorLoadProgress: 0,
+    liveDetections: [],
   },
   surveySetStatus: (status) =>
     set((s) => {
@@ -990,6 +1005,13 @@ export const useTwinStore = create<TwinState>((set) => ({
     set((s) => ({ phenotypingSurvey: { ...s.phenotypingSurvey, detectorId: id } })),
   surveySetDetectorLoadProgress: (p) =>
     set((s) => ({ phenotypingSurvey: { ...s.phenotypingSurvey, detectorLoadProgress: Math.max(0, Math.min(1, p)) } })),
+  surveyAppendLiveDetections: (items) =>
+    set((s) => ({
+      phenotypingSurvey: {
+        ...s.phenotypingSurvey,
+        liveDetections: [...s.phenotypingSurvey.liveDetections, ...items],
+      },
+    })),
   surveyReset: () =>
     set((s) => ({
       phenotypingSurvey: {
@@ -1003,6 +1025,7 @@ export const useTwinStore = create<TwinState>((set) => ({
         lastPanoramaKey: null,
         detectorId: s.phenotypingSurvey.detectorId,  // preserve user selection
         detectorLoadProgress: 0,
+        liveDetections: [],
       },
     })),
 
