@@ -91,7 +91,10 @@ function readGpuDevice(engine: Engine | WebGPUEngine): string {
 
 function createWebGL2(canvas: HTMLCanvasElement): Engine {
   return new Engine(canvas, true, {
-    preserveDrawingBuffer: false,
+    // Phenotyping survey reads gimbal-cam viewport pixels via drawImage on the
+    // main canvas — requires preserveDrawingBuffer:true so the rendered
+    // contents are retained until the next render.  Small perf cost (~1%).
+    preserveDrawingBuffer: true,
     stencil: true,
     powerPreference: 'high-performance',
     antialias: true,
