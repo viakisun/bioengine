@@ -338,6 +338,7 @@ export function Workbench() {
         right: rightBedId != null ? mgr.getBedZ(rightBedId) : null,
       },
       setGimbalPan: (rad) => useTwinStore.getState().setGimbalPan(rad),
+      setGimbalPitch: (rad) => useTwinStore.getState().setGimbalPitch(rad),
       setRobotMode: (m) => useTwinStore.getState().setRobotMode(m),
       onPhaseChange: (phase) => useTwinStore.getState().surveySetPhase(phase),
       onProgress: (p) => useTwinStore.getState().surveySetProgress(p),

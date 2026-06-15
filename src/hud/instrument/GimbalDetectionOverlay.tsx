@@ -44,6 +44,8 @@ export function GimbalDetectionOverlay() {
       setProjected([]);
       return;
     }
+    // eslint-disable-next-line no-console
+    console.info(`[GimbalDetectionOverlay] mounted with ${detections.length} detections`);
     let rafId = 0;
     const tmpWorld = new Vector3();
     const tmpVp = new Matrix();

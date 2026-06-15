@@ -80,6 +80,8 @@ export interface SurveyRunnerOpts {
   onError?: (err: Error) => void;
   /** Pan radians per gimbal side (default 0 / π / -π/2). */
   setGimbalPan: (rad: number) => void;
+  /** Reset gimbal pitch (recover from user drag, set to 0 = horizontal). */
+  setGimbalPitch: (rad: number) => void;
   setRobotMode: (m: 'auto' | 'paused' | 'manual') => void;
 }
 
@@ -285,6 +287,20 @@ export function createSurveyRunner(opts: SurveyRunnerOpts): SurveyRunner {
       cancelled = false;
       detections = [];
       totalFrameCount = 0;
+
+      // ── Camera aim reset ──
+      // User drag may have left pitch at -π/3 (camera looking at floor) and the
+      // scenario default FOV (60°) is too narrow at our bed distance (~0.8m)
+      // to capture full plant height (95cm-2m). Reset pitch to 0 and widen FOV
+      // to 90° for the duration of the survey so the panorama actually shows
+      // the plants.
+      const cam = opts.camera;
+      const origFov = cam.fov;
+      cam.fov = (90 * Math.PI) / 180;
+      opts.setGimbalPitch(0);
+      // eslint-disable-next-line no-console
+      console.info(`[surveyRunner] survey start — cam fov ${origFov.toFixed(2)} → ${cam.fov.toFixed(2)} (wide), pitch reset 0`);
+
       // Build initial record (in-progress)
       const det = getDetector(recordSeed.detectorId);
       record = {
@@ -316,13 +332,18 @@ export function createSurveyRunner(opts: SurveyRunnerOpts): SurveyRunner {
       detector = null;
       try {
         await runPass('left', true);
-        if (cancelled) { finalizeAborted('user-cancelled'); return; }
+        if (cancelled) { finalizeAborted('user-cancelled'); cam.fov = origFov; return; }
         await runPass('right', false);
-        if (cancelled) { finalizeAborted('user-cancelled'); return; }
+        if (cancelled) { finalizeAborted('user-cancelled'); cam.fov = origFov; return; }
         finalizeCompleted();
       } catch (err) {
         opts.onError?.(err as Error);
         finalizeAborted((err as Error).message ?? 'unknown');
+      } finally {
+        // Restore camera FOV regardless of outcome
+        cam.fov = origFov;
+        // eslint-disable-next-line no-console
+        console.info(`[surveyRunner] survey end — cam fov restored ${cam.fov.toFixed(2)}`);
       }
     },
     pause: () => {
