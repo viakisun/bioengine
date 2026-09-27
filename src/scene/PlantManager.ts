@@ -244,10 +244,7 @@ export class PlantManager {
             safe.status === 'at-limit'
               ? safe.reason ?? 'heap limit reached'
               : 'add-failed';
-          // eslint-disable-next-line no-console
-          console.warn(
-            `[PlantManager] setCount aborted at ${before}/${clamped} — ${reason}`,
-          );
+          log.warn(`setCount aborted at ${before}/${clamped} — ${reason}`);
           hooks?.onAbort?.(before, clamped, reason);
           return;
         }
@@ -289,8 +286,7 @@ export class PlantManager {
       const result = this.addOne();
       if (result < 0) {
         // boot에서 add 실패는 비정상 — 즉시 중단.
-        // eslint-disable-next-line no-console
-        console.warn(`[PlantManager] buildInitial stopped at ${this.plants.length}/${total}`);
+        log.warn(`buildInitial stopped at ${this.plants.length}/${total}`);
         return;
       }
       const lastMs = performance.now() - t0;

@@ -1,0 +1,87 @@
+{
+  "package": {
+    "work_type": "hmi_module",
+    "output_prefix": "HMI_MODULE",
+    "doc_set_name": "HMI 모듈 시작품 제작 증빙 문서"
+  },
+  "project": {
+    "number": "RS-2025-25460711",
+    "name": "(1세부) 무인자율 농작업을 위한 개방형 A-SW, 통합제어기 및 서비스 플랫폼 개발",
+    "period": "2025.08.01 ~ 2029.12.31",
+    "lead_org": "한국생산기술연구원",
+    "performing_org": "비아"
+  },
+  "work": {
+    "title": "농작업 AMR HMI 모듈 시작품 제작",
+    "short_item_name": "농작업 AMR HMI 모듈 시작품 제작",
+    "purpose": "통합제어기 상태 표시, 운용 명령 입력, 경고 상태 확인을 위한 HMI 모듈 시작품을 제작하여 실증 환경에서 인터페이스 적합성을 검증한다.",
+    "background": "무인자율 농작업 플랫폼은 현장 운용자가 로봇 상태와 작업 모드를 직관적으로 확인할 수 있는 조작·표시 인터페이스가 필요하다.",
+    "business_relevance": "본 시작품은 통합제어기와 서비스 플랫폼 연계 검증에 필요한 연구재료 제작에 해당한다.",
+    "vendor_scope": [
+      "HMI 패널 및 외함 시작품 제작",
+      "표시부, 버튼류, 커넥터, 배선 구성",
+      "전원 및 통신 연결부 구성",
+      "외관사진, 배선도, 부품목록, 간단 매뉴얼 제출"
+    ],
+    "internal_scope": [
+      "HMI 요구사항 정의",
+      "통합제어기 연동 시험",
+      "A-SW 서비스 플랫폼 등록 및 검증",
+      "운용 시나리오 및 시험 로그 관리"
+    ],
+    "excluded_scope": [
+      "A-SW 서비스 플랫폼 개발",
+      "자율주행 알고리즘 개발",
+      "양산 설계 및 인증 시험",
+      "장기 내구시험"
+    ],
+    "deliverables": [
+      {"name": "HMI 모듈 시작품 본체", "description": "패널, 외함, 조작부, 표시부, 커넥터 포함", "file_hint": "실물 납품 1식"},
+      {"name": "BOM", "description": "주요 부품 및 구성품 목록", "file_hint": "01_BOM_HMI_MODULE.xlsx"},
+      {"name": "사양서", "description": "주요 기능, 전원, 통신, 외형 사양", "file_hint": "02_사양서_HMI_MODULE.docx"},
+      {"name": "도면자료", "description": "외형도, 패널 배치도, 배선도", "file_hint": "03_도면자료_HMI_MODULE.pdf"},
+      {"name": "사용 및 설치 자료", "description": "연결 방법, 조작부 설명, 주의사항", "file_hint": "04_매뉴얼_HMI_MODULE.pdf"},
+      {"name": "검수사진", "description": "외관, 조작부, 커넥터, 전원부 사진", "file_hint": "05_검수사진_HMI_MODULE.zip"}
+    ],
+    "inspection_criteria": [
+      {"item": "본체 납품", "criteria": "HMI 모듈 시작품 본체 1식 납품 여부"},
+      {"item": "외관 상태", "criteria": "외함, 패널, 체결부, 표시부 외관 확인"},
+      {"item": "조작부 구성", "criteria": "버튼, 스위치, 표시부, 커넥터 구성 확인"},
+      {"item": "전장 구성", "criteria": "전원부, 통신 연결부, 배선 구성 확인"},
+      {"item": "납품자료", "criteria": "BOM, 사양서, 도면자료, 매뉴얼 제출 여부"},
+      {"item": "검수사진", "criteria": "주요 구성 확인 사진 제출 여부"}
+    ]
+  },
+  "vendor": {
+    "name": "업체명 미정",
+    "business_no": "",
+    "representative": "",
+    "address": ""
+  },
+  "schedule": {
+    "memo_date": "2026.07.01",
+    "task_order_date": "2026.07.02",
+    "quote_date": "2026.07.03",
+    "order_date": "2026.07.05",
+    "contract_date": "2026.07.05",
+    "contract_period": "2026.07.05 ~ 2026.09.30",
+    "delivery_due_date": "2026.09.30",
+    "delivery_date": "2026.09.30",
+    "inspection_date": "2026.10.01",
+    "completion_date": "2026.10.01",
+    "payment_date": ""
+  },
+  "money": {
+    "supply": 18000000,
+    "vat": 1800000,
+    "total": 19800000,
+    "budget_item": "직접비 / 연구재료비 / 연구재료 제작비"
+  },
+  "rules": {
+    "memo_exclude_vendor": true,
+    "memo_exclude_amount": true,
+    "task_order_exclude_amount": true,
+    "forbidden_terms": ["테스트키트", "Autonomus"]
+  }
+}
+

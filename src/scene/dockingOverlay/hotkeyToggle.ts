@@ -1,9 +1,10 @@
 import { createLogger } from '../../utils/logger';
 const log = createLogger('overlay');
 
-// Iter 20 PR 6 — keyboard hotkey for the petiole-stem junction overlay.
-// 'd' / 'D' (English) and 'ㅇ' (Korean — same physical key on 2벌식) all toggle.
-// Iter 25+: 'l' / 'L' / 'ㅣ' for leaf wireframe debug.
+// Keyboard hotkeys for two debug overlays:
+//   'd' / 'D' / 'ㅇ' (Korean 2벌식 same physical key) — petiole-stem
+//                                                       junction overlay
+//   'l' / 'L' / 'ㅣ'                                  — leaf wireframe
 // Idempotent: install only once per window.
 
 type DockingApi = (opts: {

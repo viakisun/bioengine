@@ -9,8 +9,10 @@
 
 import { useEffect, useRef } from 'react';
 import { useTwinStore } from '../state/twinStore';
-import { nudgeRail, syncGimbalViewportToRect, gimbalCamRef } from '../scene/robot/robotControlState';
-import { GimbalDetectionOverlay } from './instrument/GimbalDetectionOverlay';
+import { nudgeRail, syncGimbalViewportToRect, gimbalCameraRef } from '../scene/robot/robotControlState';
+import { GimbalDetectionOverlay } from '../phenotyping/ui/GimbalDetectionOverlay';
+import { RobotCameraView } from '../phenotyping/ui/RobotCameraView';
+import { PHENOTYPING_GIMBAL_STREAM } from '../phenotyping/streaming/streamProtocol';
 
 interface GimbalViewProps {
   scenarioId: string;
@@ -23,6 +25,7 @@ const NUDGE_M = 0.05;
 export function GimbalView({ scenarioId }: GimbalViewProps) {
   const mode = useTwinStore((s) => s.robot.mode);
   const manualOverride = useTwinStore((s) => s.robot.gimbal.manualOverride);
+  const pipMode = useTwinStore((s) => s.phenotypingSurvey.pipMode);
   const setRobotMode = useTwinStore((s) => s.setRobotMode);
   const nudgeGimbal = useTwinStore((s) => s.nudgeGimbal);
   const resetGimbal = useTwinStore((s) => s.resetGimbal);
@@ -35,7 +38,7 @@ export function GimbalView({ scenarioId }: GimbalViewProps) {
   const frameRef = useRef<HTMLDivElement>(null);
 
   // Babylon gimbal cam viewport ↔ DOM video panel sync
-  //   - GimbalView mounts before BabylonEngine boot completes, so gimbalCamRef
+  //   - GimbalView mounts before BabylonEngine boot completes, so gimbalCameraRef
   //     is null at first. We poll every 100ms until cam is registered, then
   //     hand off to ResizeObserver for ongoing layout changes.
   useEffect(() => {
@@ -52,7 +55,7 @@ export function GimbalView({ scenarioId }: GimbalViewProps) {
     let attempts = 0;
     const pollSync = () => {
       update();
-      if (gimbalCamRef.current) return; // cam exists — sync took effect
+      if (gimbalCameraRef.current) return; // cam exists — sync took effect
       if (attempts++ > 100) return;     // 10s budget — give up after that
       pollId = setTimeout(pollSync, 100);
     };
@@ -141,10 +144,22 @@ export function GimbalView({ scenarioId }: GimbalViewProps) {
           </span>
         </div>
 
-        {/* (2) Inner video panel — Babylon viewport syncs to THIS rect only */}
+        {/* (2) Inner video panel — Two paths share the same DOM rect:
+              - pipMode='stream' (default): <RobotCameraView> renders WS-streamed
+                JPEG frames into an <img>.  Independent of canvas state, so
+                multi-camera viewport bugs can't affect it.
+              - pipMode='in-canvas' (legacy): transparent panel sits over a
+                sub-rect of the main canvas where gimbalCam renders.  Kept
+                for fallback / comparison; syncGimbalViewportToRect keeps the
+                Babylon viewport pinned to this DOM rect. */}
         <div ref={frameRef} style={videoPanelS}>
-          {/* Live detection overlay (SVG bbox/dots over current camera view) */}
-          <GimbalDetectionOverlay />
+          {pipMode === 'stream' ? (
+            <RobotCameraView streamId={PHENOTYPING_GIMBAL_STREAM}>
+              <GimbalDetectionOverlay />
+            </RobotCameraView>
+          ) : (
+            <GimbalDetectionOverlay />
+          )}
           {/* Drag-to-look handler (above overlay, must capture pointer) */}
           <div
             onPointerDown={onPointerDown}

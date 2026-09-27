@@ -9,9 +9,6 @@ import { applyRenderQuality, QUALITY_PRESETS } from './RenderQuality';
 import { setupCamera, type CameraRig } from './CameraRig';
 import { buildSceneInfrastructure, type SceneInfrastructureHandle, SHOWCASE_SEED } from './SceneInfrastructure';
 import { resolveSceneOptions } from './sceneOptions';
-// Iter 35: GreenhouseContent (zones/heatmap/robot/path/supporting) + ProgressiveLoad
-//   제거 — single-plant only (Phase B+C, 사용자 결정).
-// Iter 35 PR 2 Phase O: QualityProbe archived (Skin 무관 general FX 측정).
 import { useTwinStore, type LightingState } from '../state/twinStore';
 import { SCENARIO } from '../data/mockScenario';
 import { getSunState } from '@farmsim/tomato-engine';
@@ -19,14 +16,13 @@ import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { UniversalCamera } from '@babylonjs/core/Cameras/universalCamera';
 import { Viewport } from '@babylonjs/core/Maths/math.viewport';
 import { setShaderWindEnabled, isShaderWindEnabled } from './leaf/LeafMaterial';
-// Iter 35: LabelOverlay archived — single-plant only.
-// Iter 20 — hotkey for petiole-stem junction overlay ('d'/'D'/'ㅇ').
+// Hotkey for the petiole-stem junction overlay ('d' / 'D' / 'ㅇ').
 import { installDockingOverlayHotkey } from './dockingOverlay/hotkeyToggle';
 import { setBootStage, logBoot, setEnvInfo, setEnvCounters, notify } from '../state/notify';
 import { setSinglePlantEngineRef, setSinglePlantSkinMeshRef, setCameraRigRef } from '../hud/single-plant/useSinglePlantState';
 import { setActiveSceneHandle } from './PlantManager';
 import { createRobot } from './robot/Robot';
-import { railRef, initRobotRail, gimbalCamRef, tickSmoothMotion } from './robot/robotControlState';
+import { railRef, initRobotRail, gimbalCameraRef, tickSmoothMotion } from './robot/robotControlState';
 import { createLogger } from '../utils/logger';
 const log = createLogger('engine');
 
@@ -137,14 +133,14 @@ function applyLightingToScene(scene: Scene, setup: SceneSetupHandle, L: Lighting
   scene.imageProcessingConfiguration.exposure = L.exposure;
   scene.imageProcessingConfiguration.contrast = L.contrast;
 
-  const pipeImg = setup.pipeline.imageProcessing;
-  if (pipeImg) {
-    pipeImg.toneMappingEnabled = tmType !== null;
-    if (tmType !== null) pipeImg.toneMappingType = tmType;
-    pipeImg.exposure = L.exposure;
-    pipeImg.contrast = L.contrast;
-    pipeImg.vignetteEnabled = L.vignetteEnabled;
-    pipeImg.vignetteWeight = L.vignetteWeight;
+  const pipelineImageProcessing = setup.pipeline.imageProcessing;
+  if (pipelineImageProcessing) {
+    pipelineImageProcessing.toneMappingEnabled = tmType !== null;
+    if (tmType !== null) pipelineImageProcessing.toneMappingType = tmType;
+    pipelineImageProcessing.exposure = L.exposure;
+    pipelineImageProcessing.contrast = L.contrast;
+    pipelineImageProcessing.vignetteEnabled = L.vignetteEnabled;
+    pipelineImageProcessing.vignetteWeight = L.vignetteWeight;
   }
 
   // Bloom / Sharpen
@@ -200,7 +196,6 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
   const hudBackend = document.getElementById('hud-backend');
   if (hudBackend) hudBackend.textContent = backend === 'webgpu' ? 'WebGPU' : 'WebGL2';
   useTwinStore.getState().publishBackend(backend);
-  // Iter 20 PR 6 — install 'd'/'D'/'ㅇ' hotkey toggle for docking overlay.
   installDockingOverlayHotkey();
 
   // Shader-side wind only supported on WebGL2 (PBRCustomMaterial GLSL
@@ -216,8 +211,7 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
   scene.clearColor = new Color4(0.86, 0.87, 0.85, 1);
   scene.ambientColor = new Color3(0.12, 0.12, 0.12);
 
-  // dev 진단 편의 — playwright / DevTools 에서 scene/engine/store 접근 가능.
-  // Iter 35 PR 2 Phase O: qualityProbe() + isProbeRunning() 제거 (QualityProbe archived).
+  // Dev / probe convenience — Playwright / DevTools can reach scene / engine / store.
   (globalThis as { __farmsim?: unknown; __twinStore?: unknown }).__farmsim = {
     engine,
     scene,
@@ -283,21 +277,17 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
   });
 
   const cameraRig = setupCamera(scene, canvas);
-  // D11 (RFP §17) — module holder 등록 → CameraDock에서 setPreset 호출.
-  //   CameraRig는 typed (PresetView), holder는 string으로 받음 (cast).
+  // Module holder — CameraDock calls setPreset; CameraRig is typed
+  // (PresetView) while the holder takes a string, so we cast.
   setCameraRigRef({
     setPreset: (n: string) => cameraRig.setPreset(n as Parameters<typeof cameraRig.setPreset>[0]),
     setEePresetDynamic: cameraRig.setEePresetDynamic,
   });
-  // Iter 35 PR 4 Phase Q2: cameraPreset store field 제거 — 기본 'single-plant' preset.
   cameraRig.setPreset('single-plant');
   // Dev-only: expose scene + camera for headless capture / debugging.
   if (import.meta.env?.DEV) {
     (globalThis as { __scene?: unknown }).__scene = scene;
     (globalThis as { __camera?: unknown }).__camera = cameraRig.camera;
-    // Iter 36 v5 Phase C — Plant Morphology Engine Leaf Module v0.1 dev hook
-    // (src/plant/leaf/devHook) archived. Skin path는 LeafGenerator + skeleton
-    // 3-tier로 단일화 — 외부 dev hook 부재.
   }
   log.debug('camera ready');
   logBoot('log', 'engine: 카메라 준비 완료');
@@ -353,12 +343,13 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
       const profile = robotOpts.profile === 'none' ? 'agv-arm' : robotOpts.profile;
       const robot = createRobot(scene, { z: -0.8, y: 0.3, x: robotOpts.startX, profile });
 
-      // 레일 ping-pong 주행 — robot.traverseEnabled 시 활성.
-      // Phenotyping: 가는 방향 (+X) 좌측(Z+) 베드, 오는 방향 (-X) 우측(Z-) 베드 촬영.
+      // Rail ping-pong traverse — enabled when robotOpts.traverseEnabled.
+      // Phenotyping convention: outbound (+X) shoots the left (Z+) bed,
+      // return (-X) shoots the right (Z−) bed.
       //
-      // Iter 31 Phase R — auto/paused/manual 분기 + Zustand store 연동.
-      //   - railX 위치는 module-scope `railRef` (60fps 리렌더 회피)
-      //   - mode/speed/gimbal 각도는 store 구독 (UI에서 변경)
+      // Mode dispatch: 'auto' / 'paused' / 'manual' from the store.
+      // railX itself lives in a module-scope `railRef` so the React tree
+      // doesn't re-render at 60fps; UI subscribes only to mode/speed/gimbal.
       if (robotOpts.traverseEnabled) {
         const TRAVERSE_RANGE = robotOpts.traverseRangeM;
         // Boot 시 store에 default speed 시드 (race-free: action 호출만)
@@ -401,10 +392,11 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
       // §19 phenotyping — 짐벌 카메라 mini-viewport (좌상단 384×288 @ 1600×900).
       //   robotOpts.gimbalView 시 활성. UniversalCamera + parent=gimbalPitchPivot.
       if (profile === 'phenotyping' && robotOpts.gimbalView) {
-        // Iter 31 Phase R+ — PTZ 표준: lens 가 회전축 위(X=0, Z=0)에 있어 view origin
-        //   = pan/pitch 교점 = 로봇 X/Z 중심. pan 회전 시 view origin 고정 (in-place
-        //   회전, swing 없음). robot mesh 는 layerMask 로 제외되므로 lens/body 가시
-        //   우려 없음 (이전 z=0.18 offset 이유 무효).
+        // PTZ-standard mount: the lens sits exactly on the rotation axes
+        // (local X=0, Z=0), so view origin = pan/pitch intersection =
+        // robot X/Z center.  Panning rotates the camera in place (no swing).
+        // Robot self-meshes are excluded by layerMask, so the lens/body
+        // never appears in frame.
         const gimbalCam = new UniversalCamera(
           'gimbal-cam',
           new Vector3(0, 0, 0),
@@ -419,7 +411,11 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
         // Viewport 는 GimbalView (DOM PiP) 가 자기 bounding rect 으로 동적 동기.
         //   초기값은 좌상단 PiP 위치/크기 (74,58 → 236×138 on 1600×900 canvas).
         gimbalCam.viewport = new Viewport(0.046, 0.782, 0.148, 0.153);
-        gimbalCamRef.current = gimbalCam;
+        gimbalCameraRef.current = gimbalCam;
+        // Dev/probe hook — Playwright probes read gimbal cam pose to verify aim.
+        if (typeof window !== 'undefined') {
+          (window as unknown as { __gimbalCam: typeof gimbalCam }).__gimbalCam = gimbalCam;
+        }
 
         // Robot 전체를 gimbalCam에서 제외 — chassis · strut · wheel · gimbal mount · lens 등.
         //   layerMask 비트 0x10000000 = robot 전용. main cam은 default 0x0FFFFFFF에 포함됨.
@@ -429,47 +425,99 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
         gimbalCam.layerMask = 0x0FFFFFFF; // robot 비트 제외, 나머지 (default 0x0FFFFFFF) 포함
         cameraRig.camera.layerMask = 0xFFFFFFFF; // 메인은 모두 보임
 
-        scene.activeCameras = [cameraRig.camera, gimbalCam];
-
-        // gimbal-viewport-rtt-fix plan v2 — multi-camera 두 번째 cam render 직전 viewport 영역만 clear.
+        // ── PiP render path ──
+        // Two modes share this gimbalCam:
         //
-        //   원인 (thinEngine.pure.js L737~785 직접 검증):
-        //     engine.clear() 의 gl.clear() 는 viewport와 무관, _전체 framebuffer_ clear.
-        //     이전 plan v1 (engine.clear만 호출) 은 main이 그린 픽셀 다 지움 → main 회색.
+        //   'in-canvas' (legacy): gimbalCam is added to scene.activeCameras.
+        //     Each frame Babylon renders main + gimbal sub-region; the
+        //     `<GimbalView>` React panel is a transparent <div> over that
+        //     region.  Has the multi-camera viewport class of bugs we just
+        //     escaped — kept for fallback / comparison only.
         //
-        //   해결: WebGL scissor test 활성화 → gl.clear가 scissor 영역만 clear.
-        //     WebGL은 gl.enable(SCISSOR_TEST) + gl.scissor(x,y,w,h) 직접.
-        //     WebGPU/Native는 engine.enableScissor() / disableScissor() 메서드.
-        scene.onBeforeCameraRenderObservable.add((cam) => {
-          if (cam !== gimbalCam) return;
-          const e = scene.getEngine();
-          const w = e.getRenderWidth();
-          const h = e.getRenderHeight();
-          const vp = gimbalCam.viewport;
-          // viewport.x/y/width/height 모두 [0,1] percent. y는 bottom-up (WebGL과 동일).
-          const sx = Math.round(vp.x * w);
-          const sy = Math.round(vp.y * h);
-          const sw = Math.round(vp.width * w);
-          const sh = Math.round(vp.height * h);
-          // WebGPU / Native: 메서드 사용
-          if (typeof (e as unknown as { enableScissor?: (x: number, y: number, w: number, h: number) => void }).enableScissor === 'function') {
-            const ee = e as unknown as { enableScissor: (x: number, y: number, w: number, h: number) => void; disableScissor: () => void };
-            ee.enableScissor(sx, sy, sw, sh);
-            e.clear(scene.clearColor, true, true, false);
-            ee.disableScissor();
-          } else {
-            // WebGL: gl 직접
-            const gl = (e as unknown as { _gl?: WebGL2RenderingContext })._gl;
-            if (!gl) return;
-            gl.enable(gl.SCISSOR_TEST);
-            gl.scissor(sx, sy, sw, sh);
-            e.clear(scene.clearColor, true, true, false);
-            gl.disable(gl.SCISSOR_TEST);
+        //   'stream' (default): gimbalCam stays OUT of scene.activeCameras.
+        //     The new GimbalCameraStreamer (tooling/vite/plugins/camStream relayed
+        //     WS pipeline) attaches a private capture camera + RTT to render
+        //     the same view 320×180 and stream JPEG frames.  React PiP shows
+        //     an <img> consumer.  No multi-cam render → no scissor needed.
+        //
+        // Hot-swap: re-subscribes on twinStore.phenotypingSurvey.pipMode change.
+        let scissorHook: import('@babylonjs/core/Misc/observable').Observer<import('@babylonjs/core/Cameras/camera').Camera> | null = null;
+        let streamer: import('../phenotyping/streaming/gimbalCameraStreamer').GimbalCameraStreamer | null = null;
+        const applyPipMode = (mode: 'stream' | 'in-canvas'): void => {
+          const wantInCanvas = mode === 'in-canvas';
+          const hasGimbalActive = (scene.activeCameras ?? []).includes(gimbalCam);
+          if (wantInCanvas && !hasGimbalActive) {
+            scene.activeCameras = [cameraRig.camera, gimbalCam];
+          } else if (!wantInCanvas && hasGimbalActive) {
+            scene.activeCameras = [cameraRig.camera];
           }
-        });
+          // Stream mode → spin up GimbalCameraStreamer (capture cam + RTT + WS).
+          // Lazy-imported so the WS / encode code only loads when the user
+          // sticks with 'stream' (default — vast majority of sessions).
+          if (!wantInCanvas && !streamer) {
+            void import('../phenotyping/streaming/gimbalCameraStreamer').then(({ GimbalCameraStreamer }) => {
+              if (streamer) return;
+              streamer = new GimbalCameraStreamer({
+                scene,
+                gimbalCamera: gimbalCam,
+                streamId: 'phenotyping/gimbal',
+              });
+              streamer.start();
+            }).catch((err) => {
+              log.warn('streamer init failed', err);
+            });
+          } else if (wantInCanvas && streamer) {
+            streamer.dispose();
+            streamer = null;
+          }
+          if (wantInCanvas && !scissorHook) {
+            // WebGL scissor-clear: gl.clear()는 viewport와 무관 — 전체 framebuffer
+            // clear.  scissor 영역만 clear되도록 SCISSOR_TEST 활성화.
+            scissorHook = scene.onBeforeCameraRenderObservable.add((cam) => {
+              if (cam !== gimbalCam) return;
+              const e = scene.getEngine();
+              const w = e.getRenderWidth();
+              const h = e.getRenderHeight();
+              const vp = gimbalCam.viewport;
+              const sx = Math.round(vp.x * w);
+              const sy = Math.round(vp.y * h);
+              const sw = Math.round(vp.width * w);
+              const sh = Math.round(vp.height * h);
+              if (typeof (e as unknown as { enableScissor?: (x: number, y: number, w: number, h: number) => void }).enableScissor === 'function') {
+                const ee = e as unknown as { enableScissor: (x: number, y: number, w: number, h: number) => void; disableScissor: () => void };
+                ee.enableScissor(sx, sy, sw, sh);
+                e.clear(scene.clearColor, true, true, false);
+                ee.disableScissor();
+              } else {
+                const gl = (e as unknown as { _gl?: WebGL2RenderingContext })._gl;
+                if (!gl) return;
+                gl.enable(gl.SCISSOR_TEST);
+                gl.scissor(sx, sy, sw, sh);
+                e.clear(scene.clearColor, true, true, false);
+                gl.disable(gl.SCISSOR_TEST);
+              }
+            });
+          } else if (!wantInCanvas && scissorHook) {
+            scene.onBeforeCameraRenderObservable.remove(scissorHook);
+            scissorHook = null;
+          }
+        };
+        // Initial: subscribe to twinStore.
+        try {
+          const { useTwinStore } = await import('../state/twinStore');
+          applyPipMode(useTwinStore.getState().phenotypingSurvey.pipMode);
+          useTwinStore.subscribe((s, prev) => {
+            if (s.phenotypingSurvey.pipMode !== prev.phenotypingSurvey.pipMode) {
+              applyPipMode(s.phenotypingSurvey.pipMode);
+            }
+          });
+        } catch {
+          // Fallback to legacy in-canvas if store import fails
+          applyPipMode('in-canvas');
+        }
       }
     } catch (e) {
-      console.warn('createRobot failed:', e);
+      log.warn('createRobot failed', e);
     }
     // ★ S126 — extra plants도 등록 (index 1+). SinglePlantOverlay에서 update 받음.
     for (let i = 0; i < greenhouse.extraPlants.length; i++) {
@@ -480,8 +528,6 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
     notify.error('Scene 빌드 실패', err instanceof Error ? err : String(err));
   }
 
-  // Iter 35: ProgressiveLoad + applyMode + greenhouseContent 제거 — single-plant only.
-  //   환경/quality 즉시 적용 (사용자 결정). greenhouseContent는 mount 안 함.
   function applyInitialMode(): void {
     cameraRig.setPreset('single-plant');
   }
@@ -492,8 +538,9 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
   if (sceneSetup) {
     setBootStage('quality', '렌더 품질 적용', 0);
     try {
-      // §21 — sceneOptions.qualityPreset (URL ?qualityPreset=N 에서 옴) 으로 RenderFX preset 강제.
-      //   N=1 (Minimum, shadow off, MSAA 1, hardware 0.5x) 권장 — 130 plant 부담 ↓.
+      // URL `?qualityPreset=N` forces the RenderFX preset.  N=1 (Minimum,
+      // shadow off, MSAA 1, hardware 0.5x) is the lightest tier — useful
+      // when 100+ plants stress the device.
       if (sceneOptions.qualityPreset !== null && QUALITY_PRESETS[sceneOptions.qualityPreset]) {
         useTwinStore.getState().setRenderFX(QUALITY_PRESETS[sceneOptions.qualityPreset].fx);
         logBoot('log', `quality: preset ${sceneOptions.qualityPreset} (${QUALITY_PRESETS[sceneOptions.qualityPreset].label}) 강제 적용`);
@@ -506,22 +553,20 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
     }
   }
 
-  // Store subscription — react to changes
-  // Iter 35: greenhouseContent 분기 (zone/heatmap/fov/pathTrail) 모두 제거 — single-plant only.
+  // Store subscription — react to changes.
   const unsubStore = useTwinStore.subscribe((s, prev) => {
-    // Iter 35 PR 4 Phase Q2: cameraPreset + analysisMode subscribe 제거 (store fields 부재).
     if (s.showSkeleton !== prev.showSkeleton && greenhouse) {
       greenhouse.skinMeshPlant.setSkeletonMode(s.showSkeleton);
     }
     if (s.skeleton !== prev.skeleton && greenhouse) {
       greenhouse.skinMeshPlant.setSkeletonConfig(s.skeleton);
     }
-    // ★ Iter 39 Phase J0-1 — Isolated Leaf Debug Mode 적용.
-    //   strict: lush mesh OFF + skeleton ON (target leaf 외 모두 hide는
-    //     SkeletonOverlay 자체에서 처리).
-    //   context: lush ON 유지 (alpha dim은 overlay/skin 측 향후 처리),
-    //     skeleton ON 강제.
-    //   off: 사용자 토글 그대로.
+    // Isolated Leaf Debug Mode:
+    //   strict: lush mesh OFF + skeleton ON (SkeletonOverlay handles the
+    //     "hide everything except target leaf" half).
+    //   context: keep lush ON, force skeleton ON.  Alpha dimming for the
+    //     surrounding leaves lives in the overlay / skin layer.
+    //   off: user toggle wins.
     if (s.isolatedLeafMode !== prev.isolatedLeafMode && greenhouse) {
       const m = s.isolatedLeafMode.mode;
       if (m === 'strict') {
@@ -531,9 +576,8 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
         greenhouse.skinMeshPlant.setLushEnabled(true);
         greenhouse.skinMeshPlant.setSkeletonEnabled(true);
       }
-      // off: 토글 미강제 (사용자 showSkeleton 그대로).
+      // 'off' is intentional no-op so the user's showSkeleton stays in charge.
     }
-    // Iter 35 PR 2: useImplicitMesh subscription 제거 — SkinMesh가 유일 renderer.
     if (s.lighting !== prev.lighting && sceneSetup) {
       applyLightingToScene(scene, sceneSetup, s.lighting);
     }
@@ -544,7 +588,6 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
         log.error('applyRenderQuality failed:', err);
       }
     }
-    // Iter 35: ProgressiveLoad 제거 — mode 단일이므로 mode-change 분기도 제거.
   });
 
   // Initial single-plant setup — camera preset + skeleton config.
@@ -555,7 +598,7 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
     if (initialState.showSkeleton) {
       greenhouse.skinMeshPlant.setSkeletonMode(true);
     }
-    // ★ Iter 39 Phase J0-1 — Boot 시 URL query로 진입한 isolated mode 적용.
+    // Apply the isolated mode entered via URL query at boot.
     const m0 = initialState.isolatedLeafMode.mode;
     if (m0 === 'strict') {
       greenhouse.skinMeshPlant.setLushEnabled(false);
@@ -709,12 +752,8 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
   let lastCountersUpdate = 0;
 
   let lastFpsUpdate = 0;
-  // Iter 35 PR 4 Phase P: lastDayUpdate 제거 — SinglePlantOverlay useEffect [minute]가
-  //   유일 skin.update path (TOMGRO 일관성).
   let lastPlayTime = performance.now();
   const hudFps = document.getElementById('hud-fps');
-  // Iter 35 PR 4 Phase Q2: hudDay 제거 — singlePlantMinute 표시는 BottomPlaybackBar 담당.
-  // Iter 35: hudRobot 제거 — single-plant only.
 
   // Resolve cached leaf materials for per-frame wind uniform update.
   let cachedLeafMatCount = -1;
@@ -737,9 +776,6 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
 
   engine.runRenderLoop(() => {
     const state = useTwinStore.getState();
-
-    // Iter 35: lobby mode 부재 — render tick idle 분기 제거.
-
     const now = performance.now();
     const dtInter = (now - lastInteractionTick) / 1000;
     lastInteractionTick = now;
@@ -770,8 +806,6 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
       }
     }
 
-    // Iter 35 PR 4 Phase Q2: interactions/robot/plantLOD 모두 제거 (store fields 부재).
-
     // Push wind uniforms each frame — WebGL2 only.
     // On WebGPU we use the CPU sine fallback further down.
     if (isShaderWindEnabled()) {
@@ -786,7 +820,8 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
             'windDir',
             new Vector3(state.windDirection[0], state.windDirection[1], state.windDirection[2])
           );
-          // Iter 35 PR 4 Phase Q2: interaction uniforms 제거 (interactions field 부재).
+          // Interactions are not wired through the store today; pass 0 so the
+          // shader's interactionCount uniform always has a defined value.
           eff.setInt('interactionCount', 0);
         }
       }
@@ -794,7 +829,6 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
       // WebGPU fallback — gently rock the plant root TransformNodes so
       // the whole plant breathes. Only z-axis tilt (subtle) so leaves
       // don't appear locked-frame static.
-      // ★ Iter 35 PR 2 Phase I — wind sway target: showcase.root → skinMeshPlant.root.
       const t = now / 1000;
       const baseAmp = 0.012 * state.windStrength;
       const baseFreq = 0.7;
@@ -804,30 +838,19 @@ export async function createBabylonEngine(canvas: HTMLCanvasElement): Promise<Ba
       plant.rotation.x = Math.sin(t * baseFreq * 1.3 + plant.position.z * 0.4) * baseAmp * 0.5;
     }
 
-    // Iter 35 PR 4 Phase Q2: playback (state.playing/currentDay/playSpeed/setDay/togglePlay)
-    //   제거 — SinglePlantOverlay의 playback loop (singlePlantMinute 기반)이 대체.
-
-    // Iter 35 PR 4 Phase P: BabylonEngine의 skin.update 호출 _제거_.
-    //   기존 호출 (physiology 없음) → Sigmoid path (낙과 필터 없음) → 부정확한
-    //   fruit count. SinglePlantOverlay.useEffect [minute]가 physiology 포함
-    //   simulatePlantToMinute 호출 → TOMGRO path (낙과/수확 필터) → 정확.
-    //   사용자 보고 "첫 진입 fruit 많은데 click 시 줄어듦" 해소.
-    //
-    // Sun + ambient은 store.lighting subscribe로 처리 (currentDay 무관).
-
+    // Playback runs in SinglePlantOverlay (singlePlantMinute-driven), and
+    // sun + ambient updates come from the store.lighting subscription —
+    // so the render loop only paints the current state.
     scene.render();
 
     if (now - lastFpsUpdate > 250) {
       const fps = engine!.getFps();
       const store = useTwinStore.getState();
       store.publishFps(fps);
-      // Iter 35 PR 4 Phase Q2: hudDay (currentDay 표시) 제거 — singlePlantMinute로 대체.
       // Legacy hud spans — kept for old verify scripts. Cheap text writes.
       if (hudFps) hudFps.textContent = `${fps.toFixed(0)} fps`;
       lastFpsUpdate = now;
     }
-
-    // Iter 35: LabelOverlay project 3D→2D 제거 — single-plant only.
   });
 
   const onResize = () => engine!.resize();

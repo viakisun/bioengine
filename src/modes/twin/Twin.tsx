@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ValueChip } from '../../hud/ValueChip';
 import { MODES } from '../registry';
-import { Picker } from '../scenarios/Picker';
+import { Picker } from '../scenarioPicker/Picker';
 import type { ScenarioSpec } from '../../scenarios/types';
 import {
   getBus,

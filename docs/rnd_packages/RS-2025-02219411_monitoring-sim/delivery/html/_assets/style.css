@@ -1,0 +1,447 @@
+/* =========================================================
+   적심·적과 농작업 로봇 관제 시각화 시뮬레이터 시작품
+   납품 산출물 PDF 5건 공용 print stylesheet
+   monochrome only (no color)
+   ========================================================= */
+
+@page {
+  size: A4;
+  margin: 20mm 15mm 20mm 15mm;
+}
+
+* { box-sizing: border-box; }
+*, *::before, *::after { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #fff;
+}
+
+body {
+  font-family: 'Apple SD Gothic Neo', 'Pretendard', BlinkMacSystemFont, 'Noto Sans CJK KR', 'Noto Sans KR', sans-serif;
+  font-size: 10.5pt;
+  line-height: 1.62;
+  color: #000;
+  font-weight: 400;
+  letter-spacing: -0.005em;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+/* --------- Headings --------- */
+
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 700;
+  color: #000;
+  page-break-after: avoid;
+  break-after: avoid;
+}
+
+h1 {
+  font-size: 19pt;
+  margin: 0 0 14pt 0;
+  padding: 0 0 8pt 0;
+  border-bottom: 2pt solid #000;
+  page-break-before: always;
+  break-before: page;
+}
+
+/* 표지의 h1은 페이지 break 없이 */
+.cover-page h1,
+.toc-page h1 {
+  page-break-before: avoid !important;
+  break-before: auto !important;
+}
+
+h2 {
+  font-size: 13.5pt;
+  margin: 22pt 0 9pt 0;
+  padding: 0 0 4pt 0;
+  border-bottom: 0.5pt solid #444;
+  font-weight: 600;
+}
+
+h3 {
+  font-size: 11.5pt;
+  margin: 16pt 0 7pt 0;
+  font-weight: 600;
+}
+
+h4 {
+  font-size: 10.5pt;
+  margin: 12pt 0 5pt 0;
+  font-weight: 600;
+  color: #222;
+}
+
+h5, h6 {
+  font-size: 10pt;
+  margin: 10pt 0 4pt 0;
+  font-weight: 600;
+  color: #444;
+}
+
+p {
+  margin: 0 0 7pt 0;
+  text-align: justify;
+  text-justify: inter-character;
+}
+
+ul, ol {
+  margin: 0 0 8pt 0;
+  padding-left: 18pt;
+}
+
+li {
+  margin: 2pt 0;
+}
+
+li > ul, li > ol {
+  margin: 2pt 0;
+}
+
+strong, b {
+  font-weight: 700;
+}
+
+em, i {
+  font-style: italic;
+}
+
+a {
+  color: #000;
+  text-decoration: underline;
+  text-decoration-color: #999;
+  text-underline-offset: 2pt;
+}
+
+hr {
+  border: none;
+  border-top: 0.5pt solid #999;
+  margin: 14pt 0;
+}
+
+/* --------- Tables --------- */
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8pt 0 12pt 0;
+  page-break-inside: avoid;
+  break-inside: avoid;
+  font-size: 9.5pt;
+  line-height: 1.5;
+}
+
+thead {
+  display: table-header-group;
+}
+
+thead th {
+  background: #000;
+  color: #fff;
+  padding: 5pt 7pt;
+  text-align: left;
+  border: 0.5pt solid #000;
+  font-weight: 600;
+  font-size: 9.5pt;
+}
+
+tbody td, tbody th {
+  padding: 4pt 7pt;
+  border: 0.4pt solid #888;
+  vertical-align: top;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+tbody th {
+  background: #eee;
+  font-weight: 600;
+  text-align: left;
+}
+
+tbody tr:nth-child(even) td {
+  background: #f6f6f6;
+}
+
+/* --------- Code blocks --------- */
+
+pre, code, kbd, samp {
+  font-family: 'SF Mono', 'D2Coding', 'Fira Code', Menlo, Consolas, monospace;
+}
+
+pre {
+  background: #f4f4f4;
+  border: 0.4pt solid #ccc;
+  border-left: 2.5pt solid #000;
+  padding: 7pt 9pt;
+  margin: 7pt 0 9pt 0;
+  font-size: 8.5pt;
+  line-height: 1.5;
+  page-break-inside: avoid;
+  break-inside: avoid;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  color: #000;
+}
+
+code {
+  background: #eee;
+  padding: 1pt 4pt;
+  font-size: 0.9em;
+  border-radius: 1pt;
+  color: #000;
+}
+
+pre code {
+  background: transparent;
+  padding: 0;
+  font-size: 1em;
+  color: inherit;
+}
+
+/* --------- Blockquote --------- */
+
+blockquote {
+  border-left: 2.5pt solid #444;
+  margin: 8pt 0;
+  padding: 4pt 12pt;
+  color: #333;
+  background: #fafafa;
+  font-style: normal;
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+blockquote p:last-child {
+  margin-bottom: 0;
+}
+
+/* --------- Figures / Images --------- */
+
+figure {
+  margin: 12pt 0;
+  page-break-inside: avoid;
+  break-inside: avoid;
+  text-align: center;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+  border: 0.4pt solid #888;
+  filter: grayscale(100%);
+}
+
+figure img {
+  margin-bottom: 4pt;
+}
+
+figcaption {
+  font-size: 8.5pt;
+  color: #444;
+  text-align: center;
+  margin-top: 4pt;
+  font-style: italic;
+}
+
+/* paragraph that is purely an image — wrap in pseudo figure-like style */
+p > img:only-child {
+  margin: 10pt auto;
+}
+
+/* SVG diagrams shouldn't be grayscaled (they're already monochrome) */
+.diagram img,
+img[src$=".svg"] {
+  filter: none;
+  border: none;
+}
+
+/* --------- Cover Page --------- */
+
+.cover-page {
+  page-break-after: always;
+  break-after: page;
+  padding: 0;
+  min-height: 240mm;
+  display: flex;
+  flex-direction: column;
+}
+
+.cover-page .cover-header {
+  margin-top: 10mm;
+  border-bottom: 3pt double #000;
+  padding-bottom: 6pt;
+  font-size: 9pt;
+  color: #444;
+  display: flex;
+  justify-content: space-between;
+}
+
+.cover-page .cover-title-block {
+  margin-top: 50mm;
+  text-align: left;
+}
+
+.cover-page h1.cover-title {
+  font-size: 30pt;
+  font-weight: 800;
+  margin: 0 0 10pt 0;
+  padding: 0;
+  border: none;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  page-break-before: avoid;
+}
+
+.cover-page .cover-subtitle {
+  font-size: 13pt;
+  color: #333;
+  font-weight: 500;
+  margin: 6pt 0 0 0;
+  letter-spacing: -0.005em;
+}
+
+.cover-page .cover-doc-no {
+  font-size: 10pt;
+  color: #666;
+  margin-top: 18pt;
+  font-family: 'SF Mono', Menlo, monospace;
+}
+
+.cover-page .cover-meta {
+  margin-top: auto;
+  margin-bottom: 20mm;
+  border-top: 1pt solid #000;
+  padding-top: 10pt;
+}
+
+.cover-page .cover-meta table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9.5pt;
+}
+
+.cover-page .cover-meta table th,
+.cover-page .cover-meta table td {
+  border: none;
+  padding: 3pt 0;
+  text-align: left;
+  background: transparent !important;
+}
+
+.cover-page .cover-meta table th {
+  width: 30%;
+  color: #444;
+  font-weight: 500;
+  background: transparent !important;
+}
+
+.cover-page .cover-meta table td {
+  color: #000;
+  font-weight: 500;
+}
+
+/* --------- Table of Contents --------- */
+
+.toc-page {
+  page-break-after: always;
+  break-after: page;
+}
+
+.toc-page h1.toc-title {
+  font-size: 18pt;
+  margin: 0 0 12pt 0;
+  padding-bottom: 6pt;
+  border-bottom: 1pt solid #000;
+  page-break-before: avoid;
+}
+
+.toc-list {
+  list-style: none;
+  padding: 0;
+  margin: 10pt 0 0 0;
+  font-size: 10pt;
+  line-height: 1.85;
+}
+
+.toc-list .toc-h1 {
+  font-weight: 700;
+  margin-top: 6pt;
+}
+
+.toc-list .toc-h2 {
+  padding-left: 16pt;
+  font-weight: 400;
+  color: #222;
+  font-size: 9.5pt;
+}
+
+.toc-list .toc-h3 {
+  padding-left: 32pt;
+  font-weight: 400;
+  color: #555;
+  font-size: 9pt;
+}
+
+.toc-list .toc-row {
+  display: flex;
+  align-items: baseline;
+  gap: 4pt;
+}
+
+.toc-list .toc-row .toc-title-text {
+  flex: 0 1 auto;
+}
+
+.toc-list .toc-row .toc-dots {
+  flex: 1 1 auto;
+  border-bottom: 0.3pt dotted #999;
+  margin: 0 4pt 3pt 4pt;
+  min-width: 10pt;
+}
+
+.toc-list .toc-row .toc-pagenum {
+  flex: 0 0 auto;
+  color: #444;
+  font-family: 'SF Mono', Menlo, monospace;
+  font-size: 9pt;
+}
+
+/* --------- Page break helpers --------- */
+
+.page-break {
+  page-break-after: always;
+  break-after: page;
+}
+
+.no-break {
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+/* --------- Appendix --------- */
+
+.appendix-divider {
+  margin-top: 20pt;
+  padding: 6pt 0;
+  text-align: center;
+  font-size: 10pt;
+  color: #666;
+  border-top: 1pt solid #000;
+  border-bottom: 1pt solid #000;
+  letter-spacing: 0.05em;
+  page-break-before: always;
+}
+
+/* --------- Print-only refinements --------- */
+
+@media print {
+  body { font-size: 10pt; }
+  a { color: #000; }
+}

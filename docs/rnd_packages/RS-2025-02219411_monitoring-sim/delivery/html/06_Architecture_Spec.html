@@ -1,0 +1,2969 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>시스템 아키텍처 설계서 — RS-2025-02219411</title>
+<link rel="stylesheet" href="_assets/style.css">
+</head>
+<body>
+
+<section class="cover-page">
+  <div class="cover-header">
+    <span>RS-2025-02219411</span>
+    <span>산출물 #6</span>
+  </div>
+  <div class="cover-title-block">
+    <h1 class="cover-title">시스템 아키텍처 설계서</h1>
+    <div class="cover-subtitle">적심·적과 농작업 로봇 관제 시각화 시뮬레이터 시작품</div>
+    <div class="cover-doc-no">DOC.06 / RS-2025-02219411</div>
+  </div>
+  <div class="cover-meta">
+    <table>
+      <tr><th>과제번호</th><td>RS-2025-02219411</td></tr>
+      <tr><th>사업명</th><td>스마트팜 다부처패키지 혁신기술개발사업 — 과채류 맞춤형 농작업 지능로봇 및 관제 시스템 개발 및 실증</td></tr>
+      <tr><th>산출물</th><td>#6 · 시스템 아키텍처 설계서</td></tr>
+      <tr><th>발주처</th><td>주식회사 비아</td></tr>
+      <tr><th>주관기관</th><td>메타파머스</td></tr>
+      <tr><th>작성자</th><td>주식회사 비아</td></tr>
+      <tr><th>작성일</th><td>2026-06-18</td></tr>
+    </table>
+  </div>
+</section>
+
+<section class="toc-page">
+  <h1 class="toc-title">목차</h1>
+  <ul class="toc-list">
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">문서 정보</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">사업 컨텍스트 및 시뮬레이터 시작품의 위상</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">사업 개요</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">본 시작품의 위치</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">본 시작품이 수행하지 않는 것</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">시스템 개요</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">기술 스택</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">모듈 계층 전체 그림</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">모듈 계층 (LAYER_STRUCTURE)</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">FarmSim Layer Architecture (Iter 35+)</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">생육 모델링 (GROWTH_MODEL)</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">본 chapter의 위치</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">학술 문헌 backbone</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">Canonical state — Reduced TOMGRO 5-state</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">시뮬레이션 step 구조</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">Pass 1 — Thermal time (열역학 시계)</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">Pass 2 — Phytomer emergence (영양기관 발생)</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">Pass 3 — Photosynthesis (광합성)</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">Pass 3 (계속) — Source-Sink partitioning (동화산물 분배)</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">Pass 4 — Fruit growth (과실 생육 — Gillaspy 3-phase)</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">Pass 5 — Senescence / pruning / harvest</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">Cultivar JSON 스키마 + 5 종 패키지</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">Calibration Reference Pack v0.1</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">Validation targets — literature</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">현재 알려진 제약 + Phase 로드맵</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">본 chapter 의 검증 spec 참조</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">좌표계 규약 (COORDINATE_SYSTEMS)</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">Coordinate Systems — SSOT</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">Mesh Anchor 규약 (MESH_ANCHORS)</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">Mesh Anchors — SSOT</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">Semantic Graph (SEMANTIC_GRAPH)</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">Semantic Skeleton Graph (SSOT #187)</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">스트림 프로토콜 — MJPEG over WebSocket</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">개요</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">WS 엔드포인트</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">프레임 포맷</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">Producer 측 동작</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">Consumer 측 동작</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">페일오버 / 재연결</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">Web Worker 디텍션 파이프라인</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">개요</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">모듈</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">흐름</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">백 프레셔</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">디텍터 교체</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">로깅 시스템 (LOGGING)</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">Logging System — namespace + opt-in</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">검증·테스트 인프라</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">두 종류의 테스트</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">현재 활성 Invariant Specs</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">현재 활성 Probe (keep)</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">아카이브된 Probe</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">참조 문서 목록</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">본 시작품 내부 문서</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">본 산출물 패키지의 자매 문서</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">외부 학술 참조</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">문서 변경 이력</span><span class="toc-dots"></span></div></li>
+  </ul>
+</section>
+<article class="doc-body">
+<h1 id="h-문서-정보-0">문서 정보</h1>
+<table>
+<thead>
+<tr>
+<th>항목</th>
+<th>내용</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>문서명</td>
+<td>시스템 아키텍처 설계서</td>
+</tr>
+<tr>
+<td>산출물 번호</td>
+<td>#5</td>
+</tr>
+<tr>
+<td>과제번호</td>
+<td>RS-2025-02219411</td>
+</tr>
+<tr>
+<td>사업명</td>
+<td>스마트팜 다부처패키지 혁신기술개발사업 — 과채류 맞춤형 농작업 지능로봇 및 관제 시스템 개발 및 실증</td>
+</tr>
+<tr>
+<td>사업기간</td>
+<td>2025.04.01 ~ 2027.12.31</td>
+</tr>
+<tr>
+<td>주관연구개발기관</td>
+<td>메타파머스</td>
+</tr>
+<tr>
+<td>공동연구기관</td>
+<td>주식회사 비아</td>
+</tr>
+<tr>
+<td>작성일</td>
+<td>2026.06.18</td>
+</tr>
+<tr>
+<td>산출물 위치</td>
+<td><code>delivery/06_Architecture_Spec.pdf</code></td>
+</tr>
+<tr>
+<td>산출물 소스</td>
+<td><code>delivery/sources/05_Architecture_Spec.md</code></td>
+</tr>
+</tbody></table>
+<h1 id="h-사업-컨텍스트-및-시뮬레이터-시작품의-위상-1">사업 컨텍스트 및 시뮬레이터 시작품의 위상</h1>
+<h2 id="h-사업-개요-2">사업 개요</h2>
+<p>본 사업은 <strong>스마트팜 다부처패키지 혁신기술개발사업 — 과채류 맞춤형 농작업 지능로봇 및 관제 시스템 개발 및 실증</strong> 사업이며, 주관연구개발기관 메타파머스와 공동연구기관 ㈜비아가 공동 수행한다.  사업 전체는 적심·적과 농작업을 수행하는 지능 로봇 본체 + 그를 운용하는 관제 시스템 본 개발 + 실증 사이트 운영의 세 축으로 구성된다.</p>
+<h2 id="h-본-시작품의-위치-3">본 시작품의 위치</h2>
+<p>본 시뮬레이터 시작품은 사업 본 개발 결과물이 아니라, <strong>관제 시스템 본 개발 및 실증의 시연·검증 환경 보완용 R&amp;D 산출물</strong>이다.  구체적으로 다음 세 가지 목적을 가진다.</p>
+<ol>
+<li><strong>사전 시연</strong> — 실제 로봇·실제 온실에서 관제 화면을 운용하기 전, 가상 환경에서 관제 운용 시나리오를 반복 시연할 수 있는 환경 제공.</li>
+<li><strong>인터페이스 사전 검증</strong> — 주관기관 관제 시스템과의 연동 항목(WS 스트림 프로토콜, 디텍션 결과 포맷)을 사업 본 개발 단계에서 사전 검증.</li>
+<li><strong>실증 운용 절차 사전 점검</strong> — 실증 사이트 입회 단계에서 운용 순서, 진단 절차, 디텍션 결과 해석 방법을 사전 점검.</li>
+</ol>
+<h2 id="h-본-시작품이-수행하지-않는-것-4">본 시작품이 수행하지 않는 것</h2>
+<p>본 시뮬레이터는 <strong>R&amp;D 시각화·검증 환경</strong>이며, 다음은 본 시작품의 수행 범위가 아니다.</p>
+<ul>
+<li>실제 적심·적과 액추에이터/모션 제어 알고리즘 구현</li>
+<li>본 사업 관제 시스템의 본 개발 범위 수행</li>
+<li>클라우드/SaaS 운영 환경 구축</li>
+<li>상용 배포 및 라이선싱 작업</li>
+</ul>
+<p>이 분리는 발주서, 계약서, 검수확인서, 완료보고서의 &quot;과업 제외 범위&quot;로 명문화되어 있다.</p>
+<h1 id="h-시스템-개요-5">시스템 개요</h1>
+<h2 id="h-기술-스택-6">기술 스택</h2>
+<table>
+<thead>
+<tr>
+<th>영역</th>
+<th>채택 기술</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>3D 렌더링 엔진</td>
+<td>Babylon.js 9.x (WebGL2 / WebGPU 백엔드 선택)</td>
+</tr>
+<tr>
+<td>프론트엔드 프레임워크</td>
+<td>React 19, TypeScript 5.9</td>
+</tr>
+<tr>
+<td>상태관리</td>
+<td>Zustand 5.x (도메인 store 분할 구조)</td>
+</tr>
+<tr>
+<td>빌드 도구</td>
+<td>Vite 8</td>
+</tr>
+<tr>
+<td>디텍션 런타임</td>
+<td>onnxruntime-web (WASM 백엔드)</td>
+</tr>
+<tr>
+<td>카메라 스트리밍</td>
+<td>MJPEG over WebSocket (Vite dev plugin)</td>
+</tr>
+<tr>
+<td>워커</td>
+<td>Web Worker (디텍션 추론 오프로드)</td>
+</tr>
+<tr>
+<td>학술 모델 엔진</td>
+<td><code>packages/tomato-engine</code> (TOMSIM/TOMGRO 베이스)</td>
+</tr>
+<tr>
+<td>테스트</td>
+<td>Playwright (invariant + probe)</td>
+</tr>
+</tbody></table>
+<h2 id="h-모듈-계층-전체-그림-7">모듈 계층 전체 그림</h2>
+<figure><img src="_assets/diagrams/module-layers.svg" alt="도식 1. 시뮬레이터 모듈 계층 — UI / Scene / Domain / Detection / Streaming / Infra"><figcaption>도식 1. 시뮬레이터 모듈 계층 — UI / Scene / Domain / Detection / Streaming / Infra</figcaption></figure>
+<h1 id="h-모듈-계층-layerstructure-8">모듈 계층 (LAYER_STRUCTURE)</h1>
+<blockquote>
+<p>본 섹션은 <code>docs/architecture/LAYER_STRUCTURE.md</code>을 인용한다.</p>
+</blockquote>
+<h2 id="h-farmsim-layer-architecture-iter-35-9">FarmSim Layer Architecture (Iter 35+)</h2>
+<blockquote>
+<p>★ 코드 위치 결정 시 본 문서 <em>먼저</em> 읽기.
+<code>tests/architecture/iter35-layer-boundary.spec.ts</code> 가 invariant 자동 검증.</p>
+</blockquote>
+<h3 id="h-5-layer-10">5 Layer</h3>
+<h4 id="h-a-algorithms-pure-mathgeometry-11">A. Algorithms (pure math/geometry)</h4>
+<p><code>packages/tomato-geometry/src/</code></p>
+<ul>
+<li>Vec3/Mat4/Quat 연산</li>
+<li>Bezier/Catmull-Rom</li>
+<li>GeoChunk algorithms (leafChunk, internodeChunk, ...)</li>
+</ul>
+<p>★ <strong>Babylon import 금지</strong> — 순수 수학/기하만.</p>
+<h4 id="h-b-growth-engine-생장-생육-state-evolution-11">B. Growth Engine (생장 + 생육 — state evolution)</h4>
+<p><code>packages/tomato-engine/src/</code></p>
+<ul>
+<li><code>GrowthModel.ts</code> (Pass 1~4 daily step)</li>
+<li><code>growth/LeafGrowthModel.ts</code>, <code>PhytomerModel.ts</code>, ...</li>
+<li><code>Cultivar/Genome/ThermalTime</code></li>
+</ul>
+<p>★ <strong>Babylon import 금지</strong> — A layer import 허용 (type만).</p>
+<p>생장 (growth, area/length 증가) + 생육 (development, lifecycle stage) 둘 다 본 layer에서 처리. 코드상 같은 <code>GrowthEngine</code>에서 Pass 3 main loop이 둘 다 진행.</p>
+<h4 id="h-c-plant-base-biology-geometry-cache-11">C. Plant Base (biology → geometry cache)</h4>
+<p><code>src/plant/</code></p>
+<ul>
+<li><code>PlantBase.ts</code> (axes/leaves/trusses positions cache)</li>
+<li><code>skeleton/</code> (graph, populator, R26 contract)</li>
+<li><code>leaf/</code> (organ graph, schema)</li>
+<li><code>coordinates/</code>, <code>anchors/</code> (math utilities)</li>
+</ul>
+<p>★ <strong>Babylon import 금지</strong> — A + B layer import 허용.</p>
+<h5 id="h-iter-36-migration-후보-현재-일부-babylon-import-잔존-11">Iter 36+ migration 후보 (현재 일부 Babylon import 잔존)</h5>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>상태</th>
+<th>처리</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>LeafTexture.ts</code></td>
+<td>Babylon Scene/RawTexture import</td>
+<td>Iter 36에 <code>src/rendering/leaf/</code> 이동</td>
+</tr>
+<tr>
+<td><code>LeafGenerator.ts</code></td>
+<td>Babylon Material/Mesh import</td>
+<td>Iter 36에 <code>src/rendering/leaf/</code> 이동</td>
+</tr>
+<tr>
+<td><code>TrussGenerator.ts</code></td>
+<td>Babylon TransformNode/Mesh</td>
+<td>Iter 36에 <code>src/rendering/truss/</code> 이동</td>
+</tr>
+<tr>
+<td><code>leaf/material/getLeafBladeMaterial.ts</code></td>
+<td>Babylon Material</td>
+<td>Iter 36 이동</td>
+</tr>
+<tr>
+<td><code>leaf/buildLeafBladeMesh.ts</code></td>
+<td>Babylon Mesh</td>
+<td>Iter 36 이동</td>
+</tr>
+<tr>
+<td><code>leaf/devHook.ts</code></td>
+<td>dev tool</td>
+<td>이동</td>
+</tr>
+<tr>
+<td><code>skin/buildPlantSkinMesh.ts</code></td>
+<td>Babylon Scene</td>
+<td>Iter 36 이동</td>
+</tr>
+<tr>
+<td><code>skin/SkinEngine.ts</code></td>
+<td>Babylon</td>
+<td>Iter 36 이동</td>
+</tr>
+<tr>
+<td><code>skin/StemFamilyTubeNetworkBuilder.ts</code></td>
+<td>Babylon Mesh</td>
+<td>Iter 36 이동</td>
+</tr>
+<tr>
+<td><code>skeleton/buildTomatoSkeletonGraph.ts</code></td>
+<td><code>catmullRomPath</code> import (path math만)</td>
+<td>type-only 가능 검토</td>
+</tr>
+<tr>
+<td><code>anchors/leafAnchor.ts</code></td>
+<td><code>import type Mesh</code> (type only)</td>
+<td>허용</td>
+</tr>
+<tr>
+<td><code>coordinates/</code></td>
+<td><code>Vector3</code> value</td>
+<td>검토</td>
+</tr>
+</tbody></table>
+<p>Iter 35: <strong><code>StemGenerator</code> + <code>FruitGenerator</code>만</strong> 이동 완료. 나머지 13 files는 Iter 36+ 일괄 migration.</p>
+<h4 id="h-d-rendering-engine-babylon-mesh-output-11">D. Rendering Engine (Babylon mesh output)</h4>
+<p><code>src/rendering/</code></p>
+<ul>
+<li><code>BabylonEngine.ts</code> (engine init, render loop)</li>
+<li><code>SceneInfrastructure.ts</code> (scene setup — ground + GrowthEngine + Showcase + SkinMesh)</li>
+<li><code>SceneSetup.ts</code> (조명, IBL, SSAO)</li>
+<li><code>ShowcasePlant.ts</code> (Babylon mesh of showcase plant)</li>
+<li><code>SkinMeshPlant.ts</code> (canonical leaf mesh — SDF + marching cubes + per-leaf wrapper)</li>
+<li><code>SkeletonOverlay.ts</code> (debug visualization)</li>
+<li><code>CameraRig.ts</code>, <code>RenderQuality.ts</code>, <code>QualityProbe.ts</code></li>
+<li><code>dockingOverlay/</code> (petiole junction debug)</li>
+<li><code>stem/StemGenerator.ts</code> (Iter 35 Phase E ← <code>src/plant/</code>)</li>
+<li><code>fruit/FruitGenerator.ts</code> (Iter 35 Phase E ← <code>src/plant/</code>)</li>
+</ul>
+<p>★ <strong>Babylon 자유</strong>. A + B + C layer import 허용.</p>
+<h4 id="h-e-json-params-configuration-11">E. JSON Params (configuration)</h4>
+<p><code>packages/tomato-engine/models/</code></p>
+<ul>
+<li><code>cultivars/*.jsonc</code> (5 cultivar files: tomimaru-muchoo, round-generic, cherry-generic, beef-generic, sansoo)</li>
+<li><code>calibration/*.jsonc</code></li>
+</ul>
+<p>★ B layer가 <em>consume</em>. 코드 변경 없이 cultivar 추가/조정.</p>
+<h3 id="h-import-금지-규칙-enforcement-11">Import 금지 규칙 (enforcement)</h3>
+<pre><code>A → 없음 (pure)
+B → A (types)
+C → A, B (types)
+D → A, B, C
+E → 없음 (data)
+</code></pre>
+<p>위반 시 <code>tests/architecture/iter35-layer-boundary.spec.ts</code> <code>LAYER-*</code> invariant fail.</p>
+<h3 id="h-entry-point-single-plant-12">Entry Point (single-plant)</h3>
+<pre><code>App.tsx → SinglePlantApp (구 GreenhouseLayout)
+       → SceneCanvas → BabylonEngine
+       → buildSceneInfrastructure (D)
+         → GrowthEngine (B)
+         → ShowcasePlant + SkinMeshPlant (D)
+       → SinglePlantOverlay (UI)
+</code></pre>
+<h3 id="h-생장-vs-생육-13">생장 vs 생육</h3>
+<ul>
+<li><strong>생장 (growth)</strong>: area/length 증가<ul>
+<li><code>LeafGrowthModel.currentAreaCm2</code></li>
+<li><code>InternodeGrowthModel.lengthM</code></li>
+<li><code>FruitModel.diameter</code></li>
+</ul>
+</li>
+<li><strong>생육 (development)</strong>: lifecycle stage 전환<ul>
+<li><code>PhytomerModel</code> TT thresholds</li>
+<li><code>SenescenceModel</code> (잎 노화)</li>
+<li><code>FlowerModel</code> (anthesis)</li>
+</ul>
+</li>
+</ul>
+<p>같은 <code>GrowthEngine</code> 안에서 둘 다 처리 (B layer Pass 3 main loop).</p>
+<h3 id="h-archive-iter-35-제거-14">Archive (Iter 35 제거)</h3>
+<p><code>src/_archive/</code> — 24 files. 복원 절차 + 카테고리는 <code>src/_archive/README.md</code> 참조.</p>
+<h3 id="h-관련-docs-15">관련 docs</h3>
+<ul>
+<li><code>LEAF_RENDER_FLOW.md</code> — leaf mesh build canonical pipeline</li>
+<li><code>SINGLE_PLANT_MODE.md</code> — 기본 모드 진입/구조</li>
+<li><code>COORDINATE_SYSTEMS.md</code> — 4 좌표계 정의</li>
+<li><code>MESH_ANCHORS.md</code> — mesh anchor contract</li>
+</ul>
+<h1 id="h-생육-모델링-growthmodel-16">생육 모델링 (GROWTH_MODEL)</h1>
+<blockquote>
+<p>본 시뮬레이터의 식물은 <strong>3D 시각 자산이 아니라 학술 문헌 기반의 기계적
+(mechanistic) 생장·생육 모델의 일일 적분 결과</strong>다.  본 chapter는 그 모델의
+학술 backbone, canonical state, 시뮬레이션 step, 단위 알고리즘, cultivar
+파라미터 스키마, 그리고 literature validation targets를 정리한다.</p>
+<p>본 chapter의 의도된 독자는 검수자·인수자 중에서 <strong>본 시뮬레이터가 단순
+시각화가 아닌 mechanistic crop model 기반임을 평가</strong>하려는 R&amp;D 평가자이다.</p>
+</blockquote>
+<h2 id="h-본-chapter의-위치-17">본 chapter의 위치</h2>
+<p>이전 chapter &quot;모듈 계층 (LAYER_STRUCTURE)&quot;의 <strong>B layer (Growth Engine)</strong> 가
+다루는 내용을 학술 수준으로 풀어 설명한다.  코드 위치는 다음과 같다.</p>
+<table>
+<thead>
+<tr>
+<th>모듈</th>
+<th>파일</th>
+<th>책임</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>일일 식물 상태 적분</td>
+<td><code>packages/tomato-engine/src/CoreModel.ts</code></td>
+<td>Reduced TOMGRO 5-state 일일 step</td>
+</tr>
+<tr>
+<td>분 단위 / 시간 단위 step</td>
+<td><code>packages/tomato-engine/src/CoreModel.ts</code></td>
+<td><code>stepMinutely</code>, <code>stepHourly</code></td>
+</tr>
+<tr>
+<td>생장 main loop</td>
+<td><code>packages/tomato-engine/src/GrowthModel.ts</code></td>
+<td>Pass 1~3 형태로 phytomer state 갱신</td>
+</tr>
+<tr>
+<td>광합성</td>
+<td><code>packages/tomato-engine/src/Photosynthesis.ts</code></td>
+<td>Beer-Lambert + LUE canopy assimilation</td>
+</tr>
+<tr>
+<td>동화산물 분배</td>
+<td><code>packages/tomato-engine/src/SinkAllocation.ts</code></td>
+<td>Marcelis/Heuvelink sink-strength partition</td>
+</tr>
+<tr>
+<td>과실 생육</td>
+<td><code>packages/tomato-engine/src/FruitGrowth.ts</code></td>
+<td>Gillaspy 3-phase + Gompertz</td>
+</tr>
+<tr>
+<td>일사 / 일주기</td>
+<td><code>packages/tomato-engine/src/DiurnalEnv.ts</code>, <code>SunPosition.ts</code></td>
+<td>hourly climate sampling</td>
+</tr>
+<tr>
+<td>열역학 시계</td>
+<td><code>packages/tomato-engine/src/growth/ThermalTime.ts</code></td>
+<td>GDD 일일 적분</td>
+</tr>
+<tr>
+<td>Phytomer 생성</td>
+<td><code>packages/tomato-engine/src/growth/PhytomerModel.ts</code></td>
+<td>phyllochron 기반 node emergence</td>
+</tr>
+<tr>
+<td>Internode 신장</td>
+<td><code>packages/tomato-engine/src/growth/InternodeGrowthModel.ts</code></td>
+<td>절간 연신</td>
+</tr>
+<tr>
+<td>Leaf 생장</td>
+<td><code>packages/tomato-engine/src/growth/LeafGrowthModel.ts</code></td>
+<td>LeafOrganState</td>
+</tr>
+<tr>
+<td>노쇠</td>
+<td><code>packages/tomato-engine/src/growth/SenescenceModel.ts</code></td>
+<td>잎 senescence</td>
+</tr>
+<tr>
+<td>Source-Sink proxy</td>
+<td><code>packages/tomato-engine/src/growth/SourceSinkProxyV1.ts</code></td>
+<td>잎 area-잉여 비율</td>
+</tr>
+<tr>
+<td>Axis capacity</td>
+<td><code>packages/tomato-engine/src/growth/AxisCapacityModel.ts</code></td>
+<td>식물 줄기 운반 한계</td>
+</tr>
+<tr>
+<td>Cultivar 카탈로그</td>
+<td><code>packages/tomato-engine/models/cultivars/*.jsonc</code></td>
+<td>5종 cultivar JSON 명세</td>
+</tr>
+<tr>
+<td>Calibration 참조팩</td>
+<td><code>growth-calibration/reference/tomato/tomato_tomimaru_reference_v0.1/</code></td>
+<td>day-단위 validation target</td>
+</tr>
+</tbody></table>
+<h2 id="h-학술-문헌-backbone-18">학술 문헌 backbone</h2>
+<p>본 시뮬레이터는 다음 8건의 동료심사 문헌을 _기계적 모델의 root_로 채택한다.
+각 식·상수·파라미터는 직접 인용되거나 본 시뮬레이터의 calibration log에
+명시된 cultivar 매개로 변경된다.  &quot;그럴듯하게 보이도록&quot; 추가된 외형 보정은
+없다.</p>
+<table>
+<thead>
+<tr>
+<th>인용</th>
+<th>출처</th>
+<th>본 시뮬레이터가 채택한 것</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Heuvelink 1996</td>
+<td>Ann. Bot. <strong>77</strong>:71–80 (TOMSIM)</td>
+<td>canopy LUE 3.5 g DM/mol PAR; 동화산물 분배; <code>F_fruits_max = 0.660·(1−e^{−0.341·N_f})</code> saturation</td>
+</tr>
+<tr>
+<td>Jones, Kenig, Vallejos 1999</td>
+<td>Trans. ASAE <strong>42</strong>(1):255–265 (Reduced TOMGRO)</td>
+<td>5-state {N, LAI, W, W_f, W_m} canonical state</td>
+</tr>
+<tr>
+<td>Gillaspy, Ben-David, Gruissem 1993</td>
+<td>Plant Cell <strong>5</strong>:1439–1451</td>
+<td>과실의 3-phase 발달 (cell division, expansion, ripening)</td>
+</tr>
+<tr>
+<td>Marcelis 1996</td>
+<td>J. Exp. Bot. <strong>47</strong>:1281–1291</td>
+<td>sink-strength 개념; per-organ 상대 강도; abortion threshold</td>
+</tr>
+<tr>
+<td>Heuvelink 1995</td>
+<td>Physiol. Plant. <strong>94</strong>:447–452</td>
+<td>sink-strength 상대값 (fruit 1.0 / leaf 0.35 / stem 0.15 / root 0.07)</td>
+</tr>
+<tr>
+<td>Goudriaan &amp; van Laar 1994</td>
+<td>Modelling Potential Crop Growth Processes (Kluwer)</td>
+<td>Beer-Lambert + canopy integration recipe</td>
+</tr>
+<tr>
+<td>Anaya-Ramirez 2024</td>
+<td>Comput. Electron. Agric. (Vol. <strong>218</strong>)</td>
+<td>Gompertz fresh-weight fit (R² &gt; 0.99 across cultivars)</td>
+</tr>
+<tr>
+<td>CROPGRO 표준</td>
+<td>Boote et al. 1998, Agronomy Society of America</td>
+<td>GDD <code>T_base</code> = 10 °C, <code>T_max</code> = 30 °C (cultivar override 가능)</td>
+</tr>
+</tbody></table>
+<p>추가 인용 (특정 sub-system 한정):</p>
+<table>
+<thead>
+<tr>
+<th>인용</th>
+<th>사용처</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Nature Sci. Rep. 2022</td>
+<td>truss 내부 acropetal ripening 패턴</td>
+</tr>
+<tr>
+<td>PMC 11204166</td>
+<td>단일 과실 내부 acropetal coloring</td>
+</tr>
+<tr>
+<td>PMC 10482247</td>
+<td>beefsteak locule count 분포</td>
+</tr>
+<tr>
+<td>Wageningen ScienceDirect 2023</td>
+<td>4-keypoint harvest pose</td>
+</tr>
+</tbody></table>
+<p>위 문헌은 코드 주석에 인용되어 있으며, calibration log 의 모든 파라미터
+변경은 <em>문헌 또는 vendor estimate (calibration pending) 라벨</em> 둘 중 하나를
+달고 있다.</p>
+<h2 id="h-canonical-state-reduced-tomgro-5-state-19">Canonical state — Reduced TOMGRO 5-state</h2>
+<p><code>CoreModel.ts</code> 의 <code>PlantPhysiologyState</code> 는 Reduced TOMGRO (Jones et al. 1999)
+의 5 state를 canonical 표현으로 사용한다.</p>
+<table>
+<thead>
+<tr>
+<th>state</th>
+<th>단위</th>
+<th>의미</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>N</td>
+<td>정수</td>
+<td>영양 마디 수 (node count). Pass 2 결과.</td>
+</tr>
+<tr>
+<td>LAI</td>
+<td>m² m⁻²</td>
+<td>단위 지표면당 잎 면적 지수</td>
+</tr>
+<tr>
+<td>W</td>
+<td>g DM (식물당)</td>
+<td>식물 총 건물중 (vegetative + reproductive)</td>
+</tr>
+<tr>
+<td>W_f</td>
+<td>g DM</td>
+<td>과실 건물중 합 (생장 중 + 완숙 포함)</td>
+</tr>
+<tr>
+<td>W_m</td>
+<td>g DM</td>
+<td>완숙 과실 건물중 (수확 가능)</td>
+</tr>
+</tbody></table>
+<p>본 5-state는 식물 단위로 유지되며, <strong>per-truss / per-fruit cohort</strong> (<code>TrussCohort</code>,
+<code>FruitCohort</code>) 가 그 위에 layer되어 micro level 적분을 보존한다.  Cohort
+정보가 있어 acropetal ripening (Nature Sci. Rep. 2022) 등 truss-internal 패턴을
+다룰 수 있다.</p>
+<h2 id="h-시뮬레이션-step-구조-20">시뮬레이션 step 구조</h2>
+<p><code>tomato-engine</code> 은 3 단계의 time-step 을 제공한다.</p>
+<table>
+<thead>
+<tr>
+<th>step</th>
+<th>기간</th>
+<th>사용처</th>
+<th>함수</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>stepMinutely</code></td>
+<td>1 min</td>
+<td>diurnal photoperiod 적분, hourly climate 변화 추적</td>
+<td><code>CoreModel.ts:443</code></td>
+</tr>
+<tr>
+<td><code>stepHourly</code></td>
+<td>1 hour (60× stepMinutely)</td>
+<td>시간 단위 결과 집계</td>
+<td><code>CoreModel.ts:779</code></td>
+</tr>
+<tr>
+<td><code>stepDaily</code></td>
+<td>1 day (= 1440 min)</td>
+<td>per-day 결과; validation pack 비교 단위</td>
+<td><code>CoreModel.ts:stepDaily()</code></td>
+</tr>
+</tbody></table>
+<p>본 시뮬레이터 시작품은 시연 컨텍스트에서 <strong>day-단위 step</strong>을 기본 채택한다
+(주기적 분 단위 적분은 디버그 모드).  <code>currentTT</code> (누적 thermal time)는 모든
+step에서 공통 시계로 유지된다.</p>
+<h2 id="h-pass-1-thermal-time-열역학-시계-21">Pass 1 — Thermal time (열역학 시계)</h2>
+<p>생장의 모든 timing은 chronological time (calendar day)이 아닌 <strong>thermal time
+(GDD; Growing Degree Days)</strong> 로 측정한다. 코드는 <code>growth/ThermalTime.ts</code> 에
+분리되어 있으며 cultivar 가 <code>T_base</code>, <code>T_max</code> 를 override 할 수 있다.</p>
+<h3 id="h-일일-gdd-산식-cropgro-표준-22">일일 GDD 산식 (CROPGRO 표준)</h3>
+<pre><code>GDD_day = max(0, min(T_max, T_mean) − T_base)
+plant.currentTT += GDD_day
+</code></pre>
+<p>기본값:</p>
+<ul>
+<li><code>T_base</code> = 10 °C  (CROPGRO tomato canonical)</li>
+<li><code>T_max</code> = 30 °C  (Heuvelink 1996 high-temperature saturation)</li>
+</ul>
+<p>22 °C 상수 환경에서 1 일 = 12 GDD 가 발생한다.  본 시뮬레이터의 reference
+환경 (&quot;22 °C 상수, 100 일&quot;) = 1 200 GDD 가 누적된다.</p>
+<h3 id="h-cardinal-temperature-의-의미-23">Cardinal temperature 의 의미</h3>
+<ul>
+<li>T &lt; <code>T_base</code>: 생장 정지 (GDD = 0)</li>
+<li><code>T_base</code> ≤ T ≤ <code>T_max</code>: 선형 누적</li>
+<li>T &gt; <code>T_max</code>: GDD = <code>T_max − T_base</code> (high-temperature plateau)</li>
+</ul>
+<p>식 자체는 모든 phytomer / leaf / truss 의 <code>initiationTT</code>, <code>ageTT</code>,
+<code>senescenceProgress</code> 의 <em>공통 시계</em> 로 작용한다.</p>
+<pre><code class="language-ts">// 예시 — packages/tomato-engine/src/growth/ThermalTime.ts:46
+export function computeGDDDay(
+  T_mean_C: number,
+  T_base_C = 10,
+  T_max_C = 30,
+): number {
+  return Math.max(0, Math.min(T_max_C, T_mean_C) - T_base_C);
+}
+</code></pre>
+<h2 id="h-pass-2-phytomer-emergence-영양기관-발생-24">Pass 2 — Phytomer emergence (영양기관 발생)</h2>
+<p>새로운 마디 (phytomer; node + 그 위의 leaf + 그 옆구리의 axillary bud) 는
+<strong>phyllochron</strong> 단위로 발생한다 (Heuvelink 1996; Plan §3 sleepy-growing-pretzel).</p>
+<h3 id="h-핵심-식-25">핵심 식</h3>
+<pre><code>node.initiationTT = transplantOffsetTT + node.index × phyllochronTT
+node.ageTT        = currentTT − node.initiationTT
+nodeNumber        = floor((currentTT − transplantOffsetTT) / phyllochronTT)
+</code></pre>
+<h3 id="h-기본-organogenesis-설정-26">기본 organogenesis 설정</h3>
+<pre><code class="language-ts">// packages/tomato-engine/src/growth/PhytomerModel.ts
+const DEFAULT_ORG_CONFIG = {
+  initialNodeCountAtTransplant: 5,   // 정착 시점 (D 0) 이미 5 마디
+  TT_at_transplant: 280,             // 정착 시점 누적 GDD
+};
+</code></pre>
+<p>정착 (transplant) 시점에 이미 5 개 마디가 발생되어 있다고 가정하며 (모종
+단계의 누적 GDD = 280, CROPGRO seedling 단계 일치).  정착 후 마디는
+phyllochron 단위로 추가된다.</p>
+<p>Tomimaru 의 경우 <code>phyllochronTT</code> ≈ 35 GDD, 즉 22 °C 환경에서 약 3 일에 1 마디가
+발생한다.</p>
+<h3 id="h-phytomer-status-lifecycle-27">Phytomer status — lifecycle</h3>
+<p><code>PhytomerModel</code> 은 phytomer 단위의 lifecycle 을 다음 6 상태로 추적한다.</p>
+<table>
+<thead>
+<tr>
+<th>status</th>
+<th>의미</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>primordium</code></td>
+<td>정단 분열조직 내부, 가시화 전</td>
+</tr>
+<tr>
+<td><code>visible</code></td>
+<td>가시화 (1차 발생)</td>
+</tr>
+<tr>
+<td><code>expanding</code></td>
+<td>잎/줄기 연신 진행 중</td>
+</tr>
+<tr>
+<td><code>mature</code></td>
+<td>최대 크기 도달</td>
+</tr>
+<tr>
+<td><code>senescent</code></td>
+<td>노쇠 진행 (잎 노화)</td>
+</tr>
+<tr>
+<td><code>removed</code></td>
+<td>제거 (정지 / 적엽 / 자연 낙엽)</td>
+</tr>
+</tbody></table>
+<p>특정 마디 위치 (cultivar <code>firstTrussNodeIdx</code> 등) 에서 axillary bud 가 vegetative
+대신 reproductive (truss) 로 전환되며, 본 spec 은 <code>morphology.firstTrussNodeIdx</code></p>
+<ul>
+<li><code>morphology.trussIntervalNodes</code> 로 결정한다 (Tomimaru: 9 ± 1, 3 마디 간격).</li>
+</ul>
+<h2 id="h-pass-3-photosynthesis-광합성-28">Pass 3 — Photosynthesis (광합성)</h2>
+<h3 id="h-beer-lambert-canopy-light-interception-29">Beer-Lambert canopy light interception</h3>
+<p>엽군 (canopy) 흡수 비율은 <code>Photosynthesis.ts:canopyAbsorbedFraction</code> 에서 다음
+식으로 계산한다.</p>
+<pre><code>f_abs = 1 − exp(−k · LAI)
+</code></pre>
+<ul>
+<li><code>k</code> = 0.7  (구형 잎각도분포 가정의 표준 extinction coefficient; Goudriaan &amp; van Laar 1994)</li>
+<li><code>LAI</code> 는 식물의 현재 <code>state.LAI</code></li>
+</ul>
+<h3 id="h-light-use-efficiency-lue-form-일일-동화량-30">Light-use-efficiency (LUE) form 일일 동화량</h3>
+<pre><code>P_gross [g CH2O m⁻² day⁻¹] = LUE · f_abs · PAR_integral_mol
+</code></pre>
+<ul>
+<li><code>LUE</code> = 3.5 g DM / mol PAR  (Heuvelink 1996 의 2.8 g/MJ ≈ 3.5 g/mol PAR)</li>
+<li><code>PAR_integral_mol</code> 은 일주기 적분 (<code>DiurnalEnv.ts</code> 가 hourly climate 로 sampling)</li>
+<li>800 ppm CO₂ enrichment 환경에서 LUE 가 4.0+ 로 상승할 여지가 있으며,
+cultivar JSON 의 <code>botanicalOverride.photosynthesis.LUE</code> 로 override 가능.</li>
+</ul>
+<p>본 식의 단순화 가정은 다음과 같다.</p>
+<ol>
+<li>Bulk-canopy form — 식물당 단일 LAI 값</li>
+<li>일주기 평균 PAR 사용 (sun/shade leaf partitioning 미적용)</li>
+<li>CO₂ 의존성 — current model registry 의 <code>co2_factor</code> 곱셈 (de Pury &amp; Farquhar 1997 정식 채택은 Phase A 로드맵)</li>
+</ol>
+<pre><code class="language-ts">// packages/tomato-engine/src/Photosynthesis.ts:35
+export function dailyGrossAssimilation(
+  env: DailyClimate,
+  LAI: number,
+  LUE = ACTIVE_MODEL.photosynthesis.LUE_gDM_per_mol_PAR,
+): number {
+  const f_abs = canopyAbsorbedFraction(LAI);
+  const PAR_mol_per_m2_per_day = env.daily_PAR_integral_mol;
+  return LUE * f_abs * PAR_mol_per_m2_per_day;
+}
+</code></pre>
+<h2 id="h-pass-3-계속-source-sink-partitioning-동화산물-분배-31">Pass 3 (계속) — Source-Sink partitioning (동화산물 분배)</h2>
+<p>총 가용 assimilate <code>total_supply</code> (= <code>dailyGrossAssimilation</code> − maintenance
+respiration) 를 organ 별로 분배한다.  Marcelis 1996 + Heuvelink 1995/1996 의
+sink-strength 식.</p>
+<h3 id="h-per-organ-relative-sink-strength-32">Per-organ relative sink strength</h3>
+<table>
+<thead>
+<tr>
+<th>organ</th>
+<th>상대값 (potential growth rate)</th>
+<th>출처</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Fruit (truss)</td>
+<td><strong>1.00</strong></td>
+<td>Marcelis 1996</td>
+</tr>
+<tr>
+<td>Leaf</td>
+<td>0.35</td>
+<td>Heuvelink 1995</td>
+</tr>
+<tr>
+<td>Stem</td>
+<td>0.15</td>
+<td>Heuvelink 1995</td>
+</tr>
+<tr>
+<td>Root</td>
+<td>0.07</td>
+<td>Heuvelink 1995</td>
+</tr>
+</tbody></table>
+<h3 id="h-분배-식-strict-proportional-33">분배 식 (strict proportional)</h3>
+<pre><code>allocation_i = total_supply × (PG_i / Σ PG)
+</code></pre>
+<p>PG_i 는 organ i 의 potential growth rate.  Priority hierarchy 는 사용하지
+않으며 (Heuvelink TOMSIM 의 채택 방식), 전 organ 이 비례 배분된다.</p>
+<h3 id="h-heuvelink-saturation-override-과실-비율-상한-34">Heuvelink saturation override — 과실 비율 상한</h3>
+<p>활성 과실 수가 늘어나도 식물 전체에서 fruits 가 차지하는 비율은 무한히
+증가하지 않는다.  Heuvelink 1996 TOMSIM 의 saturation 함수:</p>
+<pre><code>F_fruits_max = 0.660 · (1 − exp(−0.341 · N_active_fruits))
+</code></pre>
+<ul>
+<li>N_active_fruits = 0 → F_fruits_max = 0</li>
+<li>N_active_fruits = 10 → F_fruits_max ≈ 0.638</li>
+<li>N_active_fruits → ∞ → F_fruits_max = 0.660</li>
+</ul>
+<p>본 cap 이 적용되어 fruit set 이 활발한 truss 단계에서도 vegetative organ
+이 무너지지 않도록 보호된다.</p>
+<h3 id="h-잉여-처리-surpluspolicy-35">잉여 처리 — <code>surplusPolicy</code></h3>
+<p>가용량이 demand 보다 클 때의 잉여는 cultivar <code>surplusPolicy</code> 로 결정.</p>
+<table>
+<thead>
+<tr>
+<th>surplusPolicy</th>
+<th>의미</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>unused_pool</code></td>
+<td>잉여를 무시 (식물 외부로 lost; 진단용)</td>
+</tr>
+<tr>
+<td><code>redistribute_to_vegetative</code></td>
+<td>잉여를 leaf/stem/root 비례로 추가 분배 (기본)</td>
+</tr>
+</tbody></table>
+<h2 id="h-pass-4-fruit-growth-과실-생육-gillaspy-3-phase-36">Pass 4 — Fruit growth (과실 생육 — Gillaspy 3-phase)</h2>
+<p>각 과실은 Gillaspy 1993 의 3 phase 를 따른다.</p>
+<table>
+<thead>
+<tr>
+<th>Phase</th>
+<th>기간</th>
+<th>특성</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Phase I — Fruit set</td>
+<td>~7 d (개화 → 수정)</td>
+<td>hormonal, mass 변화 미미</td>
+</tr>
+<tr>
+<td>Phase II — Cell division</td>
+<td>10–14 d 수정 후</td>
+<td>cell count 결정, 초기 mass 증가</td>
+</tr>
+<tr>
+<td>Phase III — Cell expansion</td>
+<td>6–7 wk</td>
+<td>turgor-driven, &gt; 90 % 최종 부피 도달</td>
+</tr>
+<tr>
+<td>Ripening</td>
+<td>ethylene-triggered</td>
+<td>fresh weight 안정, 색 변화</td>
+</tr>
+</tbody></table>
+<p>본 시뮬레이터는 <strong>Phase II + III + ripening 을 단일 Gompertz curve</strong> 로
+fresh-weight 차원에서 근사한다 (Anaya-Ramirez 2024, R² &gt; 0.99 fit).  Phase I
+은 hormonal switch 로 별도 처리.</p>
+<h3 id="h-gompertz-fresh-weight-curve-37">Gompertz fresh-weight curve</h3>
+<pre><code>W(t) = a · exp(−exp(−b · (t − τ)))
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>기호</th>
+<th>의미</th>
+<th>출처</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>a</td>
+<td>asymptote = <code>potentialMassG</code>  (cultivar JSON 의 fruit potential 분포에서 sampling)</td>
+<td>cultivar</td>
+</tr>
+<tr>
+<td>b</td>
+<td>rate parameter (per GDD) = <code>cultivar.gompertzRateB × genome.ripeningSpeedFactor</code></td>
+<td>cultivar</td>
+</tr>
+<tr>
+<td>τ</td>
+<td>inflection point (GDD) = <code>(cellDivisionDurationGDD + cellExpansionDurationGDD) × gompertzInflectionC</code></td>
+<td>cultivar</td>
+</tr>
+<tr>
+<td>t</td>
+<td>gddSinceFert (cohort <code>setTT</code> 부터의 GDD)</td>
+<td>runtime</td>
+</tr>
+</tbody></table>
+<p>Tomimaru 의 경우:</p>
+<ul>
+<li><code>cellDivisionDurationGDD</code> = 260</li>
+<li><code>cellExpansionDurationGDD</code> = 500</li>
+<li><code>ripeningDurationGDD</code> = 200</li>
+<li>총 GDD 0 → red = ≈ 960 GDD = 80 일 (22 °C 환경)</li>
+</ul>
+<h3 id="h-abortion-적과-자연낙과-marcelis-1996-38">Abortion (적과 / 자연낙과) — Marcelis 1996</h3>
+<p>각 과실은 cohort 의 <strong>actual / potential mass ratio</strong> 가 일정 기간
+threshold 아래로 유지되면 abort 된다.  Cohort <code>abortionRiskAccum</code> 이 1.0 을
+넘으면 <code>aborted = true</code> 로 flag, 다음 step 부터 분배에서 제외.</p>
+<p>본 abortion gate 는 시연 측면에서 &quot;과실 수가 너무 많으면 일부 떨어진다&quot; 는
+실제 운영 관찰과 일치한다.</p>
+<h2 id="h-pass-5-senescence-pruning-harvest-39">Pass 5 — Senescence / pruning / harvest</h2>
+<h3 id="h-잎-노쇠-senescent-leaf-area-40">잎 노쇠 (senescent leaf area)</h3>
+<p><code>SenescenceModel.ts</code> 가 <code>node.ageTT</code> 의 함수로 잎 노쇠 진행을 계산.</p>
+<pre><code>senescenceProgress = clamp((ageTT − senescenceOnsetTT) / senescenceDurationTT, 0, 1)
+</code></pre>
+<p><code>senescenceProgress = 1</code> 인 leaf 는 LAI 기여에서 제외되며 SkinMesh 의
+시각 표현에서도 노란 leaf 로 변경.</p>
+<h3 id="h-적엽-적심-scenario-driven-41">적엽 / 적심 — scenario-driven</h3>
+<p><code>Pruning</code> 은 botanical 자율 행동이 아니라 <em>시나리오 / 운영자 결정</em> 으로
+다룬다.  Workbench 의 적심 시연에서 <code>pruneApexAtNode(N)</code> 호출이 N+1 이후
+phytomer 발생을 중단시키며 <code>phytomer.status = removed</code> 로 flag.</p>
+<h3 id="h-수확-cultivarharvesttrigger-기반-42">수확 — <code>cultivar.harvestTrigger</code> 기반</h3>
+<p>과실 cohort 의 <code>gddSinceFert &gt; ripenedGDD</code> 가 true 가 되고 <code>freshMass / potentialMass ≥ 0.9</code> 인 시점에 harvest 가능 (시나리오 <code>harvest-D110-truss3</code>
+등의 trigger 자료).  수확 시 cohort <code>harvested = true</code>, 식물 W_f 에서
+제외되며 W_m 누적 자료로 보존.</p>
+<h2 id="h-cultivar-json-스키마-5-종-패키지-43">Cultivar JSON 스키마 + 5 종 패키지</h2>
+<p>본 시뮬레이터는 5 종 cultivar 를 패키지하며, 각각 <code>packages/tomato-engine/models/cultivars/&lt;name&gt;.jsonc</code> 에 한 파일로 정의되어 있다.</p>
+<table>
+<thead>
+<tr>
+<th>cultivar</th>
+<th>type</th>
+<th>마스 (g)</th>
+<th>사용 시나리오</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>tomimaru-muchoo</code></td>
+<td>pink beefsteak (F1, Sakata)</td>
+<td>180–230</td>
+<td>Korean smart-farm 표준</td>
+</tr>
+<tr>
+<td><code>round-generic</code></td>
+<td>round red</td>
+<td>100–150</td>
+<td>general showcase</td>
+</tr>
+<tr>
+<td><code>cherry-generic</code></td>
+<td>cherry</td>
+<td>15–25</td>
+<td>high-truss density</td>
+</tr>
+<tr>
+<td><code>beefsteak-generic</code></td>
+<td>beefsteak</td>
+<td>200–300</td>
+<td>high-mass demo</td>
+</tr>
+<tr>
+<td><code>roma-generic</code></td>
+<td>plum / Roma</td>
+<td>60–90</td>
+<td>processing-style</td>
+</tr>
+</tbody></table>
+<h3 id="h-json-스키마-요약-44">JSON 스키마 (요약)</h3>
+<pre><code class="language-jsonc">{
+  &quot;layer&quot;: &quot;cultivar&quot;,
+  &quot;crop&quot;: &quot;tomato&quot;,
+  &quot;metadata&quot;: {
+    &quot;name&quot;: &quot;tomimaru-muchoo&quot;,
+    &quot;type&quot;: &quot;beefsteak&quot;,
+    &quot;source&quot;: &quot;vendor&quot;,
+    &quot;supplier&quot;: &quot;Sakata Seeds&quot;,
+    &quot;references&quot;: [&quot;Sakata Seeds product spec&quot;, &quot;K-smartfarm extension service&quot;]
+  },
+
+  // GDD-based phenology
+  &quot;phenology&quot;: {
+    &quot;GDD_to_first_flower&quot;: 300,
+    &quot;GDD_per_truss&quot;: 100,
+    &quot;GDD_flower_to_red&quot;: 800,
+    &quot;cellDivisionDurationGDD&quot;: 260,
+    &quot;cellExpansionDurationGDD&quot;: 500,
+    &quot;ripeningDurationGDD&quot;: 200,
+    &quot;trussRipeningSpreadGDD&quot;: 100
+  },
+
+  &quot;flowersPerTruss&quot;: { &quot;mu&quot;: 5, &quot;sigma&quot;: 1.0 },
+  &quot;fruitSetRate&quot;: 0.8,
+  &quot;potentialFruitMassG&quot;: { &quot;mu&quot;: 200, &quot;sigma&quot;: 25 },
+
+  // Morphology — 외형 / 토폴로지
+  &quot;morphology&quot;: {
+    &quot;firstTrussNodeIdx&quot;: { &quot;mu&quot;: 9, &quot;sigma&quot;: 1.0 },
+    &quot;trussIntervalNodes&quot;: 3,
+    &quot;fruitMaxDiameterMm&quot;: { &quot;mu&quot;: 82, &quot;sigma&quot;: 8 },
+    &quot;loculeCount&quot;: { &quot;mu&quot;: 6.0, &quot;sigma&quot;: 1.2 },
+    &quot;heightWidthRatio&quot;: { &quot;mu&quot;: 0.72, &quot;sigma&quot;: 0.09 },
+    &quot;ribbingStrength&quot;: { &quot;mu&quot;: 0.22, &quot;sigma&quot;: 0.08 },
+    &quot;asymmetryStrength&quot;: 0.07
+  },
+
+  &quot;growthProfile&quot;: {
+    &quot;phyllochronTT&quot;: 35,
+    &quot;plastochronTT&quot;: 18,
+    &quot;baseInternodeLengthCm&quot;: 4.2,
+    &quot;baseLeafAreaTargetCm2&quot;: 320
+  },
+
+  // 광합성 / 분배의 cultivar-level override (선택)
+  &quot;botanicalOverride&quot;: {
+    &quot;photosynthesis&quot;: { &quot;LUE_gDM_per_mol_PAR&quot;: 3.5 },
+    &quot;fruitDevelopment&quot;: { &quot;gompertz&quot;: { &quot;exponentScaling&quot;: 1.0 } }
+  }
+}
+</code></pre>
+<p><code>mu</code>/<code>sigma</code> 가 있는 필드는 식물별 random sampling (seeded; 결정성) 으로
+seed-별 cultivar 표현 가능.  본 spec 으로 5 cultivar 가 codebase 변경 없이
+교체된다 — <em>코드는 cultivar JSON 의 consumer</em> 일 뿐.</p>
+<h2 id="h-calibration-reference-pack-v01-45">Calibration Reference Pack v0.1</h2>
+<p><code>growth-calibration/reference/tomato/tomato_tomimaru_reference_v0.1/</code> 에
+9 파일로 구성된 reference pack 이 있다.  Tomimaru 22 °C constant 환경 0 ~ 100
+일 구간의 user-approved validation target 이다 (sourceType = <code>user_target</code>,
+referenceRole = <code>initial_calibration_target</code>).</p>
+<table>
+<thead>
+<tr>
+<th>파일</th>
+<th>내용</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>00_reference_manifest.json</code></td>
+<td>schema = <code>growthReference.v0.1</code></td>
+</tr>
+<tr>
+<td><code>01_plant_timeline_target.csv</code></td>
+<td>day 0–100 plant-level 지표 (height/LAI/W/W_f/W_m) min·max 쌍</td>
+</tr>
+<tr>
+<td><code>02_truss_timeline_target.csv</code></td>
+<td>truss-별 visible → breaker day 범위</td>
+</tr>
+<tr>
+<td><code>03_truss_status_by_day.csv</code></td>
+<td>(day × truss) → allowed_status_min/max</td>
+</tr>
+<tr>
+<td><code>04_leaf_timeline_target.csv</code></td>
+<td>leaf orientation (lateralSpreadDeg / elevationDeg / droopAngleDeg)</td>
+</tr>
+<tr>
+<td><code>05_fruit_timeline_target.csv</code></td>
+<td>day × truss × stage + diameter</td>
+</tr>
+<tr>
+<td><code>06_day33_diagnostic_target.json</code></td>
+<td>ruleId-prefixed diagnostic rules</td>
+</tr>
+<tr>
+<td><code>07_initial_growth_model_target.json</code></td>
+<td>DAY-based target</td>
+</tr>
+<tr>
+<td><code>08_day_gdd_mapping.json</code></td>
+<td>22 °C → 12 GDD/day 환산 표</td>
+</tr>
+</tbody></table>
+<p>본 pack 은 <em>measured ground truth 가 아니며</em> (confidence = <code>low</code>),  실제
+관측 데이터가 도착하면 v0.2 로 갱신된다.  현재 calibration log 가 본 pack
+을 기준으로 simulation 결과를 비교한다.</p>
+<h3 id="h-핵심-reference-상수-tomimaru-22-c-constant-46">핵심 reference 상수 (Tomimaru, 22 °C constant)</h3>
+<table>
+<thead>
+<tr>
+<th>일자</th>
+<th>상태</th>
+<th>값</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>D 30</td>
+<td>fruitCount max</td>
+<td>0  (D 33 에 과실 가시화는 anomaly)</td>
+</tr>
+<tr>
+<td>D 30</td>
+<td>leaf lateral_spread_deg max</td>
+<td>90 ° (초과는 anomaly)</td>
+</tr>
+<tr>
+<td>D 20–30</td>
+<td>Truss 1 visible day</td>
+<td>범위</td>
+</tr>
+<tr>
+<td>D 35–45</td>
+<td>Truss 2 visible day</td>
+<td>범위</td>
+</tr>
+<tr>
+<td>D 80–100</td>
+<td>first red fruit (Truss 1)</td>
+<td>범위</td>
+</tr>
+</tbody></table>
+<p>이 reference 가 시뮬레이션과 어긋날 경우 <strong>테스트가 실패하는 것이 아니라
+calibration regression</strong> 으로 분류된다 (시뮬레이터 모델 자체를 보정).</p>
+<h2 id="h-validation-targets-literature-47">Validation targets — literature</h2>
+<p>다음 표는 <strong>22 °C constant, 100 일, Tomimaru</strong> 시뮬레이션 결과가 만족해야 할
+literature 범위다.  <code>packages/tomato-engine/test-coremodel.ts</code> 가 이 표를 매
+release 이전에 자동 검사한다.</p>
+<table>
+<thead>
+<tr>
+<th>Output</th>
+<th>Literature target</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>GDD 누적 (TT)</td>
+<td>~1 200 (100 d × 12 GDD/d)</td>
+<td>CROPGRO T_base 10 °C</td>
+</tr>
+<tr>
+<td>Truss count</td>
+<td>8–12</td>
+<td>Heuvelink 1996 (1 truss/wk @ 20 °C)</td>
+</tr>
+<tr>
+<td>LAI</td>
+<td>3.0–4.0</td>
+<td>TOMSIM mature canopy</td>
+</tr>
+<tr>
+<td>Plant DM (W)</td>
+<td>500–1 500 g</td>
+<td>Heuvelink 1996 Fig. 3</td>
+</tr>
+<tr>
+<td>Fruit DM (W_f)</td>
+<td>200–500 g</td>
+<td>depends on harvest stage</td>
+</tr>
+<tr>
+<td>Total fruit FW</td>
+<td>4–6 kg</td>
+<td>commercial yield 220 g × ~25 fruits</td>
+</tr>
+<tr>
+<td>Harvest index (W_f/W)</td>
+<td>0.55–0.65 (target)</td>
+<td>Heuvelink 1996</td>
+</tr>
+<tr>
+<td>Acropetal max-truss spread</td>
+<td>≥ 1 stage</td>
+<td>Nature Sci. Rep. 2022</td>
+</tr>
+<tr>
+<td>Phyllochron</td>
+<td>~35 GDD (≈ 3 d)</td>
+<td>Heuvelink 1996</td>
+</tr>
+<tr>
+<td>Beer-Lambert k</td>
+<td>~0.7</td>
+<td>Goudriaan &amp; van Laar 1994</td>
+</tr>
+<tr>
+<td>LUE</td>
+<td>3.0–4.0 g DM / mol PAR</td>
+<td>Heuvelink 1996</td>
+</tr>
+</tbody></table>
+<p>본 표가 만족되지 않으면 <em>시뮬레이터 모델</em> 을 조정한다 (테스트 raw expected
+값을 만지지 않는다).  현재 (2026-06-22 baseline) 알려진 deviation:</p>
+<table>
+<thead>
+<tr>
+<th>Output</th>
+<th>현재</th>
+<th>목표</th>
+<th>분류</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Harvest index (HI)</td>
+<td>≈ 0.22</td>
+<td>0.55–0.65</td>
+<td>Phase D quality model 로드맵 (현재 시작품 scope 외) — maintenance respiration 모델이 과도</td>
+</tr>
+</tbody></table>
+<p>이 HI deviation 은 <strong>본 시작품의 검수 항목이 아니다</strong> (검수 플랜
+<code>09_Inspection_Plan.pdf</code> 표 §5 의 합부 기준 에서 명시 제외) — 추후 Phase D
+calibration roadmap 에 등록되어 있다.</p>
+<h2 id="h-현재-알려진-제약-phase-로드맵-48">현재 알려진 제약 + Phase 로드맵</h2>
+<p>본 시뮬레이터의 생육 모델은 <strong>Phase 2 (bulk-canopy + Reduced TOMGRO)</strong> 수준
+에서 완성된 상태로 본 시작품에 동봉된다.  Phase 3+ 의 정밀화 항목은 본 사업
+다음 단계의 작업으로 계획되어 있다.</p>
+<table>
+<thead>
+<tr>
+<th>Phase</th>
+<th>상태</th>
+<th>핵심</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Phase 1</td>
+<td>완료</td>
+<td>Reduced TOMGRO 5-state + GDD 시계 + Phytomer emergence</td>
+</tr>
+<tr>
+<td>Phase 2</td>
+<td>완료</td>
+<td>Beer-Lambert + LUE 광합성 + Heuvelink sink-strength partition + Gillaspy 3-phase + Gompertz fruit</td>
+</tr>
+<tr>
+<td>Phase 2A</td>
+<td>완료</td>
+<td>LeafOrganState + canonical leaf growth</td>
+</tr>
+<tr>
+<td>Phase A (roadmap)</td>
+<td>미착수</td>
+<td>sun/shade leaf partitioning, de Pury &amp; Farquhar 1997</td>
+</tr>
+<tr>
+<td>Phase B (roadmap)</td>
+<td>미착수</td>
+<td>per-axis source-sink (현재는 plant 단일)</td>
+</tr>
+<tr>
+<td>Phase C (roadmap)</td>
+<td>미착수</td>
+<td>side-shoot allocation 정밀화</td>
+</tr>
+<tr>
+<td>Phase D (roadmap)</td>
+<td>미착수</td>
+<td>quality model — HI calibration, maintenance respiration 재조정</td>
+</tr>
+<tr>
+<td>Phase E (roadmap)</td>
+<td>미착수</td>
+<td>botanical override 의 cultivar-resolved 우선순위 정리</td>
+</tr>
+</tbody></table>
+<p>본 시작품의 검수 항목은 <strong>Phase 1 + 2 + 2A 의 동작 검증</strong> 으로 한정되어
+있다.  Phase A–E 는 발주측·주관기관 사이 추가 발주 단계의 작업 범위로
+정의되어 있다.</p>
+<h2 id="h-본-chapter-의-검증-spec-참조-49">본 chapter 의 검증 spec 참조</h2>
+<p>본 chapter 의 식·상수가 codebase 에서 <em>실제로 그렇게</em> 구현되어 있다는 invariant
+는 다음 자동화 spec 으로 매 release 이전에 확인된다.</p>
+<table>
+<thead>
+<tr>
+<th>Spec</th>
+<th>위치</th>
+<th>검사 항목</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>coremodel-validation</code></td>
+<td><code>packages/tomato-engine/test-coremodel.ts</code></td>
+<td>22 °C × 120 d simulation 의 5-state range</td>
+</tr>
+<tr>
+<td><code>gdd-baseline</code></td>
+<td><code>packages/tomato-engine/test-gdd.ts</code></td>
+<td>T_base=10, T_max=30 default + cultivar override</td>
+</tr>
+<tr>
+<td><code>phyllochron</code></td>
+<td><code>packages/tomato-engine/test-phyllochron.ts</code></td>
+<td>phyllochronTT 일치 + nodeNumber 식</td>
+</tr>
+<tr>
+<td><code>gompertz-fit</code></td>
+<td><code>packages/tomato-engine/test-fruitgrowth.ts</code></td>
+<td>Gompertz 식 stable + cellDivision/Expansion 분리</td>
+</tr>
+<tr>
+<td><code>sink-allocation</code></td>
+<td><code>packages/tomato-engine/test-sinkalloc.ts</code></td>
+<td>sink 강도 1.0/0.35/0.15/0.07 비례 분배 + Heuvelink saturation cap</td>
+</tr>
+<tr>
+<td><code>phytomer-state</code></td>
+<td><code>packages/tomato-engine/test-phytomerstate.ts</code></td>
+<td>6 status lifecycle 일관성</td>
+</tr>
+<tr>
+<td><code>calibration-pack-conformance</code></td>
+<td><code>growth-calibration/scripts/check-conformance.ts</code></td>
+<td>reference pack v0.1 의 day-단위 target conform</td>
+</tr>
+</tbody></table>
+<p>본 spec 들은 monorepo 의 <code>npm test</code> 또는 <code>npm run growth:test</code> 로 일괄 실행
+가능하며, 본 산출물 #2 <code>03_Source_Code.zip</code> 의 동일 디렉토리에 포함된다.</p>
+<p>검수 시 spec 결과는 <code>10_Test_Report.pdf</code> §4 시험 결과 매트릭스의 산출물 #5
+항목에 누적된다.</p>
+<h1 id="h-좌표계-규약-coordinatesystems-50">좌표계 규약 (COORDINATE_SYSTEMS)</h1>
+<blockquote>
+<p>본 섹션은 <code>docs/architecture/COORDINATE_SYSTEMS.md</code>을 인용한다.</p>
+</blockquote>
+<h2 id="h-coordinate-systems-ssot-51">Coordinate Systems — SSOT</h2>
+<blockquote>
+<p>SSOT #185
+이 문서는 FarmSim의 좌표계 정의 + 변환 규칙의 단일 진실 출처(SSOT)이다.
+좌표 변수 / 좌표 변환 작업 시 반드시 본 문서 참조.</p>
+</blockquote>
+<h3 id="h-4-좌표계-정의-52">4 좌표계 정의</h3>
+<h4 id="h-1-world-babylon-scene-절대-좌표-53">1. <strong>world</strong> — Babylon scene 절대 좌표</h4>
+<ul>
+<li><strong>단위</strong>: 미터 (m)</li>
+<li><strong>원점</strong>: Babylon scene origin <code>(0, 0, 0)</code> (Greenhouse 바닥 기준)</li>
+<li><strong>축</strong>: Babylon convention — Y up, X right, Z forward</li>
+<li><strong>사용처</strong>:<ul>
+<li><code>PlantBase</code> 출력 (stem centerline, leaf attachPos, truss curves)</li>
+<li><code>mesh.absolutePosition</code> (= world)</li>
+<li><code>boundingBox.minimumWorld</code> (= world)</li>
+</ul>
+</li>
+</ul>
+<h4 id="h-2-plant-local-lushgroup-relative-53">2. <strong>plant-local</strong> — lushGroup-relative</h4>
+<ul>
+<li><strong>단위</strong>: 미터</li>
+<li><strong>원점</strong>: 식물의 <code>lushGroup</code> (Babylon TransformNode)</li>
+<li><strong>scene-world 관계</strong>: <code>world = lushGroup.absolutePosition + plant-local</code><ul>
+<li><code>lushGroup.absolutePosition.y ≈ 1.062m</code> (SUBSTRATE_TOP_Y for greenhouse plants)</li>
+</ul>
+</li>
+<li><strong>사용처</strong>:<ul>
+<li><code>SkeletonGraph.nodes[id].pos</code> 모든 node</li>
+<li><code>SkeletonEdge.bonePath[i].p0/p1</code> 모든 bone</li>
+<li><code>mesh.position</code> (parent가 lushGroup일 때 — leafMesh, stem mesh 등)</li>
+<li><code>PetioleJunctionPair</code>의 모든 V3 필드</li>
+</ul>
+</li>
+</ul>
+<h4 id="h-3-mesh-local-mesh-내부-vertex-좌표-53">3. <strong>mesh-local</strong> — mesh 내부 vertex 좌표</h4>
+<ul>
+<li><strong>단위</strong>: 미터</li>
+<li><strong>원점</strong>: 각 mesh의 <code>(0, 0, 0)</code> (rotation origin)</li>
+<li><strong>world 관계</strong>: <code>world = mesh.getWorldMatrix() × mesh-local</code><ul>
+<li>mesh.position(plant-local 위치) + mesh.rotationQuaternion(azimuth + droop) 적용</li>
+</ul>
+</li>
+<li><strong>사용처</strong>:<ul>
+<li><code>chunk.positions</code> (geometry build 결과 Float32Array)</li>
+<li><code>mesh.getVerticesData(&#39;position&#39;)</code></li>
+<li><code>boundingBox.minimum</code> (가상 corner — 실제 vertex 아님)</li>
+</ul>
+</li>
+</ul>
+<h4 id="h-4-graph-plant-local의-별칭-53">4. <strong>graph</strong> — plant-local의 별칭</h4>
+<ul>
+<li>SkeletonGraph 컨텍스트에서 plant-local을 가리키는 용어.</li>
+<li>의미: PlantBase(world) → buildTomatoSkeletonGraph 안에서 lushGroup
+parent를 거치며 plant-local로 변환됨.</li>
+</ul>
+<hr>
+<h3 id="h-변환-chain-plantstate-babylon-render-53">변환 chain — PlantState → Babylon render</h3>
+<figure><img src="_assets/diagrams/coord-systems.svg" alt="도식 2. 좌표계 4종 (World / Plant-Local / Mesh-Local / Graph-Pos)과 변환 utility"><figcaption>도식 2. 좌표계 4종 (World / Plant-Local / Mesh-Local / Graph-Pos)과 변환 utility</figcaption></figure>
+<p><strong>핵심</strong>: world → plant-local 변환은 <code>buildPlantSkeleton</code> 내부에서만 일어남
+(이때 PlantBase의 world 좌표를 그대로 사용하나, parent transform이 lushGroup
+이므로 결과적으로 plant-local로 해석됨).</p>
+<p><strong>중요 invariant</strong>: PlantBase.leaf.attachPosition (world) == SkeletonGraph
+edge.bonePath[0].p0 (plant-local) <strong>수치는 같음</strong> — 같은 좌표 값이지만
+해석되는 좌표계가 다름 (lushGroup 자식인 mesh.position에 set되면 plant-local).</p>
+<p>이 invariant가 Iter 18~22에서 혼동 원인 — 좌표 값은 같으나 의미 좌표계가
+다르다는 것을 명시하지 않음.</p>
+<hr>
+<h3 id="h-변환-함수-srcplantcoordinatestransformsts-54">변환 함수 (<code>src/plant/coordinates/transforms.ts</code>)</h3>
+<h4 id="h-worldtoplantlocalworld-worldv3-lushworldmatinv-matrix-plantlocalv3-55"><code>worldToPlantLocal(world: WorldV3, lushWorldMatInv: Matrix): PlantLocalV3</code></h4>
+<p>world → plant-local. lushGroup의 invert world matrix 필요.</p>
+<pre><code class="language-ts">// Example
+const lushWorldMatInv = lushGroup.getWorldMatrix().clone().invert();
+const plantPos = worldToPlantLocal(toWorld(bboxMinimumWorld), lushWorldMatInv);
+</code></pre>
+<h4 id="h-plantlocaltoworldplant-plantlocalv3-lushworldmat-matrix-worldv3-55"><code>plantLocalToWorld(plant: PlantLocalV3, lushWorldMat: Matrix): WorldV3</code></h4>
+<p>plant-local → world.</p>
+<h4 id="h-meshlocaltoworldmeshlocal-meshlocalv3-meshworldmat-matrix-worldv3-55"><code>meshLocalToWorld(meshLocal: MeshLocalV3, meshWorldMat: Matrix): WorldV3</code></h4>
+<p>mesh-local vertex → world. mesh.getWorldMatrix() 사용 (rotation + parent
+transform 모두 적용).</p>
+<h4 id="h-meshlocaltoplantlocalmeshlocal-meshworldmat-lushworldmatinv-plantlocalv3-55"><code>meshLocalToPlantLocal(meshLocal, meshWorldMat, lushWorldMatInv): PlantLocalV3</code></h4>
+<p>mesh-local → plant-local. (mesh-local → world → plant-local 합성).</p>
+<h4 id="h-assertroundtripv-worldv3-lushmat-matrix-epsilon1e-5-void-55"><code>assertRoundTrip(v: WorldV3, lushMat: Matrix, epsilon=1e-5): void</code></h4>
+<p>debug invariant — world → plant → world이 원본과 같은지.</p>
+<hr>
+<h3 id="h-babylon-api-매핑-55">Babylon API 매핑</h3>
+<table>
+<thead>
+<tr>
+<th>Babylon API</th>
+<th>반환/처리 좌표계</th>
+<th>비고</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>mesh.position</code></td>
+<td>parent-local</td>
+<td>우리 경우 plant-local (parent = lushGroup)</td>
+</tr>
+<tr>
+<td><code>mesh.absolutePosition</code></td>
+<td>world</td>
+<td>parent transform 적용</td>
+</tr>
+<tr>
+<td><code>mesh.getAbsolutePosition()</code></td>
+<td>world</td>
+<td>same as above</td>
+</tr>
+<tr>
+<td><code>mesh.getWorldMatrix()</code></td>
+<td>matrix</td>
+<td>world matrix (parent + rotation + scale)</td>
+</tr>
+<tr>
+<td><code>mesh.rotationQuaternion</code></td>
+<td>mesh-local 회전</td>
+<td>parent-local에서 적용</td>
+</tr>
+<tr>
+<td><code>mesh.getVerticesData(&#39;position&#39;)</code></td>
+<td>mesh-local Float32Array</td>
+<td>vertex 직접 query</td>
+</tr>
+<tr>
+<td><code>mesh.getBoundingInfo().boundingBox.minimum</code></td>
+<td>mesh-local 가상 corner</td>
+<td><strong>실제 vertex 아님</strong></td>
+</tr>
+<tr>
+<td><code>mesh.getBoundingInfo().boundingBox.minimumWorld</code></td>
+<td>world 가상 corner</td>
+<td>parent + rotation 적용 후</td>
+</tr>
+<tr>
+<td><code>Vector3.TransformCoordinates(local, matrix)</code></td>
+<td>matrix 적용</td>
+<td>변환 utility 사용</td>
+</tr>
+</tbody></table>
+<p><strong>중요 함정 (Iter 20 발견)</strong>: <code>boundingBox.minimum</code> / <code>minimumWorld</code>는 (x_min,
+y_min, z_min)의 가상 corner — <strong>mesh에 그 위치 vertex가 없을 수 있음</strong>.
+&quot;leaf의 가장 stem-side vertex&quot;같은 의미 점은 <code>getVerticesData</code> 직접 query
+필요.</p>
+<p><strong>중요 함정 (Iter 28 발견) — Stale worldMatrix</strong>:
+<code>mesh.position</code> 또는 <code>mesh.rotationQuaternion</code> 설정 직후 같은 build cycle에서
+<code>mesh.getWorldMatrix()</code>를 호출하면 <strong>stale matrix</strong> (= identity)를 반환한다.
+Babylon은 worldMatrix를 _next frame_까지 자동 update하지 않는다.</p>
+<pre><code class="language-ts">// ❌ 잘못 — mesh.position 설정 직후 getWorldMatrix() = identity
+mesh.position = new Vector3(x, y, z);
+mesh.rotationQuaternion = Quaternion.RotationAxis(...);
+const mat = mesh.getWorldMatrix();   // ← stale!
+const world = Vector3.TransformCoordinates(local, mat);  // ← (0,0,0)
+
+// ✅ 올바름 — computeWorldMatrix(true)로 즉시 update
+mesh.position = new Vector3(x, y, z);
+mesh.rotationQuaternion = Quaternion.RotationAxis(...);
+mesh.computeWorldMatrix(true);       // ★ 강제 update
+const mat = mesh.getWorldMatrix();   // ← 최신
+</code></pre>
+<p>Iter 28 사례: <code>SkinMeshPlant.ts</code> leaf loop에서 mesh 생성 직후 vertex world
+변환 시 stale matrix → mesh-local (0,0,0) × identity = world (0,0,0) →
+plant-local 변환이 <code>-lushGroup.world</code> 부호 반전 결과 (= <code>-1.062 m</code>) → docking
+overlay의 <code>dock_l_leafstart_*</code> 라인이 plant top → world origin (바닥)으로
+<strong>3.28m 늘어남</strong>. fix: <code>m.computeWorldMatrix(true)</code> 한 줄.</p>
+<p>검증: <code>tests/architecture/leaf-vertex-world.spec.ts</code> LEAF-VWORLD-01/02.</p>
+<hr>
+<h3 id="h-변수-naming-convention-56">변수 naming convention</h3>
+<p>좌표 변수에는 <strong>항상 좌표계 suffix</strong>:</p>
+<pre><code class="language-ts">// 좋음
+const tipPlantPos: PlantLocalV3 = ...;
+const attachWorldPos: WorldV3 = ...;
+const vertexMeshPos: MeshLocalV3 = ...;
+const stemNodeGraphPos = node.pos;  // graph는 plant-local 별칭
+
+// 나쁨 — 좌표계 모호
+const tip = ...;       // world? plant-local?
+const pos = ...;       // 어디 좌표계?
+const attachPos = ...; // (Iter 18~22에서 혼동의 원인)
+</code></pre>
+<p><strong>예외</strong>: Babylon API 표준 (<code>mesh.position</code>, <code>mesh.absolutePosition</code>) — 이름
+변경 X, 사용처에서 좌표계 주석.</p>
+<hr>
+<h3 id="h-좌표계-가설-검증-invariant-57">좌표계 가설 검증 invariant</h3>
+<p><code>tests/architecture/coordinate-contracts.spec.ts</code>의 INV-01~05:</p>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Invariant</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>INV-01</td>
+<td>SkeletonGraph 모든 node.pos는 plant-local — leafMesh.position과 동일 좌표계 (직접 비교 시 의미)</td>
+</tr>
+<tr>
+<td>INV-02</td>
+<td>PetioleJunctionPair 모든 V3 필드 plant-local</td>
+</tr>
+<tr>
+<td>INV-03</td>
+<td>Leaf mesh의 mesh-local x_min vertex의 world → plant-local 변환 = leafMesh.position (≤1mm). <strong>Iter 24 contract</strong></td>
+</tr>
+<tr>
+<td>INV-04</td>
+<td>graph endNode.pos == PlantBase petioleCurve[3] (= tip) (≤0.5mm)</td>
+</tr>
+<tr>
+<td>INV-05</td>
+<td>좌표 변환 round trip: world → plant-local → world == 원본 (≤0.01mm)</td>
+</tr>
+</tbody></table>
+<p>invariant 위반 시 spec fail → 좌표 변환 / mesh anchor 코드 버그.</p>
+<hr>
+<h3 id="h-history-iter-1824-7번-실패의-좌표계-측면-58">History — Iter 18~24 7번 실패의 좌표계 측면</h3>
+<table>
+<thead>
+<tr>
+<th>Iter</th>
+<th>잘못된 좌표 가정</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>18A</td>
+<td><code>mesh.position</code> = world (실제 parent-local)</td>
+</tr>
+<tr>
+<td>18B</td>
+<td>PlantBase petioleLen vs leafChunk petioleLen 좌표 무관하나 multiplier 다름</td>
+</tr>
+<tr>
+<td>19</td>
+<td>radialDir 계산 시 plant-local vs world 혼동</td>
+</tr>
+<tr>
+<td>20</td>
+<td>docking overlay에서 두 좌표계 비교 (plant-local vs world)</td>
+</tr>
+<tr>
+<td>21</td>
+<td>petioleCurve c1/c2 계산을 world arc로 가정</td>
+</tr>
+<tr>
+<td>22</td>
+<td>mesh.position을 attachPos vs tip 사이 flip-flop</td>
+</tr>
+<tr>
+<td>24</td>
+<td><code>boundingBox.minimum</code>이 가상 corner라 vertex 아님</td>
+</tr>
+</tbody></table>
+<p>전체 상세: <code>docs/calibration-checkpoint-reports/v0.13-iter24-leaf-anchor-fix-comprehensive.md</code>.</p>
+<p>각 실패는 본 SSOT 부재로 매번 다른 가정으로 작업한 결과. 본 SSOT + invariant
+tests로 같은 실수 반복 방지.</p>
+<h1 id="h-mesh-anchor-규약-meshanchors-59">Mesh Anchor 규약 (MESH_ANCHORS)</h1>
+<blockquote>
+<p>본 섹션은 <code>docs/architecture/MESH_ANCHORS.md</code>을 인용한다.</p>
+</blockquote>
+<h2 id="h-mesh-anchors-ssot-60">Mesh Anchors — SSOT</h2>
+<blockquote>
+<p>SSOT #186
+이 문서는 FarmSim의 각 mesh anchor 계약의 단일 진실 출처(SSOT)이다.
+새 mesh type 추가 / mesh.position 변경 / mesh-local vertex shift 작업 시
+반드시 본 문서 참조.</p>
+</blockquote>
+<h3 id="h-mesh-anchor란-61">Mesh anchor란?</h3>
+<p>각 mesh의 <strong>anchor</strong> = mesh-local <code>(0, 0, 0)</code>이 가리키는 의미. 두 가지 역할:</p>
+<ol>
+<li><strong>Position anchor</strong>: <code>mesh.position</code> (parent-local) → 부착 위치</li>
+<li><strong>Rotation origin</strong>: mesh-local <code>(0, 0, 0)</code> = 회전 중심</li>
+</ol>
+<p><code>mesh.rotationQuaternion</code>은 mesh-local origin을 중심으로 회전. 따라서
+<strong>mesh-local origin이 anchor와 일치해야</strong> 회전 적용 후 anchor가 위치
+유지된다.</p>
+<hr>
+<h3 id="h-각-mesh의-anchor-contract-62">각 mesh의 anchor contract</h3>
+<h4 id="h-1-stemfamily-tube-mesh-stemfamilytubenetworkbuilder-63">1. StemFamily tube mesh (<code>StemFamilyTubeNetworkBuilder</code>)</h4>
+<table>
+<thead>
+<tr>
+<th>항목</th>
+<th>값</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>mesh.position</code></td>
+<td><code>(0, 0, 0)</code> (plant-local, lushGroup 자식)</td>
+</tr>
+<tr>
+<td>mesh-local origin 의미</td>
+<td>stem 시작점 (= ground 부근 plant root)</td>
+</tr>
+<tr>
+<td>회전 origin</td>
+<td>mesh-local <code>(0, 0, 0)</code></td>
+</tr>
+<tr>
+<td>graph anchor node</td>
+<td>mainStem edge의 startNode</td>
+</tr>
+<tr>
+<td>vertex 분포</td>
+<td>mesh-local 좌표가 PlantBase의 stem centerline과 일치</td>
+</tr>
+</tbody></table>
+<p><strong>검증</strong>: <code>mesh.absolutePosition == graph mainStem.startNode.pos</code>.</p>
+<h4 id="h-2-leaf-blade-mesh-per-leaflet-since-iter-39-buildleafletmeshes-63">2. Leaf blade mesh — <em>per-leaflet</em> since Iter 39 (<code>buildLeafletMeshes</code>)</h4>
+<p>★ <strong>Iter 39 Phase A/B contract 개정</strong>: 잎 1장 = N개 leaflet mesh (terminal +
+primary + intercalary + secondary 각각 1장씩). 이전 contract (1 잎 = 1 통합
+mesh, mesh-local origin = &quot;첫 leaflet stem-side&quot;)는 <em>historic archive</em>.</p>
+<table>
+<thead>
+<tr>
+<th>항목</th>
+<th>값</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>mesh.position</code></td>
+<td><strong><code>leafletSkeletonNode.pos</code></strong> (plant-local, graph SSOT)</td>
+</tr>
+<tr>
+<td>mesh-local origin 의미</td>
+<td>_개별 leaflet base_의 가장 proximal vertex</td>
+</tr>
+<tr>
+<td>회전 origin</td>
+<td>mesh-local <code>(0, 0, 0)</code> = leaflet base</td>
+</tr>
+<tr>
+<td>graph anchor node</td>
+<td>leaflet-node (terminal/primary/intercalary/secondary)</td>
+</tr>
+<tr>
+<td>vertex 분포</td>
+<td>단일 leaflet plane — <code>normalizeLeafMeshVertices</code> 적용 후</td>
+</tr>
+<tr>
+<td>mesh name</td>
+<td><code>skinplant_leaf_{seed}_a{ax}_n{n}_l{idx}_{position}</code></td>
+</tr>
+</tbody></table>
+<p><strong>Entry function</strong>: <code>src/scene/leaf/buildLeafletMeshes.ts:buildLeafletMeshes()</code>.
+mandatory path — <code>bladeRef</code>/<code>leafletSkeletonNodes</code> 누락 시 throw (Phase K
+silent fallback 함정 방지).</p>
+<p><strong>petiolule connector</strong> (Iter 39 Phase F2): petiolule edge bonePath는 leafletNode
+까지 가지 않고 _attach 쪽 20%_만 SDF tube로 생성. leaflet plane이 나머지를
+시각적으로 덮음. leafletNode.pos는 <em>그대로</em> — ANCHOR-05 contract.</p>
+<p><strong>SDF skip</strong> (Iter 39 Phase F2): <code>lateral-vein</code>, <code>sub-vein</code>은 SDF tube 생성
+안 함 — F2.5의 vertex color + normal perturbation으로 surface feature.</p>
+<p>★ <strong>Iter 39 Phase G2 (Skeleton SSOT 강화)</strong>:</p>
+<ul>
+<li><code>LeafletNodeRef.attachNodeId</code> 필드 명시 저장 — helper lookup 의존 0.</li>
+<li><code>LeafletNodeRef.bladeDir</code> 필드 명시 저장 — leaflet 장축 방향 (plant-local 단위벡터).</li>
+<li>bladeDir 산출 (skeleton 수준):<ul>
+<li><strong>terminal</strong>: pure distal rachis tangent (rachis 연속).</li>
+<li><strong>lateral (primary/intercalary/secondary)</strong>: <code>normalize(lateral × 0.75 + distal × 0.25)</code>.</li>
+</ul>
+</li>
+<li>skin은 <code>rotation = makeLeafQuaternion(bladeDir, WORLD_UP)</code> — <em>read만</em>, 자체 계산 0.</li>
+<li>참조: <code>docs/architecture/SKELETON_SSOT.md</code>.</li>
+</ul>
+<p>★ <strong>Iter 39 Phase H0 (petiolule truncation revert)</strong>:</p>
+<ul>
+<li>G2의 <code>PETIOLULE_VISIBLE_RATIO_BY_POSITION</code> (skeleton bonePath 단축)이 SSOT
+위반 (bonePath endpoint ≠ endNode.pos) → SkeletonOverlay에서 leaflet 노드
+공중에 떠 있는 것처럼 보임.</li>
+<li>H0가 petiolule/lateral-vein bonePath를 <em>full path</em> (attachPos → leafletPos)로
+복원. 시각적 truncation 의도는 H4의 <code>EdgeRenderPolicy.skinVisibleFraction</code>로
+이동 (<code>docs/architecture/EDGE_RENDER_POLICY.md</code>).</li>
+<li>SKELETON-EDGE-01 / NODE-EDGE-INCIDENCE-01 / LEAFLET-REF-01 신규 invariants가
+graph SSOT 강제 (<code>tests/architecture/skeleton-edge-consistency.spec.ts</code>).</li>
+</ul>
+<p><strong>Iter 24 contract</strong> (commit acfad71, <em>x만 shift</em>) — <strong>Iter 39 K3에서 3D
+확장</strong>:</p>
+<ul>
+<li><code>buildLeafBladeOnly</code> 출력 chunk의 vertex.x range는 <code>[petioleLen + rachisLen·0.15, petioleLen + rachisLen]</code> 정도 (mesh-local).</li>
+<li>Iter 24 acfad71: <code>chunk.positions</code>의 <code>x_min</code>만 측정해 모든 vertex.x에서 빼기.</li>
+<li>결과 (Iter 24): 첫 leaflet의 stem-side vertex가 mesh-local <code>(0, y₀, z₀)</code> —
+<strong>y, z 임의 offset 잔존</strong>.</li>
+</ul>
+<p><strong>Iter 39 K3 확장 — 3D anchor</strong>:</p>
+<ul>
+<li><code>normalizeLeafMeshVertices</code>가 x_min vertex의 <code>(x, y, z)</code> <em>모두</em> shift.</li>
+<li>결과: stem-side vertex = mesh-local <code>(0, 0, 0)</code>.</li>
+</ul>
+<p><strong>K3 진단 (probe)</strong>:</p>
+<ul>
+<li>yzOffset 분포: p50 <strong>8.2mm</strong>, p95 <strong>35mm</strong>, max <strong>91mm</strong> (Iter 24 산식 기준).</li>
+<li>mesh.position = leafletNode.pos로 set해도 <em>실제 base vertex</em> world position
+= node.pos + rotation × (0, y₀, z₀) → <strong>시각상 leaflet이 공중에 떠 보임</strong>.</li>
+<li>K3로 yzOffset = 0 강제 → leaflet base의 <em>첫</em> vertex가 leafletNode.pos에 anchor.</li>
+</ul>
+<p><strong>Iter 39 L1-B 확장 — Centroid anchor (사용자 close-up 진단 정확)</strong>:</p>
+<p>K3 (<code>strict less-than</code>)은 row=0의 <em>첫 만나는 vertex</em> 선택. LeafletPlaneChunk
+산식상 row=0 (stem-side)에 col 0~8 9 vertices가 모두 x = x_min:</p>
+<ul>
+<li>col=0 → z = -halfWidthLeft (<strong>leftmost edge</strong>)</li>
+<li>col=4 → z = 0 (center)</li>
+<li>col=8 → z = +halfWidthRight (<strong>rightmost edge</strong>)</li>
+</ul>
+<p>K3 산식이 col=0 (left edge)를 anchor로 선택 → leaflet base의 <em>왼쪽 가장자리</em>
+가 leafletNode.pos에 매달림 (probe <code>firstMinXOffset</code> avg <strong>7.8mm</strong>).</p>
+<p><strong>L1-B fix</strong> (Option B — Centroid):</p>
+<pre><code class="language-ts">// row=0 (x ≈ x_min) vertex들의 y, z 평균을 anchor로 사용.
+const EPS = 1e-5;
+let sumY = 0, sumZ = 0, count = 0;
+for each vertex with |x - minX| &lt; EPS:
+  sumY += y, sumZ += z, count++
+yCenter = sumY / count;  zCenter = sumZ / count;
+// (minX, yCenter, zCenter) → mesh-local (0, 0, 0).
+</code></pre>
+<p><strong>결과</strong>: <code>centroidOffset = 0.000mm</code> (avg over 118 leaflets). leaflet base
+중심이 정확히 leafletNode.pos. 사용자 #2 &quot;센터가 아닌 끄트머리에 연결&quot; 해소.</p>
+<p><strong>v2 보완</strong> (사용자):</p>
+<ol>
+<li>EPS = <strong>1e-5</strong> (= 0.01mm tolerance, Float32 safe).</li>
+<li>needShift tolerance 비교 (<code>Math.abs(x) &gt; 1e-9</code>).</li>
+<li>ANCHOR-01 invariant = row centroid 기준 (x_min vertex 단일 기준 폐기).</li>
+<li>Probe diagnostic: centroidOffset + firstMinXOffset 둘 다 출력 (차이 visualize).</li>
+<li>assertLeafAnchorInvariant 산식 동기 갱신.</li>
+</ol>
+<p><strong>위반 시 증상</strong>: K0/K1/K2 (skinVisibleFraction 정책 조정)로 connector tube
+gap을 해소했음에도, _mesh anchor 자체_에 잔존 offset (~수십 mm)이 있어 leaflet
+이 떠 보임 (사용자 close-up 증상). K3 fix로 <em>수학적으로</em> 0.</p>
+<p><strong>utility</strong>: <code>src/plant/anchors/leafAnchor.ts:normalizeLeafMeshVertices()</code> (K3
+확장 후 3D).</p>
+<p><strong>검증</strong>: <code>tests/architecture/mesh-anchor-contracts.spec.ts</code>:</p>
+<ul>
+<li>ANCHOR-01: 모든 leaf mesh의 x_min vertex가 mesh-local x ≤1mm.</li>
+<li>ANCHOR-04 (K3 3D revised): synthetic fixture로 stem-side vertex = (0, 0, 0)
+byte-identical 검증 (x, y, z 모두).</li>
+<li><code>assertLeafAnchorInvariant</code>: runtime invariant — stem-side vertex의
+<code>sqrt(x² + y² + z²) ≤ 1mm</code>.</li>
+</ul>
+<h5 id="h-iter-31-r26-contract-organanchorrotation-산출-commit-4029b6b-63">★ Iter 31 R26 contract — <code>OrganAnchor.rotation</code> 산출 (commit 4029b6b)</h5>
+<p><code>leaf_blade</code> <code>OrganAnchor</code>의 rotation은 <em>PlantBase petioleCurve의 마지막 segment
+tangent</em> 그대로 사용:</p>
+<pre><code class="language-ts">// populateAnchorMorphology.ts:fillLeafAnchor
+const lastBone = edge.bonePath[edge.bonePath.length - 1];
+const petioleTipTangent = {
+  x: lastBone.p1.x - lastBone.p0.x,
+  y: lastBone.p1.y - lastBone.p0.y,
+  z: lastBone.p1.z - lastBone.p0.z,
+};
+anchor.rotation = makeLeafQuaternion(petioleTipTangent, { x: 0, y: 1, z: 0 });
+</code></pre>
+<ul>
+<li><code>petioleTipTangent</code> = leaf가 <em>자라는 방향</em> (마지막 segment의 곡선 기울기)</li>
+<li><code>bladeUp</code> 기본값 <code>(0, 1, 0)</code> = world up — blade plane horizontal (햇빛 자세)</li>
+<li><code>makeLeafQuaternion</code> (AnchorTransform.ts) = lookRotation (Gram-Schmidt + Shepperd&#39;s)</li>
+<li><code>posture.azimuth/droop/twist</code> 등 <em>별도 산식 0</em> — PlantBase curve가 <em>이미</em> 표현</li>
+</ul>
+<p>자세한 contract은 <a href="./STEM_LOCAL_FRAME.md"><code>STEM_LOCAL_FRAME.md</code></a> (R26 final).
+Iter 30 Phase 0.D <code>composeLeafRotationLocal</code> contract은 <em>historic</em> (archived).</p>
+<h4 id="h-3-fruit-mesh-createtrussfruitorgansonly-63">3. Fruit mesh (<code>createTrussFruitOrgansOnly</code>)</h4>
+<table>
+<thead>
+<tr>
+<th>항목</th>
+<th>값</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>mesh.position</code></td>
+<td>pedicel tip (plant-local)</td>
+</tr>
+<tr>
+<td>mesh-local origin 의미</td>
+<td>fruit attach point (pedicel 끝)</td>
+</tr>
+<tr>
+<td>회전 origin</td>
+<td>mesh-local <code>(0, 0, 0)</code></td>
+</tr>
+<tr>
+<td>graph anchor node</td>
+<td>pedicel edge endNode</td>
+</tr>
+<tr>
+<td>vertex 분포</td>
+<td>fruit body sphere, mesh-local origin이 stem-side</td>
+</tr>
+</tbody></table>
+<p><strong>현재 상태</strong>: Iter 18~24 disconnect bug와 무관 — fruit는 leaf와 다른 mesh
+경로. 동일 contract pattern 적용 권장 (Iter 26+).</p>
+<h4 id="h-4-flower-mesh-63">4. Flower mesh</h4>
+<p>(현재 코드 구조에서 fruit와 통합 — <code>createTrussFruitOrgansOnly</code>의 일부.)</p>
+<table>
+<thead>
+<tr>
+<th>항목</th>
+<th>값</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>mesh.position</code></td>
+<td>floral site (plant-local)</td>
+</tr>
+<tr>
+<td>mesh-local origin 의미</td>
+<td>flower 시작점</td>
+</tr>
+<tr>
+<td>회전 origin</td>
+<td>mesh-local <code>(0, 0, 0)</code></td>
+</tr>
+<tr>
+<td>graph anchor node</td>
+<td>floral site node</td>
+</tr>
+</tbody></table>
+<h4 id="h-5-calyx-mesh-63">5. Calyx mesh</h4>
+<p>(현재 코드 구조에서 fruit와 통합.)</p>
+<table>
+<thead>
+<tr>
+<th>항목</th>
+<th>값</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>mesh.position</code></td>
+<td>fruit base (plant-local)</td>
+</tr>
+<tr>
+<td>mesh-local origin 의미</td>
+<td>calyx 시작점</td>
+</tr>
+</tbody></table>
+<h4 id="h-6-cotyledon-mesh-63">6. Cotyledon mesh</h4>
+<table>
+<thead>
+<tr>
+<th>항목</th>
+<th>값</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>mesh.position</code></td>
+<td>cotyledon attach point (plant-local)</td>
+</tr>
+<tr>
+<td>mesh-local origin 의미</td>
+<td>cotyledon stem-side</td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="h-mesh-anchor-utility-srcplantanchors-63">Mesh anchor utility — <code>src/plant/anchors/</code></h3>
+<h4 id="h-meshanchor-interface-anchorstypests-64"><code>MeshAnchor</code> interface (<code>anchors/types.ts</code>)</h4>
+<pre><code class="language-ts">export interface MeshAnchor {
+  /** mesh.position (plant-local) — Babylon parent (lushGroup) 기준 */
+  meshPosition: PlantLocalV3;
+  /** mesh-local origin이 어떤 vertex/위치를 가리키는가 (semantic key) */
+  meshLocalOriginRole:
+    | &#39;stem-root&#39;                     // StemFamily tube
+    | &#39;first-leaflet-stem-side&#39;       // Leaf blade (Iter 24 contract)
+    | &#39;fruit-attach-pedicel-side&#39;     // Fruit mesh
+    | &#39;flower-attach&#39;                 // Flower mesh
+    | &#39;calyx-attach&#39;                  // Calyx mesh
+    | &#39;cotyledon-attach&#39;;             // Cotyledon mesh
+  /** anchor가 graph 어느 node를 가리키는가 */
+  graphAnchorNodeId: string;
+  /** 회전 origin (= mesh-local (0,0,0)) */
+  rotationOrigin: &#39;mesh-local-origin&#39;;
+}
+</code></pre>
+<h4 id="h-leafanchor-특화-anchorstypests-64"><code>LeafAnchor</code> 특화 (<code>anchors/types.ts</code>)</h4>
+<pre><code class="language-ts">export interface LeafAnchor extends MeshAnchor {
+  meshLocalOriginRole: &#39;first-leaflet-stem-side&#39;;
+  /** mesh-local (0,0,0)에서 가장 가까운 leaflet의 nodeIdx */
+  firstLeafletNodeIdx?: number;
+}
+</code></pre>
+<h4 id="h-normalizeleafmeshvertices-anchorsleafanchorts-64"><code>normalizeLeafMeshVertices</code> (<code>anchors/leafAnchor.ts</code>)</h4>
+<pre><code class="language-ts">/** Iter 24 acfad71 — leaf chunk의 vertex.x_min을 0으로 shift.
+ *  buildLeafBladeOnly 호출 후 반드시 적용.
+ *  - chunk.positions의 첫 leaflet stem-side vertex가 mesh-local (0,?,?)에 위치.
+ *  - SkinMeshPlant에서 leafMesh.position = petiole tip 설정 시 자동 정합.
+ *
+ *  byte-identical to LeafGenerator.ts acfad71 inline code. */
+export function normalizeLeafMeshVertices(chunkPositions: Float32Array | number[]): void;
+</code></pre>
+<h4 id="h-makeleafanchor-anchorsleafanchorts-64"><code>makeLeafAnchor</code> (<code>anchors/leafAnchor.ts</code>)</h4>
+<pre><code class="language-ts">/** Leaf anchor 생성 + invariant 검증 helper. */
+export function makeLeafAnchor(
+  petioleTipPlantPos: PlantLocalV3,
+  graphTipNodeId: string,
+  firstLeafletNodeIdx?: number,
+): LeafAnchor;
+</code></pre>
+<h4 id="h-assertleafanchorinvariant-anchorsleafanchorts-64"><code>assertLeafAnchorInvariant</code> (<code>anchors/leafAnchor.ts</code>)</h4>
+<pre><code class="language-ts">/** Invariant 검증: mesh의 vertex.x_min이 mesh-local (0,0,0) 근처에 있는지.
+ *  ≤epsilon (기본 0.001m = 1mm). 위반 시 throw — normalizeLeafMeshVertices
+ *  호출 누락 catch. */
+export function assertLeafAnchorInvariant(mesh: Mesh, epsilon?: number): void;
+</code></pre>
+<hr>
+<h3 id="h-새-mesh-type-추가-시-절차-64">새 mesh type 추가 시 절차</h3>
+<ol>
+<li><strong>anchor contract 결정</strong>: mesh-local origin이 무엇을 가리키는지.</li>
+<li><strong><code>MeshAnchor.meshLocalOriginRole</code> enum에 추가</strong>.</li>
+<li><strong>본 문서의 &quot;각 mesh의 anchor contract&quot; 표에 row 추가</strong>.</li>
+<li><strong><code>makeXxxAnchor</code> helper 작성</strong> (<code>anchors/xxxAnchor.ts</code>).</li>
+<li><strong>vertex shift / normalize 필요 시 <code>normalizeXxxMeshVertices</code> 작성</strong>.</li>
+<li><strong>invariant test 추가</strong> (<code>tests/architecture/mesh-anchor-contracts.spec.ts</code>).</li>
+<li><strong>CLAUDE.md에 새 mesh type 사용 시 helper 참조 룰 추가</strong>.</li>
+</ol>
+<hr>
+<h3 id="h-babylon-convention-함정-65">Babylon convention 함정</h3>
+<h4 id="h-1-meshposition은-parent-local-66">1. <code>mesh.position</code>은 parent-local</h4>
+<pre><code class="language-ts">// 잘못 (Iter 18A 가정)
+const tip = leafBase.petioleCurve[3];  // world
+leafMesh.position = new Vector3(tip.x, tip.y, tip.z);  // parent-local 기대
+// → 잘못 — tip(world) ≠ plant-local (lushGroup parent)
+</code></pre>
+<p><strong>정답</strong>: PlantBase 좌표는 world이지만, mesh.parent = lushGroup이므로 결과
+적으로 plant-local로 해석됨. lushGroup transform이 적용된 상태에서 mesh가
+그려지므로 visual 결과는 정확. 그러나 <code>leafMesh.position</code>의 좌표계 정의는
+<strong>parent-local (= plant-local)</strong>.</p>
+<h4 id="h-2-boundingboxminimum은-가상-corner-iter-20-발견-66">2. <code>boundingBox.minimum</code>은 가상 corner (Iter 20 발견)</h4>
+<pre><code class="language-ts">// 잘못 (Iter 24 이전)
+const visualStart = mesh.getBoundingInfo().boundingBox.minimum;  // 가상 corner
+// → 실제 vertex 아님. (x_min, y_min, z_min)가 동시에 존재하는 vertex는 거의 없음.
+</code></pre>
+<p><strong>정답</strong>: 실제 mesh vertex 위치는 <code>mesh.getVerticesData(&#39;position&#39;)</code>로 직접
+query. 의미 점 (예: &quot;leaf의 가장 stem-side vertex&quot;)이 필요하면 그에 맞는
+조건으로 vertex array 검색.</p>
+<pre><code class="language-ts">// 정답
+const verts = mesh.getVerticesData(&#39;position&#39;);
+let minLx = Infinity, minLy = 0, minLz = 0;
+for (let i = 0; i &lt; verts.length; i += 3) {
+  if (verts[i] &lt; minLx) {
+    minLx = verts[i];
+    minLy = verts[i + 1];  // 같은 vertex의 y
+    minLz = verts[i + 2];
+  }
+}
+// (minLx, minLy, minLz) = 실제 vertex (mesh-local)
+</code></pre>
+<h4 id="h-3-회전-적용-시-anchor-보존-의무-66">3. 회전 적용 시 anchor 보존 의무</h4>
+<p><code>mesh.rotationQuaternion</code>이 mesh-local origin 중심 회전. anchor가 mesh-local
+origin이면 회전 후 anchor 위치 유지.</p>
+<p>leaf의 경우 azimuth(Y axis) + droop(Z axis) 회전. droop이 mesh-local Z 축
+회전이므로 vertex가 mesh-local (1, 0, 0)이라면 회전 후 (cos·1, -sin·1, 0).
+mesh.position이 anchor이므로 회전 후 world에서 anchor 유지, vertex는 그
+회전된 방향으로 이동.</p>
+<p><strong>중요</strong>: vertex shift(normalize) 의무 — 그렇지 않으면 anchor가 가상 origin
+이지 실제 vertex가 아니므로, 회전 후 anchor와 vertex가 다른 위치에 도달.</p>
+<hr>
+<h3 id="h-mesh-anchor-invariant-자동-검증-66">Mesh anchor invariant 자동 검증</h3>
+<p><code>tests/architecture/mesh-anchor-contracts.spec.ts</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Test</th>
+<th>Invariant</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>ANCHOR-01</td>
+<td>모든 <code>skinplant_leaf_*</code> mesh의 vertex.x_min이 mesh-local (0, 0, 0) 근처 (≤1mm). Iter 39부터 per-leaflet — 각 leaflet base = mesh-local origin.</td>
+</tr>
+<tr>
+<td>ANCHOR-02</td>
+<td>leafMesh.absolutePosition (world)이 graph petiole endNode.pos (world 변환 후) ≤1mm 일치</td>
+</tr>
+<tr>
+<td>ANCHOR-03</td>
+<td>모든 organ mesh의 anchor가 contract와 일치</td>
+</tr>
+<tr>
+<td>ANCHOR-04</td>
+<td><code>normalizeLeafMeshVertices</code> byte-identical to acfad71 inline 로직</td>
+</tr>
+<tr>
+<td><strong>ANCHOR-05</strong> (Iter 39 Phase F6)</td>
+<td><code>skinplant_leaf_*_l\d+_*</code> mesh의 <code>mesh.position == graph.nodes[matchingLeafletNodeId].pos</code> (≤1mm). Phase K(09def1d) index-mismatch 함정을 catch.</td>
+</tr>
+</tbody></table>
+<p>위반 시 test fail → mesh anchor 코드 버그.</p>
+<hr>
+<h3 id="h-history-iter-24-acfad71-final-fix-67">History — Iter 24 acfad71 (final fix)</h3>
+<pre><code class="language-text">LeafGenerator.ts vertex shift (acfad71):
+  // 첫 leaflet의 가장 stem-side vertex(min x)가 mesh-local (0, 0, 0)에
+  // 오도록 정확히 정렬. 의도: mesh-local origin = leaf anchor = SDF
+  // petiole tip 위치.
+  let minX = Infinity;
+  for (let i = 0; i &lt; chunk.positions.length; i += 3) {
+    if (chunk.positions[i] &lt; minX) minX = chunk.positions[i];
+  }
+  if (Number.isFinite(minX) &amp;&amp; minX !== 0) {
+    for (let i = 0; i &lt; chunk.positions.length; i += 3) {
+      chunk.positions[i] -= minX;
+    }
+  }
+</code></pre>
+<p>이 로직이 <code>normalizeLeafMeshVertices</code> utility로 추출됨 (본 SSOT의 Iter 25
+정리 작업).</p>
+<h1 id="h-semantic-graph-semanticgraph-68">Semantic Graph (SEMANTIC_GRAPH)</h1>
+<blockquote>
+<p>본 섹션은 <code>docs/architecture/SEMANTIC_GRAPH.md</code>을 인용한다.</p>
+</blockquote>
+<h2 id="h-semantic-skeleton-graph-ssot-187-69">Semantic Skeleton Graph (SSOT #187)</h2>
+<blockquote>
+<p>Iter 26 이후 FarmSim의 식물 시각 단일 진실 출처(SSOT)는
+<code>SemanticSkeletonGraph</code>이다. 시뮬레이션 데이터(PlantState, PlantBase,
+cultivar JSONC)는 이 graph로 매핑된 뒤, 모든 시각 소비자(Skin, Overlay,
+Acceptance)는 graph만 본다.</p>
+</blockquote>
+<p>본 문서는 graph schema · 데이터 흐름 · 4 원칙 · 새 organ/mesh 추가 절차를
+한 곳에서 정의한다.</p>
+<p>관련 SSOT:</p>
+<ul>
+<li><a href="./COORDINATE_SYSTEMS.md">SSOT #185 COORDINATE_SYSTEMS</a> — 좌표계</li>
+<li><a href="./MESH_ANCHORS.md">SSOT #186 MESH_ANCHORS</a> — mesh-local origin 계약</li>
+<li>[SSOT 4.4 / 8 / 180] — <code>src/plant/skeleton/PlantSkeletonGraph.ts</code> 헤더 주석</li>
+</ul>
+<hr>
+<h3 id="h-0-핵심-4-원칙-70">0. 핵심 4 원칙</h3>
+<blockquote>
+<ol>
+<li><strong>Skeleton node는 명확한 데이터를 담는다</strong> — 좌표·형태·상태·시각힌트.</li>
+<li><strong>노드 자체로 시각화될 수 있다</strong> — <code>node.visualHint</code>를 그대로 직렬화하면
+Overlay. 색·shape·label 결정은 graph populator에서 하고, Overlay는
+그것을 읽기만 한다.</li>
+<li><strong>시뮬레이션 데이터는 모두 skeleton으로 들어온다</strong> — <code>PlantState</code>,
+<code>PlantBase</code>, cultivar JSONC는 <code>SkeletonPopulator</code>의 입력일 뿐이며, 그
+이후 graph가 single source of truth.</li>
+<li><strong>Skin engine은 단순 시각화만</strong> — graph + style → mesh. biology 모름.
+<code>SkinEngineRenderOpts</code>에서 <code>plantBase</code> · <code>state</code> 인자가 자체 제거된다
+(fallback도 없음).</li>
+</ol>
+</blockquote>
+<p>이 4 원칙이 깨지면 <strong>Iter 18~24 leaf disconnect 7번 실패와 동급 위험</strong>.
+SSOT #185(좌표계) + #186(mesh anchor) + 본 #187(graph 의미)이 모두 묶여
+하나의 안전망이다.</p>
+<hr>
+<h3 id="h-1-데이터-흐름-one-way-71">1. 데이터 흐름 (one-way)</h3>
+<pre><code class="language-text">[PlantState · PlantBase · cultivar JSONC]   ← simulation truth (biology)
+            │
+            ▼  ─────────────── 유일한 simulation → graph 매핑 지점
+   SkeletonPopulator
+   (src/plant/skeleton/buildTomatoSkeletonGraph.ts)
+            │
+            ▼
+   SemanticSkeletonGraph        ← visual single source of truth
+   (nodes + edges + organAnchors + visualHints)
+            │
+            ├─→ SkinEngine       (graph + style → 3D mesh; biology 모름)
+            ├─→ SkeletonOverlay  (node.visualHint 직렬화)
+            └─→ AcceptanceProbe  (graph 자체 invariant 검증)
+</code></pre>
+<p>규칙:</p>
+<ul>
+<li><code>PlantState</code> / <code>PlantBase</code> / cultivar JSONC 직접 참조는 <code>SkeletonPopulator</code>
+<strong>단 한 곳에서만</strong> 일어난다. 그 외 모든 시각 경로는 graph를 읽는다.</li>
+<li>시뮬레이션 tick → populator 재호출 → graph 갱신 → 시각 재렌더. 시각이
+중간에서 biology를 다시 보지 않는다.</li>
+</ul>
+<p>이 흐름이 만족되는지는 invariant test로 자동 검증한다
+(<code>tests/architecture/skeleton-populator-isolation.spec.ts</code> — PR 2-0).</p>
+<hr>
+<h3 id="h-2-graph-schema-72">2. Graph schema</h3>
+<p>상세 정의는 <code>src/plant/skeleton/PlantSkeletonGraph.ts</code>. 본 절은 의미·출처·
+사용처를 요약한다.</p>
+<h4 id="h-21-skeletonnode-73">2.1 SkeletonNode</h4>
+<table>
+<thead>
+<tr>
+<th>필드</th>
+<th>타입</th>
+<th>의미</th>
+<th>출처</th>
+<th>사용처</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>id</code></td>
+<td><code>string</code></td>
+<td>unique within graph</td>
+<td>populator</td>
+<td>모든 참조</td>
+</tr>
+<tr>
+<td><code>pos</code></td>
+<td><code>V3</code> (plant-local)</td>
+<td>노드 위치. SSOT #185 INV-01에서 검증</td>
+<td>populator</td>
+<td>Skin, Overlay</td>
+</tr>
+<tr>
+<td><code>radius</code></td>
+<td><code>number</code></td>
+<td>줄기 표면 반지름</td>
+<td>populator</td>
+<td>Skin tube builder</td>
+</tr>
+<tr>
+<td><code>edgeIds</code></td>
+<td><code>string[]</code></td>
+<td>incident edges</td>
+<td>populator</td>
+<td>graph traversal</td>
+</tr>
+<tr>
+<td><code>type</code></td>
+<td><code>SkeletonNodeType?</code></td>
+<td>식물학적 역할 (13종)</td>
+<td>populator (PR 2-1)</td>
+<td>Skin, Overlay</td>
+</tr>
+<tr>
+<td><code>frame</code></td>
+<td><code>LocalFrame?</code></td>
+<td>tangent/normal orthonormal frame</td>
+<td>populator (PR 2-1)</td>
+<td>mesh orientation</td>
+</tr>
+<tr>
+<td><code>visualHint</code></td>
+<td><code>NodeVisualHint?</code></td>
+<td>자기 표현 (color/shape/size/label)</td>
+<td>populator (PR 2-1)</td>
+<td>Overlay 단독</td>
+</tr>
+</tbody></table>
+<p><strong>SkeletonNodeType 13종</strong> (<code>main-stem-node</code> · <code>side-shoot-node</code> ·
+<code>petiole-root</code> · <code>petiole-tip</code> · <code>leaf-blade-root</code> · <code>truss-root</code> ·
+<code>peduncle-node</code> · <code>rachis-node</code> · <code>pedicel-root</code> · <code>pedicel-tip</code> ·
+<code>fruit-root</code> · <code>flower-root</code> · <code>calyx-root</code>) — crop-agnostic 출발점. 다른
+crop은 union을 확장.</p>
+<h4 id="h-22-skeletonedge-73">2.2 SkeletonEdge</h4>
+<table>
+<thead>
+<tr>
+<th>필드</th>
+<th>타입</th>
+<th>의미</th>
+<th>출처</th>
+<th>사용처</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>id</code> / <code>type</code> / <code>startNodeId</code> / <code>endNodeId</code></td>
+<td>(기존)</td>
+<td>edge 식별 + 토폴로지</td>
+<td>populator</td>
+<td>모든 참조</td>
+</tr>
+<tr>
+<td><code>bonePath</code></td>
+<td><code>SkeletonBone[]</code></td>
+<td>densified centerline capsules</td>
+<td>populator</td>
+<td>SDF + 마칭큐브</td>
+</tr>
+<tr>
+<td><code>parentEdgeId</code></td>
+<td><code>string | null</code></td>
+<td>cut hierarchy</td>
+<td>populator</td>
+<td>Phase 5 cut</td>
+</tr>
+<tr>
+<td><code>cuttable</code> / <code>semanticLabel</code> / <code>attachedOrganIds</code></td>
+<td>(기존)</td>
+<td>UI/legacy</td>
+<td>populator</td>
+<td>UI</td>
+</tr>
+<tr>
+<td><code>organAnchors</code></td>
+<td><code>OrganAnchor[]?</code></td>
+<td>non-edge organ 앵커</td>
+<td>populator (PR 2-2)</td>
+<td>Skin leaf/fruit</td>
+</tr>
+<tr>
+<td><code>renderPolicy</code></td>
+<td><code>EdgeRenderPolicy?</code></td>
+<td>렌더 정책 (radius, junction, material, visual)</td>
+<td>populator (PR 2-3)</td>
+<td>Skin tube + Overlay</td>
+</tr>
+</tbody></table>
+<h4 id="h-23-organanchor-iter-26-확장-73">2.3 OrganAnchor (Iter 26 확장)</h4>
+<table>
+<thead>
+<tr>
+<th>필드</th>
+<th>타입</th>
+<th>의미</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>id</code> / <code>kind</code></td>
+<td>(기존)</td>
+<td>앵커 식별</td>
+</tr>
+<tr>
+<td><code>anchorNodeId</code></td>
+<td><code>string</code></td>
+<td><strong>Iter 27 — Joint anchor</strong>. organ이 부모 줄기/knuckle에 부착되는 SkeletonNode. <strong>Alarm reference</strong>: 정상 plant에서 반드시 <code>chain.rootNodeId</code>와 _동일 노드_를 가리켜야 한다 → attachment line 두 vertex 같은 위치 → 라인 길이 0 → 시각 alarm 없음 = 정상</td>
+</tr>
+<tr>
+<td><code>meshAnchorNodeId</code></td>
+<td><code>string?</code></td>
+<td><strong>Iter 27 — Mesh attach</strong>. organ mesh가 실제 놓이는 위치 (mesh.position). leaf: petiole tip, fruit/flower/calyx: pedicel tip. 없으면 anchorNodeId로 fallback (legacy)</td>
+</tr>
+<tr>
+<td><code>morphology</code></td>
+<td><code>AnchorMorphologyHint?</code></td>
+<td>static 형태 — cultivar 1회 복사</td>
+</tr>
+<tr>
+<td><code>state</code></td>
+<td><code>OrganState?</code></td>
+<td>per-tick simulation 상태 — 원칙 3</td>
+</tr>
+<tr>
+<td><code>chain</code></td>
+<td><code>OrganChain?</code></td>
+<td>rootNodeId → attachmentNodeId 노드/엣지 chain. <code>chain.rootNodeId</code> == <code>anchorNodeId</code> 동일성 보장 = ATTACH-LINE-01 invariant</td>
+</tr>
+<tr>
+<td><code>visualHint</code></td>
+<td><code>AnchorVisualHint?</code></td>
+<td>자기 표현 — 원칙 2</td>
+</tr>
+</tbody></table>
+<p><strong>Attachment line alarm 디자인 (Iter 27)</strong></p>
+<p>SemanticOverlay attachment line은 <code>anchor.anchorNodeId</code> ↔ <code>anchor.chain.rootNodeId</code> 두 노드를 잇는 dashed line. 두 필드가 같은 노드를 가리키면 line의 두 vertex가 동일 world position → 라인 길이 0 → 시각상 안 보임 = 정상. 회귀 시 두 필드 mismatch → 라인 &gt; 0 → 즉시 시각 alarm + <code>tests/architecture/attach-line-zero.spec.ts</code> FAIL.</p>
+<p>이 디자인은 Iter 18~24 &quot;잎-줄기 disconnect&quot; 패턴 재발 자동 감지가 목적. organ-stem joint 매핑이 어긋날 때 사용자가 즉시 시각으로 catch.</p>
+<h4 id="h-24-edgerenderpolicy-73">2.4 EdgeRenderPolicy</h4>
+<table>
+<thead>
+<tr>
+<th>필드</th>
+<th>의미</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>radius.{biological, render, min}</code></td>
+<td>biology truth + render floor (mm 0.8 등)</td>
+</tr>
+<tr>
+<td><code>junction.{embedDepthM, radialDir, parentContext}</code></td>
+<td>부모 줄기 표면 정합 정보. <code>parentContext</code>는 <code>StemFamilyTubeNetworkBuilder.stats.parentContextByEdgeId</code>와 동일 schema</td>
+</tr>
+<tr>
+<td><code>material.role</code></td>
+<td>셰이더/텍스처 선택 (<code>main-stem</code>, <code>petiole</code>, …)</td>
+</tr>
+<tr>
+<td><code>visualHint.{color, lineWidth}</code></td>
+<td>overlay line 표현 — 원칙 2</td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="h-3-skeletonpopulator-책임-73">3. SkeletonPopulator 책임</h3>
+<p><code>buildTomatoSkeletonGraph(plantBase, opts)</code> 가 유일한 simulation → graph
+매핑 지점. 다음을 모두 수행:</p>
+<ol>
+<li>node 생성 + <code>pos</code>(plant-local) · <code>radius</code> · <code>edgeIds</code> 채움.</li>
+<li>node <code>type</code> 부여 (식물학적 역할).</li>
+<li>node <code>frame</code> 계산 (tangent + normal).</li>
+<li>node <code>visualHint</code> 매핑 (type별 default — main stem 갈색 sphere 6mm 등).</li>
+<li>edge 생성 + bonePath · parentEdgeId · semanticLabel.</li>
+<li>edge <code>renderPolicy</code> 채움 (<code>radius</code>, <code>junction.parentContext</code>,
+<code>material.role</code>, <code>visualHint</code>).</li>
+<li><code>organAnchor</code>의 <code>morphology</code> · <code>state</code> · <code>chain</code> · <code>visualHint</code> 채움
+(PlantBase / PlantState에서 복사).</li>
+</ol>
+<p>이후 Skin/Overlay/Acceptance는 graph만 본다. populator 외 simulation
+참조는 자동 isolation test가 catch (PR 2-0).</p>
+<hr>
+<h3 id="h-4-skin-계약-원칙-4-74">4. Skin 계약 (원칙 4)</h3>
+<p><code>SkinEngineRenderOpts</code> 시그니처:</p>
+<pre><code class="language-ts">interface SkinEngineRenderOpts {
+  graph: PlantSkeletonGraph;
+  style: SkinStyle;
+  scene: Scene;
+  // plantBase / state 인자 없음 — biology 모름.
+}
+</code></pre>
+<p><code>SkinMeshPlant</code>에서 <code>defaultSkinEngine.render({ graph, style, scene })</code>
+하나만 호출. 디버그용 dock probe 등 PlantBase가 필요한 코드는 별도 함수
+(<code>createDockingDebugProbe(graph, plantBase)</code>)로 분리하며 Skin 본 경로에
+없다.</p>
+<p>invariant:</p>
+<ul>
+<li><code>src/twin/SkinMeshPlant.ts</code>에서 SkinEngine 호출 인자에 <code>plantBase</code> 0건.</li>
+<li><code>src/plant/skin/**</code> 전역에서 PlantBase / PlantState import 0건.</li>
+</ul>
+<p><code>tests/architecture/skin-engine-graph-only.spec.ts</code> (PR 5-1)에서 자동 검증.</p>
+<hr>
+<h3 id="h-5-overlay-계약-원칙-2-75">5. Overlay 계약 (원칙 2)</h3>
+<p><code>SkeletonOverlay</code>는 graph를 받아 다음을 그릴 뿐:</p>
+<pre><code class="language-ts">for (const node of graph.nodes) {
+  if (!node.visualHint) continue;
+  drawMarker(node.pos, node.visualHint);
+}
+for (const edge of graph.edges) {
+  drawLine(edge.bonePath, edge.renderPolicy?.visualHint);
+}
+for (const anchor of allAnchors(graph)) {
+  drawCircle(anchor.anchorNodeId, anchor.visualHint);
+}
+</code></pre>
+<p>invariant:</p>
+<ul>
+<li><code>src/twin/SkeletonOverlay.ts</code>에서 hex color 리터럴 0건 (모두 visualHint에서 옴).</li>
+<li>marker shape · label · arrow 표시 여부도 visualHint 기반.</li>
+</ul>
+<p>색·라벨 변경 = populator에서 visualHint를 다른 값으로 채우면 끝.</p>
+<hr>
+<h3 id="h-6-새-organ-mesh-추가-절차-76">6. 새 organ / mesh 추가 절차</h3>
+<p>기존 mesh anchor 절차(SSOT #186)에 더해 graph 표현 작성이 필요하다.</p>
+<ol>
+<li><strong>SkeletonNodeType union 확장</strong> (<code>PlantSkeletonGraph.ts</code>).</li>
+<li><strong>node.visualHint default 매핑</strong> 추가 (populator).</li>
+<li><strong>organ anchor kind 추가</strong> (필요 시) — <code>OrganAnchorKind</code> union + populator.</li>
+<li><strong><code>AnchorMorphologyHint</code> 확장</strong> — 새 organ-specific 필드.</li>
+<li><strong><code>material.role</code> 추가</strong> (edge 동반 시).</li>
+<li><strong>Populator에서 morphology · state · chain · visualHint populate</strong>.</li>
+<li><strong>Skin consumer에 분기 추가</strong> — graph만 보고 render.</li>
+<li><strong>invariant test 갱신</strong>:<ul>
+<li><code>semantic-graph-population.spec.ts</code> — 신규 type 채워짐 확인</li>
+<li><code>anchor-completeness.spec.ts</code> — 신규 anchor 완성도</li>
+</ul>
+</li>
+<li><strong>본 문서의 schema 표 갱신</strong>.</li>
+</ol>
+<hr>
+<h3 id="h-7-history-77">7. History</h3>
+<ul>
+<li>Iter 26 PR 1-1 — <code>SkeletonNode.type/frame/visualHint</code> schema 도입.</li>
+<li>Iter 26 PR 1-2 — <code>OrganAnchor.morphology/state/chain/visualHint</code> schema.</li>
+<li>Iter 26 PR 1-3 — <code>EdgeRenderPolicy</code> schema.</li>
+<li>Iter 26 PR 1-4 — 본 문서 (SSOT #187).</li>
+<li>Iter 26 PR 2-0 — <code>SkeletonPopulator</code> isolation test.</li>
+<li>Iter 26 PR 2-1~2-3 — populate.</li>
+<li>Iter 26 PR 3-1~3-2 — Skin read path 전환.</li>
+<li>Iter 26 PR 4-1~4-2 — Overlay = visualHint 직렬화.</li>
+<li>Iter 26 PR 5-1 — SkinEngine API 정화 + graph-only acceptance.</li>
+</ul>
+<hr>
+<h3 id="h-8-검증-78">8. 검증</h3>
+<p>자동 invariant tests (<code>tests/architecture/</code>):</p>
+<table>
+<thead>
+<tr>
+<th>Test</th>
+<th>검증 대상</th>
+<th>도입 PR</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>coordinate-contracts.spec.ts</code> (#185)</td>
+<td>좌표계 invariant</td>
+<td>Iter 25</td>
+</tr>
+<tr>
+<td><code>mesh-anchor-contracts.spec.ts</code> (#186)</td>
+<td>mesh-local origin</td>
+<td>Iter 25</td>
+</tr>
+<tr>
+<td><code>skeleton-populator-isolation.spec.ts</code> (#187)</td>
+<td>populator 외 sim 참조 0</td>
+<td>PR 2-0</td>
+</tr>
+<tr>
+<td><code>semantic-graph-population.spec.ts</code> (#187)</td>
+<td>모든 node type+frame+visualHint</td>
+<td>PR 2-1</td>
+</tr>
+<tr>
+<td><code>anchor-completeness.spec.ts</code> (#187)</td>
+<td>모든 anchor morphology+state+chain+visualHint</td>
+<td>PR 2-2</td>
+</tr>
+<tr>
+<td><code>skin-engine-graph-only.spec.ts</code> (#187)</td>
+<td>Skin에서 plantBase 0 참조</td>
+<td>PR 5-1</td>
+</tr>
+</tbody></table>
+<p>총 6 hard invariant — 4 원칙이 깨지면 즉시 적색.</p>
+<h1 id="h-스트림-프로토콜-mjpeg-over-websocket-79">스트림 프로토콜 — MJPEG over WebSocket</h1>
+<h2 id="h-개요-80">개요</h2>
+<p>본 시뮬레이터는 짐벌 카메라 영상을 <strong>WS 기반 MJPEG 스트림</strong>으로 발행한다.  이 구조는 (a) PiP 표시, (b) Web Worker 디텍션, (c) 관제 운영자가 보는 화면을 모두 같은 source-of-truth로 묶기 위함이다.</p>
+<h2 id="h-ws-엔드포인트-81">WS 엔드포인트</h2>
+<pre><code>ws://&lt;host&gt;/robot/&lt;streamId&gt;?role=producer
+ws://&lt;host&gt;/robot/&lt;streamId&gt;?role=consumer
+</code></pre>
+<ul>
+<li>streamId 기본값: <code>phenotyping/gimbal</code></li>
+<li>producer 1 ↔ consumer N (fanout)</li>
+<li>토큰/인증 없음 (localhost 전용 dev 서버)</li>
+<li>Vite dev plugin (<code>tooling/vite/plugins/camStream.ts</code>) 가 동일 포트 8090에 함께 mount</li>
+</ul>
+<h2 id="h-프레임-포맷-82">프레임 포맷</h2>
+<p>매 프레임마다 두 메시지 쌍으로 전송:</p>
+<ol>
+<li><strong>Text 메시지</strong> — <code>FramePoseHeader</code> JSON</li>
+<li><strong>Binary 메시지</strong> — JPEG 압축 RGB 바이트</li>
+</ol>
+<p>소스: <code>src/phenotyping/streaming/streamProtocol.ts:20-49</code></p>
+<pre><code class="language-typescript">export interface FramePoseHeader {
+  ts: number;          // performance.now() at capture
+  railX: number;       // 레일 X 위치 (m)
+  panRad: number;      // gimbal pan (rad)
+  pitchRad: number;    // gimbal pitch (rad)
+  camWorldX: number;   // 카메라 world 좌표 X
+  camWorldY: number;   // 카메라 world 좌표 Y
+  camWorldZ: number;   // 카메라 world 좌표 Z
+  width: number;       // JPEG decoded 폭 (px)
+  height: number;      // JPEG decoded 높이 (px)
+  fovRad: number;      // 카메라 FOV (rad)
+  jpegQuality: number; // 0..1
+  frameIdx: number;    // producer-session 내 단조 증가
+}
+</code></pre>
+<h2 id="h-producer-측-동작-83">Producer 측 동작</h2>
+<p><code>src/phenotyping/streaming/gimbalCameraStreamer.ts</code> — Babylon scene의 <code>onAfterRenderObservable</code>에서 throttled (기본 15 fps):</p>
+<ol>
+<li><code>rtt.render()</code> — RTT에 짐벌 카메라 시점 렌더</li>
+<li><code>rtt.readPixels()</code> — RGBA Uint8Array 추출</li>
+<li><code>OffscreenCanvas.convertToBlob({type:&#39;image/jpeg&#39;, quality:0.7})</code> — JPEG 인코딩</li>
+<li>Text frame (header JSON) + Binary frame (JPEG bytes) WS 송신</li>
+</ol>
+<h2 id="h-consumer-측-동작-84">Consumer 측 동작</h2>
+<p>두 종류의 consumer가 동시에 동일 스트림 구독:</p>
+<ul>
+<li><strong>PiP 표시 (<code>src/phenotyping/ui/RobotCameraView.tsx</code>)</strong> — JPEG 바이트를 <code>URL.createObjectURL</code> + <code>&lt;img&gt;</code> 로 렌더, 자동 재연결.</li>
+<li><strong>디텍션 워커 (<code>src/phenotyping/streaming/detectionWorker.ts</code>)</strong> — <code>createImageBitmap</code> → <code>OffscreenCanvas</code> → <code>getImageData</code> → 디텍터 실행.</li>
+</ul>
+<h2 id="h-페일오버-재연결-85">페일오버 / 재연결</h2>
+<ul>
+<li>producer disconnect 시 relay가 모든 consumer에 <code>{__event: &#39;producer-detached&#39;}</code> 텍스트 메시지 발행</li>
+<li>consumer는 1.5초 간격으로 재연결 시도</li>
+<li>PiP는 disconnect 시 검은 화면 + &quot;reconnecting…&quot; 텍스트 오버레이</li>
+</ul>
+<h1 id="h-web-worker-디텍션-파이프라인-86">Web Worker 디텍션 파이프라인</h1>
+<h2 id="h-개요-87">개요</h2>
+<p>ONNX YOLO 추론은 50–200 ms 소요되므로, 메인 스레드(60 fps UI)를 차단하지 않도록 <strong>Web Worker로 오프로드</strong>.  좌표 역투영은 Babylon scene 접근이 필요하므로 메인 스레드에서 수행.</p>
+<h2 id="h-모듈-88">모듈</h2>
+<table>
+<thead>
+<tr>
+<th>모듈</th>
+<th>책임</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>src/phenotyping/streaming/detectionWorker.ts</code></td>
+<td>Worker — WS consumer · ONNX 추론 · 결과 postMessage</td>
+</tr>
+<tr>
+<td><code>src/phenotyping/streaming/detectionWorkerClient.ts</code></td>
+<td>Main — Worker spawn · 결과 수신 · raycast + worldY/plant-tag 필터 · <code>surveyAppendLiveDetections</code> 호출</td>
+</tr>
+</tbody></table>
+<h2 id="h-흐름-89">흐름</h2>
+<figure><img src="_assets/diagrams/stream-pipeline.svg" alt="도식 3. 카메라 스트림 → WS 트랜스포트 → Web Worker 디텍션 → PiP 오버레이 흐름"><figcaption>도식 3. 카메라 스트림 → WS 트랜스포트 → Web Worker 디텍션 → PiP 오버레이 흐름</figcaption></figure>
+<h2 id="h-백-프레셔-90">백 프레셔</h2>
+<ul>
+<li>이전 추론이 진행 중이면 새 프레임 드롭 (<code>inFlight</code> 플래그)</li>
+<li>드롭된 프레임 카운트는 디버그 로그로만 기록</li>
+</ul>
+<h2 id="h-디텍터-교체-91">디텍터 교체</h2>
+<p><code>Detector</code> interface (<code>src/phenotyping/domain/detectors/types.ts</code>)를 구현한 새 클래스를 <code>detectors/index.ts</code>에 등록하면 Workbench에서 선택 가능.  HSV / ONNX-YOLO / Ground-truth 세 가지가 기본 제공.</p>
+<h1 id="h-로깅-시스템-logging-92">로깅 시스템 (LOGGING)</h1>
+<blockquote>
+<p>본 섹션은 <code>docs/architecture/LOGGING.md</code>을 인용한다.</p>
+</blockquote>
+<h2 id="h-logging-system-namespace-opt-in-93">Logging System — namespace + opt-in</h2>
+<blockquote>
+<p>Production source의 console 호출은 <em>모두</em> <code>createLogger(ns)</code> 경유.
+기본 boot 출력 = <code>[progressive] complete</code> 1줄 + warn/error.
+필요시 URL <code>?debug=engine,growth</code> 또는 <code>localStorage.debug=&#39;*&#39;</code>로 opt-in.</p>
+<p>Plan SSOT: <a href="../../.claude/plans/sleepy-growing-pretzel.md"><code>.claude/plans/sleepy-growing-pretzel.md</code></a>
+Enforcement: <a href="../../tests/architecture/logger-system.spec.ts"><code>tests/architecture/logger-system.spec.ts</code></a> + Phase L6 NO-DIRECT-CONSOLE</p>
+</blockquote>
+<hr>
+<h3 id="h-왜-namespace-logger인가-94">왜 namespace logger인가</h3>
+<p>Iter 31 Phase H 이전: production source에 <strong>78건</strong> ad-hoc <code>console.log/warn/error</code>
+호출 + 25+ 개 prefix (<code>[BabylonEngine]</code>, <code>[SkinMeshPlant]</code>, <code>[NodeGrowthContext]</code>,…).
+Dev mode boot에 <em>30+줄</em> 출력 → <code>⚠ floating candidates</code> 같은 _진짜 warning_이
+build stats 사이에 <em>묻힘</em>.</p>
+<p>Phase L0~L4: 모두 <em>10 namespace</em> + 4 level의 <code>createLogger(ns)</code> API로 표준화.
+기본 silent + opt-in으로 <em>필요할 때만</em> 자세히.</p>
+<hr>
+<h3 id="h-api-95">API</h3>
+<pre><code class="language-ts">// 모듈 상단
+import { createLogger } from &#39;../utils/logger&#39;;
+const log = createLogger(&#39;engine&#39;);  // namespace 선택
+
+// 호출
+log.debug(&#39;creating engine&#39;);       // opt-in only (engine namespace default warn)
+log.info(&#39;first frame&#39;);            // engine default warn → silent (info &lt; warn)
+log.warn(&#39;WebGPU init failed&#39;, err); // 항상 출력 (silenceable)
+log.error(&#39;setupScene failed&#39;, err); // 항상 출력
+</code></pre>
+<ul>
+<li>logger가 _자동_으로 <code>[ns]</code> prefix 부착 (호출자는 메시지 텍스트만)</li>
+<li>silent 시 NOOP 함수 → string concat 0 cost</li>
+</ul>
+<hr>
+<h3 id="h-4-level-10-namespace-96">4 Level + 10 Namespace</h3>
+<h4 id="h-level-의미-97">Level 의미</h4>
+<table>
+<thead>
+<tr>
+<th>Level</th>
+<th>의미</th>
+<th>출력 정책</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>debug</code></td>
+<td>내부 추적</td>
+<td><em>opt-in only</em> (<code>?debug=ns</code>)</td>
+</tr>
+<tr>
+<td><code>info</code></td>
+<td>사용자 가치 milestone / interactive feedback</td>
+<td>namespace default ≤ info</td>
+</tr>
+<tr>
+<td><code>warn</code></td>
+<td>진단 — 잠재 결함 / 부동 상태</td>
+<td>namespace default ≤ warn (silenceable)</td>
+</tr>
+<tr>
+<td><code>error</code></td>
+<td>실패 — fallback/recovery</td>
+<td><em>항상</em> 출력 (silence 불가)</td>
+</tr>
+</tbody></table>
+<h4 id="h-namespace-nsdefaults-97">Namespace + NS_DEFAULTS</h4>
+<table>
+<thead>
+<tr>
+<th>Namespace</th>
+<th>Default Level</th>
+<th>모듈</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>engine</code></td>
+<td>warn</td>
+<td>BabylonEngine, RenderQuality</td>
+</tr>
+<tr>
+<td><code>scene</code></td>
+<td>warn</td>
+<td>SceneSetup, SkeletonOverlay, SceneCanvas</td>
+</tr>
+<tr>
+<td><code>quality</code></td>
+<td>warn</td>
+<td>QualityProbe</td>
+</tr>
+<tr>
+<td><code>progressive</code></td>
+<td><strong>info</strong></td>
+<td>ProgressiveLoad (★ user-value milestone)</td>
+</tr>
+<tr>
+<td><code>skinplant</code></td>
+<td>warn</td>
+<td>SkinMeshPlant, ShowcasePlant (build stats는 debug only)</td>
+</tr>
+<tr>
+<td><code>overlay</code></td>
+<td><strong>info</strong></td>
+<td>dockingOverlay, leafWireframe, SinglePlantOverlay (hotkey feedback)</td>
+</tr>
+<tr>
+<td><code>growth</code></td>
+<td>warn</td>
+<td>tomato-engine/growth/* + BotanicalSpec</td>
+</tr>
+<tr>
+<td><code>leaf</code></td>
+<td>warn</td>
+<td>LeafShapeSchema, widthProfile</td>
+</tr>
+<tr>
+<td><code>plant</code></td>
+<td>warn</td>
+<td>TrussGenerator</td>
+</tr>
+<tr>
+<td><code>ui</code></td>
+<td>error</td>
+<td>main.tsx global handler, ErrorBoundary (warn/info silent)</td>
+</tr>
+</tbody></table>
+<p>★ <code>info</code> default namespace는 <code>progressive</code>, <code>overlay</code> — milestone + 사용자 직접
+인터랙션 피드백.</p>
+<p>★ <code>ui</code> default <code>error</code> — main.tsx의 <code>window.error</code> / <code>unhandledrejection</code> handler +
+ErrorBoundary <code>componentDidCatch</code> 전용. warn/info 호출 시 자동 silent. M1 cleanup
+(commit 446b25a)에서 legacy <code>app</code> namespace + <code>LegacyLogger.dev</code> wrapper 제거됨.</p>
+<hr>
+<h3 id="h-opt-in-사용자-자가-진단-97">Opt-in (사용자 자가 진단)</h3>
+<p>debug npm 라이브러리와 동일 pattern.</p>
+<h4 id="h-url-parameter-98">URL parameter</h4>
+<pre><code>http://localhost:5173?debug=engine,growth     ← engine, growth namespace debug
+http://localhost:5173?debug=*                  ← 모든 namespace debug (Phase H 이전 수준)
+http://localhost:5173?debug=skinplant&amp;silence=growth   ← skinplant 자세히 + growth mute
+</code></pre>
+<h4 id="h-localstorage-영구-98">localStorage (영구)</h4>
+<pre><code class="language-js">// DevTools console (수동)
+localStorage.setItem(&#39;debug&#39;, &#39;engine,growth&#39;);
+localStorage.setItem(&#39;silence&#39;, &#39;growth&#39;);  // 선택 — growth warn mute
+location.reload();
+</code></pre>
+<p>URL <code>?debug=</code> 미설정 시 localStorage fallback. 평가 순서: <strong>URL &gt; localStorage &gt; NS_DEFAULTS</strong>.</p>
+<h4 id="h-devtools-helper-dev-only-권장-98">★ DevTools helper (DEV-only, 권장)</h4>
+<p><code>__farmsim.debug.*</code> (DEV 모드에서 자동 install — <code>import.meta.env.DEV</code> guard):</p>
+<pre><code class="language-js">// DevTools console — 한 줄로 enable + reload
+__farmsim.debug.enable(&#39;engine,growth&#39;);     // localStorage 설정 + 자동 reload
+__farmsim.debug.enableAll();                 // = enable(&#39;*&#39;)
+__farmsim.debug.disable();                   // 모두 해제 + reload
+__farmsim.debug.silence(&#39;growth&#39;);           // warn mute + reload
+__farmsim.debug.current();                   // 현재 활성 상태 + effective level 출력
+</code></pre>
+<p><code>current()</code> 출력 예:</p>
+<pre><code>[debug] URL ?debug    = (none)
+[debug] URL ?silence  = (none)
+[debug] localStorage.debug    = engine,growth
+[debug] localStorage.silence  = (none)
+[debug] NS_DEFAULTS  = { engine: &#39;warn&#39;, scene: &#39;warn&#39;, ... }
+[debug] effective per namespace:
+  [engine     ] debug
+  [scene      ] warn
+  [growth     ] debug
+  ...
+</code></pre>
+<p>★ production build에서는 <code>installDebugHelper()</code> 호출 안 됨 → <code>window.__farmsim.debug</code>
+부재 (production 영향 0).</p>
+<h4 id="h-csv-규칙-98">CSV 규칙</h4>
+<ul>
+<li><code>engine,growth</code> → 2개 namespace</li>
+<li><code>*</code> → ALL_NAMESPACES</li>
+<li><code>engine,*</code> → ALL (<code>*</code> 우선)</li>
+<li>`` (empty) → opt-in 없음 (NS_DEFAULTS 적용)</li>
+</ul>
+<h4 id="h-silence-warn-mute-98">Silence (warn mute)</h4>
+<pre><code>?silence=growth        → growth는 effective=&#39;error&#39; (warn 미출력, error는 출력)
+</code></pre>
+<p>★ silence는 <em>진단 가치 낮은</em> 노이지 warn 임시 무음용. 평소엔 사용 비권장.</p>
+<hr>
+<h3 id="h-사용자-자가-진단-user-story-98">사용자 자가 진단 user story</h3>
+<h4 id="h-문제-신고-진단-흐름-99">문제 신고 → 진단 흐름</h4>
+<p><strong>문제 상황</strong>: &quot;leaf rotation이 이상해요&quot; 사용자 신고.</p>
+<pre><code>1. DevTools console 열기 (F12)
+2. 다음 입력 (한 줄):
+   __farmsim.debug.enable(&#39;growth,leaf,plant,skinplant&#39;);
+   (자동으로 localStorage 설정 + reload)
+3. 문제 재현 (예: D=30 stage 진입)
+4. console 우클릭 → &quot;Save as...&quot; 또는 &quot;Preserve log&quot; 체크 후 캡쳐
+5. dev에게 share
+
+진단 끝나면: __farmsim.debug.disable();
+</code></pre>
+<p><code>growth + leaf + plant + skinplant</code> namespace 활성화 시:</p>
+<ul>
+<li>PlantBase growth validation warn</li>
+<li>Leaf shape provenance warn</li>
+<li>Truss generation warn</li>
+<li>Skinplant build stats + breakdown</li>
+</ul>
+<p>→ 진단 충분.</p>
+<h4 id="h-모든-진단-로그-phase-h-이전-수준-99">모든 진단 로그 (Phase H 이전 수준)</h4>
+<pre><code class="language-js">__farmsim.debug.enableAll();   // = enable(&#39;*&#39;)
+</code></pre>
+<hr>
+<h3 id="h-새-모듈에-logger-추가하는-법-99">새 모듈에 logger 추가하는 법</h3>
+<pre><code class="language-ts">// src/myFeature/MyModule.ts
+import { createLogger } from &#39;../utils/logger&#39;;
+
+const log = createLogger(&#39;engine&#39;);  // 기존 namespace 선택
+
+export function myFunction() {
+  log.debug(&#39;detail trace&#39;);         // opt-in only
+  log.warn(&#39;unexpected state&#39;, val); // 항상 출력
+}
+</code></pre>
+<p>★ 새 namespace가 필요하면 → 다음 절차 참조.</p>
+<hr>
+<h3 id="h-새-namespace-추가-절차-100">새 namespace 추가 절차</h3>
+<ol>
+<li><code>src/utils/logger.ts</code>의 <code>LogNamespace</code> union에 멤버 추가</li>
+<li><code>NS_DEFAULTS</code> table에 기본 level 추가</li>
+<li>(필요시) <code>packages/tomato-engine/src/utils/logger.ts</code>에도 추가</li>
+<li>이 문서 (<code>LOGGING.md</code>)의 namespace 표 갱신</li>
+<li>PR review에서 default level 적절성 확인 (<code>info</code> default는 신중)</li>
+</ol>
+<hr>
+<h3 id="h-enforcement-phase-l6-101">Enforcement (Phase L6)</h3>
+<h4 id="h-logger-no-direct-console-01-102"><code>LOGGER-NO-DIRECT-CONSOLE-01</code></h4>
+<p>production source의 직접 <code>console.{log,info,debug,warn,error}(</code> 호출 0건.</p>
+<p><strong>Whitelist (예외 허용)</strong>:</p>
+<ul>
+<li><code>src/utils/logger.ts</code> — logger 자체</li>
+<li><code>src/plant/diagnostics/**</code> — 명시적 dump (호출자 의도)</li>
+<li><code>packages/tomato-engine/diagnostics/**</code> — 동일</li>
+<li><code>packages/tomato-engine/src/utils/logger.ts</code> — packages logger 자체</li>
+<li><code>growth-calibration/scripts/**</code> — CLI 출력 목적</li>
+<li><code>packages/*/test-*.ts</code> — 테스트 스크립트</li>
+<li><code>tests/**</code> — Playwright spec</li>
+</ul>
+<h4 id="h-production-log-count-01-102"><code>PRODUCTION-LOG-COUNT-01</code></h4>
+<p>Playwright <code>page.on(&#39;console&#39;)</code>로 boot 출력 line count ≤ <strong>3</strong> (warn/error 있을 시).</p>
+<p>기대 출력 (기본):</p>
+<pre><code>[progressive] complete  total=...ms  finalFps=...  finalMem=...
+</code></pre>
+<ul>
+<li><code>[skinplant] ⚠ floating candidates=N</code>이 <em>있다면</em> 1~2건 추가.</li>
+</ul>
+<p>Vite, Babylon framework, browser violation 메시지는 <em>제외</em> filter.</p>
+<hr>
+<h3 id="h-production-silent-검증-beforeafter-102">Production silent 검증 (Before/After)</h3>
+<h4 id="h-before-phase-h-이전-103">Before (Phase H 이전)</h4>
+<pre><code>[vite] connecting...
+[vite] connected.
+[SinglePlantOverlay] useImplicitMesh changed → false
+[SinglePlantOverlay] effect: minute=65520 useImplicitMesh=false ...
+[BabylonEngine] creating engine
+BJS - [08:48:42]: Babylon.js v9.8.0 - WebGPU1 engine
+[BabylonEngine] using WebGPU
+[BabylonEngine] shader wind: OFF (WebGPU fallback)
+[BabylonEngine] camera ready
+[SceneSetup] starting setup (backend=webgpu)
+[SceneSetup] IBL loaded from /hdri/environment.env
+[SceneSetup] setup complete
+[ProgressiveLoad] start (savedQuality=8)
+... (총 30+ lines)
+[skinplant] ⚠ floating candidates=2     ← 묻힘
+[ProgressiveLoad] complete  total=20235ms
+</code></pre>
+<h4 id="h-after-phase-l0l7-적용-103">After (Phase L0~L7 적용)</h4>
+<pre><code>[vite] connecting...
+[vite] connected.
+BJS - [08:48:42]: Babylon.js v9.8.0 - WebGPU1 engine
+[skinplant] ⚠ floating candidates=2     ← 명확
+[progressive] complete  total=20235ms  finalFps=...  finalMem=...
+</code></pre>
+<p>★ 5 lines (production lines 3) — warning이 명확히 보임.</p>
+<h4 id="h-opt-in-debugskinplant-103">opt-in (<code>?debug=skinplant</code>)</h4>
+<pre><code>... (Vite/Babylon)
+[skinplant] graph: nodes=189 edges=152 | tube: ...
+[skinplant] per-edge-type breakdown: ...
+[skinplant] ⚠ floating candidates=2
+[skinplant] per-leaf meshes=28
+[skinplant] graph: nodes=61 edges=44 | tube: ...
+[skinplant] per-edge-type breakdown: ...
+[skinplant] ⚠ floating candidates=1
+[skinplant] per-leaf meshes=8
+[progressive] complete  ...
+</code></pre>
+<hr>
+<h3 id="h-performance-silent-cost-103">Performance (silent cost)</h3>
+<p>silent 시 <code>NOOP</code> 함수 호출 — string concat 발생 <em>0</em>:</p>
+<pre><code class="language-ts">log.debug(&#39;detail msg&#39;);                  // → noop()
+log.debug(`build ${count} items in ${t}ms`); // → noop() — template literal은 평가됨!
+</code></pre>
+<p>★ 두 번째 형태처럼 _string template literal_을 인자로 넘기면 silent에도 <em>concat 비용</em>
+발생. 성능 critical 경로 (매 frame 호출 등)에서 logger 호출 <em>금지</em>.</p>
+<p>권장:</p>
+<pre><code class="language-ts">// 좋은 예 — silent 시 0 cost
+log.debug(&#39;build complete&#39;);
+
+// 주의 — silent여도 string template 평가
+log.debug(`build ${count} items in ${t}ms`);
+
+// 매 frame 호출이면 lazy:
+if (DEBUG_ENABLED) log.debug(`...heavy concat...`);
+</code></pre>
+<hr>
+<h3 id="h-관련-commit-chain-104">관련 commit chain</h3>
+<h4 id="h-phase-l0l6-logger-system-구축-105">Phase L0~L6 (logger system 구축)</h4>
+<ul>
+<li><code>4d21f3c</code> — L0: logger 재설계 + 12 spec</li>
+<li><code>201e0bc</code> — L1: src/twin + src/components migrate</li>
+<li><code>974ed9f</code> — L2: src/ui + src/main.tsx</li>
+<li><code>cfc9c82</code> — L3: src/plant</li>
+<li><code>5701191</code> — L4: packages/tomato-engine logger + growth migrate</li>
+<li><code>980cf14</code> — L5: LOGGING.md + CLAUDE.md</li>
+<li><code>cc992f9</code> — L6: enforcement + production silence (5 invariants)</li>
+</ul>
+<h4 id="h-m1m4-감사-follow-up-105">M1~M4 (감사 follow-up)</h4>
+<ul>
+<li><code>446b25a</code> — M1: app→ui namespace rename + LegacyLogger 제거 + installDebugHelper</li>
+<li><code>ff34936</code> — M2: overlay hotkey 메시지 가독성</li>
+</ul>
+<hr>
+<h3 id="h-iter-32-후보-105">Iter 32+ 후보</h3>
+<p>현재 cleanup 완료. 추가 후보 없음 (감사 통과).</p>
+<ul>
+<li>외부 logging 서비스 (Sentry/Datadog) — 별도 initiative</li>
+<li>로그 <em>persistence</em> (파일 저장) — out of scope</li>
+<li>Structured (JSON) output — 필요시 별도 layer</li>
+</ul>
+<h1 id="h-검증테스트-인프라-106">검증·테스트 인프라</h1>
+<h2 id="h-두-종류의-테스트-107">두 종류의 테스트</h2>
+<table>
+<thead>
+<tr>
+<th>종류</th>
+<th>위치</th>
+<th>책임</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Invariant specs</strong></td>
+<td><code>tests/architecture/*.spec.ts</code> (probe 아닌 것)</td>
+<td>코드베이스가 영구히 지켜야 하는 계약. CI 차단 권한</td>
+</tr>
+<tr>
+<td><strong>Probes</strong></td>
+<td><code>tests/architecture/_probe-*.spec.ts</code></td>
+<td>진단 도구. 특정 버그 hunting 또는 feature ramp 동안 사용. 종료 후 archive 또는 invariant로 승격</td>
+</tr>
+</tbody></table>
+<p>자세한 정책: <code>tests/architecture/PROBES.md</code></p>
+<h2 id="h-현재-활성-invariant-specs-108">현재 활성 Invariant Specs</h2>
+<ul>
+<li><code>coordinate-contracts.spec.ts</code> — INV-01~05 좌표계 contract</li>
+<li><code>mesh-anchor-contracts.spec.ts</code> — mesh anchor 약속</li>
+<li><code>logger-system.spec.ts</code>, <code>logger-enforcement.spec.ts</code> — 로깅 규약 (12 namespace)</li>
+<li><code>tomato-data-index.spec.ts</code> — 토마토 데이터 카탈로그 drift 방어선</li>
+<li><code>leaf-attach-visual-regression.spec.ts</code> — 잎 위치 pixel diff</li>
+</ul>
+<h2 id="h-현재-활성-probe-keep-109">현재 활성 Probe (keep)</h2>
+<ul>
+<li><code>_probe-stream-pipeline.spec.ts</code> — WS relay → producer/consumer roundtrip; binary frame handoff</li>
+<li><code>_probe-detect-flow.spec.ts</code> — survey → detect runs; per-frame log shape</li>
+<li><code>_probe-gimbal-tracking.spec.ts</code> — gimbal cam follows rail traverse</li>
+<li><code>_probe-phenotyping.spec.ts</code> — crash + console scraper for survey boot</li>
+<li><code>_probe-boot-*.spec.ts</code> (3 files) — boot stage progression + perf measurements</li>
+<li><code>_probe-plant-*.spec.ts</code> + <code>_probe-seed-42.spec.ts</code> — plant geometry regression fixtures</li>
+<li><code>_probe-mode-*.spec.ts</code>, <code>_probe-entry-screen.spec.ts</code>, <code>_probe-loading-screen.spec.ts</code>, etc. — UI shell + entry/loading flow</li>
+</ul>
+<h2 id="h-아카이브된-probe-110">아카이브된 Probe</h2>
+<p><code>tests/architecture/_archive/</code> 아래 11개 (스트리밍 리팩토링·HSV 폴백 한정·일회용 측정 등으로 superseded).  <code>playwright.config.ts</code> 의 <code>testIgnore: [&#39;**/_archive/**&#39;]</code>로 기본 실행에서 제외.</p>
+<h1 id="h-참조-문서-목록-111">참조 문서 목록</h1>
+<h2 id="h-본-시작품-내부-문서-112">본 시작품 내부 문서</h2>
+<table>
+<thead>
+<tr>
+<th>문서</th>
+<th>위치</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>좌표계 규약</td>
+<td><code>docs/architecture/COORDINATE_SYSTEMS.md</code></td>
+</tr>
+<tr>
+<td>Mesh Anchor 규약</td>
+<td><code>docs/architecture/MESH_ANCHORS.md</code></td>
+</tr>
+<tr>
+<td>모듈 계층</td>
+<td><code>docs/architecture/LAYER_STRUCTURE.md</code></td>
+</tr>
+<tr>
+<td>Semantic Graph</td>
+<td><code>docs/architecture/SEMANTIC_GRAPH.md</code></td>
+</tr>
+<tr>
+<td>로깅 시스템</td>
+<td><code>docs/architecture/LOGGING.md</code></td>
+</tr>
+<tr>
+<td>잎 엔진 / 과실 엔진 등</td>
+<td><code>docs/architecture/LEAF_ENGINE.md</code>, <code>FRUIT_ENGINE.md</code>, … (총 30+ md)</td>
+</tr>
+<tr>
+<td>토마토 데이터 카탈로그</td>
+<td><code>packages/tomato-engine/models/INDEX.jsonc</code></td>
+</tr>
+<tr>
+<td>토마토 데이터 인간 가독 맵</td>
+<td><code>docs/architecture/TOMATO_DATA_MAP.md</code></td>
+</tr>
+<tr>
+<td>프로젝트 코딩 가이드</td>
+<td><code>CLAUDE.md</code></td>
+</tr>
+<tr>
+<td>프로젝트 README</td>
+<td><code>README.md</code></td>
+</tr>
+</tbody></table>
+<h2 id="h-본-산출물-패키지의-자매-문서-113">본 산출물 패키지의 자매 문서</h2>
+<table>
+<thead>
+<tr>
+<th>산출물</th>
+<th>파일</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>06 — 운용 매뉴얼</td>
+<td><code>delivery/07_User_Manual.pdf</code></td>
+</tr>
+<tr>
+<td>07 — 개발자·관리자 가이드</td>
+<td><code>delivery/08_Developer_Guide.pdf</code></td>
+</tr>
+<tr>
+<td>08 — 검수 플랜</td>
+<td><code>delivery/09_Inspection_Plan.pdf</code></td>
+</tr>
+<tr>
+<td>09 — 검수 시험 결과 보고서</td>
+<td><code>delivery/10_Test_Report.pdf</code></td>
+</tr>
+<tr>
+<td>10 — 운용 데모 녹화</td>
+<td><code>delivery/11_Demo_Recording.zip</code> (사용자 별도 위치)</td>
+</tr>
+</tbody></table>
+<h2 id="h-외부-학술-참조-114">외부 학술 참조</h2>
+<ul>
+<li>Heuvelink, E. (1999). TOMSIM — A Dynamic Simulation Model of Tomato Crop Growth and Development.</li>
+<li>Jones, J.W., et al. (1991). TOMGRO V3.0 — A Dynamic Model of Tomato Growth and Yield.</li>
+</ul>
+<h1 id="h-문서-변경-이력-115">문서 변경 이력</h1>
+<table>
+<thead>
+<tr>
+<th>일자</th>
+<th>버전</th>
+<th>내용</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>2026.06.18</td>
+<td>1.0</td>
+<td>초안 작성 — 본 산출물 패키지 (#5)</td>
+</tr>
+</tbody></table>
+
+</article>
+</body>
+</html>

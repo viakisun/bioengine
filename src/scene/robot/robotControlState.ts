@@ -1,10 +1,11 @@
-// Iter 31 Phase R — 로봇 rail 위치 + dir 모듈 ref + gimbal cam viewport 동기.
+// Robot rail position + direction module-scope ref + gimbal-cam viewport sync.
 //
-// 매 프레임 변하는 값(railX, dir)을 Zustand store에 두면 GimbalView가 60fps로 리렌더 됨.
-// 대신 모듈 스코프 ref 하나에 두고 BabylonEngine의 onBeforeRenderObservable과
-// GimbalView의 슬라이더/WASD 핸들러가 동일 ref를 직접 mutate.
+// railX / dir change every frame; storing them in Zustand would force a
+// 60fps re-render of the whole GimbalView subtree.  Instead we keep them
+// in a single module-scope ref that BabylonEngine's onBeforeRenderObservable
+// and the GimbalView slider / WASD handler mutate directly.
 //
-// gimbalCamRef: BabylonEngine 이 UniversalCamera 인스턴스를 등록 → GimbalView 의
+// gimbalCameraRef: BabylonEngine 이 UniversalCamera 인스턴스를 등록 → GimbalView 의
 //   DOM 프레임이 자기 bounding rect 으로 Babylon viewport 를 정확히 정렬.
 //
 // 사용 패턴:
@@ -81,13 +82,13 @@ export function tickSmoothMotion(dt: number): boolean {
 /** Babylon UniversalCamera 인스턴스 (gimbal cam). BabylonEngine 이 부팅 후 set.
  *  Phenotyping detection 이 isInFrustum / globalPosition 등 직접 호출. */
 import type { UniversalCamera } from '@babylonjs/core/Cameras/universalCamera';
-export const gimbalCamRef: { current: UniversalCamera | null } = { current: null };
+export const gimbalCameraRef: { current: UniversalCamera | null } = { current: null };
 
 /** GimbalView 의 DOM 프레임 bounding rect 을 받아 Babylon viewport (normalized 0..1,
  *  y는 bottom-up) 를 정확히 정렬. canvas 크기는 window.innerW/H 로 가정 (full-window canvas).
  *  Babylon은 매 프레임 자체 scissor + viewport 처리 → 즉시 다음 프레임에 반영. */
 export function syncGimbalViewportToRect(rect: { left: number; top: number; width: number; height: number }): void {
-  const cam = gimbalCamRef.current;
+  const cam = gimbalCameraRef.current;
   if (!cam) return;
   const cw = window.innerWidth;
   const ch = window.innerHeight;

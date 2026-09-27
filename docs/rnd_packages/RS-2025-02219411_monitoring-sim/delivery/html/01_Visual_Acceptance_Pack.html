@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>시각 수용 갤러리 (Visual Acceptance Pack) — RS-2025-02219411</title>
+<link rel="stylesheet" href="_assets/style.css">
+</head>
+<body>
+
+<section class="cover-page">
+  <div class="cover-header">
+    <span>RS-2025-02219411</span>
+    <span>산출물 #1</span>
+  </div>
+  <div class="cover-title-block">
+    <h1 class="cover-title">시각 수용 갤러리 (Visual Acceptance Pack)</h1>
+    <div class="cover-subtitle">적심·적과 농작업 로봇 관제 시각화 시뮬레이터 시작품</div>
+    <div class="cover-doc-no">DOC.01 / RS-2025-02219411</div>
+  </div>
+  <div class="cover-meta">
+    <table>
+      <tr><th>과제번호</th><td>RS-2025-02219411</td></tr>
+      <tr><th>사업명</th><td>스마트팜 다부처패키지 혁신기술개발사업 — 과채류 맞춤형 농작업 지능로봇 및 관제 시스템 개발 및 실증</td></tr>
+      <tr><th>산출물</th><td>#1 · 시각 수용 갤러리</td></tr>
+      <tr><th>발주처</th><td>주식회사 비아</td></tr>
+      <tr><th>주관기관</th><td>메타파머스</td></tr>
+      <tr><th>작성자</th><td>주식회사 비아</td></tr>
+      <tr><th>작성일</th><td>2026-06-27</td></tr>
+    </table>
+  </div>
+</section>
+
+<section class="toc-page">
+  <h1 class="toc-title">목차</h1>
+  <ul class="toc-list">
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">본 자료의 위치 — 검수자는 이것부터 펴보세요</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">Part A — 운영 흐름 (Operation Flow)</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">A-1.  EntryScreen — 모드 선택</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">A-2.  로딩 화면 — 식물 인스턴스 빌드</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">A-3.  Workbench 진입</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">A-4.  시나리오 Picker</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">A-5.  START SURVEY — 페노타이핑 서베이</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">A-6.  Gimbal PiP — 짐벌 카메라 시점</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">A-7.  디텍션 오버레이 — HSV 5-band ripeness</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">A-8.  결과 시트 (Result Sheet)</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">A-9.  파노라마 뷰어 — 골격 오버레이</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">A-10.  디버그 옵션 — 성능 HUD</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">Part B — 시나리오 변주 갤러리</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">B-1.  drive-D15 — 정착 후 15일</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">B-2.  drive-D45 — 정착 후 45일, 흐린 날</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">B-3.  spray-D60 — 정착 후 60일, 고LAI</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">B-4.  thin-D70 — 정착 후 70일, 적과</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">B-5.  prune-D80 — 정착 후 80일, 적심</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">B-6.  hsv-probe — 디텍션 기준선</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">Part C — 생육 모델 시각화</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">C-1.  누적 Thermal Time (GDD) — CROPGRO 표준</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">C-2.  LAI 곡선 — TOMSIM mature canopy target band</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">C-3.  과실 Gompertz 곡선 — 3 cultivar 비교</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">C-4.  Cultivar 5종 핵심 파라미터</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">본 갤러리의 검증</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">본 갤러리 외 자료</span><span class="toc-dots"></span></div></li>
+  </ul>
+</section>
+<article class="doc-body">
+<h1 id="h-본-자료의-위치-검수자는-이것부터-펴보세요-0">본 자료의 위치 — 검수자는 이것부터 펴보세요</h1>
+<p>본 갤러리는 <strong>본 시작품의 운영 흐름·시나리오 변주·생육 모델 시각화</strong> 를
+한 PDF 로 압축한 시각 수용 자료다.  검수 입회 전·후 30 초 안에 본 시작품의
+가치와 동작을 파악할 수 있도록 설계되었으며, 본 산출물이 <em>다른 9 건 산출물의
+시각적 인덱스</em> 역할을 한다.</p>
+<table>
+<thead>
+<tr>
+<th>구성</th>
+<th>내용</th>
+<th>페이지</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Part A</td>
+<td>운영 흐름 (Operation Flow) — 부팅 → Workbench → START SURVEY → 결과 시트</td>
+<td>10 컷</td>
+</tr>
+<tr>
+<td>Part B</td>
+<td>시나리오 변주 갤러리 — drive / spray / thin / prune / phenotyping / hsv-probe</td>
+<td>6 컷</td>
+</tr>
+<tr>
+<td>Part C</td>
+<td>생육 모델 시각화 — GDD · LAI · Gompertz · cultivar 5종 비교</td>
+<td>4 차트</td>
+</tr>
+</tbody></table>
+<p>각 컷은 Playwright probe 로 재현 가능하다. probe 위치는 캡션에 명시되어
+있다.</p>
+<hr>
+<table>
+<thead>
+<tr>
+<th>항목</th>
+<th>내용</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>과제번호</td>
+<td>RS-2025-02219411</td>
+</tr>
+<tr>
+<td>사업명</td>
+<td>스마트팜 다부처패키지 혁신기술개발사업 — 과채류 맞춤형 농작업 지능로봇 및 관제 시스템 개발 및 실증</td>
+</tr>
+<tr>
+<td>산출물</td>
+<td><strong>#1 · 시각 수용 갤러리 (Visual Acceptance Pack)</strong></td>
+</tr>
+<tr>
+<td>발주처</td>
+<td>주식회사 비아</td>
+</tr>
+<tr>
+<td>작성일</td>
+<td>2026.06.27</td>
+</tr>
+<tr>
+<td>사이드매핑</td>
+<td>운영 흐름은 산출물 #7 (운용 매뉴얼) 의 §5~§11 단계와 1:1 일치</td>
+</tr>
+</tbody></table>
+<h1 id="h-part-a-운영-흐름-operation-flow-1">Part A — 운영 흐름 (Operation Flow)</h1>
+<p>본 Part 의 10 컷은 본 시작품을 인수받은 운영자가 <em>순서대로</em> 거치는 화면이다.
+각 컷의 caption 우측에 매뉴얼 §, 우측 끝에 재현 probe 가 명시되어 있다.</p>
+<h2 id="h-a-1-entryscreen-모드-선택-2">A-1.  EntryScreen — 모드 선택</h2>
+<figure><img src="_assets/screenshots/06-01-boot.png" alt="그림 A-1. 부팅 직후 ModeSelector 화면. 5종 모드 카드 (Workbench·SinglePlant·Foundry·Twin·Calibration) 중 Workbench 선택  /  매뉴얼 §5.1  /  probe: `_probe-entry-screen.spec.ts`"><figcaption>그림 A-1. 부팅 직후 ModeSelector 화면. 5종 모드 카드 (Workbench·SinglePlant·Foundry·Twin·Calibration) 중 Workbench 선택  /  매뉴얼 §5.1  /  probe: `_probe-entry-screen.spec.ts`</figcaption></figure>
+<h2 id="h-a-2-로딩-화면-식물-인스턴스-빌드-3">A-2.  로딩 화면 — 식물 인스턴스 빌드</h2>
+<figure><img src="_assets/screenshots/06-02-modeselect.png" alt="그림 A-2. 모드 진입 직후 로딩 화면.  식물 인스턴스 빌드 단계가 가장 오래 걸린다 (시드별 식물 군집 생성)  /  매뉴얼 §5.2  /  probe: `_probe-entry-screen.spec.ts`"><figcaption>그림 A-2. 모드 진입 직후 로딩 화면.  식물 인스턴스 빌드 단계가 가장 오래 걸린다 (시드별 식물 군집 생성)  /  매뉴얼 §5.2  /  probe: `_probe-entry-screen.spec.ts`</figcaption></figure>
+<h2 id="h-a-3-workbench-진입-4">A-3.  Workbench 진입</h2>
+<figure><img src="_assets/screenshots/06-03-workbench.png" alt="그림 A-3. 첫 프레임 렌더 완료 시점. 좌측 도크·메인 카메라·우측 TaskPanel 의 3-zone 레이아웃 표시  /  매뉴얼 §5.3  /  probe: `_probe-boot-trace.spec.ts`"><figcaption>그림 A-3. 첫 프레임 렌더 완료 시점. 좌측 도크·메인 카메라·우측 TaskPanel 의 3-zone 레이아웃 표시  /  매뉴얼 §5.3  /  probe: `_probe-boot-trace.spec.ts`</figcaption></figure>
+<h2 id="h-a-4-시나리오-picker-5">A-4.  시나리오 Picker</h2>
+<figure><img src="_assets/screenshots/06-04-picker.png" alt="그림 A-4. 시나리오 Picker. 적심·적과 관제 시연용 권장 시나리오는 `phenotyping-D110-survey`  /  매뉴얼 §6.1  /  probe: `_probe-phenotyping.spec.ts`"><figcaption>그림 A-4. 시나리오 Picker. 적심·적과 관제 시연용 권장 시나리오는 `phenotyping-D110-survey`  /  매뉴얼 §6.1  /  probe: `_probe-phenotyping.spec.ts`</figcaption></figure>
+<h2 id="h-a-5-start-survey-페노타이핑-서베이-6">A-5.  START SURVEY — 페노타이핑 서베이</h2>
+<figure><img src="_assets/screenshots/06-05-survey.png" alt="그림 A-5. TaskPanel 의 START SURVEY 직후. 좌측 베드 forward 스캔 진행 중  /  매뉴얼 §7.2  /  probe: `_probe-scenario-20.spec.ts (drive-D15)`"><figcaption>그림 A-5. TaskPanel 의 START SURVEY 직후. 좌측 베드 forward 스캔 진행 중  /  매뉴얼 §7.2  /  probe: `_probe-scenario-20.spec.ts (drive-D15)`</figcaption></figure>
+<h2 id="h-a-6-gimbal-pip-짐벌-카메라-시점-7">A-6.  Gimbal PiP — 짐벌 카메라 시점</h2>
+<figure><img src="_assets/screenshots/06-06-pip.png" alt="그림 A-6. PiP frame at rail X = -0.95m. REC / GIMBAL CAM / MANUAL chip 모두 표시  /  매뉴얼 §7.3  /  probe: `_probe-scenario-20.spec.ts (pip-frame)`"><figcaption>그림 A-6. PiP frame at rail X = -0.95m. REC / GIMBAL CAM / MANUAL chip 모두 표시  /  매뉴얼 §7.3  /  probe: `_probe-scenario-20.spec.ts (pip-frame)`</figcaption></figure>
+<h2 id="h-a-7-디텍션-오버레이-hsv-5-band-ripeness-8">A-7.  디텍션 오버레이 — HSV 5-band ripeness</h2>
+<figure><img src="_assets/screenshots/06-07-detect.png" alt="그림 A-7. Workbench 우측 패널에 HSV 분류 매트릭스. 5 ripeness bin (green·breaker·turning·pink·red) 별 카운트 + 분포  /  매뉴얼 §7.4  /  probe: `_probe-detect-flow.spec.ts`"><figcaption>그림 A-7. Workbench 우측 패널에 HSV 분류 매트릭스. 5 ripeness bin (green·breaker·turning·pink·red) 별 카운트 + 분포  /  매뉴얼 §7.4  /  probe: `_probe-detect-flow.spec.ts`</figcaption></figure>
+<h2 id="h-a-8-결과-시트-result-sheet-9">A-8.  결과 시트 (Result Sheet)</h2>
+<figure><img src="_assets/screenshots/06-08-result.png" alt="그림 A-8. 서베이 완료 후 결과 시트.  bin별 카운트 표 + 분포 차트 + 검수 메모  /  매뉴얼 §8  /  probe: `_probe-scenario-20.spec.ts (thin-D70)`"><figcaption>그림 A-8. 서베이 완료 후 결과 시트.  bin별 카운트 표 + 분포 차트 + 검수 메모  /  매뉴얼 §8  /  probe: `_probe-scenario-20.spec.ts (thin-D70)`</figcaption></figure>
+<h2 id="h-a-9-파노라마-뷰어-골격-오버레이-10">A-9.  파노라마 뷰어 — 골격 오버레이</h2>
+<figure><img src="_assets/screenshots/06-09-pano.png" alt="그림 A-9. 좌측 베드 forward 패스 파노라마. 골격 오버레이 활성  /  매뉴얼 §9  /  probe: `_probe-scenario-20.spec.ts (tune-frame)`"><figcaption>그림 A-9. 좌측 베드 forward 패스 파노라마. 골격 오버레이 활성  /  매뉴얼 §9  /  probe: `_probe-scenario-20.spec.ts (tune-frame)`</figcaption></figure>
+<h2 id="h-a-10-디버그-옵션-성능-hud-11">A-10.  디버그 옵션 — 성능 HUD</h2>
+<figure><img src="_assets/screenshots/06-10-debug.png" alt="그림 A-10. `?debug=*&amp;quality=10` 모드의 성능 HUD (우상단 perf 패널). fps · 메모리 · WS frame rate 확인  /  매뉴얼 §11  /  probe: `_probe-boot-trace.spec.ts`"><figcaption>그림 A-10. `?debug=*&amp;quality=10` 모드의 성능 HUD (우상단 perf 패널). fps · 메모리 · WS frame rate 확인  /  매뉴얼 §11  /  probe: `_probe-boot-trace.spec.ts`</figcaption></figure>
+<h1 id="h-part-b-시나리오-변주-갤러리-12">Part B — 시나리오 변주 갤러리</h1>
+<p>본 시작품은 단일 시나리오가 아닌 <em>다양한 운용 조건</em> 에서 동작한다.  본 Part 는
+시뮬레이션 결과의 일관성을 보여주는 6 컷이다.  각 컷의 시나리오 ID 와 시드는
+산출물 #5 (<code>05_Scenario_Datasets.zip</code>) 의 카탈로그와 1:1 매핑된다.</p>
+<h2 id="h-b-1-drive-d15-정착-후-15일-13">B-1.  drive-D15 — 정착 후 15일</h2>
+<figure><img src="_assets/screenshots/gallery-01-drive-D15.png" alt="그림 B-1. drive-D15-standard-sunny 시나리오. 정착 후 15일, 표준 일사. 어린 식물 군집과 traverse 동작 검증  /  scenario: `drive-D15-standard-sunny`  /  probe: `_probe-scenario-20.spec.ts`"><figcaption>그림 B-1. drive-D15-standard-sunny 시나리오. 정착 후 15일, 표준 일사. 어린 식물 군집과 traverse 동작 검증  /  scenario: `drive-D15-standard-sunny`  /  probe: `_probe-scenario-20.spec.ts`</figcaption></figure>
+<h2 id="h-b-2-drive-d45-정착-후-45일-흐린-날-14">B-2.  drive-D45 — 정착 후 45일, 흐린 날</h2>
+<figure><img src="_assets/screenshots/gallery-02-drive-D45.png" alt="그림 B-2. drive-D45-standard-overcast 시나리오. 정착 후 45일, 흐린 날. 광량 변화에 대한 디텍션 robustness 검증  /  scenario: `drive-D45-standard-overcast`  /  probe: `_probe-scenario-20.spec.ts`"><figcaption>그림 B-2. drive-D45-standard-overcast 시나리오. 정착 후 45일, 흐린 날. 광량 변화에 대한 디텍션 robustness 검증  /  scenario: `drive-D45-standard-overcast`  /  probe: `_probe-scenario-20.spec.ts`</figcaption></figure>
+<h2 id="h-b-3-spray-d60-정착-후-60일-고lai-15">B-3.  spray-D60 — 정착 후 60일, 고LAI</h2>
+<figure><img src="_assets/screenshots/gallery-03-spray-D60.png" alt="그림 B-3. spray-D60-high-LAI 시나리오. 정착 후 60일, 고밀도 엽군. 분무 시연 + LAI ≈ 2.6 환경의 occlusion 검증  /  scenario: `spray-D60-high-LAI`  /  probe: `_probe-scenario-20.spec.ts`"><figcaption>그림 B-3. spray-D60-high-LAI 시나리오. 정착 후 60일, 고밀도 엽군. 분무 시연 + LAI ≈ 2.6 환경의 occlusion 검증  /  scenario: `spray-D60-high-LAI`  /  probe: `_probe-scenario-20.spec.ts`</figcaption></figure>
+<h2 id="h-b-4-thin-d70-정착-후-70일-적과-16">B-4.  thin-D70 — 정착 후 70일, 적과</h2>
+<figure><img src="_assets/screenshots/gallery-04-thin-D70.png" alt="그림 B-4. thin-D70-truss3-multi 시나리오. 정착 후 70일, 3번째 truss 다중 적과 시연. 결과 시트의 적과 권장 라벨 검증  /  scenario: `thin-D70-truss3-multi`  /  probe: `_probe-scenario-20.spec.ts`"><figcaption>그림 B-4. thin-D70-truss3-multi 시나리오. 정착 후 70일, 3번째 truss 다중 적과 시연. 결과 시트의 적과 권장 라벨 검증  /  scenario: `thin-D70-truss3-multi`  /  probe: `_probe-scenario-20.spec.ts`</figcaption></figure>
+<h2 id="h-b-5-prune-d80-정착-후-80일-적심-17">B-5.  prune-D80 — 정착 후 80일, 적심</h2>
+<figure><img src="_assets/screenshots/gallery-05-prune-D80.png" alt="그림 B-5. prune-D80-apex-topping 시나리오. 정착 후 80일, 정단 적심 시연. apex 제거 후 측지 발달 동작 검증  /  scenario: `prune-D80-apex-topping`  /  probe: `_probe-scenario-20.spec.ts`"><figcaption>그림 B-5. prune-D80-apex-topping 시나리오. 정착 후 80일, 정단 적심 시연. apex 제거 후 측지 발달 동작 검증  /  scenario: `prune-D80-apex-topping`  /  probe: `_probe-scenario-20.spec.ts`</figcaption></figure>
+<h2 id="h-b-6-hsv-probe-디텍션-기준선-18">B-6.  hsv-probe — 디텍션 기준선</h2>
+<figure><img src="_assets/screenshots/gallery-06-hsv-probe.png" alt="그림 B-6. HSV 디텍션 기준선 캡처. 5-band ripeness 분류기의 baseline calibration target  /  scenario: `phenotyping-D110-survey`  /  probe: `_probe-hsv-detection.spec.ts`"><figcaption>그림 B-6. HSV 디텍션 기준선 캡처. 5-band ripeness 분류기의 baseline calibration target  /  scenario: `phenotyping-D110-survey`  /  probe: `_probe-hsv-detection.spec.ts`</figcaption></figure>
+<h1 id="h-part-c-생육-모델-시각화-19">Part C — 생육 모델 시각화</h1>
+<p>본 시작품의 식물은 <em>3D 시각 자산이 아니라 학술 backbone 기반 mechanistic
+crop model 의 일일 적분 결과</em> 다.  Part C 는 그 모델의 시각 증빙 4건이다.
+각 차트는 <code>10_Test_Report.pdf</code> §5.3 의 자동 검증 spec 결과로 만들어진다.</p>
+<h2 id="h-c-1-누적-thermal-time-gdd-cropgro-표준-20">C-1.  누적 Thermal Time (GDD) — CROPGRO 표준</h2>
+<figure><img src="_assets/diagrams/growth-gdd.svg" alt="차트 C-1. 22 °C 상수 환경, 120 일 — slope = 12 GDD/day. T_base 10 °C / T_max 30 °C cardinal 범위. D 25 ≈ 첫 개화, D 80~100 ≈ 첫 적과 가능 시점"><figcaption>차트 C-1. 22 °C 상수 환경, 120 일 — slope = 12 GDD/day. T_base 10 °C / T_max 30 °C cardinal 범위. D 25 ≈ 첫 개화, D 80~100 ≈ 첫 적과 가능 시점</figcaption></figure>
+<h2 id="h-c-2-lai-곡선-tomsim-mature-canopy-target-band-21">C-2.  LAI 곡선 — TOMSIM mature canopy target band</h2>
+<figure><img src="_assets/diagrams/growth-lai.svg" alt="차트 C-2. LAI 시뮬레이션 곡선 vs Heuvelink 1996 TOMSIM mature target band [3.0, 4.0].  120 일 시뮬레이션 결과 LAI ≈ 3.5  → target band 통과"><figcaption>차트 C-2. LAI 시뮬레이션 곡선 vs Heuvelink 1996 TOMSIM mature target band [3.0, 4.0].  120 일 시뮬레이션 결과 LAI ≈ 3.5  → target band 통과</figcaption></figure>
+<h2 id="h-c-3-과실-gompertz-곡선-3-cultivar-비교-22">C-3.  과실 Gompertz 곡선 — 3 cultivar 비교</h2>
+<figure><img src="_assets/diagrams/growth-gompertz.svg" alt="차트 C-3. Gillaspy 1993 3-phase + Anaya-Ramirez 2024 Gompertz fit.  Tomimaru 200 g / Cherry 20 g / Beefsteak 280 g 의 fresh-weight 곡선. 같은 모델·다른 cultivar 파라미터로 다양한 표현형 도출"><figcaption>차트 C-3. Gillaspy 1993 3-phase + Anaya-Ramirez 2024 Gompertz fit.  Tomimaru 200 g / Cherry 20 g / Beefsteak 280 g 의 fresh-weight 곡선. 같은 모델·다른 cultivar 파라미터로 다양한 표현형 도출</figcaption></figure>
+<h2 id="h-c-4-cultivar-5종-핵심-파라미터-23">C-4.  Cultivar 5종 핵심 파라미터</h2>
+<figure><img src="_assets/diagrams/growth-cultivar-compare.svg" alt="차트 C-4. 본 시작품에 포함된 5 cultivar (tomimaru-muchoo / round-generic / cherry-generic / beefsteak-generic / roma-generic) 의 fruit mass · phyllochron · first truss node 비교.  같은 GrowthEngine 위에서 cultivar JSON 한 파일만 바꿔 동작"><figcaption>차트 C-4. 본 시작품에 포함된 5 cultivar (tomimaru-muchoo / round-generic / cherry-generic / beefsteak-generic / roma-generic) 의 fruit mass · phyllochron · first truss node 비교.  같은 GrowthEngine 위에서 cultivar JSON 한 파일만 바꿔 동작</figcaption></figure>
+<h1 id="h-본-갤러리의-검증-24">본 갤러리의 검증</h1>
+<p>본 갤러리는 다음 자동화 spec 로 매 release 이전에 재생성된다.</p>
+<table>
+<thead>
+<tr>
+<th>spec</th>
+<th>위치</th>
+<th>책임</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>_probe-entry-screen.spec.ts</code></td>
+<td>tests/architecture/</td>
+<td>A-1, A-2 재현</td>
+</tr>
+<tr>
+<td><code>_probe-boot-trace.spec.ts</code></td>
+<td>tests/architecture/</td>
+<td>A-3, A-10 재현</td>
+</tr>
+<tr>
+<td><code>_probe-phenotyping.spec.ts</code></td>
+<td>tests/architecture/</td>
+<td>A-4 재현</td>
+</tr>
+<tr>
+<td><code>_probe-scenario-20.spec.ts</code></td>
+<td>tests/architecture/</td>
+<td>A-5, A-6, A-8, A-9 + B-1~B-5 재현</td>
+</tr>
+<tr>
+<td><code>_probe-detect-flow.spec.ts</code></td>
+<td>tests/architecture/</td>
+<td>A-7 재현</td>
+</tr>
+<tr>
+<td><code>_probe-hsv-detection.spec.ts</code></td>
+<td>tests/architecture/</td>
+<td>B-6 재현</td>
+</tr>
+<tr>
+<td><code>test-coremodel.ts</code></td>
+<td>packages/tomato-engine/</td>
+<td>C-1~C-4 의 numeric backbone</td>
+</tr>
+</tbody></table>
+<p>각 캡처의 원본 PNG 는 <code>delivery/html/_assets/screenshots/</code> 에, SVG 차트는
+<code>delivery/html/_assets/diagrams/</code> 에 보존되어 있다.  본 갤러리의 PDF 가
+재생성될 때마다 동일 재현이 보장된다.</p>
+<h1 id="h-본-갤러리-외-자료-25">본 갤러리 외 자료</h1>
+<p>본 갤러리에서 인용된 산출물의 정식 자료는 다음을 참조한다.</p>
+<table>
+<thead>
+<tr>
+<th>인용</th>
+<th>산출물</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>운영 절차 전 단계</td>
+<td><code>07_User_Manual.pdf</code></td>
+</tr>
+<tr>
+<td>생육 모델 학술 backbone</td>
+<td><code>06_Architecture_Spec.pdf</code> §&quot;생육 모델링 (GROWTH_MODEL)&quot;</td>
+</tr>
+<tr>
+<td>시험 결과 및 spec 결과</td>
+<td><code>10_Test_Report.pdf</code></td>
+</tr>
+<tr>
+<td>시나리오 카탈로그·시드</td>
+<td><code>05_Scenario_Datasets.zip</code></td>
+</tr>
+<tr>
+<td>운용 데모 영상</td>
+<td><code>11_Demo_Recording.zip</code> (사용자 별도 녹화)</td>
+</tr>
+</tbody></table>
+
+</article>
+</body>
+</html>

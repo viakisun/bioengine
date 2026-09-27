@@ -98,7 +98,7 @@ export function getMode(key: ModeKey): ModeSpec {
   return m;
 }
 
-/** URL ?mode=N override. default 'single-plant' (Iter 35 단일 모드 호환). */
+/** Resolve the entry mode from `?mode=<key>` URL override. */
 export function resolveDefaultMode(): ModeKey {
   if (typeof location !== 'undefined') {
     const param = new URLSearchParams(location.search).get('mode');

@@ -25,6 +25,7 @@
     "onnxruntime-web": "^1.26.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
+    "ws": "^8.21.0",
     "zod": "^4.4.3",
     "zustand": "^5.0.13"
   },
@@ -35,7 +36,9 @@
     "@types/pngjs": "^6.0.5",
     "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.3",
+    "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^6.0.2",
+    "marked": "^18.0.5",
     "pixelmatch": "^7.2.0",
     "pngjs": "^7.0.0",
     "typescript": "^5.9.3",

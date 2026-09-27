@@ -1,0 +1,1051 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>운용 매뉴얼</title>
+<link rel="stylesheet" href="_assets/style.css">
+</head>
+<body>
+
+<section class="cover-page">
+  <div class="cover-title-block">
+    <h1 class="cover-title">운용 매뉴얼</h1>
+    <div class="cover-subtitle">적심·적과 농작업 로봇 관제 시각화 시뮬레이터</div>
+  </div>
+</section>
+
+<section class="toc-page">
+  <h1 class="toc-title">목차</h1>
+  <ul class="toc-list">
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">1. 본 매뉴얼의 목적과 대상 독자</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">1.1 대상 독자</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">1.2 본 매뉴얼이 다루지 않는 것</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">1.3 본 매뉴얼의 구성</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">2. 본 시뮬레이터 개요</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">2.1 본 시뮬레이터가 무엇인가</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">2.2 본 시뮬레이터가 시연하지 않는 것</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">2.3 본 시뮬레이터의 활용 시나리오</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">3. 시스템 요구사항</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">3.1 운영체제</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">3.2 브라우저</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">3.3 GPU 사양</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">3.4 네트워크</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">3.5 디스크 / 메모리</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">4. 설치 절차</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">4.1 자료 사용</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">4.2 압축 해제</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">4.3 정적 서버 띄우기</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">4.4 접속</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">5. 처음 실행</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">5.1 EntryScreen</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">5.2 Workbench 진입</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">5.3 첫 로딩</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">6. 시나리오 선택</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">6.1 시나리오 Picker</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">6.2 Picker 화면 구성</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">6.3 도메인 6 종</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">6.4 시나리오 정보</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">6.5 시나리오 카드 클릭 → 즉시 진입</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">6.6 URL 파라미터로 시나리오 진입</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">7. 적심·적과 관제 시연 절차</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">7.1 진입</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">7.2 START SURVEY</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">7.3 짐벌 카메라 PiP 보기</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">7.4 디텍션 오버레이 해석</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">7.5 진행률·프레임 카운트</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">7.6 PAUSE / RESUME / STOP</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">7.7 서베이 완료 후</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">8. 결과 시트 (Result Sheet) 해석</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">8.1 헤더</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">8.2 카운트 표</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">8.3 분포 차트</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">8.4 평가 메모</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">8.5 결과 시트 내보내기</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">9. 파노라마 뷰어</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">9.1 좌측 베드 파노라마</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">9.2 우측 베드 파노라마</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">9.3 파노라마 zoom</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">10. 히스토리 드로어</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">10.1 항목 목록</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">10.2 비교</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">10.3 내보내기</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">11. 디버그 옵션</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">12. 시나리오별 운용 팁</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">12.1 phenotyping-D110-survey</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">12.2 다른 시나리오</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">12.3 시드 변경</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">13. 트러블슈팅</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">13.1 첫 진입 시 화면이 회색이고 부팅 안 됨</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">13.2 디텍션 결과가 0건</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">13.3 PiP 영상이 회색</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">13.4 fps가 30 미만</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">13.5 서베이가 ✗ aborted 상태로 끝남</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">14. 생육 분석 페이지 (Reference Truth Calibration)</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">14.1 진입</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">14.2 페이지 구성</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">14.3 본 페이지의 학술 가치</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">14.4 본 페이지의 한계 + 후속 로드맵</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">15. FAQ 및 문의처</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">15.1 자주 묻는 질문</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">15.2 관련 문서</span><span class="toc-dots"></span></div></li>
+  </ul>
+</section>
+<article class="doc-body">
+<h1 id="h-1-본-매뉴얼의-목적과-대상-독자-0">1. 본 매뉴얼의 목적과 대상 독자</h1>
+<p>본 매뉴얼은 적심·적과 농작업 로봇 관제 시각화 시뮬레이터를 처음 사용하는
+운영자가 시뮬레이터를 설치하고, 시나리오를 선택하고, 적심·적과 관제 시연을
+수행하고, 결과를 해석하고, 생육 분석 페이지로 시뮬레이션 결과를 검증하는
+전 과정을 단계별로 수행할 수 있도록 작성되었다.</p>
+<h2 id="h-11-대상-독자-1">1.1 대상 독자</h2>
+<ul>
+<li>본 시뮬레이터를 처음 받아 쓰는 운영자</li>
+<li>사업 관계자 시연을 진행하는 발표자</li>
+<li>테스트 입회자 및 사용자</li>
+<li>운용 절차를 익히려는 신규 협업자</li>
+</ul>
+<h2 id="h-12-본-매뉴얼이-다루지-않는-것-2">1.2 본 매뉴얼이 다루지 않는 것</h2>
+<ul>
+<li>시뮬레이터의 소스 코드 수정 또는 빌드 (→ <code>08_Developer_Guide.pdf</code>)</li>
+<li>테스트 시 통과 판정 기준 (→ <code>09_Inspection_Plan.pdf</code>)</li>
+<li>시스템 아키텍처 설명 (→ <code>06_Architecture_Spec.pdf</code>)</li>
+<li>시험 결과 해석 (→ <code>10_Test_Report.pdf</code>)</li>
+</ul>
+<h2 id="h-13-본-매뉴얼의-구성-3">1.3 본 매뉴얼의 구성</h2>
+<p>본 매뉴얼은 다음 15개 장으로 구성된다.</p>
+<ol>
+<li>본 매뉴얼의 목적과 대상 독자 (본 장)</li>
+<li>본 시뮬레이터 개요</li>
+<li>시스템 요구사항</li>
+<li>설치 절차</li>
+<li>처음 실행</li>
+<li>시나리오 선택 (Picker)</li>
+<li>적심·적과 관제 시연 절차</li>
+<li>결과 시트 해석</li>
+<li>파노라마 뷰어</li>
+<li>히스토리 드로어</li>
+<li>디버그 옵션</li>
+<li>시나리오별 운용 팁</li>
+<li>트러블슈팅</li>
+<li><strong>생육 분석 페이지 (Reference Truth Calibration)</strong></li>
+<li>FAQ 및 문의처</li>
+</ol>
+<h1 id="h-2-본-시뮬레이터-개요-4">2. 본 시뮬레이터 개요</h1>
+<h2 id="h-21-본-시뮬레이터가-무엇인가-5">2.1 본 시뮬레이터가 무엇인가</h2>
+<p>본 시뮬레이터는 적심·적과 농작업 로봇이 실제 온실에서 운용되기 전, 관제
+화면·운용 시나리오·디텍션 결과 표시를 가상 환경에서 사전 검증·시연하기
+위한 도구다.</p>
+<p>가상 환경 안에서 다음을 시연할 수 있다.</p>
+<ul>
+<li>온실 안에 식재된 토마토 식물 군집의 3D 시각화</li>
+<li>적심·적과 로봇이 베드를 따라 traverse 하는 모습</li>
+<li>짐벌 카메라로 본 식물 시점 (Picture-in-Picture)</li>
+<li>카메라 시점 영상에 실시간 디텍션 결과 오버레이</li>
+<li>페노타이핑 서베이 (좌우 베드별 과실 카운트와 익음 단계)</li>
+<li>운용 결과 시트 및 누적 이력</li>
+</ul>
+<h2 id="h-22-본-시뮬레이터가-시연하지-않는-것-6">2.2 본 시뮬레이터가 시연하지 않는 것</h2>
+<ul>
+<li>실제 적심·적과 액추에이터의 절단·수확 동작</li>
+<li>실제 로봇 본체의 조립 및 운용</li>
+<li>외부 관제 시스템 개발 (본 시뮬레이터의 범위 외)</li>
+<li>외부망 연동, 클라우드 운영, 상용 배포 측면</li>
+</ul>
+<h2 id="h-23-본-시뮬레이터의-활용-시나리오-7">2.3 본 시뮬레이터의 활용 시나리오</h2>
+<p>본 시뮬레이터는 다음과 같은 상황에서 활용한다.</p>
+<ol>
+<li><strong>대외 시연</strong> — 적심·적과 관제 시스템의 운용 모습을 관계자에게 시연</li>
+<li><strong>인터페이스 점검</strong> — 외부 관제 시스템과 본 시뮬레이터 사이의 데이터 흐름 검증</li>
+<li><strong>실증 사전 점검</strong> — 실제 운용 전 운용 절차 사전 리허설</li>
+<li><strong>신규 사용자 교육</strong> — 본 매뉴얼을 따라 운용 절차 학습</li>
+</ol>
+<h1 id="h-3-시스템-요구사항-8">3. 시스템 요구사항</h1>
+<h2 id="h-31-운영체제-9">3.1 운영체제</h2>
+<table>
+<thead>
+<tr>
+<th>운영체제</th>
+<th>최소 / 권장</th>
+<th>비고</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Windows 11 (22H2 이상)</td>
+<td>✓</td>
+<td>권장</td>
+</tr>
+<tr>
+<td>macOS 14 (Sonoma) 이상</td>
+<td>✓</td>
+<td>권장</td>
+</tr>
+<tr>
+<td>Ubuntu 22.04 LTS 이상</td>
+<td>✓</td>
+<td>가능</td>
+</tr>
+</tbody></table>
+<h2 id="h-32-브라우저-10">3.2 브라우저</h2>
+<table>
+<thead>
+<tr>
+<th>브라우저</th>
+<th>최소 버전</th>
+<th>비고</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Google Chrome</td>
+<td>120 이상</td>
+<td>권장</td>
+</tr>
+<tr>
+<td>Mozilla Firefox</td>
+<td>120 이상</td>
+<td>권장</td>
+</tr>
+<tr>
+<td>Microsoft Edge</td>
+<td>120 이상</td>
+<td>가능 (Chromium 기반)</td>
+</tr>
+<tr>
+<td>Safari</td>
+<td>17 이상</td>
+<td>일부 WebGPU 기능 제한</td>
+</tr>
+</tbody></table>
+<p>브라우저는 반드시 <strong>WebGL2가 활성화</strong>되어 있어야 한다. WebGL2 활성 여부는 다음 URL에서 확인할 수 있다.</p>
+<pre><code>about://gpu/ (Chrome / Edge)
+about:support (Firefox)
+</code></pre>
+<h2 id="h-33-gpu-사양-11">3.3 GPU 사양</h2>
+<table>
+<thead>
+<tr>
+<th>등급</th>
+<th>GPU 사양</th>
+<th>기대 성능</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>최소</td>
+<td>Intel Iris Xe 또는 동등</td>
+<td>30 fps 정도</td>
+</tr>
+<tr>
+<td>권장</td>
+<td>NVIDIA RTX 3060 또는 동등 이상</td>
+<td>60 fps 이상</td>
+</tr>
+<tr>
+<td>최적</td>
+<td>NVIDIA RTX 4070 또는 동등 이상</td>
+<td>60 fps 안정 + 최고 품질</td>
+</tr>
+</tbody></table>
+<h2 id="h-34-네트워크-12">3.4 네트워크</h2>
+<p>본 시뮬레이터는 <strong>외부망 의존성이 없다</strong>. 로컬 머신 안의 localhost(<code>ws://localhost:8090</code>) WebSocket만 사용한다.</p>
+<h2 id="h-35-디스크-메모리-13">3.5 디스크 / 메모리</h2>
+<table>
+<thead>
+<tr>
+<th>자원</th>
+<th>권장</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>디스크 여유 공간</td>
+<td>200 MB 이상 (빌드 zip 압축 해제 후 약 60 MB)</td>
+</tr>
+<tr>
+<td>RAM</td>
+<td>8 GB 이상 (16 GB 권장)</td>
+</tr>
+</tbody></table>
+<h1 id="h-4-설치-절차-14">4. 설치 절차</h1>
+<h2 id="h-41-자료-사용-15">4.1 자료 사용</h2>
+<p>테스트 완료된 자료 패키지에서 다음 두 파일을 확보한다.</p>
+<ul>
+<li><code>02_Monitoring_Sim_Build.zip</code> — 시뮬레이터 실행 빌드</li>
+<li><code>07_User_Manual.pdf</code> — 본 매뉴얼</li>
+</ul>
+<h2 id="h-42-압축-해제-16">4.2 압축 해제</h2>
+<p><code>02_Monitoring_Sim_Build.zip</code>을 임의의 폴더에 압축 해제한다.</p>
+<pre><code>/Users/&lt;user&gt;/MonitoringSim/
+├── index.html
+├── assets/
+└── (그 외 정적 파일)
+</code></pre>
+<h2 id="h-43-정적-서버-띄우기-17">4.3 정적 서버 띄우기</h2>
+<p>본 시뮬레이터는 <strong>로컬 정적 서버</strong>가 필요하다 (브라우저 <code>file://</code> 직접 열기로는 일부 기능이 동작하지 않는다).</p>
+<h3 id="h-431-node-환경이-있는-경우-18">4.3.1 Node 환경이 있는 경우</h3>
+<pre><code class="language-bash">npx serve &lt;압축_해제_폴더&gt;
+</code></pre>
+<p><code>http-server</code>, <code>serve</code> 등 임의의 정적 서버를 사용할 수 있다.</p>
+<h3 id="h-432-python-환경이-있는-경우-19">4.3.2 Python 환경이 있는 경우</h3>
+<pre><code class="language-bash">cd &lt;압축_해제_폴더&gt;
+python3 -m http.server 8090
+</code></pre>
+<h3 id="h-433-별도-도구-없이-20">4.3.3 별도 도구 없이</h3>
+<p>VSCode의 <code>Live Server</code> 확장, IntelliJ의 내장 서버, 또는 다른 IDE 정적 서버를 사용한다.</p>
+<h2 id="h-44-접속-21">4.4 접속</h2>
+<p>브라우저에서 다음 URL을 연다.</p>
+<pre><code>http://localhost:8090/
+</code></pre>
+<p>또는 정적 서버가 다른 포트를 사용하면 그에 맞는 URL을 사용한다.</p>
+<h1 id="h-5-처음-실행-22">5. 처음 실행</h1>
+<h2 id="h-51-entryscreen-23">5.1 EntryScreen</h2>
+<p>브라우저로 처음 진입하면 <code>EntryScreen</code>이 표시된다.  5 개 운용 모드 중
+선택할 수 있다 (<code>src/modes/registry.ts</code> 정의 기준).</p>
+<table>
+<thead>
+<tr>
+<th>모드</th>
+<th>용도</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Workbench</strong></td>
+<td><strong>본 시연의 기본 모드</strong> — 시나리오 선택 + 적심·적과 시연 + <strong>생육 분석 페이지 (§14)</strong></td>
+</tr>
+<tr>
+<td>Foundry</td>
+<td>헤드리스 배치로 학습/검증 데이터 자동 주조 (COCO/mask/depth)</td>
+</tr>
+<tr>
+<td>Twin</td>
+<td>실제 온실과 실시간 미러 + 외부 관제 임베드 + 다구역 표시</td>
+</tr>
+<tr>
+<td>단일 식물 (legacy)</td>
+<td>시간 흐름 단일 토마토 성장 관찰 — 풀 디테일 + 분석 UI</td>
+</tr>
+<tr>
+<td>온실 (legacy)</td>
+<td>온실 전체 + 다중 식물 관찰 — 작물 수/베드 수에 따라 성능 trade</td>
+</tr>
+</tbody></table>
+<p>본 매뉴얼은 <strong>Workbench 모드를 기본</strong>으로 설명한다.  Workbench 안의 시나리오
+Picker (§6) → 본 시뮬레이션 진입 (§7) → 결과 시트 (§8) → 생육 분석 (§14) 의
+전체 흐름이 본 매뉴얼의 골격이다.</p>
+<figure><img src="_assets/screenshots/06-01-boot.png" alt="그림 5-1. EntryScreen — 운용 모드 카드 (Workbench 권장)"><figcaption>그림 5-1. EntryScreen — 운용 모드 카드 (Workbench 권장)</figcaption></figure>
+<h2 id="h-52-workbench-진입-24">5.2 Workbench 진입</h2>
+<p>EntryScreen에서 <code>Workbench</code>를 선택하면 시나리오 Picker가 표시된다.</p>
+<figure><img src="_assets/screenshots/06-02-modeselect.png" alt="그림 5-2. 모드 진입 직후 로딩 화면 (식물 인스턴스 빌드 단계)"><figcaption>그림 5-2. 모드 진입 직후 로딩 화면 (식물 인스턴스 빌드 단계)</figcaption></figure>
+<h2 id="h-53-첫-로딩-25">5.3 첫 로딩</h2>
+<p>처음 진입 시 다음 단계로 로딩이 진행된다.</p>
+<ol>
+<li>WebGL2/WebGPU 엔진 초기화</li>
+<li>씬 인프라 빌드 (light, environment 등)</li>
+<li>온실 인프라 빌드 (베드, 튜브, 구조물)</li>
+<li>식물 인스턴스 빌드 (가장 시간이 오래 걸림 — 시드별 식물 군집 생성)</li>
+<li>렌더 품질 적용</li>
+<li>첫 프레임 셰이더 컴파일</li>
+<li>Ready 단계 — 첫 프레임 렌더 완료</li>
+</ol>
+<p>권장 사양에서 <strong>첫 진입 부팅 시간은 약 5 초 이내</strong>다. 최소 사양에서는 10–20 초가 소요될 수 있다.</p>
+<figure><img src="_assets/screenshots/06-03-workbench.png" alt="그림 5-3. Workbench 진입 직후 — 메인 카메라 + 좌측 도크 + PiP 영역"><figcaption>그림 5-3. Workbench 진입 직후 — 메인 카메라 + 좌측 도크 + PiP 영역</figcaption></figure>
+<h1 id="h-6-시나리오-선택-26">6. 시나리오 선택</h1>
+<h2 id="h-61-시나리오-picker-27">6.1 시나리오 Picker</h2>
+<p>Workbench 모드 진입 시 <code>Picker</code> 화면이 표시된다. 시뮬레이션 시연에 적합한
+시나리오를 선택한다.</p>
+<figure><img src="_assets/screenshots/workbench-picker.png" alt="그림 6-1. 시나리오 Picker — 6 도메인 × 16 시나리오 카탈로그"><figcaption>그림 6-1. 시나리오 Picker — 6 도메인 × 16 시나리오 카탈로그</figcaption></figure>
+<h2 id="h-62-picker-화면-구성-28">6.2 Picker 화면 구성</h2>
+<table>
+<thead>
+<tr>
+<th>영역</th>
+<th>위치</th>
+<th>기능</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>헤더</td>
+<td>좌상단</td>
+<td><code>SCENARIO CATALOG</code> 라벨 + &quot;시나리오 선택&quot; 큰 제목 + <code>Workbench 모드</code> 부제 + &quot;16개 시나리오 · 모두 정상&quot; 상태 표시</td>
+</tr>
+<tr>
+<td>우상단 버튼</td>
+<td>우상단</td>
+<td><code>★ My Scenarios</code> (저장한 시나리오) / <code>+ 새 시나리오</code> (Composer 진입)</td>
+</tr>
+<tr>
+<td>검색창</td>
+<td>상단 가로</td>
+<td>시나리오 id 또는 설명 즉시 필터</td>
+</tr>
+<tr>
+<td>도메인 필터</td>
+<td>상단 우측</td>
+<td>6 도메인 + 전체 (drop-down)</td>
+</tr>
+<tr>
+<td>시기 필터</td>
+<td>상단 우측</td>
+<td>전체 / 초기 D0<del>30 / 중기 D30</del>70 / 후기 D70~120</td>
+</tr>
+<tr>
+<td>카드 그리드</td>
+<td>본문</td>
+<td>도메인별 그룹 — 각 카드 = 시나리오 1 건</td>
+</tr>
+</tbody></table>
+<h2 id="h-63-도메인-6-종-29">6.3 도메인 6 종</h2>
+<table>
+<thead>
+<tr>
+<th>도메인 (한글)</th>
+<th>도메인 키</th>
+<th>분류</th>
+<th>시나리오 수</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>자율주행</td>
+<td><code>autonomous-driving</code></td>
+<td>drive-D{N}-{광량}</td>
+<td>5</td>
+</tr>
+<tr>
+<td>적과</td>
+<td><code>thinning</code></td>
+<td>thin-D{N}-{대상}</td>
+<td>5</td>
+</tr>
+<tr>
+<td>적심</td>
+<td><code>pruning</code></td>
+<td>prune-D{N}-{대상}</td>
+<td>3</td>
+</tr>
+<tr>
+<td>방제</td>
+<td><code>spray</code></td>
+<td>spray-D{N}-{대상}</td>
+<td>2</td>
+</tr>
+<tr>
+<td>인식 (Foundry)</td>
+<td><code>recognition</code></td>
+<td>(헤드리스 데이터 주조)</td>
+<td>0</td>
+</tr>
+<tr>
+<td><strong>생육 분석</strong></td>
+<td><code>phenotyping</code></td>
+<td>phenotyping-D{N}-survey</td>
+<td><strong>1</strong></td>
+</tr>
+</tbody></table>
+<p>본 시뮬레이터에서 가장 정밀하게 작업된 카테고리는 <strong>생육 분석 (phenotyping)</strong> 이다.
+권장 시나리오: <strong><code>phenotyping-D110-survey</code></strong> — 정착 후 110 일된 토마토 군집에서
+좌·우 베드 페노타이핑 서베이를 수행하고, 그 결과를 §15 Reference Truth
+Calibration 페이지로 검증한다.</p>
+<figure><img src="_assets/screenshots/workbench-picker-phenotyping.png" alt="그림 6-2. 도메인 = 생육 분석 필터 적용 시 phenotyping-D110-survey 단독 표시"><figcaption>그림 6-2. 도메인 = 생육 분석 필터 적용 시 phenotyping-D110-survey 단독 표시</figcaption></figure>
+<h2 id="h-64-시나리오-정보-30">6.4 시나리오 정보</h2>
+<p>각 카드는 다음 정보를 가진다.</p>
+<ul>
+<li>시나리오 ID (예: <code>phenotyping-D110-survey</code>)</li>
+<li>도메인 (<code>autonomous-driving</code>, <code>thinning</code>, …, <code>phenotyping</code>)</li>
+<li>작물 단계 D{N} (정착 후 일수)</li>
+<li>모드 (Workbench / Foundry / Twin)</li>
+<li>설명 (1 문장)</li>
+<li>시드 (재현성)</li>
+<li>베드 레이아웃 (<code>2-4-4</code> 등)</li>
+</ul>
+<h2 id="h-65-시나리오-카드-클릭-즉시-진입-31">6.5 시나리오 카드 클릭 → 즉시 진입</h2>
+<p>카드 1 회 클릭으로 즉시 Workbench 본 화면으로 진입한다.  진입 후 좌측 PiP,
+중앙 3D 뷰, 우측 Growth Analysis 패널, 하단 START SURVEY 버튼이 표시된다 (§7).</p>
+<h2 id="h-66-url-파라미터로-시나리오-진입-32">6.6 URL 파라미터로 시나리오 진입</h2>
+<p>Picker를 건너뛰고 직접 시나리오에 진입할 때는 URL 파라미터를 사용한다.</p>
+<pre><code>http://localhost:8090/?mode=workbench&amp;scenario=phenotyping-D110-survey&amp;bedLayout=2-4-4&amp;activeBedIds=4,5,6,7,8,9&amp;robotProfile=phenotyping&amp;robotTraverse=1&amp;gimbalView=1&amp;qualityPreset=8
+</code></pre>
+<p>주요 파라미터:</p>
+<table>
+<thead>
+<tr>
+<th>파라미터</th>
+<th>예시</th>
+<th>의미</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>mode</code></td>
+<td><code>workbench</code></td>
+<td>운용 모드</td>
+</tr>
+<tr>
+<td><code>scenario</code></td>
+<td><code>phenotyping-D110-survey</code></td>
+<td>시나리오 ID</td>
+</tr>
+<tr>
+<td><code>seed</code></td>
+<td><code>20260520</code></td>
+<td>결정성 시드 (오버라이드)</td>
+</tr>
+<tr>
+<td><code>bedLayout</code></td>
+<td><code>2-4-4</code></td>
+<td>베드 레이아웃</td>
+</tr>
+<tr>
+<td><code>activeBedIds</code></td>
+<td><code>4,5,6,7,8,9</code></td>
+<td>활성 베드 ID 쉼표 구분</td>
+</tr>
+<tr>
+<td><code>robotProfile</code></td>
+<td><code>phenotyping</code></td>
+<td>로봇 프로파일</td>
+</tr>
+<tr>
+<td><code>robotTraverse</code></td>
+<td><code>1</code></td>
+<td>자동 traverse 활성</td>
+</tr>
+<tr>
+<td><code>gimbalView</code></td>
+<td><code>1</code></td>
+<td>PiP 표시</td>
+</tr>
+<tr>
+<td><code>qualityPreset</code></td>
+<td><code>1</code>–<code>10</code></td>
+<td>렌더 품질 (1=최소, 10=최고)</td>
+</tr>
+</tbody></table>
+<h1 id="h-7-적심적과-관제-시연-절차-33">7. 적심·적과 관제 시연 절차</h1>
+<p>본 장은 시연자가 따라 할 수 있는 핵심 절차다.</p>
+<h2 id="h-71-진입-34">7.1 진입</h2>
+<p>권장 시나리오 진입한 직후 다음을 확인한다.</p>
+<ul>
+<li>화면 중앙: 온실 메인 카메라 시점</li>
+<li>왼쪽 위: PiP — 짐벌 카메라 시점 (<code>GIMBAL CAM</code> 라벨)</li>
+<li>우측 패널: <strong>Growth Analysis</strong> 패널 (Phenotyping / Navigation / Growth tab + Detection Mode + Coverage rule + Survey/Robot 상태)</li>
+<li>좌측 슬라이더: 레일 위치 슬라이더 (<code>RAIL X</code>)</li>
+<li>우측 슬라이더: 속도 슬라이더 (<code>SPEED</code>)</li>
+<li>상단 메뉴: New / Fork / <strong>Calibrate</strong> / Analysis 토글 / 시드 표시</li>
+<li>하단: <strong>START SURVEY</strong> 버튼 + speed 컨트롤</li>
+</ul>
+<figure><img src="_assets/screenshots/workbench-main.png" alt="그림 7-1. Workbench 운용 화면 — 좌측 PiP + 중앙 3D 뷰 + 우측 Growth Analysis 패널 + 하단 START SURVEY"><figcaption>그림 7-1. Workbench 운용 화면 — 좌측 PiP + 중앙 3D 뷰 + 우측 Growth Analysis 패널 + 하단 START SURVEY</figcaption></figure>
+<h2 id="h-72-start-survey-35">7.2 START SURVEY</h2>
+<p><code>TaskPanel</code>에서 <strong>START SURVEY</strong> 버튼을 누르면 페노타이핑 서베이가 시작된다.</p>
+<p>상태 변화는 PiP 상단 chip에 표시된다.</p>
+<table>
+<thead>
+<tr>
+<th>상태</th>
+<th>의미</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>→ scanning L (NN%)</code></td>
+<td>좌측 베드 forward 스캔 진행 중</td>
+</tr>
+<tr>
+<td><code>· stitching panorama</code></td>
+<td>좌측 베드 프레임을 파노라마로 조합</td>
+</tr>
+<tr>
+<td><code>● DETECTING &lt;detector_id&gt;</code></td>
+<td>좌측 베드 디텍션 실행 중</td>
+</tr>
+<tr>
+<td><code>← scanning R (NN%)</code></td>
+<td>우측 베드 return 스캔 진행 중</td>
+</tr>
+<tr>
+<td><code>· stitching panorama</code></td>
+<td>우측 베드 파노라마 조합</td>
+</tr>
+<tr>
+<td><code>● DETECTING &lt;detector_id&gt;</code></td>
+<td>우측 베드 디텍션 실행 중</td>
+</tr>
+<tr>
+<td><code>✓ done</code></td>
+<td>서베이 완료 — 결과 시트 자동 갱신</td>
+</tr>
+<tr>
+<td><code>✗ aborted</code></td>
+<td>중도 종료</td>
+</tr>
+</tbody></table>
+<h2 id="h-73-짐벌-카메라-pip-보기-36">7.3 짐벌 카메라 PiP 보기</h2>
+<p>PiP는 두 가지 모드로 동작한다.</p>
+<h3 id="h-731-stream-모드-기본-37">7.3.1 Stream 모드 (기본)</h3>
+<p>기본 설정. 카메라 영상이 WS 스트림으로 전송되어 <code>&lt;img&gt;</code>로 렌더된다. 설정 드로어에서 <code>PiP Mode = stream</code> 확인.</p>
+<h3 id="h-732-in-canvas-모드-대체-38">7.3.2 In-canvas 모드 (대체)</h3>
+<p>레거시 경로. 설정 드로어에서 <code>PiP Mode = in-canvas</code>로 토글하면 메인 캔버스의 sub-region으로 짐벌 카메라가 직접 렌더된다.</p>
+<p>두 모드의 결과는 시각적으로 유사하지만, Stream 모드가 권장된다 (디텍션 워커가 동일 스트림을 구독하므로 PiP와 디텍션이 동일한 source of truth를 본다).</p>
+<figure><img src="_assets/screenshots/06-06-pip.png" alt="그림 7-2. 짐벌 카메라 PiP 캡처 (rail X = -0.95 m, MANUAL 모드)"><figcaption>그림 7-2. 짐벌 카메라 PiP 캡처 (rail X = -0.95 m, MANUAL 모드)</figcaption></figure>
+<h2 id="h-74-디텍션-오버레이-해석-39">7.4 디텍션 오버레이 해석</h2>
+<p>PiP 위에 색깔 원이 표시된다. 각 원은 한 개의 감지된 토마토를 의미한다.</p>
+<table>
+<thead>
+<tr>
+<th>색</th>
+<th>Ripeness Bin</th>
+<th>의미</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>녹색</td>
+<td>green</td>
+<td>미숙 (초록)</td>
+</tr>
+<tr>
+<td>노랑</td>
+<td>breaker</td>
+<td>색 시작</td>
+</tr>
+<tr>
+<td>주황</td>
+<td>turning</td>
+<td>익는 중</td>
+</tr>
+<tr>
+<td>분홍</td>
+<td>pink</td>
+<td>분홍빛</td>
+</tr>
+<tr>
+<td>빨강</td>
+<td>red</td>
+<td>완숙</td>
+</tr>
+</tbody></table>
+<p>원의 크기: 카메라로부터의 거리에 반비례 (가까울수록 크게).
+원의 진하기(opacity): 신뢰도 (불투명할수록 신뢰도 높음).</p>
+<figure><img src="_assets/screenshots/06-07-detect.png" alt="그림 7-3. HSV 디텍션 베이스라인 캡처 — Workbench 우측 패널에 ripeness 분류 매트릭스 표시"><figcaption>그림 7-3. HSV 디텍션 베이스라인 캡처 — Workbench 우측 패널에 ripeness 분류 매트릭스 표시</figcaption></figure>
+<h2 id="h-75-진행률프레임-카운트-40">7.5 진행률·프레임 카운트</h2>
+<p><code>TaskPanel</code>의 진행률 표시:</p>
+<ul>
+<li><code>progress: NN%</code> — 전체 서베이 진행률 (forward 0–50%, return 50–100%)</li>
+<li><code>frameCount: N</code> — 현재 패스에서 캡처된 프레임 수</li>
+</ul>
+<p>서베이 1회 (좌우 베드) 예상 소요 시간:</p>
+<ul>
+<li>권장 사양 + 0.3 m/s 속도: <strong>약 1 분 30 초</strong></li>
+<li>최소 사양: 2 분 정도</li>
+</ul>
+<h2 id="h-76-pause-resume-stop-41">7.6 PAUSE / RESUME / STOP</h2>
+<p><code>TaskPanel</code>의 보조 버튼:</p>
+<ul>
+<li><code>PAUSE</code> — 일시 중지 (rail 정지, 캡처 정지)</li>
+<li><code>RESUME</code> — 일시 중지에서 복귀</li>
+<li><code>STOP / RESET</code> — 서베이 중단 + 결과 폐기</li>
+</ul>
+<h2 id="h-77-서베이-완료-후-42">7.7 서베이 완료 후</h2>
+<p>서베이 완료 시 자동으로 다음이 트리거된다.</p>
+<ol>
+<li><code>SurveyResultSheet</code> (결과 시트) 갱신</li>
+<li><code>SurveyHistoryDrawer</code> (히스토리)에 본 서베이 항목 추가</li>
+<li>PiP 상단 chip: <code>✓ done</code></li>
+</ol>
+<h1 id="h-8-결과-시트-result-sheet-해석-43">8. 결과 시트 (Result Sheet) 해석</h1>
+<p>서베이 완료 후 화면에 결과 시트가 표시된다. 주요 항목:</p>
+<h2 id="h-81-헤더-44">8.1 헤더</h2>
+<ul>
+<li>평가 대상명, 작성 일자</li>
+<li>독자 정보 (운영자가 입력)</li>
+</ul>
+<h2 id="h-82-카운트-표-45">8.2 카운트 표</h2>
+<table>
+<thead>
+<tr>
+<th>좌측 베드 / 우측 베드</th>
+<th>bin별 카운트</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>green</td>
+<td>NN</td>
+</tr>
+<tr>
+<td>breaker</td>
+<td>NN</td>
+</tr>
+<tr>
+<td>turning</td>
+<td>NN</td>
+</tr>
+<tr>
+<td>pink</td>
+<td>NN</td>
+</tr>
+<tr>
+<td>red</td>
+<td>NN</td>
+</tr>
+<tr>
+<td>합계</td>
+<td>NN</td>
+</tr>
+</tbody></table>
+<figure><img src="_assets/screenshots/06-08-result.png" alt="그림 8-1. 결과 시트 — 카운트 표 + 분포 막대 차트 (예시: thin-D70-truss3-multi)"><figcaption>그림 8-1. 결과 시트 — 카운트 표 + 분포 막대 차트 (예시: thin-D70-truss3-multi)</figcaption></figure>
+<h2 id="h-83-분포-차트-46">8.3 분포 차트</h2>
+<p>각 베드별 ripeness 분포 막대 차트.</p>
+<h2 id="h-84-평가-메모-47">8.4 평가 메모</h2>
+<p>운영자가 자유 기술 (보완 사항, 관찰사항). 테스트 보고서에 자동 포함.</p>
+<h2 id="h-85-결과-시트-내보내기-48">8.5 결과 시트 내보내기</h2>
+<ul>
+<li>CSV로 내보내기</li>
+<li>인쇄용 PDF 변환</li>
+<li>클립보드로 표 복사</li>
+</ul>
+<h1 id="h-9-파노라마-뷰어-49">9. 파노라마 뷰어</h1>
+<p>서베이 중 캡처된 짐벌 카메라 프레임을 좌→우 순서로 stitch한 파노라마.</p>
+<h2 id="h-91-좌측-베드-파노라마-50">9.1 좌측 베드 파노라마</h2>
+<p>좌측 베드 forward 패스에서 캡처된 프레임의 합성 결과. 표시 항목:</p>
+<ul>
+<li>파노라마 전체 (좁고 길게)</li>
+<li>디텍션 bbox 오버레이 (toggle 가능)</li>
+<li>디텍션 통계 (개수, 평균 신뢰도)</li>
+</ul>
+<figure><img src="_assets/screenshots/06-09-pano.png" alt="그림 9-1. 파노라마 뷰어 — 골격 오버레이 활성 (tune-frame-2 캡처)"><figcaption>그림 9-1. 파노라마 뷰어 — 골격 오버레이 활성 (tune-frame-2 캡처)</figcaption></figure>
+<h2 id="h-92-우측-베드-파노라마-51">9.2 우측 베드 파노라마</h2>
+<p>우측 베드 return 패스 결과.</p>
+<h2 id="h-93-파노라마-zoom-52">9.3 파노라마 zoom</h2>
+<p>마우스 휠 또는 ± 버튼으로 zoom in/out. 특정 영역을 확대해서 디텍션 결과를 자세히 확인할 수 있다.</p>
+<h1 id="h-10-히스토리-드로어-53">10. 히스토리 드로어</h1>
+<p><code>SurveyHistoryDrawer</code>는 과거에 수행된 서베이의 결과를 한 곳에서 비교할 수 있는 드로어이다.</p>
+<h2 id="h-101-항목-목록-54">10.1 항목 목록</h2>
+<p>각 서베이는 다음 정보로 표시된다.</p>
+<ul>
+<li>작성 일자·시간</li>
+<li>시나리오 ID</li>
+<li>작물 단계 (D 단계)</li>
+<li>디텍션 합계 (좌측·우측)</li>
+<li>통과/실패 표시</li>
+</ul>
+<h2 id="h-102-비교-55">10.2 비교</h2>
+<p>두 개 이상의 서베이를 선택해서 표·차트로 비교할 수 있다.</p>
+<h2 id="h-103-내보내기-56">10.3 내보내기</h2>
+<ul>
+<li>전체 히스토리 CSV</li>
+<li>선택 항목만 zip 묶음</li>
+</ul>
+<h1 id="h-11-디버그-옵션-57">11. 디버그 옵션</h1>
+<p>URL 파라미터로 디버그 모드를 활성화할 수 있다.</p>
+<table>
+<thead>
+<tr>
+<th>파라미터</th>
+<th>의미</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>?debug=stream</code></td>
+<td>카메라 스트리밍 producer/consumer 진단 로그</td>
+</tr>
+<tr>
+<td><code>?debug=capture</code></td>
+<td>캡처된 프레임의 가장 최근 frame을 <code>window.__lastCaptureFrame</code>에 노출</td>
+</tr>
+<tr>
+<td><code>?debug=isolatedLeaf</code></td>
+<td>잎 단일 디버그 모드 (Workbench 외)</td>
+</tr>
+<tr>
+<td><code>?debug=*</code></td>
+<td>모든 디버그 활성</td>
+</tr>
+<tr>
+<td><code>?quality=N</code></td>
+<td>렌더 품질 강제 (1–10)</td>
+</tr>
+<tr>
+<td><code>?seed=N</code></td>
+<td>시드 오버라이드</td>
+</tr>
+</tbody></table>
+<p>디버그 로그는 브라우저 DevTools의 Console 탭에서 확인.</p>
+<figure><img src="_assets/screenshots/06-10-debug.png" alt="그림 11-1. 성능 HUD가 활성화된 화면 (오른쪽 상단 perf 패널)"><figcaption>그림 11-1. 성능 HUD가 활성화된 화면 (오른쪽 상단 perf 패널)</figcaption></figure>
+<h1 id="h-12-시나리오별-운용-팁-58">12. 시나리오별 운용 팁</h1>
+<h2 id="h-121-phenotyping-d110-survey-59">12.1 <code>phenotyping-D110-survey</code></h2>
+<ul>
+<li>작물 단계 D110은 트러스 4–5개 활성 상태. 익은 토마토 10개 이상 기대.</li>
+<li>좌우 베드 traverse 시 약 1.5 분 소요.</li>
+<li>결과 시트의 합계가 30개 이상이면 정상.</li>
+</ul>
+<h2 id="h-122-다른-시나리오-60">12.2 다른 시나리오</h2>
+<p><code>scenarios/loader.ts</code>를 참조하거나 <code>Picker</code>에 표시된 후보를 확인.</p>
+<h2 id="h-123-시드-변경-61">12.3 시드 변경</h2>
+<p>같은 시나리오라도 시드를 바꾸면 식물 군집이 다르게 생성된다. 시드별 결과 차이를 비교하려면 URL <code>?seed=&lt;n&gt;</code>을 변경.</p>
+<h1 id="h-13-트러블슈팅-62">13. 트러블슈팅</h1>
+<h2 id="h-131-첫-진입-시-화면이-회색이고-부팅-안-됨-63">13.1 첫 진입 시 화면이 회색이고 부팅 안 됨</h2>
+<ul>
+<li>WebGL2 활성 여부 확인 (<code>about:gpu</code> 또는 <code>about:support</code>)</li>
+<li>다른 브라우저 (Chrome / Firefox)로 시도</li>
+<li>GPU 드라이버 업데이트</li>
+</ul>
+<h2 id="h-132-디텍션-결과가-0건-64">13.2 디텍션 결과가 0건</h2>
+<ul>
+<li>ONNX 모델 로드 진행 중일 수 있음 — TaskPanel의 detectorLoadProgress 확인</li>
+<li>모델 로드 진행 후 다시 START SURVEY</li>
+</ul>
+<h2 id="h-133-pip-영상이-회색-65">13.3 PiP 영상이 회색</h2>
+<ul>
+<li>스트리밍 모드 토글 시도 (Stream ↔ In-canvas)</li>
+<li>DevTools Console에 <code>[cam-stream]</code> 로그 확인</li>
+<li>페이지 새로고침 후 다시 시도</li>
+</ul>
+<h2 id="h-134-fps가-30-미만-66">13.4 fps가 30 미만</h2>
+<ul>
+<li><code>?quality=4</code> 또는 더 낮은 값으로 진입</li>
+<li>다른 브라우저 탭을 닫아 GPU 자원 확보</li>
+</ul>
+<h2 id="h-135-서베이가-aborted-상태로-끝남-67">13.5 서베이가 <code>✗ aborted</code> 상태로 끝남</h2>
+<ul>
+<li>DevTools Console 로그 확인</li>
+<li>모델이 로드되지 않은 상태에서 START 했을 가능성</li>
+</ul>
+<h1 id="h-14-생육-분석-페이지-reference-truth-calibration-68">14. 생육 분석 페이지 (Reference Truth Calibration)</h1>
+<p>본 시뮬레이터의 가장 정밀하게 작업된 페이지이며, 본 시뮬레이터의 학술
+backbone (TOMSIM / TOMGRO / Gillaspy / Marcelis) 이 실제 시뮬레이션 결과와
+얼마나 정합되는지를 <em>9 변수 × day 단위</em> 로 시각 비교한다.</p>
+<h2 id="h-141-진입-69">14.1 진입</h2>
+<p>Workbench 메인 화면 상단의 <strong><code>Calibrate</code></strong> 버튼 → Reference Truth Calibration
+페이지가 표시된다.  좌측의 시나리오 카드 클릭 → Workbench 진입 후 항상 사용
+가능하다.</p>
+<figure><img src="_assets/screenshots/workbench-calibration.png" alt="그림 15-1. Reference Truth Calibration 페이지 — 문헌 ±20% 검증. 우상단 19/33 vars exceed ±20% 경고 표시"><figcaption>그림 15-1. Reference Truth Calibration 페이지 — 문헌 ±20% 검증. 우상단 19/33 vars exceed ±20% 경고 표시</figcaption></figure>
+<h2 id="h-142-페이지-구성-70">14.2 페이지 구성</h2>
+<p>본 페이지는 4 영역으로 구성된다.</p>
+<h3 id="h-1421-상단-헤더-71">14.2.1 상단 헤더</h3>
+<ul>
+<li><code>REFERENCE TRUTH CALIBRATION</code> 라벨</li>
+<li>큰 제목: <strong>&quot;문헌 ±20% 검증&quot;</strong></li>
+<li>우상단 경고 chip: <code>⚠ 19/33 vars exceed ±20%</code> (현재 calibration 상태)</li>
+<li>부제: <code>W1.a — GrowthEngine.simulatePlantToMinute(SHOWCASE_SEED) 실 호출. 문헌: TOMSIM / TOMGRO / Gillaspy 근사</code></li>
+<li>우상단 <code>← 뒤로</code> 버튼 (Workbench 메인 복귀)</li>
+</ul>
+<h3 id="h-1422-9-변수-탭-72">14.2.2 9 변수 탭</h3>
+<p>본 페이지에서 검증하는 9 변수.  탭 우측의 ⚠ 마크는 ±20% 를 벗어난 변수.</p>
+<table>
+<thead>
+<tr>
+<th>키</th>
+<th>한글 라벨</th>
+<th>단위</th>
+<th>출처</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>height</code></td>
+<td>초장</td>
+<td>cm</td>
+<td>Heuvelink 1996</td>
+</tr>
+<tr>
+<td><code>nodeCount</code></td>
+<td>마디 수</td>
+<td>개</td>
+<td>Heuvelink 1996 (phyllochron)</td>
+</tr>
+<tr>
+<td><code>firstTrussDAS</code></td>
+<td>첫 화방 출현</td>
+<td>day</td>
+<td>문헌 reference</td>
+</tr>
+<tr>
+<td><code>fruitDiameter</code></td>
+<td>과실 직경 (T1 평균)</td>
+<td>mm</td>
+<td>Gillaspy 1993</td>
+</tr>
+<tr>
+<td><code>leafCount</code></td>
+<td>잎 수</td>
+<td>개</td>
+<td>Heuvelink TOMSIM</td>
+</tr>
+<tr>
+<td><code>LAI</code></td>
+<td>LAI</td>
+<td>m²/m²</td>
+<td>Heuvelink TOMSIM 3.0~4.0</td>
+</tr>
+<tr>
+<td><code>stemDiameter</code></td>
+<td>줄기 직경 (base)</td>
+<td>mm</td>
+<td>문헌 reference</td>
+</tr>
+<tr>
+<td><code>trussInterval</code></td>
+<td>화방 간격</td>
+<td>nodes</td>
+<td>3 leaf phyllotaxis</td>
+</tr>
+<tr>
+<td><code>ripeStage</code></td>
+<td>과실 색 (ripeStage)</td>
+<td>0–1</td>
+<td>Gillaspy ripening</td>
+</tr>
+</tbody></table>
+<p>탭 클릭 시 하단 Trajectory chart 가 해당 변수로 전환된다.</p>
+<h3 id="h-1423-trajectory-chart-svg-73">14.2.3 Trajectory chart (SVG)</h3>
+<p>선택된 변수의 시간 흐름을 표시.</p>
+<ul>
+<li>파란 영역 = 문헌 median ±20% band (D7 ~ D112)</li>
+<li>파란 점선 = 문헌 median</li>
+<li>주황 실선 = <code>Phytosim 시뮬</code> — GrowthEngine 의 실 호출 결과</li>
+<li>X축 = day after transplant (D7, D14, D28, D42, D56, D84, D112)</li>
+<li>Y축 = 변수 값 (단위 변수별 자동 조정)</li>
+</ul>
+<p>주황 곡선이 파란 영역 <em>안에</em> 머무르면 해당 day 의 calibration 통과.</p>
+<h3 id="h-1424-deviation-heatmap-74">14.2.4 Deviation heatmap</h3>
+<p>day × 변수 matrix 로 어느 day 에 어느 변수가 ±20% 를 얼마나 벗어났는지 한
+화면에서 비교.  셀의 숫자가 백분율 (시뮬 − 문헌 median)/median × 100.</p>
+<table>
+<thead>
+<tr>
+<th>색</th>
+<th>의미</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>녹색</td>
+<td>±20% 이내 — 통과</td>
+</tr>
+<tr>
+<td>파랑</td>
+<td>시뮬 &lt; 문헌 median (음수)</td>
+</tr>
+<tr>
+<td>주황</td>
+<td>시뮬 &gt; 문헌 median + 20% — ±20% 초과</td>
+</tr>
+<tr>
+<td>· (회색)</td>
+<td>해당 day 에 시뮬 값 없음 (day 0 같이)</td>
+</tr>
+</tbody></table>
+<h3 id="h-1425-4-액션-워크플로우-75">14.2.5 4-액션 워크플로우</h3>
+<p>heatmap 하단의 4 버튼 — ±20% 초과 시 의사결정 기록 (<code>docs/proposal/06-reference-truth-railway.md</code> §6 워크플로우 참조).</p>
+<table>
+<thead>
+<tr>
+<th>액션</th>
+<th>의미</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>a) Model RFC</code></td>
+<td>모델 자체 보정 — cultivar JSON 또는 model registry 파라미터 변경 RFC 작성</td>
+</tr>
+<tr>
+<td><code>b) Re-measure</code></td>
+<td>문헌 재측정 — 사용한 문헌 target 이 잘못된 가능성. 다른 문헌으로 검증</td>
+</tr>
+<tr>
+<td><code>c) Std RFC</code></td>
+<td>표준 변경 — 본 시뮬레이터 표준을 다른 cultivar/품종/환경으로 갱신</td>
+</tr>
+<tr>
+<td><code>d) Ignore w/ reason</code></td>
+<td>의도된 deviation — 이유와 함께 기록</td>
+</tr>
+</tbody></table>
+<p>본 4 버튼은 현재 disabled placeholder 이며, 클릭 시 RFC 작성 dialog 가 뜨도록
+계획되어 있다.</p>
+<h2 id="h-143-본-페이지의-학술-가치-76">14.3 본 페이지의 학술 가치</h2>
+<p>본 페이지는 본 시뮬레이터가 단순 시각화가 아니라 <strong>mechanistic crop model</strong> 의
+일일 적분 결과를 표시함을 <em>즉시 증명</em> 한다.  Trajectory chart 의 주황 곡선은
+다음 호출 결과 그대로다.</p>
+<pre><code class="language-ts">engine.simulatePlantToMinute(SHOWCASE_SEED, day × 1440 + 12 × 60)
+</code></pre>
+<p>즉:</p>
+<ol>
+<li><code>SHOWCASE_SEED</code> (= 20260520) 결정성 시드로 새 식물 생성</li>
+<li>day × 1440 + 12 × 60 분 (정오) 까지 minute step 적분</li>
+<li>9 변수 (height / N / LAI / fruit diameter / 등) 추출</li>
+<li>trajectory chart + heatmap 갱신</li>
+</ol>
+<p>cultivar JSON 또는 model registry 파라미터를 변경하면 <strong>본 페이지의 모든 곡선이
+즉시 갱신</strong> 된다.  이 즉시 피드백 루프가 본 시뮬레이터의 calibration 작업의
+핵심 도구가 된다.</p>
+<p>본 페이지의 학술 backbone 은 시스템 아키텍처 설계서 (06) §&quot;생육 모델링
+(GROWTH_MODEL)&quot; 의 8 학술 인용 + Pass 1~5 알고리즘 + Cultivar 5 종 + Calibration
+Reference Pack v0.1 에서 정의된다.</p>
+<h2 id="h-144-본-페이지의-한계-후속-로드맵-77">14.4 본 페이지의 한계 + 후속 로드맵</h2>
+<table>
+<thead>
+<tr>
+<th>현재 상태</th>
+<th>한계</th>
+<th>후속</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>19/33 vars exceed ±20%</td>
+<td>Harvest index (HI) 약 0.22 (목표 0.55~0.65) — maintenance respiration 모델이 과도</td>
+<td>Phase D quality model 로드맵</td>
+</tr>
+<tr>
+<td>단일 cultivar (Tomimaru)</td>
+<td>5 cultivar 중 1 cultivar 만 reference pack 보유</td>
+<td>v0.2 — 다른 cultivar reference pack 추가</td>
+</tr>
+<tr>
+<td>4-액션 버튼 disabled</td>
+<td>RFC 작성 dialog 미구현</td>
+<td>후속 — RFC 작성 + git PR 연동</td>
+</tr>
+<tr>
+<td>환경 단일 (22 °C 상수)</td>
+<td>diurnal / seasonal 변화 환경 미반영</td>
+<td>후속 — DiurnalEnv 통합</td>
+</tr>
+</tbody></table>
+<h1 id="h-15-faq-및-문의처-78">15. FAQ 및 문의처</h1>
+<h2 id="h-151-자주-묻는-질문-79">15.1 자주 묻는 질문</h2>
+<p><strong>Q. 같은 시드로 다시 실행하면 같은 결과가 나오는가?</strong>
+A. 예, 시드 + 시나리오 ID가 같으면 식물 군집·카메라 traverse·디텍션 입력은 동일하게 재현된다.</p>
+<p><strong>Q. ONNX 모델을 다른 것으로 교체할 수 있는가?</strong>
+A. 개발자 가이드(<code>08_Developer_Guide.pdf</code>)의 &quot;디텍터 swap&quot; 항목 참조.</p>
+<p><strong>Q. 본 시뮬레이터를 외부망에 노출할 수 있는가?</strong>
+A. 본 시뮬레이터는 localhost 전용 dev 모드로 동작한다. 외부망 노출은 본 시뮬레이터의 범위 외이다.</p>
+<p><strong>Q. 본 시뮬레이터가 측정하는 ripeness bin은 어떻게 결정되는가?</strong>
+A. 두 단계 파이프라인: (1) YOLOv8 instance detection으로 토마토 후보 bbox 추출, (2) HSV 5밴드 분류기로 bbox별 ripeness bin 할당. 상세는 <code>04_Detection_Models.zip</code>의 <code>hsv_parameters.json</code> 및 <code>model_metadata.json</code> 참조.</p>
+<h2 id="h-152-관련-문서-80">15.2 관련 문서</h2>
+<table>
+<thead>
+<tr>
+<th>문서</th>
+<th>위치</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>시스템 아키텍처 설계서</td>
+<td><code>06_Architecture_Spec.pdf</code></td>
+</tr>
+<tr>
+<td>개발자/관리자 가이드</td>
+<td><code>08_Developer_Guide.pdf</code></td>
+</tr>
+<tr>
+<td>테스트 절차서</td>
+<td><code>09_Inspection_Plan.pdf</code></td>
+</tr>
+<tr>
+<td>시험 결과 보고서</td>
+<td><code>10_Test_Report.pdf</code></td>
+</tr>
+<tr>
+<td>디텍션 모델 자산</td>
+<td><code>04_Detection_Models.zip</code></td>
+</tr>
+<tr>
+<td>시나리오·데이터셋</td>
+<td><code>05_Scenario_Datasets.zip</code></td>
+</tr>
+</tbody></table>
+
+</article>
+</body>
+</html>

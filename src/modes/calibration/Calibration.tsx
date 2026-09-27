@@ -7,6 +7,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { LITERATURE, isWithinTolerance, type VarDef, type VarRange } from '../../scenarios/reference/literature';
 import { getSinglePlantEngine } from '../../hud/single-plant/useSinglePlantState';
 import { SHOWCASE_SEED } from '../../scene/SceneInfrastructure';
+import { createLogger } from '../../utils/logger';
+
+const log = createLogger('workbench');
 
 interface CalibrationProps {
   onCancel?: () => void;
@@ -123,7 +126,7 @@ export function Calibration({ onCancel }: CalibrationProps) {
             samples.push({ day: r.day, min: value, max: value, median: value });
           }
         } catch (e) {
-          console.warn(`Calibration: simulate failed for ${v.key} day=${r.day}:`, e);
+          log.warn(`simulate failed for ${v.key} day=${r.day}`, e);
         }
       }
       result[v.key] = samples;

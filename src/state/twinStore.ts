@@ -1,11 +1,6 @@
 import { create } from 'zustand';
 import { QUALITY_PRESETS } from '../scene/RenderQuality';
-
-// Iter 35 PR 4 Phase Q2: AppMode + CompareMode + readModeFromHash + PresetView/SCENARIO
-//   import 제거 (호출처 0). Single-plant 단일이므로 mode 분기 자체 부재.
-
-// Iter 35 PR 2 Phase J: SinglePlantChartVar + SINGLE_PLANT_CHART_VARS 제거
-//   (TimelineChart archived, 사용처 0).
+import { usePhenotypingStore } from './phenotypingStore';
 
 export type ToneMappingMode = 'aces' | 'standard' | 'none';
 export type LightingPresetName = 'default' | 'golden' | 'overcast' | 'noon-bright' | 'grow-light';
@@ -96,8 +91,8 @@ export interface LightingState {
 // Skeleton overlay 설정 (Plan 3a Phase ζ)
 // ──────────────────────────────────────────────────────────────────
 
-// Iter 35 PR 2 Phase M: 4 drawers (lighting + skeleton + wind + settings).
-//   사용자 결정 "각각 별도로 분리". Settings popover 4-menu가 각 drawer 진입.
+// One of four exclusive drawers (lighting / skeleton / wind / settings).
+// Each owns its own panel; the settings popover routes its 4-menu here.
 export type DrawerKind = 'lighting' | 'skeleton' | 'wind' | 'settings';
 
 export interface SkeletonConfig {
@@ -135,10 +130,10 @@ export interface SkeletonConfig {
   apexMarkerSize: number;
   fruitMarkerScale: number;
 
-  // Iter 37 Q7 — Leaf hierarchy detail level (UX, ~700 nodes 군집 정리).
-  //   low: stem + petiole + leaf-blade-root만
+  // Leaf hierarchy detail level (UX — ~700 nodes per plant 군집 정리).
+  //   low:    stem + petiole + leaf-blade-root only
   //   medium: + leaf-rachis + primary leaflet + lateral-vein
-  //   high: + intercalary + secondary + sub-vein + rachis-attach (default)
+  //   high:   + intercalary + secondary + sub-vein + rachis-attach (default)
   leafDetailLevel: 'low' | 'medium' | 'high';
 }
 
@@ -176,19 +171,18 @@ export const SKELETON_DEFAULTS: SkeletonConfig = {
   apexMarkerSize: 0.014,
   fruitMarkerScale: 1.0,
 
-  // Iter 37 Q7 — default high (모든 detail 표시).
+  // default high — show all detail tiers
   leafDetailLevel: 'high',
 };
 
-// Defaults mirror SceneSetup.ts hardcoded values so toggling between
+// Defaults mirror SceneSetup.ts hardcoded values so toggling between the
 // "default" preset and the boot state is a no-op.
 //
-// Phase A (Greenhouse realism) — 회색-디버그 톤을 사진적 baseline 으로 상향.
-//   특히 Lv6+ quality preset 들이 lightingPatch 에서 _override 하지 않는_ 필드
-//   (sun/hemi/hdri/contrast/shadowDarkness/ambientGray) 를 끌어올려야 실제
-//   부팅 화면(Lv8 Ultra default)에 반영됨. bloom/vignette/sharpen/ssao 는
-//   Lv5 baseline 에만 영향 (Lv6+ 는 preset patch 가 덮어씀) — 그래도 일관성
-//   유지를 위해 함께 상향.
+// The values below are tuned for a photographic baseline; Lv6+ quality
+// presets override the bloom/vignette/sharpen/ssao group in their own
+// lightingPatch, but the sun/hemi/hdri/contrast/shadowDarkness/ambientGray
+// group is _not_ overridden by Lv6+ — so the values here drive the actual
+// boot screen at Lv8 Ultra (default).
 export const LIGHTING_DEFAULTS: LightingState = {
   manualHour: 12,
 
@@ -312,10 +306,8 @@ const LIGHTING_PRESETS: Record<LightingPresetName, Partial<LightingState>> = {
   },
 };
 
-// Iter 35 PR 4 Phase Q2: InteractionPoint 제거 (interactions field 부재).
-
 // -----------------------------------------------------------------------
-// Boot progress + alerts + live log + env (plan a-drifting-wigderson.md)
+// Boot progress + alerts + live log + env
 // -----------------------------------------------------------------------
 
 export type BootStage =
@@ -413,18 +405,66 @@ function emptyBootStages(): Record<BootStage, StageInfo> {
   };
 }
 
-interface TwinState {
-  // Iter 35 PR 4 Phase Q2: greenhouse/robot/legacy 잔존 모두 제거 (audit 호출처 0).
-  //   제거: currentDay, playing, playSpeed, setDay, togglePlay, setPlaySpeed,
-  //         selectedZoneId, selectedPlantId, hoveredZoneId, selectZone, selectPlant, hoverZone,
-  //         analysisMode, compareMode, heatmapVisible, pathTrailVisible, fovVisible,
-  //         toggleAnalysisMode, setCompareMode, toggleHeatmap, togglePathTrail, toggleFov,
-  //         cameraPreset, setCameraPreset, robotX/Z/Task, publishRobotState,
-  //         interactions, addInteraction, tickInteractions,
-  //         waterStressOverride, setWaterStressOverride,
-  //         consoleExpanded, toggleConsole,
-  //         AppMode, mode, setMode.
+export type SurveyDetectorId = 'hsv-v1' | 'onnx-yolo-v1' | 'ground-truth';
 
+export type SurveyPipMode = 'stream' | 'in-canvas';
+
+export type SurveyPhase =
+  | 'idle'
+  | 'traversing-forward'
+  | 'stitching-forward'
+  | 'detecting-forward'
+  | 'traversing-return'
+  | 'stitching-return'
+  | 'detecting-return'
+  | 'done'
+  | 'aborted';
+
+export interface SurveyTotals {
+  fruitCount: number;
+  bins: { green: number; breaker: number; turning: number; pink: number; red: number };
+  avgConfidence: number;
+}
+
+export interface SurveyLiveDetection {
+  worldX: number;
+  worldY: number;
+  worldZ: number;
+  bin: 'green' | 'breaker' | 'turning' | 'pink' | 'red';
+  confidence: number;
+}
+
+/** Phenotyping survey v2 — live state slice extracted from `TwinState`. */
+export interface PhenotypingSurveyState {
+  status: 'idle' | 'running' | 'paused' | 'done';
+  phase: SurveyPhase;
+  /** 0..1 overall progress (rail completion + post-process). */
+  progress: number;
+  /** Live frame counter (current pass). */
+  frameCount: number;
+  startedAtMs: number | null;
+  elapsedMs: number;
+  /** Detection counts updated after each detector run. */
+  totals: SurveyTotals;
+  /** Last successful side's panorama key (for live preview). */
+  lastPanoramaKey: string | null;
+  /** Selected detector id (persisted via local set). */
+  detectorId: SurveyDetectorId;
+  /** ONNX model download progress 0..1 (meaningful only for `onnx-yolo-v1`). */
+  detectorLoadProgress: number;
+  /** Detections projected into world space for the live PiP overlay.
+   *  worldY ≈ mid-plant height (~1.5 m), worldZ = bedZ of the scanned side. */
+  liveDetections: SurveyLiveDetection[];
+  /** PiP render path.
+   *    `'stream'`    = WS-streamed `<img>` in `<RobotCameraView>`.
+   *    `'in-canvas'` = legacy transparent overlay over a sub-rect of the
+   *                    Babylon canvas using `scene.activeCameras = [main, gimbal]`.
+   *  Default `'stream'` — the WS pipeline is the source of truth for
+   *  detection too, which removes the multi-cam viewport class of bugs. */
+  pipMode: SurveyPipMode;
+}
+
+interface TwinState {
   // Wind — values pushed into leaf shader uniforms each frame (WindTab UI).
   windStrength: number;     // 0–1
   flutterStrength: number;  // 0–1
@@ -466,28 +506,29 @@ interface TwinState {
   singlePlantPlaying: boolean;
   /** Playback speed multiplier. */
   singlePlantSpeed: 1 | 4 | 24;
-  // Iter 35 PR 2 Phase J: chart/metrics/inspector fields 제거
-  //   (TimelineChart + MetricsTray + InspectorPanel archived).
   /** Camera preset in the single-plant viewport. */
   singlePlantCamera: 'free' | 'truss' | 'fruit' | 'top';
-  // Iter 35 PR 2 Phase K: singlePlantTopFilter 제거 (FloatingTopBar filter pills archived).
-  /** Plan 3a — toggle skeleton-only view. While true the lush mesh hides
-   *  and a wireframe + node-marker overlay shows. Used to verify biology
-   *  (apex, node bulge, side shoots, pruning) without visual clutter. */
+  /** Toggle skeleton-only view. While true the lush mesh hides and a
+   *  wireframe + node-marker overlay shows. Used to verify biology (apex,
+   *  node bulge, side shoots, pruning) without visual clutter. */
   showSkeleton: boolean;
   setShowSkeleton: (v: boolean) => void;
 
-  /** ★ Iter 39 Phase J0-1 — Isolated Leaf Debug Mode.
-   *  Skeleton closure acceptance를 single compound leaf 단위로 검증할 때 사용.
+  /** Isolated Leaf Debug Mode — validate skeleton closure acceptance for
+   *  a single compound leaf.
    *
-   *  - 'off':     일반 모드 (모든 organ 보임)
-   *  - 'strict':  target leaf의 skeleton만 보임. 다른 잎, truss, fruit, mesh, skin
-   *               모두 hide. Mode A — metrics report와 _대응하는_ 시각 reference.
-   *  - 'context': target leaf 강조 + 주변 alpha 0.15-0.20. Mode B — 상호작용 확인.
+   *  - 'off':     normal (all organs visible)
+   *  - 'strict':  target leaf's skeleton only; other leaves, truss, fruit,
+   *               mesh, skin all hidden. Visual reference matched to the
+   *               metrics report.
+   *  - 'context': target leaf highlighted, surrounding alpha 0.15–0.20.
+   *               Used to check interaction with neighbors.
    *
-   *  targetLeafId 예: `axis0:n8` (axisIdx:nodeIdx). 없으면 첫 번째 visible leaf.
+   *  targetLeafId format: `axis0:n8` (axisIdx:nodeIdx). null → first
+   *  visible leaf.
    *
-   *  Acceptance 결정은 _metrics report로만_ (active 원칙 #21). 본 모드는 해석 보조. */
+   *  Acceptance is decided by the metrics report; this mode is a visual
+   *  aid only. */
   isolatedLeafMode: {
     mode: 'off' | 'strict' | 'context';
     targetLeafId: string | null;
@@ -503,25 +544,24 @@ interface TwinState {
   defoliationHeightCm: number;
   setDefoliationHeightCm: (cm: number) => void;
 
-  // Iter 35 PR 2: useImplicitMesh + setUseImplicitMesh 제거 — SkinMesh가 유일 renderer.
-
-  /** Plan 3b Phase η-2 — 진단 로그 토글. ON 시 ShowcasePlant.update 와
-   *  SkeletonOverlay 의 update/setVisible 가 4단계 [diag:N] log 출력. */
+  /** Diagnostic-log toggle. When ON, ShowcasePlant.update and
+   *  SkeletonOverlay.update / setVisible emit 4-step `[diag:N]` logs. */
   debugDiagnostics: boolean;
   setDebugDiagnostics: (v: boolean) => void;
 
-  /** Plan 3a Phase ζ — skeleton overlay 의 thickness + color 설정.
-   *  Drawer 에서 슬라이더/컬러 픽커로 조정. localStorage 에 persist. */
+  /** Skeleton-overlay thickness + color config. Adjusted via the drawer
+   *  sliders / color pickers; persisted to localStorage. */
   skeleton: SkeletonConfig;
   setSkeleton: (patch: Partial<SkeletonConfig>) => void;
   resetSkeleton: () => void;
 
-  /** 우측 드로어 — 'lighting' | 'skeleton' | null. 동시 하나만 (Iter 35 PR 2). */
+  /** Right-side drawer — exactly one of `DrawerKind | null` at a time. */
   openDrawer: DrawerKind | null;
   setOpenDrawer: (d: DrawerKind | null) => void;
 
-  /** Iter 35 Phase F — single-plant 인스턴스 수 (multi-plant 확장 준비).
-   *  현재 1 고정. Iter 36에서 slider UI (1~N) 추가 + SinglePlantApp 다중 mount. */
+  /** Single-plant instance count (multi-plant extension hook).
+   *  Currently fixed at 1; a slider UI (1..N) + SinglePlantApp multi-mount
+   *  will land later. */
   singlePlantCount: number;
   setSinglePlantCount: (n: number) => void;
 
@@ -530,31 +570,31 @@ interface TwinState {
   setSinglePlantSpeed: (s: 1 | 4 | 24) => void;
   setSinglePlantCamera: (c: 'free' | 'truss' | 'fruit' | 'top') => void;
 
-  /** D11 (RFP §17) — EE/Head/Mask 카메라 산업 사양 파라미터.
-   *  사용자 피드백: EE는 베드 바로 앞 튜브레일 센터 + 베드 위 25cm 높이 + 작물 다 보이게.
-   *  추가 파라미터로 mount 높이·working distance·FOV 조절. */
+  /** EE / Head / Mask camera industry-spec parameters.
+   *  EE sits at the tube-rail center directly in front of the bed at 25cm
+   *  above the bed top so the whole plant fits in frame. mount height,
+   *  working distance, and FOV are adjustable.  */
   eeCameraParams: {
-    /** 베드 substrate top 기준 카메라 mount 높이 (cm). default 25 (튜브레일). */
+    /** Camera mount height above bed substrate top (cm). default 25 (tube rail). */
     mountHeightCmAboveBed: number;
-    /** 카메라 → 식물 정면 거리 (m). default 1.8 (식물 전체 framing). */
+    /** Camera → plant front distance (m). default 1.8 (whole-plant framing). */
     workingDistanceM: number;
-    /** 카메라 FOV (도). default 60 (산업용 RGB 표준). */
+    /** Camera FOV (deg). default 60 (industry RGB standard). */
     fovDeg: number;
-    /** 식물 root world Y (m). substrate top = 1.062m. */
+    /** Plant root world Y (m). substrate top = 1.062m. */
     bedTopY: number;
-    /** 식물 중심 응시 Y (target Y). default 1.8 (식물 중심). */
+    /** Plant-center look-at Y (m). default 1.8. */
     targetY: number;
   };
   setEeCameraParam: <K extends keyof TwinState['eeCameraParams']>(
     key: K,
     value: TwinState['eeCameraParams'][K],
   ) => void;
-  // Iter 35 PR 2 Phase J: chart/metrics/inspector setters 제거.
-  // Iter 35 PR 2 Phase K: setSinglePlantTopFilter 제거.
 
-  /** Iter 31 Phase R — 로봇 traverse + 짐벌 카메라 수동 제어 슬라이스.
-   *  ⚠️ 매 프레임 변하는 railX/dir 은 store에 두지 않음 (60fps 리렌더 회피).
-   *  → BabylonEngine 모듈 스코프 ref 로 관리. UI는 mode/gimbal/speed만 구독. */
+  /** Robot traverse + gimbal manual-control slice.
+   *  ⚠️ Per-frame railX / dir are NOT kept in this store (would re-render
+   *  the whole UI at 60fps) — they live in BabylonEngine module-scope refs.
+   *  UI subscribes only to mode / gimbal / speed. */
   robot: {
     /** 'auto' = ping-pong 자동 traverse, 'paused' = 정지, 'manual' = 슬라이더/WASD 직접 제어. */
     mode: 'auto' | 'paused' | 'manual';
@@ -605,47 +645,7 @@ interface TwinState {
   setViewingSurveyId: (id: string | null) => void;
 
   /** Phenotyping survey v2 live state — continuous traverse + stitching + detect. */
-  phenotypingSurvey: {
-    status: 'idle' | 'running' | 'paused' | 'done';
-    /** Current pipeline phase. */
-    phase:
-      | 'idle'
-      | 'traversing-forward'
-      | 'stitching-forward'
-      | 'detecting-forward'
-      | 'traversing-return'
-      | 'stitching-return'
-      | 'detecting-return'
-      | 'done'
-      | 'aborted';
-    /** 0..1 overall progress (rail completion + post-process). */
-    progress: number;
-    /** Live frame counter (current pass). */
-    frameCount: number;
-    startedAtMs: number | null;
-    elapsedMs: number;
-    /** Detection counts updated after each detector run. */
-    totals: {
-      fruitCount: number;
-      bins: { green: number; breaker: number; turning: number; pink: number; red: number };
-      avgConfidence: number;
-    };
-    /** Last successful side's panorama key (for live preview). */
-    lastPanoramaKey: string | null;
-    /** Selected detector id (persisted via local set). */
-    detectorId: 'hsv-v1' | 'onnx-yolo-v1' | 'ground-truth';
-    /** ONNX model download progress 0..1 (only meaningful for onnx-yolo-v1). */
-    detectorLoadProgress: number;
-    /** Detections projected into world space for live PiP overlay.
-     *  worldY ≈ mid-plant height (1.5 m), worldZ = bedZ of the scanned side. */
-    liveDetections: Array<{
-      worldX: number;
-      worldY: number;
-      worldZ: number;
-      bin: 'green' | 'breaker' | 'turning' | 'pink' | 'red';
-      confidence: number;
-    }>;
-  };
+  phenotypingSurvey: PhenotypingSurveyState;
   surveySetStatus: (s: 'idle' | 'running' | 'paused' | 'done') => void;
   surveySetPhase: (p: 'idle' | 'traversing-forward' | 'stitching-forward' | 'detecting-forward' | 'traversing-return' | 'stitching-return' | 'detecting-return' | 'done' | 'aborted') => void;
   surveySetProgress: (p: number) => void;
@@ -659,13 +659,13 @@ interface TwinState {
     bin: 'green' | 'breaker' | 'turning' | 'pink' | 'red';
     confidence: number;
   }>) => void;
+  surveySetPipMode: (m: 'stream' | 'in-canvas') => void;
   surveyReset: () => void;
 
   // -- Boot progress + notifications + live log + env --
   boot: BootSnapshot;
   notifications: Notification[];
-  // Iter 35: busy 필드 + BusyIndicator UI 제거 (사용자 결정).
-  /** 단계 진입. 이전 단계는 자동으로 completedAt 채움. */
+  /** Enter a stage. The previous stage's `completedAt` is filled automatically. */
   setBootStage: (stage: BootStage, detail?: string, progress?: number) => void;
   /** 현재 단계의 detail / progress / subCounters 갱신 (단계 변경 없음). */
   updateStageDetail: (
@@ -705,14 +705,15 @@ function readQualityFromUrl(): number | null {
   return Math.max(1, Math.min(10, n));
 }
 
-// Iter 31 — default boot quality 8 (사용자: "1단계는 너무 안보임").
-//   localStorage에 이전 저장된 renderQuality < 5는 _무시_ (낮은 화질 fallback 방지).
+// Default boot quality 8 — quality 1 looks indistinct.  localStorage values
+// below 5 are ignored to avoid silently falling back to a low-quality view.
 const BOOT_QUALITY = readQualityFromUrl() ?? 8;
 
 /**
- * ★ Iter 39 Phase J0-1 — Isolated Leaf Debug Mode boot 진입점.
+ * Isolated Leaf Debug Mode boot entrypoint.
  *   URL: `?debug=isolatedLeaf&mode=strict&leafId=axis0:n8`
- *   mode 누락 시 'strict' 기본, leafId 누락 시 null (첫 visible leaf로 fallback).
+ *   `mode` missing → 'strict'; `leafId` missing → null (falls back to first
+ *   visible leaf).
  */
 function readIsolatedLeafModeFromUrl(): {
   mode: 'off' | 'strict' | 'context';
@@ -761,9 +762,8 @@ function loadPersistedLighting(): PersistedLighting {
     if (p.lighting && typeof p.lighting === 'object') {
       out.lighting = p.lighting as Partial<LightingState>;
     }
-    // Iter 31 — quality < 5 (이전 saved 1~4단계)는 _무시_ — BOOT_QUALITY로 fallback.
-    // 사용자 명시: "1단계는 너무 안보인다". 사용자가 의도적으로 dial-down한 경우는
-    // 5 이상에서 보존됨 (5는 의식적 선택). 1~4는 default 미인지 케이스로 간주.
+    // quality < 5 is ignored — those are treated as accidental dial-downs.
+    // 5+ is preserved as an intentional choice.
     if (typeof p.renderQuality === 'number' && p.renderQuality >= 5 && p.renderQuality <= 10) {
       out.renderQuality = Math.round(p.renderQuality);
     }
@@ -791,8 +791,6 @@ const PERSISTED_SKELETON = loadPersistedSkeleton();
 const EFFECTIVE_QUALITY = PERSISTED.renderQuality ?? BOOT_QUALITY;
 
 export const useTwinStore = create<TwinState>((set) => ({
-  // Iter 35 PR 4 Phase Q2: 26+ legacy fields 제거 (호출처 0 audit 후).
-
   windStrength: 0.5,
   flutterStrength: 0.6,
   windDirection: [1, 0, 0.3],
@@ -844,22 +842,17 @@ export const useTwinStore = create<TwinState>((set) => ({
   setRenderFX: (patch) =>
     set((s) => ({ renderFX: { ...s.renderFX, ...patch } })),
 
-  // Iter 35 PR 4 Phase Q2: setDay/togglePlay/setPlaySpeed + select* + toggle* +
-  //   setCameraPreset + mode/setMode 모두 제거 (호출처 0).
-
   // -- Single-Plant mode --
-  // Default scrub: day 45 noon — mid-growth, multiple trusses active,
-  // good showcase for the timeline / inspector.
-  // Iter 35 PR 2 Phase M: D=100 (mature plant — 사용자 결정).
+  // Default scrub: D=100 (mature plant — multiple trusses active, good
+  // showcase for the timeline / inspector).
   singlePlantMinute: 100 * 24 * 60 + 12 * 60,
   singlePlantPlaying: false,
   singlePlantSpeed: 4,
-  // Iter 35 PR 2 Phase J: chart/metrics/inspector defaults 제거.
   singlePlantCamera: 'free',
   showSkeleton: false,
   setShowSkeleton: (v) => set({ showSkeleton: v }),
-  // ★ Iter 39 Phase J0-1 — Isolated Leaf Debug Mode (Mode A strict / Mode B context).
-  //   기본 off — production은 모든 organ 보임. URL param `?debug=isolatedLeaf` 진입.
+  // Isolated Leaf Debug Mode — opt-in via `?debug=isolatedLeaf` URL param.
+  // Default 'off' so production shows every organ.
   isolatedLeafMode: BOOT_ISOLATED_LEAF,
   setIsolatedLeafMode: (patch) => set((s) => ({
     isolatedLeafMode: { ...s.isolatedLeafMode, ...patch },
@@ -876,7 +869,7 @@ export const useTwinStore = create<TwinState>((set) => ({
   openDrawer: null,
   setOpenDrawer: (d) => set({ openDrawer: d }),
 
-  // Iter 35 Phase F — multi-plant 확장 API (현재 1, Iter 36 slider 1~N).
+  // Multi-plant extension API — fixed at 1 today; slider UI for 1..N will land later.
   singlePlantCount: 1,
   setSinglePlantCount: (n) =>
     set({ singlePlantCount: Math.max(1, Math.min(64, Math.round(n))) }),
@@ -886,23 +879,22 @@ export const useTwinStore = create<TwinState>((set) => ({
   setSinglePlantPlaying: (p) => set({ singlePlantPlaying: p }),
   setSinglePlantSpeed: (s) => set({ singlePlantSpeed: s }),
 
-  // D11 — EE 카메라 산업 사양 default.
+  // EE-camera industry-spec defaults.
   eeCameraParams: {
-    mountHeightCmAboveBed: 25, // 튜브레일 위치 = 베드 substrate top + 25cm
-    workingDistanceM: 1.8,      // 식물 전체 (~2.4m) 보이도록 약간 멀게
-    fovDeg: 60,                  // 산업용 RGB 표준
+    mountHeightCmAboveBed: 25,  // tube rail = bed substrate top + 25cm
+    workingDistanceM: 1.8,       // far enough that the whole ~2.4m plant fits
+    fovDeg: 60,                  // industry RGB standard
     bedTopY: 1.062,              // CocopeatBags.ts SUBSTRATE_TOP_Y
-    targetY: 1.8,                // 식물 중심 (베드 위 ~0.75m, 식물 D70 기준)
+    targetY: 1.8,                // plant center (~0.75m above bed at D70)
   },
   setEeCameraParam: (key, value) =>
     set((state) => ({ eeCameraParams: { ...state.eeCameraParams, [key]: value } })),
   setSinglePlantCamera: (c) => set({ singlePlantCamera: c }),
-  // Iter 35 PR 2 Phase J + K: chart/metrics/inspector/topFilter setters 제거.
 
-  // Iter 31 Phase R — 로봇 + 짐벌 카메라 수동 제어 슬라이스.
+  // Robot + gimbal manual-control slice.
   robot: {
     mode: 'auto',
-    speedMps: 0.3, // sceneOptions.traverseSpeedMps default — boot 시 setRobotSpeed로 덮어씀
+    speedMps: 0.3,  // sceneOptions.traverseSpeedMps default; setRobotSpeed overrides at boot
     gimbal: {
       panRad: 0,
       pitchRad: 0,
@@ -966,68 +958,22 @@ export const useTwinStore = create<TwinState>((set) => ({
   viewingSurveyId: null,
   setViewingSurveyId: (id) => set({ viewingSurveyId: id }),
 
-  phenotypingSurvey: {
-    status: 'idle',
-    phase: 'idle',
-    progress: 0,
-    frameCount: 0,
-    startedAtMs: null,
-    elapsedMs: 0,
-    totals: { fruitCount: 0, bins: { green: 0, breaker: 0, turning: 0, pink: 0, red: 0 }, avgConfidence: 0 },
-    lastPanoramaKey: null,
-    detectorId: 'hsv-v1',
-    detectorLoadProgress: 0,
-    liveDetections: [],
-  },
-  surveySetStatus: (status) =>
-    set((s) => {
-      const startedAtMs = status === 'running' && s.phenotypingSurvey.startedAtMs == null
-        ? performance.now()
-        : s.phenotypingSurvey.startedAtMs;
-      const elapsedMs = startedAtMs == null ? 0 : performance.now() - startedAtMs;
-      return { phenotypingSurvey: { ...s.phenotypingSurvey, status, startedAtMs, elapsedMs } };
-    }),
-  surveySetPhase: (phase) =>
-    set((s) => ({ phenotypingSurvey: { ...s.phenotypingSurvey, phase } })),
-  surveySetProgress: (progress) =>
-    set((s) => ({ phenotypingSurvey: { ...s.phenotypingSurvey, progress: Math.max(0, Math.min(1, progress)) } })),
-  surveySetFrameCount: (frameCount) =>
-    set((s) => ({ phenotypingSurvey: { ...s.phenotypingSurvey, frameCount } })),
-  surveySetTotals: (totals) =>
-    set((s) => {
-      const startedAtMs = s.phenotypingSurvey.startedAtMs;
-      const elapsedMs = startedAtMs == null ? 0 : performance.now() - startedAtMs;
-      return { phenotypingSurvey: { ...s.phenotypingSurvey, totals, elapsedMs } };
-    }),
-  surveySetLastPanoramaKey: (k) =>
-    set((s) => ({ phenotypingSurvey: { ...s.phenotypingSurvey, lastPanoramaKey: k } })),
-  surveySetDetectorId: (id) =>
-    set((s) => ({ phenotypingSurvey: { ...s.phenotypingSurvey, detectorId: id } })),
-  surveySetDetectorLoadProgress: (p) =>
-    set((s) => ({ phenotypingSurvey: { ...s.phenotypingSurvey, detectorLoadProgress: Math.max(0, Math.min(1, p)) } })),
-  surveyAppendLiveDetections: (items) =>
-    set((s) => ({
-      phenotypingSurvey: {
-        ...s.phenotypingSurvey,
-        liveDetections: [...s.phenotypingSurvey.liveDetections, ...items],
-      },
-    })),
-  surveyReset: () =>
-    set((s) => ({
-      phenotypingSurvey: {
-        status: 'idle',
-        phase: 'idle',
-        progress: 0,
-        frameCount: 0,
-        startedAtMs: null,
-        elapsedMs: 0,
-        totals: { fruitCount: 0, bins: { green: 0, breaker: 0, turning: 0, pink: 0, red: 0 }, avgConfidence: 0 },
-        lastPanoramaKey: null,
-        detectorId: s.phenotypingSurvey.detectorId,  // preserve user selection
-        detectorLoadProgress: 0,
-        liveDetections: [],
-      },
-    })),
+  // Phenotyping slice — owned by `phenotypingStore`.  This slice mirrors
+  // it for back-compat with `useTwinStore(s => s.phenotypingSurvey…)`;
+  // a subscriber at the bottom of this file keeps the mirror fresh.
+  // New code should subscribe to `usePhenotypingStore` directly.
+  phenotypingSurvey: usePhenotypingStore.getState().state,
+  surveySetStatus: (s) => usePhenotypingStore.getState().setStatus(s),
+  surveySetPhase: (p) => usePhenotypingStore.getState().setPhase(p),
+  surveySetProgress: (p) => usePhenotypingStore.getState().setProgress(p),
+  surveySetFrameCount: (n) => usePhenotypingStore.getState().setFrameCount(n),
+  surveySetTotals: (t) => usePhenotypingStore.getState().setTotals(t),
+  surveySetLastPanoramaKey: (k) => usePhenotypingStore.getState().setLastPanoramaKey(k),
+  surveySetDetectorId: (id) => usePhenotypingStore.getState().setDetectorId(id),
+  surveySetDetectorLoadProgress: (p) => usePhenotypingStore.getState().setDetectorLoadProgress(p),
+  surveyAppendLiveDetections: (items) => usePhenotypingStore.getState().appendLiveDetections(items),
+  surveySetPipMode: (m) => usePhenotypingStore.getState().setPipMode(m),
+  surveyReset: () => usePhenotypingStore.getState().reset(),
 
   // -- Boot progress + notifications + live log + env --
   boot: {
@@ -1166,6 +1112,18 @@ export const useTwinStore = create<TwinState>((set) => ({
 
   clearNotifications: () => set({ notifications: [] }),
 }));
+
+// Mirror phenotypingStore → twinStore.phenotypingSurvey for back-compat
+// with `useTwinStore(s => s.phenotypingSurvey…)` selectors.  Runs on every
+// phenotypingStore.setState; fires inside the existing React batch.
+usePhenotypingStore.subscribe((s) => {
+  useTwinStore.setState({ phenotypingSurvey: s.state });
+});
+
+// Dev/probe hook — Playwright probes read survey/robot state via __twinStore.
+if (typeof window !== 'undefined') {
+  (window as unknown as { __twinStore: typeof useTwinStore }).__twinStore = useTwinStore;
+}
 
 // ===========================================================================
 // Auto-persist lighting + renderQuality to localStorage

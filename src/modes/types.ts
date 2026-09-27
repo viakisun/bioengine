@@ -1,10 +1,8 @@
-// ★ S136 (Iter 41) — Mode 시스템 타입.
+// Mode system types.
 //
-// 사용자 v3: "GreenHouse Mode, SinglePlant Mode를 진입점에 놓고,
-//   향후 모드가 여러 형태로 추가될 수 있는 것을 고려해서 만들면 좋을거 같아."
-//
-// 진입점 architecture: App.tsx → ModeSelector → 선택 mode → Scene build.
-// Registry pattern으로 확장 가능 (Robot, Sandbox 등 후속 mode 추가 용이).
+// Entry-point architecture: App.tsx → ModeSelector → selected mode →
+// Scene build.  Registry pattern keeps the door open for new modes
+// (Robot, Sandbox, …) without touching the selector.
 //
 // S1.b (RFP §15) — Workbench·Foundry·Twin 3 모드 추가.
 //   기존 'single-plant'·'greenhouse'는 호환성 보존.

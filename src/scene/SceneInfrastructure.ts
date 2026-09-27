@@ -1,7 +1,6 @@
-// SceneInfrastructure — Iter 35 single-plant scene host.
+// SceneInfrastructure — single-plant scene host.
 //
-// Iter 35 PR 2 Phase I: SkinMeshPlant이 _기본 visible_ (사용자 결정 — "skin이
-// 메인"). ShowcasePlant 완전 제거 (archive). 단일 plant = SkinMeshPlant.
+// SkinMeshPlant is the only plant renderer and is visible by default.
 
 import { Scene } from '@babylonjs/core/scene';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
@@ -28,7 +27,7 @@ import {
 import { createBedStands } from './greenhouse/BedStands';
 import { createTubeRail } from './greenhouse/TubeRail';
 
-// Showcase seed — Iter 33 V1 baseline. 별도 파일 분리 (순환 import 회피).
+// Showcase seed lives in its own file to avoid a circular import.
 export { SHOWCASE_SEED } from './showcaseSeed';
 import { SHOWCASE_SEED } from './showcaseSeed';
 
@@ -45,8 +44,8 @@ export const SUBSTRATE_TOP_Y = SCENARIO.bedY + 0.10 + 0.012;
 
 export interface SceneInfrastructureHandle {
   growthEngine: GrowthEngine;
-  /** Iter 35 PR 2: SkinMeshPlant — primary plant renderer.
-   *  SDF + marching cubes single watertight stem mesh. Default visible. */
+  /** SkinMeshPlant — primary plant renderer.  SDF + marching cubes
+   *  produce a single watertight stem mesh; visible by default. */
   skinMeshPlant: SkinMeshPlantHandle;
   /** ★ S118 — multi-plant 추가 (포트 건너뛰며 심기). */
   extraPlants: SkinMeshPlantHandle[];

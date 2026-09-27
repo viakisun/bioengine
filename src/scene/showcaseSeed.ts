@@ -1,5 +1,5 @@
-// Iter 33 V1 baseline seed — 순환 import 회피 위해 별도 파일로 분리.
-//   SceneInfrastructure 와 useSinglePlantState 둘 다 의존.
+// Showcase seed — lives in its own file because both SceneInfrastructure
+// and useSinglePlantState import it.
 
 const SHOWCASE_SEED_DEFAULT = 20260520;
 

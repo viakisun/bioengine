@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 540" font-family="Apple SD Gothic Neo, -apple-system, Helvetica, sans-serif" font-size="12">
+  <style>
+    .box      { fill:#fff; stroke:#000; stroke-width:1.2; }
+    .box-emp  { fill:#e8e8e8; stroke:#000; stroke-width:1.2; }
+    .box-dash { fill:#fff; stroke:#000; stroke-width:1.2; stroke-dasharray:5,3; }
+    .label    { fill:#000; font-weight:700; text-anchor:middle; font-size:12px; }
+    .sub      { fill:#333; font-size:9.5px; text-anchor:middle; }
+    .code     { fill:#000; font-family:'SF Mono', Menlo, monospace; font-size:9px; text-anchor:middle; }
+    .arrow    { fill:none; stroke:#000; stroke-width:1.4; marker-end:url(#a); }
+    .arrow-thin { fill:none; stroke:#444; stroke-width:0.8; marker-end:url(#a); stroke-dasharray:4,2; }
+    .title    { fill:#000; font-weight:700; font-size:15px; text-anchor:middle; }
+    .lane     { fill:#000; font-weight:700; font-size:10px; text-anchor:start; letter-spacing:0.5px; }
+    .lane-rule { fill:none; stroke:#888; stroke-width:0.4; stroke-dasharray:3,3; }
+    .anno     { fill:#444; font-size:9px; text-anchor:middle; }
+  </style>
+  <defs>
+    <marker id="a" markerWidth="11" markerHeight="11" refX="10" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,10 L10,5 Z" fill="#000"/>
+    </marker>
+  </defs>
+
+  <text x="490" y="28" class="title">카메라 스트림 + Web Worker 디텍션 파이프라인</text>
+
+  <!-- Lanes -->
+  <line x1="40" y1="65" x2="960" y2="65" class="lane-rule"/>
+  <line x1="40" y1="200" x2="960" y2="200" class="lane-rule"/>
+  <line x1="40" y1="345" x2="960" y2="345" class="lane-rule"/>
+
+  <text x="50" y="80" class="lane">PRODUCER  (Main Thread)</text>
+  <text x="50" y="215" class="lane">TRANSPORT</text>
+  <text x="50" y="360" class="lane">CONSUMER  (UI / Worker)</text>
+
+  <!-- Producer lane: Gimbal cam -> capture -> encode -->
+  <rect x="60" y="100" width="180" height="80" rx="2" class="box"/>
+  <text x="150" y="125" class="label">Gimbal Camera</text>
+  <text x="150" y="143" class="sub">BabylonEngine viewport</text>
+  <text x="150" y="161" class="code">frameCapture.ts</text>
+
+  <rect x="300" y="100" width="180" height="80" rx="2" class="box"/>
+  <text x="390" y="125" class="label">Frame Encoder</text>
+  <text x="390" y="143" class="sub">canvas → JPEG (q=0.7)</text>
+  <text x="390" y="161" class="code">stream/producer.ts</text>
+
+  <rect x="540" y="100" width="180" height="80" rx="2" class="box"/>
+  <text x="630" y="125" class="label">Pose Header</text>
+  <text x="630" y="143" class="sub">FramePoseHeader (40B)</text>
+  <text x="630" y="161" class="code">streamProtocol.ts</text>
+
+  <rect x="780" y="100" width="160" height="80" rx="2" class="box"/>
+  <text x="860" y="125" class="label">WS Frame Pack</text>
+  <text x="860" y="143" class="sub">header + jpeg</text>
+
+  <!-- Transport lane -->
+  <rect x="280" y="240" width="420" height="70" rx="2" class="box-emp"/>
+  <text x="490" y="266" class="label">MJPEG over WebSocket</text>
+  <text x="490" y="284" class="sub">ws://localhost:8090/__stream/gimbal</text>
+  <text x="490" y="300" class="sub">~30 fps, binary frame</text>
+
+  <!-- Consumer lane: Receiver -> Detector -> Overlay -->
+  <rect x="60" y="370" width="180" height="80" rx="2" class="box"/>
+  <text x="150" y="395" class="label">WS Receiver</text>
+  <text x="150" y="413" class="sub">stream/consumer.ts</text>
+  <text x="150" y="431" class="code">FrameBuffer</text>
+
+  <rect x="300" y="370" width="180" height="80" rx="2" class="box"/>
+  <text x="390" y="395" class="label">Detection Worker</text>
+  <text x="390" y="413" class="sub">onnxruntime-web</text>
+  <text x="390" y="431" class="code">detectionWorker.ts</text>
+
+  <rect x="540" y="370" width="180" height="80" rx="2" class="box"/>
+  <text x="630" y="395" class="label">HSV Classifier</text>
+  <text x="630" y="413" class="sub">5-band ripeness</text>
+  <text x="630" y="431" class="code">ripenessClassifier.ts</text>
+
+  <rect x="780" y="370" width="160" height="80" rx="2" class="box"/>
+  <text x="860" y="395" class="label">PiP Overlay</text>
+  <text x="860" y="413" class="sub">canvas 2D draw</text>
+  <text x="860" y="431" class="code">PipFrame.tsx</text>
+
+  <!-- Arrows -->
+  <line x1="240" y1="140" x2="298" y2="140" class="arrow"/>
+  <line x1="480" y1="140" x2="538" y2="140" class="arrow"/>
+  <line x1="720" y1="140" x2="778" y2="140" class="arrow"/>
+
+  <!-- producer -> transport -->
+  <line x1="860" y1="180" x2="700" y2="240" class="arrow"/>
+
+  <!-- transport -> consumer -->
+  <line x1="280" y1="305" x2="150" y2="370" class="arrow"/>
+
+  <!-- consumer chain -->
+  <line x1="240" y1="410" x2="298" y2="410" class="arrow"/>
+  <line x1="480" y1="410" x2="538" y2="410" class="arrow"/>
+  <line x1="720" y1="410" x2="778" y2="410" class="arrow"/>
+
+  <!-- annotation -->
+  <text x="490" y="500" class="anno">Headerless tolerance: header 결손 시 빈 frame 1회 skip, 3회 연속 결손 시 재연결 시도</text>
+  <text x="490" y="516" class="anno">디텍션 결과는 worker postMessage 로 main thread 로 환원되어 PiP overlay 와 결과 시트에 동시 반영</text>
+</svg>

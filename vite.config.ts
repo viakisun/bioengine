@@ -1,9 +1,10 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
 import react from '@vitejs/plugin-react';
+import { camStreamPlugin } from './tooling/vite/plugins/camStream';
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), camStreamPlugin()],
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),

@@ -1,0 +1,142 @@
+{
+  "package": {
+    "work_type": "hardware_prototype",
+    "output_prefix": "AMR_HARDWARE",
+    "doc_set_name": "저상형 메카넘 AMR 하드웨어 플랫폼 시제품 제작 증빙 문서"
+  },
+  "project": {
+    "number": "RS-2025-25460711",
+    "name": "(1세부) 무인자율 농작업을 위한 개방형 A-SW, 통합제어기 및 서비스 플랫폼 개발",
+    "period": "2025.08.01 ~ 2029.12.31",
+    "lead_org": "한국생산기술연구원",
+    "performing_org": "비아"
+  },
+  "work": {
+    "title": "저상형 메카넘 AMR 하드웨어 플랫폼 시제품 제작",
+    "short_item_name": "저상형 메카넘 AMR 하드웨어 플랫폼 시제품 제작",
+    "purpose": "비아가 개발·적용할 A-SW 서비스 플랫폼 및 ROS2 기반 제어 소프트웨어의 실증·검증에 활용할 저상형 메카넘 AMR 하드웨어 플랫폼 시제품을 제작한다.",
+    "background": "A-SW 서비스 플랫폼은 자율주행 로봇 프로젝트 수행 과정에서 발생하는 도면, BOM, 소스코드, 빌드 산출물, 컨트롤러별 배포 이력, 시험·운용 로그, 납품자료 및 검수자료를 프로젝트 단위로 관리하는 것을 목표로 한다. 문서상 예제 또는 가상 프로젝트만으로는 기능 검증에 한계가 있으므로 실제 구동 하드웨어, 전장부, 도면자료, 납품자료 및 검수자료를 포함할 수 있는 기준 프로젝트가 필요하다.",
+    "business_relevance": "본 시제품 제작은 과제 수행 과정에서 개발 중인 A-SW 서비스 플랫폼 및 통합제어기 연계 기능을 실제 하드웨어 기반으로 검증하기 위한 연구재료 제작에 해당한다.",
+    "vendor_scope": [
+      "저상형 AMR 프레임, 외장, 브라켓 및 제어기 탑재 가능 구조 제작",
+      "4륜 메카넘 휠 기반 전방향 구동부 구성",
+      "모터, 감속기, 모터 드라이브 장착 및 기본 구동 가능 상태 구성",
+      "배터리, MC, 전원 배선, 통신 배선 등 전장부 구성",
+      "RS485 기반 구동부 제어 관련 통신자료 및 모터 방향 정의 정리",
+      "BOM, 사양서, 도면자료, 전장회로도, 모터드라이버 및 MDAS 관련 자료 제출",
+      "납품 본체 외관, 구동부, 조작부 확인 사진 제출"
+    ],
+    "internal_scope": [
+      "A-SW 서비스 플랫폼 프로젝트 등록",
+      "비아 개발 ROS2 패키지, 드라이버, launch/config 파일 등록",
+      "빌드 산출물 및 컨트롤러별 배포 이력 관리",
+      "실차 시험 항목 정의 및 시험 로그 관리",
+      "납품문서 정리본, 검수확인서, 완료보고서 작성 및 정산 증빙 관리"
+    ],
+    "excluded_scope": [
+      "자율주행 알고리즘 고도화",
+      "ROS2 응용 소프트웨어 개발",
+      "A-SW 서비스 플랫폼 개발",
+      "농작업 어태치먼트 제작",
+      "양산 설계 및 인증 시험",
+      "장기 내구시험"
+    ],
+    "specifications": [
+      {"item": "형식", "value": "저상형 메카넘 AMR 하드웨어 플랫폼"},
+      {"item": "구동 방식", "value": "4륜 메카넘 휠 기반 전방향 구동"},
+      {"item": "외형 규격", "value": "약 794.6 mm × 1,110 mm × 462.6 mm"},
+      {"item": "중량", "value": "약 140 kg"},
+      {"item": "휠", "value": "8 inch 메카넘 휠 4EA"},
+      {"item": "모터", "value": "DC 24 V, 200 W, 3,000 RPM, 4EA"},
+      {"item": "감속기", "value": "감속비 1/20"},
+      {"item": "모터 드라이브", "value": "듀얼 채널 모터 드라이브 2EA"},
+      {"item": "통신", "value": "RS485 기반 구동부 제어"},
+      {"item": "배터리", "value": "12 V 100 Ah 납축전지 2EA, DC 24 V 구성"},
+      {"item": "MC", "value": "100 A / DC 24 V, 1EA"},
+      {"item": "활용 SW", "value": "비아 개발 A-SW 플랫폼 및 ROS2 기반 제어 소프트웨어"}
+    ],
+    "verification_scope": [
+      {"area": "프로젝트 등록 검증", "use": "A-SW 서비스 플랫폼에 실제 하드웨어 제작 건을 기준 프로젝트로 등록하고 문서·자료 체계를 확인", "owner": "비아"},
+      {"area": "도면 관리 검증", "use": "외형도, 구동부 조립도, 전장회로도를 프로젝트 산출물로 등록하고 버전·파일명 관리 흐름 확인", "owner": "비아"},
+      {"area": "부품정보 관리 검증", "use": "BOM과 주요 부품 사양을 기준으로 연구재료 구성정보 입력 및 조회 흐름 확인", "owner": "비아"},
+      {"area": "구동자료 관리 검증", "use": "모터드라이버 통신사양, 매뉴얼, MDAS 및 src 자료를 구동부 관련 기술자료로 등록", "owner": "비아"},
+      {"area": "빌드·배포 이력 검증", "use": "비아 개발 ROS2 패키지, launch/config 파일 및 컨트롤러별 배포 이력을 시험 프로젝트에 연결", "owner": "비아"},
+      {"area": "실차 시험 준비", "use": "시제품 본체를 활용하여 구동부 연동, 로그 수집 및 시험 항목 관리 체계 확인", "owner": "비아"},
+      {"area": "납품·검수자료 관리", "use": "납품문서 정리본, 검수확인서, 완료보고서를 정산 증빙 흐름과 연결", "owner": "비아"}
+    ],
+    "deliverables": [
+      {"name": "AMR 하드웨어 플랫폼 시제품 본체", "description": "저상형 메카넘 AMR 본체, 구동부, 전장부, 배터리 포함", "file_hint": "실물 납품 1식"},
+      {"name": "BOM", "description": "구동부 및 주요 구성품 목록", "file_hint": "01_BOM_AMR_MODEL2_구동부.xlsx"},
+      {"name": "사양서", "description": "AMR MODEL 2 제안 사양 및 주요 부품 사양", "file_hint": "02_사양서_AMR_MODEL2.docx"},
+      {"name": "도면자료", "description": "외형도, 구동부 조립도, 관련 도면자료", "file_hint": "03_도면자료_통합_AMR_MODEL2.pdf, 03_도면자료_개별/"},
+      {"name": "전장회로도", "description": "PC-Drive 통신결선도, BLDC Motor Circuit, Main Power Line", "file_hint": "03_도면자료_개별/03-03-01_회로도_PC_Drive_통신결선도.png, 03_도면자료_개별/03-03-02_회로도_BLDC_Motor_Circuit.png, 03_도면자료_개별/03-03-03_회로도_Main_Power_Line.png"},
+      {"name": "모터드라이버 및 MDAS 자료", "description": "모터드라이버 통신사양, 모터드라이버 매뉴얼, MDAS 및 src 자료", "file_hint": "04_소스파일_및_모터드라이버_매뉴얼/"},
+      {"name": "검수사진", "description": "시제품 외관, 측면 메카넘 휠, 조작부 및 비상정지 버튼 사진", "file_hint": "검수확인서 별첨 사진"}
+    ],
+    "inspection_criteria": [
+      {"item": "본체 납품", "criteria": "저상형 메카넘 AMR 하드웨어 플랫폼 시제품 본체 1식 납품 여부"},
+      {"item": "외관 상태", "criteria": "외장 패널, 프레임, 체결부 및 상부·측면 외관 확인"},
+      {"item": "구동부 구성", "criteria": "메카넘 휠, 휠 커버, 하부 프레임 및 구동부 장착 상태 확인"},
+      {"item": "조작부 구성", "criteria": "조작부, 커넥터, 비상정지 버튼 등 외부 접근부 구성 확인"},
+      {"item": "BOM·사양서", "criteria": "01_BOM_AMR_MODEL2_구동부.xlsx, 02_사양서_AMR_MODEL2.docx 제출 확인"},
+      {"item": "도면자료", "criteria": "03_도면자료_통합_AMR_MODEL2.pdf 및 개별 도면·전장회로도 제출 확인"},
+      {"item": "구동자료", "criteria": "모터드라이버 통신사양, 모터드라이버 매뉴얼, MDAS 및 src 자료 제출 확인"},
+      {"item": "검수사진", "criteria": "시제품 외관, 측면 메카넘 휠, 조작부 및 비상정지 버튼 사진 확인"}
+    ],
+    "inspection_photos": [
+      {"caption": "사진 1. 시제품 본체 상부 및 측면 외관", "path": "C:\\Users\\kisun\\AppData\\Local\\Temp\\codex-clipboard-86e1a6ca-ef8e-475f-b934-768daa11a0bc.png"},
+      {"caption": "사진 2. 시제품 본체 반대측 외관", "path": "C:\\Users\\kisun\\AppData\\Local\\Temp\\codex-clipboard-d982ef20-edba-49de-986c-ddc7cb3d8e14.png"},
+      {"caption": "사진 3. 측면 메카넘 휠 및 외장 패널", "path": "C:\\Users\\kisun\\AppData\\Local\\Temp\\codex-clipboard-2d27319a-41cc-42b3-a5aa-7d786b6f0213.png"},
+      {"caption": "사진 4. 조작부, 비상정지 버튼 및 전면부 구성", "path": "C:\\Users\\kisun\\AppData\\Local\\Temp\\codex-clipboard-617b4081-8d76-44a0-b475-490b83dd22ae.png"}
+    ],
+    "expected_effects": [
+      "실제 하드웨어 기반의 A-SW 서비스 플랫폼 프로젝트 등록 및 산출물 관리 검증",
+      "도면, BOM, 구동자료, 검수자료를 포함한 연구개발 산출물 관리 시나리오 확보",
+      "비아 개발 ROS2 패키지와 컨트롤러별 배포 이력, 시험 로그 관리 흐름 검증",
+      "정부연구개발사업 연구재료비 집행 목적과 납품·검수·완료 증빙 체계 정비"
+    ],
+    "followup_documents": [
+      "과업지시서",
+      "견적서",
+      "발주서",
+      "계약서",
+      "거래명세서",
+      "전자세금계산서",
+      "사업자등록증",
+      "통장사본",
+      "검수확인서",
+      "완료보고서"
+    ]
+  },
+  "vendor": {
+    "name": "정원에스에프에이",
+    "business_no": "",
+    "representative": "",
+    "address": ""
+  },
+  "schedule": {
+    "memo_date": "2026.03.25",
+    "task_order_date": "2026.03.26",
+    "quote_date": "2026.03.27",
+    "order_date": "2026.04.01",
+    "contract_date": "2026.04.01",
+    "contract_period": "2026.04.01 ~ 2026.06.30",
+    "delivery_due_date": "2026.06.30",
+    "delivery_date": "2026.06.18",
+    "inspection_date": "2026.06.19",
+    "completion_date": "2026.06.19",
+    "payment_date": ""
+  },
+  "money": {
+    "supply": 24000000,
+    "vat": 2400000,
+    "total": 26400000,
+    "budget_item": "직접비 / 연구재료비 / 연구재료 제작비"
+  },
+  "rules": {
+    "memo_exclude_vendor": true,
+    "memo_exclude_amount": true,
+    "task_order_exclude_amount": true,
+    "forbidden_terms": ["테스트키트", "A-SW 서비스 플랫폼 실증용", "ROS2 기반 저상형", "Autonomus"]
+  }
+}

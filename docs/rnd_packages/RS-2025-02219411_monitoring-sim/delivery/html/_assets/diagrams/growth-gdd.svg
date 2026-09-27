@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 420" font-family="Apple SD Gothic Neo, -apple-system, Helvetica, sans-serif" font-size="11">
+  <style>
+    .ax { fill:none; stroke:#000; stroke-width:0.8; }
+    .grid { fill:none; stroke:#ccc; stroke-width:0.4; }
+    .lbl { fill:#000; }
+    .ax-lbl { fill:#000; font-weight:600; font-size:11px; }
+    .title { fill:#000; font-weight:700; font-size:14px; text-anchor:middle; }
+    .sim { fill:none; stroke:#000; stroke-width:1.5; }
+    .target-band { fill:#ddd; opacity:0.5; }
+    .anno { fill:#444; font-size:9px; }
+    .ann-arrow { fill:none; stroke:#666; stroke-width:0.6; marker-end:url(#tip); }
+  </style>
+  <defs>
+    <marker id="tip" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L0,8 L8,4 Z" fill="#666"/>
+    </marker>
+  </defs>
+
+  <text x="360" y="22" class="title">차트 1.  누적 Thermal Time (GDD) — 22°C 환경, 120일</text>
+
+  <!-- Plot area: x=60..680, y=60..360 -->
+  <line x1="60" y1="60" x2="60" y2="360" class="ax"/>
+  <line x1="60" y1="360" x2="680" y2="360" class="ax"/>
+
+  <!-- X axis ticks (day) -->
+  <g class="lbl" text-anchor="middle">
+    <line x1="60"  y1="360" x2="60"  y2="365" class="ax"/><text x="60"  y="380">0</text>
+    <line x1="184" y1="360" x2="184" y2="365" class="ax"/><text x="184" y="380">25</text>
+    <line x1="308" y1="360" x2="308" y2="365" class="ax"/><text x="308" y="380">50</text>
+    <line x1="432" y1="360" x2="432" y2="365" class="ax"/><text x="432" y="380">75</text>
+    <line x1="556" y1="360" x2="556" y2="365" class="ax"/><text x="556" y="380">100</text>
+    <line x1="680" y1="360" x2="680" y2="365" class="ax"/><text x="680" y="380">120</text>
+    <text x="370" y="400" class="ax-lbl">day after transplant</text>
+  </g>
+
+  <!-- Y axis ticks (GDD) -->
+  <g class="lbl" text-anchor="end">
+    <line x1="55" y1="360" x2="60"  y2="360" class="ax"/><text x="50" y="364">0</text>
+    <line x1="55" y1="300" x2="60"  y2="300" class="ax"/><text x="50" y="304">300</text>
+    <line x1="55" y1="240" x2="60"  y2="240" class="ax"/><text x="50" y="244">600</text>
+    <line x1="55" y1="180" x2="60"  y2="180" class="ax"/><text x="50" y="184">900</text>
+    <line x1="55" y1="120" x2="60"  y2="120" class="ax"/><text x="50" y="124">1200</text>
+    <line x1="55" y1="60"  x2="60"  y2="60"  class="ax"/><text x="50" y="64">1500</text>
+  </g>
+  <text x="20" y="210" class="ax-lbl" transform="rotate(-90 20 210)">cumulative GDD</text>
+
+  <!-- Grid -->
+  <g class="grid">
+    <line x1="60" y1="300" x2="680" y2="300"/>
+    <line x1="60" y1="240" x2="680" y2="240"/>
+    <line x1="60" y1="180" x2="680" y2="180"/>
+    <line x1="60" y1="120" x2="680" y2="120"/>
+    <line x1="60" y1="60"  x2="680" y2="60"/>
+  </g>
+
+  <!-- Literature target band at day 120: GDD ≈ 1440 (Heuvelink) — band 1380..1500 -->
+  <rect x="668" y="70.4" width="12" height="13.6" class="target-band"/>
+  <text x="688" y="80" class="anno" text-anchor="start">target ≈1440</text>
+
+  <!-- Simulation curve: linear at 12 GDD/day. point (day, 12*day). Plot region day 0..120 maps to x 60..680. GDD 0..1500 maps to y 360..60. -->
+  <!-- d=0 (0,360), d=120 (1440 GDD), 1440→ y=60+(1500-1440)/1500*(360-60)=60+12=72.  x for d=120: 680 -->
+  <polyline points="60,360 184,300 308,240 432,180 556,120 680,72" class="sim"/>
+
+  <!-- Annotation: 22°C 일정 환경, 1 day = 12 GDD -->
+  <text x="220" y="320" class="anno">slope = 12 GDD/day  (22°C, T_base=10°C, T_max=30°C)</text>
+  <text x="220" y="333" class="anno">CROPGRO 표준 — `growth/ThermalTime.ts:46`</text>
+
+  <!-- Key event markers at TT thresholds -->
+  <circle cx="84"  cy="346.8" r="2.5" fill="#000"/>
+  <text x="92" y="350" class="anno">D 5  TT=60  (seedling vigor)</text>
+
+  <!-- first flower TT 300 → cumulative 300 from start → at day = 25 (point day 25, GDD 300) -->
+  <circle cx="184" cy="300" r="2.5" fill="#000"/>
+  <text x="194" y="294" class="anno">D 25  TT≈300  first flower (cultivar `GDD_to_first_flower`)</text>
+
+  <!-- first red fruit ~ day 80-100 -->
+  <rect x="431" y="55" width="125" height="10" fill="none" stroke="#000" stroke-width="0.5" stroke-dasharray="3,2"/>
+  <text x="494" y="50" class="anno" text-anchor="middle">D 80–100  first red fruit (Reference Pack v0.1)</text>
+</svg>

@@ -1,19 +1,19 @@
 // App — top-level routing.
 //
-// ★ S136 (Iter 41) — Mode 시스템 도입.
-//   App entry → ModeSelector (사용자가 mode + quality 선택)
-//             → 진입 → SceneInfrastructure build + Babylon scene 마운트
-//   현재는 single-plant + greenhouse 두 모드. 향후 registry에 추가하면 자동 확장.
+// Mode system:
+//   App entry → ModeSelector (user picks mode + quality)
+//             → enter → SceneInfrastructure build + Babylon scene mount
+//   Today the registry has `single-plant` + `greenhouse`; new entries
+//   light up automatically.
 //
-//   URL `?mode=single-plant` 또는 `?mode=greenhouse` 시 selector 우회.
-//   기존 Iter 35 single-plant-only flow는 _?mode=single-plant_와 동등.
+//   URL `?mode=<key>` bypasses the selector.
 
 import { lazy, Suspense, useState } from 'react';
 import { usePlantPlayback } from '../hud/usePlantPlayback';
 import '../styles/phytosim.css';
-// ★ S140-B — SinglePlantApp + SinglePlantOverlay lazy-loaded.
-//   EntryScreen / LoadingScreen 만 initial bundle에 포함 → 진입 후 chunk download.
-//   main bundle 2.8MB → entry chunk 작게, mode chunk separate.
+// SinglePlantApp + SinglePlantOverlay lazy-loaded — only EntryScreen +
+// LoadingScreen ship in the initial bundle; the rest comes via mode-chunk
+// download after entry.
 const SinglePlantApp = lazy(() =>
   import('./SinglePlantApp').then((m) => ({ default: m.SinglePlantApp })),
 );
@@ -44,8 +44,8 @@ import { setActiveMode } from '../modes/activeMode';
 const outlineDebug = typeof location !== 'undefined' &&
   new URLSearchParams(location.search).get('outlineDebug') === '1';
 
-/** URL ?mode=X 가 있으면 selector 건너뛰고 바로 진입 (Iter 35 호환).
- *  S1.b (RFP §15) — workbench·foundry·twin 신규 모드 추가. mvp에서는 모두 single-plant scene으로 dispatch. */
+/** URL `?mode=<key>` bypasses the selector.  The workbench / foundry /
+ *  twin shells share the single-plant scene under the hood. */
 function shouldSkipSelector(): boolean {
   if (typeof location === 'undefined') return false;
   const param = new URLSearchParams(location.search).get('mode');

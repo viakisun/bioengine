@@ -1,0 +1,26 @@
+{
+  "document_order": [
+    {"no": "01", "name": "시제품 제작 추진 기안서", "owner": "internal", "default_date_field": "memo_date"},
+    {"no": "02", "name": "과업지시서", "owner": "internal", "default_date_field": "task_order_date"},
+    {"no": "03", "name": "견적서", "owner": "vendor", "default_date_field": "quote_date"},
+    {"no": "04", "name": "발주서", "owner": "internal", "default_date_field": "order_date"},
+    {"no": "05", "name": "계약서", "owner": "both", "default_date_field": "contract_date"},
+    {"no": "06", "name": "사업자등록증 및 통장사본", "owner": "vendor", "default_date_field": "contract_date"},
+    {"no": "07", "name": "거래명세서", "owner": "vendor", "default_date_field": "delivery_date"},
+    {"no": "08", "name": "납품문서 정리본", "owner": "internal_or_vendor", "default_date_field": "inspection_date"},
+    {"no": "09", "name": "검수확인서", "owner": "internal", "default_date_field": "inspection_date"},
+    {"no": "10", "name": "완료보고서", "owner": "internal", "default_date_field": "completion_date"},
+    {"no": "11", "name": "전자세금계산서", "owner": "vendor", "default_date_field": "delivery_date"},
+    {"no": "12", "name": "이체확인증", "owner": "internal", "default_date_field": "payment_date"}
+  ],
+  "default_forbidden_terms": [
+    "테스트키트",
+    "Autonomus"
+  ],
+  "core_rules": [
+    "기안서에는 업체명과 금액을 확정값으로 넣지 않는다.",
+    "과업지시서에는 업체 수행 범위와 제외 범위를 명확히 쓴다.",
+    "발주서와 계약서부터 업체명과 금액을 반영한다.",
+    "완료보고서는 산출물과 검수 결과 중심으로 간결하게 작성한다."
+  ]
+}

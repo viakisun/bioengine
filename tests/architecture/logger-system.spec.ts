@@ -48,11 +48,13 @@ test.describe('Phase L0 — Logger system', () => {
     expect(_getEffectiveLevelForTest('ui')).toBe('error');
   });
 
-  test('LOGGER-ALL-NAMESPACES-01: ALL_NAMESPACES가 10개 멤버 모두 포함 (ui 포함)', () => {
-    expect(ALL_NAMESPACES.length).toBe(10);
+  test('LOGGER-ALL-NAMESPACES-01: ALL_NAMESPACES가 12개 멤버 모두 포함 (ui 포함)', () => {
+    expect(ALL_NAMESPACES.length).toBe(12);
     const set = new Set(ALL_NAMESPACES);
     expect(set.has('engine')).toBe(true);
     expect(set.has('progressive')).toBe(true);
+    expect(set.has('scenarios')).toBe(true);
+    expect(set.has('workbench')).toBe(true);
     expect(set.has('ui')).toBe(true);
     // legacy 'app' 제거됨 (M1 commit)
     expect(set.has('app' as LogNamespace)).toBe(false);

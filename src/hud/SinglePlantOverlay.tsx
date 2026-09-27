@@ -2,12 +2,10 @@ import { createLogger } from '../utils/logger';
 const log = createLogger('overlay');
 // SinglePlantOverlay — HUD-first analysis UI for the single-plant mode.
 //
-// Iter 35 PR 2 (Phase J + K): minimal HUD — Skeleton/Settings pills + 2 drawers.
-//
 // Layout (no grid — every child is absolutely positioned):
-//   - FloatingTopBar       top center  (Day/phase — filter pills archived in K)
-//   - BottomPlaybackBar    bottom      (slider + speeds + StatusBar fusion)
-//   - RightBottomToggles   bottom right (Skeleton + Settings pills only)
+//   - FloatingTopBar       top center   (Day / phase)
+//   - BottomPlaybackBar    bottom       (slider + speeds + StatusBar fusion)
+//   - RightBottomToggles   bottom-right (Skeleton + Settings pills only)
 //   - DrawerStack          right edge  (Lighting + Skeleton drawers)
 //
 // Archived in PR 2:
@@ -30,10 +28,8 @@ import {
   subscribeSinglePlantRefs,
 } from '../hud/single-plant/useSinglePlantState';
 
-// Dev-only: expose store on window for headless capture inspection.
-if (typeof window !== 'undefined' && import.meta.env?.DEV) {
-  (window as unknown as { __twinStore?: typeof useTwinStore }).__twinStore = useTwinStore;
-}
+// `window.__twinStore` is published once from `src/state/twinStore.ts`; no
+// need to mirror it here. (Earlier duplicate removed during Wave 1 cleanup.)
 
 export function SinglePlantOverlay() {
   // D0.b (RFP §17): useEffect 두 개 (minute→update + playback rAF)는 App.tsx의

@@ -6,9 +6,13 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests',
-  // SSOT #185/#186 — architecture/ 디렉토리는 invariant test (coordinate /
-  // mesh anchor contracts). plant-calibration/는 기존 day-based scrub spec.
+  // architecture/ holds invariant tests (coordinate / mesh anchor contracts
+  // + lint specs). plant-calibration/ is the day-based scrub harness.
   testMatch: ['plant-calibration/*.spec.ts', 'architecture/*.spec.ts'],
+  // _archive/ holds historical one-off probes (past bug hunts).  They stay
+  // on disk for reference but never run in CI/default.  See
+  // tests/architecture/PROBES.md for the keep/archive policy.
+  testIgnore: ['**/_archive/**'],
   fullyParallel: false,           // single dev server, sequential scrub
   workers: 1,
   retries: 0,

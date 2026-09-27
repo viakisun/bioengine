@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 480" font-family="Apple SD Gothic Neo, -apple-system, Helvetica, sans-serif" font-size="12">
+  <style>
+    .box      { fill:#fff; stroke:#000; stroke-width:1.2; }
+    .label    { fill:#000; font-weight:700; text-anchor:middle; }
+    .sub      { fill:#333; font-size:10px; text-anchor:middle; }
+    .code     { fill:#000; font-family:'SF Mono', Menlo, monospace; font-size:9px; text-anchor:middle; }
+    .arrow-f  { fill:none; stroke:#000; stroke-width:1.2; marker-end:url(#arr); }
+    .arrow-b  { fill:none; stroke:#000; stroke-width:1.2; marker-end:url(#arr); marker-start:url(#arr); }
+    .anno     { fill:#444; font-size:9px; }
+    .title    { fill:#000; font-weight:700; font-size:15px; text-anchor:middle; }
+  </style>
+  <defs>
+    <marker id="arr" markerWidth="11" markerHeight="11" refX="10" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,10 L10,5 Z" fill="#000"/>
+    </marker>
+  </defs>
+
+  <text x="450" y="28" class="title">4 좌표계 정의 및 변환 관계</text>
+
+  <!-- World -->
+  <rect x="60" y="80" width="180" height="100" rx="2" class="box"/>
+  <text x="150" y="105" class="label">World</text>
+  <text x="150" y="123" class="sub">씬 전역 좌표</text>
+  <text x="150" y="142" class="code">WorldV3</text>
+  <text x="150" y="160" class="sub">Babylon.absolutePosition</text>
+
+  <!-- Plant-Local -->
+  <rect x="360" y="80" width="180" height="100" rx="2" class="box"/>
+  <text x="450" y="105" class="label">Plant-Local</text>
+  <text x="450" y="123" class="sub">lushGroup 자식</text>
+  <text x="450" y="142" class="code">PlantLocalV3</text>
+  <text x="450" y="160" class="sub">SkeletonNode/Edge 의 graphPos</text>
+
+  <!-- Mesh-Local -->
+  <rect x="660" y="80" width="180" height="100" rx="2" class="box"/>
+  <text x="750" y="105" class="label">Mesh-Local</text>
+  <text x="750" y="123" class="sub">mesh 내부 vertex</text>
+  <text x="750" y="142" class="code">MeshLocalV3</text>
+  <text x="750" y="160" class="sub">회전 origin (0,0,0)</text>
+
+  <!-- Graph-Pos (alias) -->
+  <rect x="360" y="260" width="180" height="80" rx="2" class="box" stroke-dasharray="4,3"/>
+  <text x="450" y="285" class="label">Graph-Pos</text>
+  <text x="450" y="303" class="sub">= Plant-Local 별칭</text>
+  <text x="450" y="320" class="code">SkeletonNode / Edge</text>
+
+  <!-- Transform arrows -->
+  <line x1="240" y1="130" x2="358" y2="130" class="arrow-b"/>
+  <line x1="540" y1="130" x2="658" y2="130" class="arrow-b"/>
+
+  <!-- transform labels -->
+  <text x="299" y="118" class="anno" text-anchor="middle">worldToPlantLocal()</text>
+  <text x="299" y="148" class="anno" text-anchor="middle">plantLocalToWorld()</text>
+
+  <text x="599" y="118" class="anno" text-anchor="middle">meshLocalToPlantLocal()</text>
+  <text x="599" y="148" class="anno" text-anchor="middle">meshLocalToWorld()</text>
+
+  <!-- Graph-Pos link to Plant-Local -->
+  <line x1="450" y1="259" x2="450" y2="181" class="arrow-f"/>
+  <text x="460" y="220" class="anno">동일</text>
+
+  <!-- Rule box bottom -->
+  <rect x="60" y="380" width="780" height="80" rx="2" fill="#f5f5f5" stroke="#444" stroke-width="0.6"/>
+  <text x="450" y="402" class="label" font-size="11">변환 utility</text>
+  <text x="80" y="422" class="anno" text-anchor="start">• src/plant/coordinates/transforms.ts</text>
+  <text x="450" y="422" class="anno" text-anchor="middle">worldToPlantLocal / plantLocalToWorld</text>
+  <text x="820" y="422" class="anno" text-anchor="end">meshLocalToWorld / meshLocalToPlantLocal</text>
+  <text x="80" y="442" class="anno" text-anchor="start">• inline Vector3.TransformCoordinates(...) 직접 호출 금지</text>
+  <text x="820" y="442" class="anno" text-anchor="end">brand 다른 타입 직접 비교 금지 (변환 후 비교)</text>
+</svg>

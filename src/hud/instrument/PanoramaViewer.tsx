@@ -5,8 +5,8 @@
 // scrolling (panoramas are wider than the modal) and click-to-tooltip.
 
 import { useEffect, useRef, useState } from 'react';
-import { surveyStore, type PanoramaMeta } from '../../scenarios/phenotyping/surveyStore';
-import type { FruitDetection, RipenessBin } from '../../scenarios/phenotyping/detectors';
+import { surveyStore, type PanoramaMeta } from '../../phenotyping/domain/surveyStore';
+import type { FruitDetection, RipenessBin } from '../../phenotyping/domain/detectors';
 
 const BIN_COLOR: Record<RipenessBin, string> = {
   green:   '#34d399',

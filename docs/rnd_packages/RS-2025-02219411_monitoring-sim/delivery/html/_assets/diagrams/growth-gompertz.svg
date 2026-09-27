@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 420" font-family="Apple SD Gothic Neo, -apple-system, Helvetica, sans-serif" font-size="11">
+  <style>
+    .ax { fill:none; stroke:#000; stroke-width:0.8; }
+    .grid { fill:none; stroke:#ccc; stroke-width:0.4; }
+    .lbl { fill:#000; }
+    .ax-lbl { fill:#000; font-weight:600; font-size:11px; }
+    .title { fill:#000; font-weight:700; font-size:14px; text-anchor:middle; }
+    .curve-1 { fill:none; stroke:#000; stroke-width:1.6; }
+    .curve-2 { fill:none; stroke:#444; stroke-width:1.2; stroke-dasharray:4,2; }
+    .curve-3 { fill:none; stroke:#000; stroke-width:1.0; stroke-dasharray:1,2; }
+    .anno { fill:#444; font-size:9px; }
+    .phase-rule { fill:none; stroke:#888; stroke-width:0.4; }
+    .phase-lbl { fill:#000; font-weight:600; font-size:10px; text-anchor:middle; }
+    .phase-bg-I { fill:#f0f0f0; opacity:0.55; }
+    .phase-bg-II { fill:#e2e2e2; opacity:0.55; }
+    .phase-bg-III { fill:#cfcfcf; opacity:0.45; }
+  </style>
+
+  <text x="360" y="22" class="title">차트 3.  과실 생장 Gompertz 곡선 — Gillaspy 3-Phase + cultivar 3종 비교</text>
+
+  <line x1="60" y1="60" x2="60" y2="360" class="ax"/>
+  <line x1="60" y1="360" x2="680" y2="360" class="ax"/>
+
+  <!-- X axis: GDD since fertilization (0..1000) → x 60..680 -->
+  <g class="lbl" text-anchor="middle">
+    <line x1="60"  y1="360" x2="60"  y2="365" class="ax"/><text x="60"  y="380">0</text>
+    <line x1="184" y1="360" x2="184" y2="365" class="ax"/><text x="184" y="380">200</text>
+    <line x1="308" y1="360" x2="308" y2="365" class="ax"/><text x="308" y="380">400</text>
+    <line x1="432" y1="360" x2="432" y2="365" class="ax"/><text x="432" y="380">600</text>
+    <line x1="556" y1="360" x2="556" y2="365" class="ax"/><text x="556" y="380">800</text>
+    <line x1="680" y1="360" x2="680" y2="365" class="ax"/><text x="680" y="380">1000</text>
+    <text x="370" y="400" class="ax-lbl">GDD since fertilization</text>
+  </g>
+
+  <!-- Y axis: fresh weight (0..250 g) → y 360..60. So gram→y = 360 - g * (300/250) = 360 - g*1.2 -->
+  <g class="lbl" text-anchor="end">
+    <line x1="55" y1="360" x2="60"  y2="360" class="ax"/><text x="50" y="364">0</text>
+    <line x1="55" y1="300" x2="60"  y2="300" class="ax"/><text x="50" y="304">50</text>
+    <line x1="55" y1="240" x2="60"  y2="240" class="ax"/><text x="50" y="244">100</text>
+    <line x1="55" y1="180" x2="60"  y2="180" class="ax"/><text x="50" y="184">150</text>
+    <line x1="55" y1="120" x2="60"  y2="120" class="ax"/><text x="50" y="124">200</text>
+    <line x1="55" y1="60"  x2="60"  y2="60"  class="ax"/><text x="50" y="64">250</text>
+  </g>
+  <text x="20" y="210" class="ax-lbl" transform="rotate(-90 20 210)">fresh weight (g)</text>
+
+  <g class="grid">
+    <line x1="60" y1="300" x2="680" y2="300"/>
+    <line x1="60" y1="240" x2="680" y2="240"/>
+    <line x1="60" y1="180" x2="680" y2="180"/>
+    <line x1="60" y1="120" x2="680" y2="120"/>
+  </g>
+
+  <!-- Phase regions (background): I 0-100 GDD, II 100-360 GDD, III 360-860 GDD -->
+  <!-- x mapping: GDD * 0.62 + 60 -->
+  <rect x="60"  y="60" width="62"  height="300" class="phase-bg-I"/>
+  <rect x="122" y="60" width="161" height="300" class="phase-bg-II"/>
+  <rect x="283" y="60" width="310" height="300" class="phase-bg-III"/>
+
+  <text x="91"  y="74" class="phase-lbl">I</text>
+  <text x="203" y="74" class="phase-lbl">II  cell division</text>
+  <text x="438" y="74" class="phase-lbl">III  cell expansion</text>
+
+  <!-- Vertical phase boundaries -->
+  <line x1="122" y1="60" x2="122" y2="360" class="phase-rule"/>
+  <line x1="283" y1="60" x2="283" y2="360" class="phase-rule"/>
+
+  <!-- Gompertz: W(t) = a · exp(-exp(-b·(t-τ))). a=200g (Tomimaru). Use sample points.
+       Approx pts (GDD, FW): 0,0  100,2  200,8  300,28  400,76  500,140  600,180  700,196  800,200  900,201 -->
+  <polyline class="curve-1" points="60,360 122,358 184,350 246,326 308,269 370,193 432,144 494,124.8 556,120 618,118.8 680,118.4"/>
+  <text x="690" y="123" class="anno" text-anchor="start">Tomimaru (200 g)</text>
+
+  <!-- Curve 2: cherry (a=20g) -->
+  <polyline class="curve-2" points="60,360 122,360 184,358 246,355 308,348 370,338 432,330 494,326 556,324 618,323.5 680,323.2"/>
+  <text x="690" y="328" class="anno" text-anchor="start">Cherry (20 g)</text>
+
+  <!-- Curve 3: beefsteak (a=280g) — bigger, similar shape -->
+  <polyline class="curve-3" points="60,360 122,358 184,346 246,308 308,235 370,141 432,86 494,63 556,57.6 618,55.6 680,54.8"/>
+  <text x="690" y="60" class="anno" text-anchor="start">Beefsteak (280 g)</text>
+
+  <!-- formula -->
+  <text x="80" y="100" class="anno">W(t) = a · exp(−exp(−b · (t − τ)))</text>
+  <text x="80" y="113" class="anno">a = potentialMassG (cultivar),  b ≈ 0.01,  τ ≈ 280 GDD</text>
+  <text x="80" y="126" class="anno">Anaya-Ramirez 2024  +  Gillaspy 1993 3-phase</text>
+</svg>

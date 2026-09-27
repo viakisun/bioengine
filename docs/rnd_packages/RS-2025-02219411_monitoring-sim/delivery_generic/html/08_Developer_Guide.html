@@ -1,0 +1,662 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>개발자·관리자 가이드</title>
+<link rel="stylesheet" href="_assets/style.css">
+</head>
+<body>
+
+<section class="cover-page">
+  <div class="cover-title-block">
+    <h1 class="cover-title">개발자·관리자 가이드</h1>
+    <div class="cover-subtitle">적심·적과 농작업 로봇 관제 시각화 시뮬레이터</div>
+  </div>
+</section>
+
+<section class="toc-page">
+  <h1 class="toc-title">목차</h1>
+  <ul class="toc-list">
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">1. 본 가이드의 목적과 대상 독자</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">1.1 범위</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">2. 아키텍처 요약</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">2.1 모듈 계층</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">2.2 데이터 흐름</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">3. 빌드 환경</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">3.1 필수 도구</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">3.2 권장 도구</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">3.3 의존성 설치</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">4. 빌드·배포 명령</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">4.1 개발 모드</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">4.2 프로덕션 빌드</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">4.3 빌드 결과 패키징</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">4.4 정적 호스팅 배포</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">4.5 타입체크 단독</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">5. 시나리오 추가 절차</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">5.1 시나리오 정의 추가</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">5.2 타입 확인</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">5.3 Picker 노출 확인</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">5.4 검증</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">6. 디텍터 교체 절차</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">6.1 Detector interface 확인</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">6.2 신규 디텍터 구현</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">6.3 등록</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">6.4 검증</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">7. 카메라 스트림 프로토콜 (개발자 수준)</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">7.1 WS 엔드포인트</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">7.2 프레임 포맷</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">7.3 Producer 직접 구현 예</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">7.4 Consumer 직접 구현 예</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">7.5 Relay 동작</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">8. Web Worker 디텍션 파이프라인 디버그</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">8.1 Worker 위치</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">8.2 Worker 로그 활성</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">8.3 Back-pressure 동작</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">8.4 Worker terminate</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">8.5 ONNX 모델 로드 확인</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">9. 로깅 시스템 사용법</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">9.1 logger 가져오기</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">9.2 namespace 12종</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">9.3 사용 패턴</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">9.4 활성화</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">9.5 DevTools helper</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">10. 디버그 옵션</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">10.1 추가 globals</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">11. 좌표계 규약 (요약)</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">11.1 4개 좌표계</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">11.2 실수하기 쉬운 트랩</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">11.3 좌표 변환 utility</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">12. Mesh Anchor 규약 (요약)</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">12.1 anchor helper</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">12.2 새 mesh type 추가 시</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">13. 테스트 운영</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">13.1 두 종류의 테스트</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">13.2 전체 테스트 실행</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">13.3 특정 probe만 실행</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">13.4 Probe 추가 시</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">13.5 로그 enforcement</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">14. 모델 업데이트 절차</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">14.1 ONNX 모델 교체</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">14.2 메타데이터 갱신</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">14.3 디텍터 코드 동기화</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">14.4 HSV 파라미터 갱신</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">14.5 검증</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">15. 트러블슈팅 (개발자 관점)</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">15.1 npm run build 실패</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">15.2 dev server가 port 8090 점유 충돌</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">15.3 ONNX 모델 로드 실패</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">15.4 WS 연결 실패</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">15.5 디텍션이 0건만 나옴</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h1"><div class="toc-row"><span class="toc-title-text">16. 코드 컨벤션 / 협업 흐름</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">16.1 코드 컨벤션</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">16.2 Pull Request 흐름</span><span class="toc-dots"></span></div></li>
+    <li class="toc-h2"><div class="toc-row"><span class="toc-title-text">16.3 핵심 SSOT 문서</span><span class="toc-dots"></span></div></li>
+  </ul>
+</section>
+<article class="doc-body">
+<h1 id="h-1-본-가이드의-목적과-대상-독자-0">1. 본 가이드의 목적과 대상 독자</h1>
+<p>본 가이드는 운영자 관점의 매뉴얼(<code>07_User_Manual.pdf</code>)과 달리, <strong>본 시뮬레이터의 빌드·배포·확장·유지보수를 담당하는 개발자 또는 관리자</strong>를 대상으로 한다.</p>
+<h2 id="h-11-범위-1">1.1 범위</h2>
+<ul>
+<li>빌드 환경 구성 및 명령</li>
+<li>시나리오 추가 절차</li>
+<li>디텍터 교체 절차</li>
+<li>카메라 스트림 프로토콜 (개발자 수준)</li>
+<li>Web Worker 디텍션 파이프라인 디버그</li>
+<li>로깅 시스템 사용법</li>
+<li>디버그 옵션</li>
+<li>좌표계 및 Mesh Anchor 규약</li>
+<li>테스트 운영</li>
+<li>모델 업데이트 절차</li>
+<li>트러블슈팅</li>
+<li>코드 컨벤션 및 협업 흐름</li>
+</ul>
+<h1 id="h-2-아키텍처-요약-2">2. 아키텍처 요약</h1>
+<p>상세는 <code>06_Architecture_Spec.pdf</code> 참조. 본 가이드는 운영·유지보수 관점에서 핵심만 요약한다.</p>
+<h2 id="h-21-모듈-계층-3">2.1 모듈 계층</h2>
+<ol>
+<li><strong>UI Layer</strong> — React + Zustand 상태관리</li>
+<li><strong>Phenotyping Domain</strong> — <code>src/phenotyping/</code> 트리 (domain / streaming / ui)</li>
+<li><strong>Scene Layer</strong> — Babylon.js 기반</li>
+<li><strong>Plant Engine</strong> — <code>packages/tomato-engine</code> (engine-pure)</li>
+<li><strong>Tooling</strong> — Vite plugin (<code>tooling/vite/plugins/camStream.ts</code>)</li>
+<li><strong>Test Infrastructure</strong> — <code>tests/architecture/</code></li>
+</ol>
+<h2 id="h-22-데이터-흐름-4">2.2 데이터 흐름</h2>
+<pre><code>Scenario JSON → SceneInfrastructure → Babylon Scene → Gimbal Camera RTT
+ → WS Producer → WS Relay → 2 Consumers (PiP + Detection Worker)
+ → Detection Worker → ONNX/HSV → Main Thread (raycast) → twinStore
+ → SVG Overlay (GimbalDetectionOverlay)
+</code></pre>
+<h1 id="h-3-빌드-환경-5">3. 빌드 환경</h1>
+<h2 id="h-31-필수-도구-6">3.1 필수 도구</h2>
+<table>
+<thead>
+<tr>
+<th>도구</th>
+<th>버전</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Node.js</td>
+<td>20 LTS 이상</td>
+</tr>
+<tr>
+<td>npm</td>
+<td>10 이상</td>
+</tr>
+<tr>
+<td>Git</td>
+<td>2.40 이상</td>
+</tr>
+<tr>
+<td>운영체제</td>
+<td>Windows 11 / macOS 14 / Ubuntu 22.04</td>
+</tr>
+</tbody></table>
+<h2 id="h-32-권장-도구-7">3.2 권장 도구</h2>
+<table>
+<thead>
+<tr>
+<th>도구</th>
+<th>용도</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>VSCode</td>
+<td>코드 편집 + TS 지원</td>
+</tr>
+<tr>
+<td>Chrome DevTools</td>
+<td>디버깅</td>
+</tr>
+<tr>
+<td>Playwright</td>
+<td>테스트 실행</td>
+</tr>
+</tbody></table>
+<h2 id="h-33-의존성-설치-8">3.3 의존성 설치</h2>
+<pre><code class="language-bash">git clone &lt;repo-url&gt; MonitoringSim
+cd MonitoringSim
+npm install
+</code></pre>
+<p><code>package-lock.json</code>이 함께 제공되므로 동일 버전의 의존성이 설치된다.</p>
+<h1 id="h-4-빌드배포-명령-9">4. 빌드·배포 명령</h1>
+<h2 id="h-41-개발-모드-10">4.1 개발 모드</h2>
+<pre><code class="language-bash">npm run dev
+</code></pre>
+<p>Vite dev server가 <code>http://localhost:8090</code>에서 시작한다. HMR 활성.</p>
+<p>WS relay plugin (<code>tooling/vite/plugins/camStream.ts</code>)도 같은 포트에 mount된다.</p>
+<h2 id="h-42-프로덕션-빌드-11">4.2 프로덕션 빌드</h2>
+<pre><code class="language-bash">npm run build
+</code></pre>
+<p>내부적으로 다음을 수행한다.</p>
+<pre><code class="language-bash">tsc --noEmit # 타입 체크 (실패 시 빌드 중단)
+vite build # 정적 자산 생성 → dist/
+</code></pre>
+<p><code>dist/</code> 폴더가 결과물이다.</p>
+<h2 id="h-43-빌드-결과-패키징-12">4.3 빌드 결과 패키징</h2>
+<pre><code class="language-bash">cd dist
+zip -r ../monitoring_sim_build.zip .
+</code></pre>
+<p>압축 해제 후 정적 호스팅이 가능하다.</p>
+<h2 id="h-44-정적-호스팅-배포-13">4.4 정적 호스팅 배포</h2>
+<table>
+<thead>
+<tr>
+<th>방법</th>
+<th>명령</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>serve</code></td>
+<td><code>npx serve dist</code></td>
+</tr>
+<tr>
+<td>Python</td>
+<td><code>cd dist &amp;&amp; python3 -m http.server 8090</code></td>
+</tr>
+<tr>
+<td>Nginx</td>
+<td><code>dist/</code>를 document root로 설정</td>
+</tr>
+<tr>
+<td>VSCode Live Server</td>
+<td><code>dist/index.html</code>을 열고 우클릭 → &quot;Open with Live Server&quot;</td>
+</tr>
+</tbody></table>
+<h2 id="h-45-타입체크-단독-14">4.5 타입체크 단독</h2>
+<pre><code class="language-bash">npm run tsc:engine
+npm run tsc:geometry
+npx tsc --noEmit
+</code></pre>
+<p>각각 packages/tomato-engine, packages/tomato-geometry, 전체 프로젝트 타입체크.</p>
+<h1 id="h-5-시나리오-추가-절차-15">5. 시나리오 추가 절차</h1>
+<p>새 시나리오를 추가하려면 다음 단계를 따른다.</p>
+<h2 id="h-51-시나리오-정의-추가-16">5.1 시나리오 정의 추가</h2>
+<p><code>src/scenarios/loader.ts</code>에 새 시나리오 ID와 ScenarioSpec을 등록한다.</p>
+<pre><code class="language-typescript">const SCENARIOS: Record&lt;string, ScenarioSpec&gt; = {
+ &#39;phenotyping-D110-survey&#39;: { ... },
+ // 신규
+ &#39;phenotyping-D85-survey&#39;: {
+ id: &#39;phenotyping-D85-survey&#39;,
+ domain: &#39;phenotyping&#39;,
+ crop: { day: 85, seed: 20260520, cultivar: &#39;tomimaru&#39; },
+ world: { bedLayout: &#39;2-4-4&#39;, activeBedIds: [4,5,6,7,8,9] },
+ robot: { profile: &#39;phenotyping&#39;, traverseEnabled: true, gimbalView: true },
+ task: { rule: &#39;left-bed-on-forward,right-bed-on-return&#39;, speedMps: 0.3 },
+ env: { lightingPreset: &#39;noon-bright&#39;, manualHour: 12 },
+ },
+};
+</code></pre>
+<h2 id="h-52-타입-확인-17">5.2 타입 확인</h2>
+<pre><code class="language-bash">npx tsc --noEmit
+</code></pre>
+<p><code>ScenarioSpec</code> 구조와 맞는지 확인.</p>
+<h2 id="h-53-picker-노출-확인-18">5.3 Picker 노출 확인</h2>
+<p>시나리오는 <code>Picker</code> UI에 자동으로 노출된다 (<code>SCENARIOS</code> 객체에 추가되면 즉시 표시). 별도 등록 절차 없음.</p>
+<h2 id="h-54-검증-19">5.4 검증</h2>
+<p>다음 URL로 직접 진입해서 동작 확인.</p>
+<pre><code>http://localhost:8090/?mode=workbench&amp;scenario=phenotyping-D85-survey
+</code></pre>
+<h1 id="h-6-디텍터-교체-절차-20">6. 디텍터 교체 절차</h1>
+<p>본 시뮬레이터는 plug-and-play 방식의 디텍터 인터페이스를 제공한다. 새 디텍터를 추가하려면 다음 단계를 따른다.</p>
+<h2 id="h-61-detector-interface-확인-21">6.1 Detector interface 확인</h2>
+<p><code>src/phenotyping/domain/detectors/types.ts</code>:</p>
+<pre><code class="language-typescript">export interface Detector {
+ id: DetectorId;
+ label: string;
+ source: DetectorSource;
+ detect(panorama: ImageData, ctx: DetectorContext): Promise&lt;FruitDetection[]&gt;;
+ init?(onProgress?: (loaded: number, total: number) =&gt; void): Promise&lt;void&gt;;
+ dispose?(): void;
+}
+</code></pre>
+<h2 id="h-62-신규-디텍터-구현-22">6.2 신규 디텍터 구현</h2>
+<p><code>src/phenotyping/domain/detectors/myDetector.ts</code>:</p>
+<pre><code class="language-typescript">import type { Detector, DetectorContext, FruitDetection } from &#39;./types&#39;;
+
+export const myDetector: Detector = {
+ id: &#39;my-v1&#39;,
+ label: &#39;My Custom Detector&#39;,
+ source: &#39;custom&#39;,
+ async init(onProgress) {
+ // 모델 로드 등
+ },
+ async detect(panorama, ctx) {
+ // 핵심 detection logic
+ return [/* ... */];
+ },
+ dispose() {
+ // cleanup
+ },
+};
+</code></pre>
+<h2 id="h-63-등록-23">6.3 등록</h2>
+<p><code>src/phenotyping/domain/detectors/index.ts</code>의 <code>ALL_DETECTORS</code> 배열에 추가.</p>
+<pre><code class="language-typescript">import { myDetector } from &#39;./myDetector&#39;;
+
+export const ALL_DETECTORS: readonly Detector[] = [
+ hsvDetector,
+ onnxYoloDetector,
+ groundTruthDetector,
+ myDetector, // 신규
+];
+</code></pre>
+<p><code>DetectorId</code> 타입 union에 새 ID를 추가.</p>
+<h2 id="h-64-검증-24">6.4 검증</h2>
+<p>브라우저에서 디텍터 셀렉터로 새 디텍터 선택 후 서베이 실행.</p>
+<h1 id="h-7-카메라-스트림-프로토콜-개발자-수준-25">7. 카메라 스트림 프로토콜 (개발자 수준)</h1>
+<h2 id="h-71-ws-엔드포인트-26">7.1 WS 엔드포인트</h2>
+<pre><code>ws://&lt;host&gt;/robot/&lt;streamId&gt;?role=producer
+ws://&lt;host&gt;/robot/&lt;streamId&gt;?role=consumer
+</code></pre>
+<ul>
+<li>기본 streamId: <code>phenotyping/gimbal</code></li>
+<li>producer 1 ↔ consumer N</li>
+<li>인증 없음 (localhost 전용)</li>
+</ul>
+<h2 id="h-72-프레임-포맷-27">7.2 프레임 포맷</h2>
+<p>매 프레임마다 두 메시지 쌍:</p>
+<ol>
+<li>Text 메시지 — JSON FramePoseHeader</li>
+<li>Binary 메시지 — JPEG bytes</li>
+</ol>
+<p><code>src/phenotyping/streaming/streamProtocol.ts</code> 참조.</p>
+<h2 id="h-73-producer-직접-구현-예-28">7.3 Producer 직접 구현 예</h2>
+<pre><code class="language-typescript">const ws = new WebSocket(&#39;ws://localhost:8090/robot/phenotyping/gimbal?role=producer&#39;);
+ws.onopen = () =&gt; {
+ const header = { ts, railX, panRad, /* ... */ };
+ ws.send(JSON.stringify(header));
+ ws.send(jpegArrayBuffer);
+};
+</code></pre>
+<h2 id="h-74-consumer-직접-구현-예-29">7.4 Consumer 직접 구현 예</h2>
+<pre><code class="language-typescript">const ws = new WebSocket(&#39;ws://localhost:8090/robot/phenotyping/gimbal?role=consumer&#39;);
+let pendingHeader = null;
+ws.onmessage = (ev) =&gt; {
+ if (typeof ev.data === &#39;string&#39;) {
+ pendingHeader = JSON.parse(ev.data);
+ } else {
+ const blob = new Blob([ev.data], { type: &#39;image/jpeg&#39; });
+ // ... 사용
+ }
+};
+</code></pre>
+<h2 id="h-75-relay-동작-30">7.5 Relay 동작</h2>
+<p><code>tooling/vite/plugins/camStream.ts</code>:</p>
+<ul>
+<li>Vite HTTP server의 <code>upgrade</code> 이벤트에 핸들러 mount</li>
+<li><code>/robot/&lt;streamId&gt;</code> path만 인식</li>
+<li>producer 메시지를 모든 active consumer에 fanout</li>
+<li>producer disconnect 시 모든 consumer에 <code>{__event: &#39;producer-detached&#39;}</code> 알림</li>
+</ul>
+<h1 id="h-8-web-worker-디텍션-파이프라인-디버그-31">8. Web Worker 디텍션 파이프라인 디버그</h1>
+<h2 id="h-81-worker-위치-32">8.1 Worker 위치</h2>
+<pre><code>src/phenotyping/streaming/detectionWorker.ts — Worker
+src/phenotyping/streaming/detectionWorkerClient.ts — Main thread
+</code></pre>
+<h2 id="h-82-worker-로그-활성-33">8.2 Worker 로그 활성</h2>
+<p>브라우저 DevTools Console에서:</p>
+<pre><code class="language-javascript">__farmsim.debug.enable(&#39;scenarios&#39;)
+location.reload()
+</code></pre>
+<p>또는 URL에 <code>?debug=scenarios</code> 추가. Worker 로그는 <code>[scenarios]</code> prefix로 표시.</p>
+<h2 id="h-83-back-pressure-동작-34">8.3 Back-pressure 동작</h2>
+<p>이전 추론이 진행 중이면 새 프레임은 드롭된다. 드롭 카운트는 <code>runPerFrameDetect dropped N frames</code> 로그에 표시.</p>
+<h2 id="h-84-worker-terminate-35">8.4 Worker terminate</h2>
+<p>서베이 중지 또는 RESET 시 worker가 <code>worker.terminate()</code>로 종료된다. 새 서베이 시작 시 새 worker가 spawn된다.</p>
+<h2 id="h-85-onnx-모델-로드-확인-36">8.5 ONNX 모델 로드 확인</h2>
+<p>Worker 첫 init 시 <code>detectorLoadProgress</code> (twinStore.phenotypingSurvey) 값을 0–1 사이로 업데이트한다. TaskPanel UI에서도 progress 표시.</p>
+<h1 id="h-9-로깅-시스템-사용법-37">9. 로깅 시스템 사용법</h1>
+<h2 id="h-91-logger-가져오기-38">9.1 logger 가져오기</h2>
+<pre><code class="language-typescript">import { createLogger } from &#39;./utils/logger&#39;;
+const log = createLogger(&#39;engine&#39;);
+</code></pre>
+<h2 id="h-92-namespace-12종-39">9.2 namespace 12종</h2>
+<p><code>engine</code> · <code>scene</code> · <code>quality</code> · <code>progressive</code> · <code>skinplant</code> · <code>overlay</code> · <code>growth</code> · <code>leaf</code> · <code>plant</code> · <code>scenarios</code> · <code>workbench</code> · <code>ui</code></p>
+<h2 id="h-93-사용-패턴-40">9.3 사용 패턴</h2>
+<pre><code class="language-typescript">log.debug(&#39;detail trace&#39;); // opt-in only
+log.info(&#39;first frame rendered&#39;); // default silent (warn 이상에서만)
+log.warn(&#39;init failed&#39;, err); // 항상 출력
+log.error(&#39;fatal&#39;, err); // 항상 출력
+</code></pre>
+<h2 id="h-94-활성화-41">9.4 활성화</h2>
+<p>URL <code>?debug=engine,scene</code> (CSV) 또는 <code>?debug=*</code> (모든 namespace).</p>
+<h2 id="h-95-devtools-helper-42">9.5 DevTools helper</h2>
+<pre><code class="language-javascript">__farmsim.debug.enable(&#39;scenarios&#39;)
+__farmsim.debug.enableAll()
+__farmsim.debug.disable()
+__farmsim.debug.silence(&#39;growth&#39;)
+__farmsim.debug.current()
+</code></pre>
+<h1 id="h-10-디버그-옵션-43">10. 디버그 옵션</h1>
+<p>URL 파라미터로 디버그 모드를 활성화.</p>
+<table>
+<thead>
+<tr>
+<th>파라미터</th>
+<th>의미</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>?debug=stream</code></td>
+<td>스트리밍 producer/consumer 로그</td>
+</tr>
+<tr>
+<td><code>?debug=capture</code></td>
+<td><code>window.__lastCaptureFrame</code>에 마지막 캡처 노출</td>
+</tr>
+<tr>
+<td><code>?debug=isolatedLeaf</code></td>
+<td>잎 단일 디버그 모드</td>
+</tr>
+<tr>
+<td><code>?debug=scenarios</code></td>
+<td>시나리오 디버그</td>
+</tr>
+<tr>
+<td><code>?debug=*</code></td>
+<td>모든 namespace</td>
+</tr>
+<tr>
+<td><code>?quality=1</code>–<code>10</code></td>
+<td>렌더 품질 강제</td>
+</tr>
+<tr>
+<td><code>?seed=N</code></td>
+<td>시드 오버라이드</td>
+</tr>
+</tbody></table>
+<h2 id="h-101-추가-globals-44">10.1 추가 globals</h2>
+<p>DevTools Console에서 접근 가능:</p>
+<table>
+<thead>
+<tr>
+<th>변수</th>
+<th>의미</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>__twinStore</code></td>
+<td>전역 store</td>
+</tr>
+<tr>
+<td><code>__farmsim.scene</code></td>
+<td>Babylon scene 객체</td>
+</tr>
+<tr>
+<td><code>__farmsim.engine</code></td>
+<td>Babylon engine</td>
+</tr>
+<tr>
+<td><code>__farmsim.debug</code></td>
+<td>로깅 helper</td>
+</tr>
+<tr>
+<td><code>__lastCaptureFrame</code></td>
+<td>가장 최근 RTT 캡처 (<code>?debug=capture</code> 활성 시)</td>
+</tr>
+</tbody></table>
+<h1 id="h-11-좌표계-규약-요약-45">11. 좌표계 규약 (요약)</h1>
+<p>상세는 <code>06_Architecture_Spec.pdf</code>의 &quot;좌표계 규약&quot; 섹션 또는 <code>docs/architecture/COORDINATE_SYSTEMS.md</code> 참조.</p>
+<h2 id="h-111-4개-좌표계-46">11.1 4개 좌표계</h2>
+<table>
+<thead>
+<tr>
+<th>좌표계</th>
+<th>suffix 예시</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>world</td>
+<td><code>worldPos</code>, <code>worldX</code>, <code>worldY</code></td>
+</tr>
+<tr>
+<td>plant-local (lushGroup 자식)</td>
+<td><code>plantPos</code>, <code>plantLocalX</code></td>
+</tr>
+<tr>
+<td>mesh-local (vertex 안)</td>
+<td><code>meshPos</code>, <code>meshLocalX</code></td>
+</tr>
+<tr>
+<td>graph (= plant-local 별칭)</td>
+<td><code>graphPos</code> (SkeletonNode/Edge)</td>
+</tr>
+</tbody></table>
+<h2 id="h-112-실수하기-쉬운-트랩-47">11.2 실수하기 쉬운 트랩</h2>
+<ul>
+<li><code>mesh.position</code>은 <strong>parent-local</strong> (plant-local), <code>mesh.absolutePosition</code>이 world.</li>
+<li><code>mesh.position</code> 또는 <code>mesh.rotation</code> 설정 직후 <code>getWorldMatrix()</code> = identity. 반드시 <code>computeWorldMatrix(true)</code> 호출.</li>
+<li><code>boundingBox.minimum</code>은 가상 corner — 실제 vertex 아님. 의미점은 <code>getVerticesData(&#39;position&#39;)</code> 직접 query.</li>
+<li>회전 origin = mesh-local <code>(0, 0, 0)</code> — vertex shift 의무.</li>
+</ul>
+<h2 id="h-113-좌표-변환-utility-48">11.3 좌표 변환 utility</h2>
+<p><code>src/plant/coordinates/transforms.ts</code>:</p>
+<ul>
+<li><code>worldToPlantLocal</code></li>
+<li><code>plantLocalToWorld</code></li>
+<li><code>meshLocalToWorld</code></li>
+<li><code>meshLocalToPlantLocal</code></li>
+</ul>
+<p>inline <code>Vector3.TransformCoordinates(...)</code> 직접 호출 금지.</p>
+<h1 id="h-12-mesh-anchor-규약-요약-49">12. Mesh Anchor 규약 (요약)</h1>
+<p>상세는 <code>06_Architecture_Spec.pdf</code> 또는 <code>docs/architecture/MESH_ANCHORS.md</code>.</p>
+<h2 id="h-121-anchor-helper-50">12.1 anchor helper</h2>
+<p><code>src/plant/anchors/leafAnchor.ts</code>:</p>
+<ul>
+<li><code>normalizeLeafMeshVertices</code></li>
+<li><code>makeLeafAnchor</code></li>
+<li><code>assertLeafAnchorInvariant</code></li>
+</ul>
+<h2 id="h-122-새-mesh-type-추가-시-51">12.2 새 mesh type 추가 시</h2>
+<ol>
+<li><code>docs/architecture/MESH_ANCHORS.md</code>에 contract 추가</li>
+<li><code>src/plant/anchors/</code>에 helper 추가</li>
+<li>invariant test 추가</li>
+</ol>
+<h1 id="h-13-테스트-운영-52">13. 테스트 운영</h1>
+<h2 id="h-131-두-종류의-테스트-53">13.1 두 종류의 테스트</h2>
+<table>
+<thead>
+<tr>
+<th>종류</th>
+<th>위치</th>
+<th>책임</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Invariant</td>
+<td><code>tests/architecture/*.spec.ts</code> (probe 아닌 것)</td>
+<td>영구 계약, CI 차단</td>
+</tr>
+<tr>
+<td>Probe</td>
+<td><code>tests/architecture/_probe-*.spec.ts</code></td>
+<td>진단 도구, 일회용 가능</td>
+</tr>
+</tbody></table>
+<h2 id="h-132-전체-테스트-실행-54">13.2 전체 테스트 실행</h2>
+<pre><code class="language-bash">npx playwright test
+</code></pre>
+<h2 id="h-133-특정-probe만-실행-55">13.3 특정 probe만 실행</h2>
+<pre><code class="language-bash">npx playwright test tests/architecture/_probe-stream-pipeline.spec.ts
+</code></pre>
+<h2 id="h-134-probe-추가-시-56">13.4 Probe 추가 시</h2>
+<ol>
+<li><code>tests/architecture/_probe-&lt;topic&gt;.spec.ts</code> 작성</li>
+<li>조사 종료 시 <code>tests/architecture/PROBES.md</code> 정책에 따라 keep/archive 결정</li>
+<li>archive 대상은 <code>tests/architecture/_archive/</code>로 이동</li>
+</ol>
+<h2 id="h-135-로그-enforcement-57">13.5 로그 enforcement</h2>
+<p><code>tests/architecture/logger-enforcement.spec.ts</code>가 production source에서 직접 <code>console.*</code> 호출 0건을 검증. CI 통과 조건.</p>
+<h1 id="h-14-모델-업데이트-절차-58">14. 모델 업데이트 절차</h1>
+<h2 id="h-141-onnx-모델-교체-59">14.1 ONNX 모델 교체</h2>
+<pre><code class="language-bash"># 1. 새 모델 파일을 public/models/yolov8n.onnx로 교체
+cp &lt;new_model&gt;.onnx public/models/yolov8n.onnx
+
+# 2. SHA-256 계산
+shasum -a 256 public/models/yolov8n.onnx
+# 결과를 03_Detection_Models 패키지의 yolov8n.onnx.sha256 갱신
+</code></pre>
+<h2 id="h-142-메타데이터-갱신-60">14.2 메타데이터 갱신</h2>
+<p><code>04_Detection_Models.zip</code> 내부의 <code>model_metadata.json</code>:</p>
+<ul>
+<li><code>sha256</code> 필드 갱신</li>
+<li><code>file_size_bytes</code> 갱신</li>
+<li>입출력 텐서 사양 변경 시 해당 필드 갱신</li>
+<li>클래스 매핑 변경 시 <code>class_mapping.accepted_classes</code> 갱신</li>
+</ul>
+<h2 id="h-143-디텍터-코드-동기화-61">14.3 디텍터 코드 동기화</h2>
+<p><code>src/phenotyping/domain/detectors/onnxYoloDetector.ts</code>:</p>
+<ul>
+<li><code>MODEL_URL</code> 경로 확인</li>
+<li><code>INPUT_SIZE</code>, <code>CONF_THRESHOLD</code>, <code>IOU_THRESHOLD</code>, <code>FRUIT_CLASS_IDS</code> 새 모델에 맞게 조정</li>
+</ul>
+<h2 id="h-144-hsv-파라미터-갱신-62">14.4 HSV 파라미터 갱신</h2>
+<p><code>src/phenotyping/domain/detectors/hsvDetector.ts</code>의 <code>BANDS</code>, <code>MIN_BLOB_AREA</code>, <code>ASPECT_MIN</code>, <code>ASPECT_MAX</code> 등을 새 데이터에 맞게 재튜닝하고, <code>hsv_parameters.json</code> 갱신.</p>
+<h2 id="h-145-검증-63">14.5 검증</h2>
+<pre><code class="language-bash">npx playwright test tests/architecture/_probe-detect-flow.spec.ts
+</code></pre>
+<h1 id="h-15-트러블슈팅-개발자-관점-64">15. 트러블슈팅 (개발자 관점)</h1>
+<h2 id="h-151-npm-run-build-실패-65">15.1 <code>npm run build</code> 실패</h2>
+<ul>
+<li><code>npx tsc --noEmit</code> 단독 실행해서 타입 오류 확인</li>
+<li><code>dist/</code> 폴더가 잠겨 있는지 확인 (다른 프로세스가 열고 있을 수 있음)</li>
+</ul>
+<h2 id="h-152-dev-server가-port-8090-점유-충돌-66">15.2 dev server가 port 8090 점유 충돌</h2>
+<ul>
+<li>다른 프로세스가 점유 중 — <code>lsof -i :8090</code>로 확인</li>
+<li>또는 vite config의 port를 변경 (<code>vite.config.ts</code>)</li>
+</ul>
+<h2 id="h-153-onnx-모델-로드-실패-67">15.3 ONNX 모델 로드 실패</h2>
+<ul>
+<li><code>public/models/yolov8n.onnx</code> 파일 존재 확인</li>
+<li>SHA-256 일치 확인</li>
+<li>브라우저 Network 탭에서 모델 GET 응답 확인</li>
+</ul>
+<h2 id="h-154-ws-연결-실패-68">15.4 WS 연결 실패</h2>
+<ul>
+<li>producer 또는 consumer가 다른 streamId 사용 — 둘 다 <code>phenotyping/gimbal</code> 사용 확인</li>
+<li>relay plugin이 dev server에 mount 되어 있는지 — Vite startup log 확인</li>
+</ul>
+<h2 id="h-155-디텍션이-0건만-나옴-69">15.5 디텍션이 0건만 나옴</h2>
+<ul>
+<li>디버그 로그 활성 — <code>?debug=scenarios</code></li>
+<li>카메라가 식물을 보지 못하는 위치 — railX 값 확인</li>
+<li>HSV 파라미터가 너무 보수적 — <code>hsv_parameters.json</code>의 sat threshold 낮춰서 시도</li>
+</ul>
+<h1 id="h-16-코드-컨벤션-협업-흐름-70">16. 코드 컨벤션 / 협업 흐름</h1>
+<h2 id="h-161-코드-컨벤션-71">16.1 코드 컨벤션</h2>
+<ul>
+<li>TypeScript strict mode</li>
+<li>React functional components + hooks (class component 금지)</li>
+<li>Zustand store 사용 — direct <code>useState</code> 글로벌 사용 금지</li>
+<li><code>console.*</code> 직접 호출 금지 — <code>createLogger</code> 사용 (<code>logger-enforcement.spec.ts</code>로 검증)</li>
+<li>좌표 변수는 좌표계 suffix 필수 (<code>worldX</code>, <code>plantLocalX</code> 등)</li>
+</ul>
+<h2 id="h-162-pull-request-흐름-72">16.2 Pull Request 흐름</h2>
+<ol>
+<li>Feature branch에서 작업</li>
+<li>로컬에서 <code>npm run build</code> 통과</li>
+<li><code>npx playwright test tests/architecture/coordinate-contracts.spec.ts tests/architecture/logger-enforcement.spec.ts</code> 통과</li>
+<li>PR 제출 + 리뷰</li>
+</ol>
+<h2 id="h-163-핵심-ssot-문서-73">16.3 핵심 SSOT 문서</h2>
+<table>
+<thead>
+<tr>
+<th>영역</th>
+<th>SSOT</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>코딩 가이드</td>
+<td><code>CLAUDE.md</code></td>
+</tr>
+<tr>
+<td>좌표계</td>
+<td><code>docs/architecture/COORDINATE_SYSTEMS.md</code></td>
+</tr>
+<tr>
+<td>Mesh Anchor</td>
+<td><code>docs/architecture/MESH_ANCHORS.md</code></td>
+</tr>
+<tr>
+<td>토마토 데이터</td>
+<td><code>packages/tomato-engine/models/INDEX.jsonc</code></td>
+</tr>
+<tr>
+<td>로깅</td>
+<td><code>docs/architecture/LOGGING.md</code></td>
+</tr>
+<tr>
+<td>시험 정책</td>
+<td><code>tests/architecture/PROBES.md</code></td>
+</tr>
+</tbody></table>
+
+</article>
+</body>
+</html>

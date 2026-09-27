@@ -5,7 +5,7 @@
 
 import { useEffect, useState } from 'react';
 import { useTwinStore } from '../../state/twinStore';
-import { surveyStore, downloadBlob, type SurveyRecordSummary } from '../../scenarios/phenotyping/surveyStore';
+import { surveyStore, downloadBlob, type SurveyRecordSummary } from '../../phenotyping/domain/surveyStore';
 
 export function SurveyHistoryDrawer() {
   const open = useTwinStore((s) => s.historyDrawerOpen);

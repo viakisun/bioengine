@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 420" font-family="Apple SD Gothic Neo, -apple-system, Helvetica, sans-serif" font-size="11">
+  <style>
+    .ax { fill:none; stroke:#000; stroke-width:0.8; }
+    .lbl { fill:#000; }
+    .ax-lbl { fill:#000; font-weight:600; font-size:11px; }
+    .title { fill:#000; font-weight:700; font-size:14px; text-anchor:middle; }
+    .bar-f { fill:#000; }
+    .bar-l { fill:#fff; stroke:#000; stroke-width:0.8; }
+    .bar-w { fill:#888; }
+    .bar-h { fill:#bbb; stroke:#000; stroke-width:0.5; }
+    .row-rule { fill:none; stroke:#ccc; stroke-width:0.3; }
+    .cell { fill:#000; font-size:9.5px; }
+    .small { fill:#444; font-size:9px; }
+    .legend-box-1 { fill:#000; }
+    .legend-box-2 { fill:#fff; stroke:#000; stroke-width:0.6; }
+    .legend-box-3 { fill:#888; }
+    .legend-box-4 { fill:#bbb; stroke:#000; stroke-width:0.4; }
+  </style>
+
+  <text x="360" y="22" class="title">차트 4.  Cultivar 5종 — 핵심 파라미터 비교</text>
+
+  <!-- Header -->
+  <text x="50"  y="55" class="ax-lbl">Cultivar</text>
+  <text x="200" y="55" class="ax-lbl">type</text>
+  <text x="295" y="55" class="ax-lbl">fruit mass (g)</text>
+  <text x="470" y="55" class="ax-lbl">phyllochron (GDD)</text>
+  <text x="605" y="55" class="ax-lbl">first truss node</text>
+  <line x1="40" y1="65" x2="700" y2="65" class="ax"/>
+
+  <!-- 5 rows, each 50px tall, starting y=85 -->
+
+  <!-- Row 1: Tomimaru Muchoo  beefsteak (pink F1)  mu=200g  phyllo=35  trussNode=9 -->
+  <g>
+    <text x="50"  y="105" class="cell">Tomimaru Muchoo</text>
+    <text x="50"  y="118" class="small">Sakata pink F1</text>
+    <text x="200" y="105" class="cell">beefsteak</text>
+    <!-- bar fruit mass — scale 0..300g → 100..420 px -->
+    <rect x="290" y="98" width="213" height="14" class="bar-f"/>
+    <text x="510" y="108" class="cell">200 ± 25 g</text>
+    <!-- phyllo bar 0..50 GDD → 100..240 -->
+    <rect x="460" y="98" width="0" height="0" fill="none"/>
+    <text x="540" y="108" class="cell"></text>
+    <text x="465" y="108" class="cell">35</text>
+    <text x="615" y="108" class="cell">9 (μ)</text>
+    <line x1="40" y1="125" x2="700" y2="125" class="row-rule"/>
+  </g>
+
+  <!-- Row 2: round-generic  round red  mu=125g  phyllo=33  trussNode=8 -->
+  <g>
+    <text x="50"  y="145" class="cell">round-generic</text>
+    <text x="50"  y="158" class="small">market standard round</text>
+    <text x="200" y="145" class="cell">round red</text>
+    <rect x="290" y="138" width="133" height="14" class="bar-f"/>
+    <text x="430" y="148" class="cell">125 ± 15 g</text>
+    <text x="465" y="148" class="cell">33</text>
+    <text x="615" y="148" class="cell">8 (μ)</text>
+    <line x1="40" y1="165" x2="700" y2="165" class="row-rule"/>
+  </g>
+
+  <!-- Row 3: cherry-generic  cherry  mu=20g  phyllo=28  trussNode=6 -->
+  <g>
+    <text x="50"  y="185" class="cell">cherry-generic</text>
+    <text x="50"  y="198" class="small">small cluster cherry</text>
+    <text x="200" y="185" class="cell">cherry</text>
+    <rect x="290" y="178" width="21" height="14" class="bar-f"/>
+    <text x="318" y="188" class="cell">20 ± 5 g</text>
+    <text x="465" y="188" class="cell">28</text>
+    <text x="615" y="188" class="cell">6 (μ)</text>
+    <line x1="40" y1="205" x2="700" y2="205" class="row-rule"/>
+  </g>
+
+  <!-- Row 4: beefsteak-generic  beefsteak  mu=280g  phyllo=37  trussNode=10 -->
+  <g>
+    <text x="50"  y="225" class="cell">beefsteak-generic</text>
+    <text x="50"  y="238" class="small">large oblate beefsteak</text>
+    <text x="200" y="225" class="cell">beefsteak</text>
+    <rect x="290" y="218" width="298" height="14" class="bar-f"/>
+    <text x="595" y="228" class="cell">280 ± 35 g</text>
+    <text x="465" y="228" class="cell">37</text>
+    <text x="615" y="228" class="cell">10 (μ)</text>
+    <line x1="40" y1="245" x2="700" y2="245" class="row-rule"/>
+  </g>
+
+  <!-- Row 5: roma-generic  Roma plum  mu=75g  phyllo=30  trussNode=7 -->
+  <g>
+    <text x="50"  y="265" class="cell">roma-generic</text>
+    <text x="50"  y="278" class="small">processing-style plum</text>
+    <text x="200" y="265" class="cell">Roma plum</text>
+    <rect x="290" y="258" width="80" height="14" class="bar-f"/>
+    <text x="377" y="268" class="cell">75 ± 10 g</text>
+    <text x="465" y="268" class="cell">30</text>
+    <text x="615" y="268" class="cell">7 (μ)</text>
+    <line x1="40" y1="285" x2="700" y2="285" class="row-rule"/>
+  </g>
+
+  <!-- Note -->
+  <text x="50" y="315" class="small">cultivar 5종은 모두 같은 GrowthEngine + 같은 학술 backbone (TOMSIM / TOMGRO / Gillaspy / Marcelis) 위에서 동작.</text>
+  <text x="50" y="328" class="small">cultivar JSON 의 phenology · flowersPerTruss · potentialFruitMassG · morphology 4 블록만 다름.</text>
+  <text x="50" y="341" class="small">코드 변경 0 — cultivar 추가/조정은 packages/tomato-engine/models/cultivars/&lt;name&gt;.jsonc 한 파일로 가능.</text>
+
+  <!-- Scale rulers below -->
+  <line x1="290" y1="370" x2="613" y2="370" class="ax"/>
+  <g class="lbl" text-anchor="middle" font-size="9px">
+    <line x1="290" y1="370" x2="290" y2="374" class="ax"/><text x="290" y="385">0 g</text>
+    <line x1="397" y1="370" x2="397" y2="374" class="ax"/><text x="397" y="385">100 g</text>
+    <line x1="505" y1="370" x2="505" y2="374" class="ax"/><text x="505" y="385">200 g</text>
+    <line x1="613" y1="370" x2="613" y2="374" class="ax"/><text x="613" y="385">300 g</text>
+  </g>
+  <text x="450" y="402" class="small" text-anchor="middle">fruit mass (μ, scale)</text>
+</svg>

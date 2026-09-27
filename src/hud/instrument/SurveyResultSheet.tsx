@@ -6,7 +6,7 @@
 
 import { useEffect, useState } from 'react';
 import { useTwinStore } from '../../state/twinStore';
-import { surveyStore, downloadBlob, type SurveyRecord } from '../../scenarios/phenotyping/surveyStore';
+import { surveyStore, downloadBlob, type SurveyRecord } from '../../phenotyping/domain/surveyStore';
 import { RipenessHistogram } from './charts/RipenessHistogram';
 import { KpiCard } from './charts/KpiCard';
 import { PanoramaViewer } from './PanoramaViewer';

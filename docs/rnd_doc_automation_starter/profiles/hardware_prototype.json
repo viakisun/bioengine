@@ -1,0 +1,79 @@
+{
+  "profile_name": "hardware_prototype",
+  "description": "정부연구개발사업 하드웨어 시제품 제작 증빙 문서 패키지 기준",
+  "document_sequence": [
+    {"prefix": "01", "name": "기안서"},
+    {"prefix": "02", "name": "과업지시서"},
+    {"prefix": "04", "name": "발주서"},
+    {"prefix": "05", "name": "계약서"},
+    {"prefix": "09", "name": "검수확인서"},
+    {"prefix": "10", "name": "완료보고서"}
+  ],
+  "documents": {
+    "01": {
+      "name": "기안서",
+      "required_sections": [
+        "문서 정보 및 기안 요지",
+        "기안 요지",
+        "본문 구성",
+        "기안 목적 및 승인 요청 범위",
+        "과제 관련성 및 추진 필요성",
+        "제작 개요",
+        "플랫폼 활용 및 검증 범위",
+        "주요 제작 사양",
+        "납품 산출물",
+        "견적요청 및 업체 선정 기준",
+        "후속 발주 및 집행 계획",
+        "검수 및 완료 기준",
+        "기대 효과",
+        "첨부 및 후속 확보 서류",
+        "결재 요청"
+      ],
+      "forbid_vendor": true,
+      "forbid_amount": true
+    },
+    "02": {
+      "name": "과업지시서",
+      "required_sections": [
+        "문서 정보 및 과업 요지",
+        "과업 요지",
+        "과업 목적 및 적용 범위",
+        "과업 수행 원칙",
+        "제작 사양",
+        "세부 과업 범위",
+        "과업 제외 및 협의 필요 사항",
+        "납품 산출물",
+        "시험·검수 기준",
+        "자료 제출 및 정산 증빙",
+        "일정·변경·보완 관리",
+        "확인"
+      ],
+      "forbid_amount": true
+    },
+    "04": {
+      "name": "발주서",
+      "required_sections": ["발주 개요", "과제 정보", "발주 품목 및 금액", "납품 및 검수 조건", "발주 조건", "발주 확인"]
+    },
+    "05": {
+      "name": "계약서",
+      "required_sections": ["계약 당사자", "과제 정보", "계약 조건", "목적", "계약 대상", "계약금액", "계약기간 및 납품", "납품 산출물", "검수", "대금 지급", "변경 및 협의", "자료 사용", "비밀유지", "하자 및 보완", "분쟁 해결", "첨부 문서"]
+    },
+    "09": {
+      "name": "검수확인서",
+      "required_sections": ["검수 대상", "과제 정보", "검수 기준 및 확인 결과", "검수 의견", "검수 사진", "검수 결과: 적합"],
+      "requires_images": true
+    },
+    "10": {
+      "name": "완료보고서",
+      "required_sections": ["보고 요지", "기본 정보", "과제 정보", "진행 경과", "납품 산출물", "검수 결과", "종합"]
+    }
+  },
+  "vendor_document_checks": {
+    "quotation": ["quote_date", "short_item_name", "supply", "vat", "total"],
+    "transaction_statement": ["delivery_date", "short_item_name", "supply", "vat", "total"],
+    "tax_invoice": ["delivery_date", "supply", "vat", "total"]
+  },
+  "delivery_audit": {
+    "skip_file_hints_containing": ["실물", "별첨"]
+  }
+}

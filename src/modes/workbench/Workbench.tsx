@@ -16,7 +16,7 @@
 //   - end-effector 카메라 전환 단축키 (S4)
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Picker } from '../scenarios/Picker';
+import { Picker } from '../scenarioPicker/Picker';
 import { Composer } from '../composer/Composer';
 import { MyScenarios } from '../composer/MyScenarios';
 import { useComposerStore } from '../composer/composerStore';
@@ -52,11 +52,13 @@ import { RobotTransport } from '../../hud/instrument/RobotTransport';
 import { SurveyResultSheet } from '../../hud/instrument/SurveyResultSheet';
 import { SurveyHistoryDrawer } from '../../hud/instrument/SurveyHistoryDrawer';
 // Phenotyping survey v2 engine
-import { createSurveyRunner, type SurveyRunner } from '../../scenarios/phenotyping/surveyRunner';
-import { newSurveyId } from '../../scenarios/phenotyping/surveyStore';
+import { createSurveyRunner, type SurveyRunner } from '../../phenotyping/domain/surveyRunner';
+import { DetectionWorkerClient } from '../../phenotyping/streaming/detectionWorkerClient';
+import { PHENOTYPING_GIMBAL_STREAM } from '../../phenotyping/streaming/streamProtocol';
+import { newSurveyId } from '../../phenotyping/domain/surveyStore';
 import { getActivePlantManager } from '../../scene/PlantManager';
 import { getSinglePlantEngine } from '../../hud/single-plant/useSinglePlantState';
-import { gimbalCamRef } from '../../scene/robot/robotControlState';
+import { gimbalCameraRef } from '../../scene/robot/robotControlState';
 
 const log = createLogger('workbench');
 
@@ -255,6 +257,7 @@ export function Workbench() {
 
   // ── Phenotyping survey v2 orchestration (HOOKS first, before returns) ──
   const surveyRunnerRef = useRef<SurveyRunner | null>(null);
+  const detectionWorkerRef = useRef<DetectionWorkerClient | null>(null);
   const surveyStatus = useTwinStore((s) => s.phenotypingSurvey.status);
 
   useEffect(() => () => {
@@ -306,7 +309,7 @@ export function Workbench() {
     if (surveyRunnerRef.current) return surveyRunnerRef.current;
     const mgr = getActivePlantManager();
     const eng = getSinglePlantEngine();
-    const cam = gimbalCamRef.current;
+    const cam = gimbalCameraRef.current;
     if (!mgr || !eng || !cam) return null;
     const scene = cam.getScene();
 
@@ -366,6 +369,24 @@ export function Workbench() {
     useTwinStore.getState().surveySetStatus('running');
     const id = newSurveyId();
     const detectorId = useTwinStore.getState().phenotypingSurvey.detectorId;
+    // Stream PiP mode → spin up the detection Web Worker.  It connects to
+    // the WS stream the GimbalCameraStreamer is publishing and runs the
+    // selected detector on every frame, posting bboxes back to main thread
+    // for raycast filtering + store push.  In-canvas PiP path keeps using
+    // the inline per-frame detector in surveyRunner.
+    const { pipMode } = useTwinStore.getState().phenotypingSurvey;
+    if (pipMode === 'stream') {
+      const cam = gimbalCameraRef.current;
+      const scene = cam?.getScene();
+      if (cam && scene) {
+        // Replace any previous worker (e.g. after a detectorId change)
+        detectionWorkerRef.current?.stop();
+        detectionWorkerRef.current = new DetectionWorkerClient({
+          scene, gimbalCamera: cam, streamId: PHENOTYPING_GIMBAL_STREAM, detectorId,
+        });
+        detectionWorkerRef.current.start();
+      }
+    }
     void runner.start({
       id,
       scenarioId: active.id,
@@ -399,6 +420,8 @@ export function Workbench() {
   const onResetSurvey = () => {
     surveyRunnerRef.current?.stop();
     surveyRunnerRef.current = null;
+    detectionWorkerRef.current?.stop();
+    detectionWorkerRef.current = null;
     useTwinStore.getState().surveyReset();
   };
 

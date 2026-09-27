@@ -319,7 +319,7 @@ export function EntryScreen({ onEnter }: EntryScreenProps) {
               marginBottom: 10,
             }}
           >
-            Legacy (Iter 35 호환)
+            Legacy
           </div>
           <div
             style={{

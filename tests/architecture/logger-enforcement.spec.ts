@@ -102,10 +102,12 @@ test.describe('Phase L6 — Logger enforcement', () => {
   });
 
   test('LOGGER-NAMESPACE-WHITELIST-01: createLogger 인자는 LogNamespace literal만', async () => {
-    // createLogger('X') 호출의 X가 다음 union member인지 검증
+    // Mirror of `LogNamespace` union in src/utils/logger.ts. Update both
+    // sides together when adding a new namespace.
     const HOST_NS = new Set([
       'engine', 'scene', 'quality', 'progressive', 'skinplant',
-      'overlay', 'growth', 'leaf', 'plant', 'ui',
+      'overlay', 'growth', 'leaf', 'plant',
+      'scenarios', 'workbench', 'ui',
     ]);
     const ENGINE_NS = new Set(['growth']);  // tomato-engine subset
 

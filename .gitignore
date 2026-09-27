@@ -37,3 +37,6 @@ growth-calibration/sweeps/
 test-results/
 playwright-report/
 docs/iter31/r26-cleanup-baseline.json
+
+# ONNX model binaries — download instructions in public/models/README.md.
+public/models/*.onnx

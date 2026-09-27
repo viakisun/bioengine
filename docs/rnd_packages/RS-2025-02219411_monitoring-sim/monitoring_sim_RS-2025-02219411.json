@@ -1,0 +1,137 @@
+{
+  "package": {
+    "work_type": "simulator",
+    "output_prefix": "MONITORING_SIM",
+    "doc_set_name": "적심·적과 농작업 로봇 관제 시각화 시뮬레이터 시작품 제작 증빙 문서"
+  },
+  "project": {
+    "number": "RS-2025-02219411",
+    "name": "스마트팜 다부처패키지 혁신기술개발사업 — 과채류 맞춤형 농작업 지능로봇 및 관제 시스템 개발 및 실증",
+    "period": "2025.04.01 ~ 2027.12.31",
+    "lead_org": "메타파머스",
+    "performing_org": "주식회사 비아"
+  },
+  "work": {
+    "title": "적심·적과 농작업 로봇 관제 시각화 시뮬레이터 시작품 제작",
+    "short_item_name": "적심·적과 농작업 로봇 관제 시각화 시뮬레이터 시작품",
+    "purpose": "적심·적과 농작업 로봇의 운용 시나리오와 관제 명령 흐름, 디텍션 결과 표시를 가상 환경에서 사전 검증·시연하기 위한 시뮬레이터 시작품을 제작한다.",
+    "background": "사업 내 적심·적과 농작업 로봇이 실제 온실에서 운용되기 전, 관제 화면과 운용 시나리오, 디텍션 결과 표시를 반복 검증할 수 있는 시뮬레이션 환경이 필요하다. 실증 사이트 운용 전 단계에서 인터페이스 정합성을 점검할 수 있는 가시화 환경을 본 시작품으로 확보한다.",
+    "business_relevance": "본 시작품은 주관기관(메타파머스)이 개발하는 관제 시스템의 시연·검증 환경을 보완하는 연구개발용 산출물이다. 실증 사이트 운용 절차의 사전 점검과 적심·적과 작업 가시화 사례 데모에 활용된다.",
+    "vendor_scope": [
+      "WebGL2/WebGPU 기반 3D 온실·식물·로봇 가시화 시뮬레이터 시작품 제작",
+      "적심·적과 작업 시연용 로봇 rail traverse 시나리오 구현",
+      "짐벌 카메라 영상 스트리밍(MJPEG over WebSocket) 모듈 및 PiP 디텍션 오버레이 구현",
+      "페노타이핑 서베이(베드별 과실 카운트·익음 단계 분류) 시나리오 구현",
+      "Web Worker 기반 디텍션 모듈(ONNX YOLOv8 + HSV 보조) 통합",
+      "관제 시나리오 선택·재생·정지 UI, 결과 시트, 파노라마 뷰어, 히스토리 드로어 구현",
+      "사용자 매뉴얼 및 설치·실행 안내 작성",
+      "시험 시나리오, 시험 로그, 검수 자료 제출"
+    ],
+    "internal_scope": [
+      "적심·적과 관제 요구사항 정의 및 시나리오 명세",
+      "주관기관(메타파머스) 관제 시스템과의 연동 항목 검토",
+      "토마토 학술 성장 모델(TOMSIM/TOMGRO) 매핑 검토",
+      "실증 사이트 운용 항목과의 매핑 검토",
+      "검수 일정 운영 및 검수 결과 종합"
+    ],
+    "excluded_scope": [
+      "실제 적심·적과 액추에이터/모션 제어 알고리즘 개발",
+      "본 사업 관제 시스템 본 개발 범위(주관기관 수행 영역)",
+      "클라우드/SaaS 운영 환경 구축",
+      "상용 배포 및 라이선싱 작업",
+      "외부망 연동 및 운영 인프라 구축"
+    ],
+    "specifications": [
+      {"item": "렌더링 엔진", "value": "Babylon.js 9.x 기반 WebGL2/WebGPU 3D 온실·식물·로봇 가시화"},
+      {"item": "프론트엔드", "value": "React 19 + TypeScript 5.9 + Zustand 상태관리"},
+      {"item": "성장 모델", "value": "토마토 학술 성장 모델(TOMSIM/TOMGRO 기반 트러스·잎·과실 구조)"},
+      {"item": "로봇 제어", "value": "적심·적과 시연용 rail traverse + 짐벌 카메라 pan/pitch 모듈 스코프 ref"},
+      {"item": "카메라 스트리밍", "value": "MJPEG over WebSocket — Vite dev 플러그인 producer/consumer 페일오버"},
+      {"item": "디텍션 파이프라인", "value": "Web Worker 기반 ONNX Runtime Web YOLOv8 + HSV 보조 디텍션"},
+      {"item": "관제 오버레이", "value": "PiP 위 SVG 디텍션 오버레이 + 3D 월드좌표 역투영"},
+      {"item": "관제 UI", "value": "시나리오 picker / 결과 시트 / 파노라마 뷰어 / 히스토리 드로어"},
+      {"item": "지원 브라우저", "value": "Chrome ≥120, Firefox ≥120 (WebGL2 활성)"},
+      {"item": "배포 형태", "value": "정적 web bundle (외부망 의존성 없음, localhost dev 서버 동작)"}
+    ],
+    "verification_scope": [
+      {"area": "관제 시스템 시연 환경", "use": "주관기관(메타파머스) 관제 시스템 개발 단계의 시연·검증 환경 보완", "owner": "비아"},
+      {"area": "실증 사전 점검", "use": "실증 사이트 운용 전 단계 운용 절차 사전 점검 및 인터페이스 정합성 검증", "owner": "비아"},
+      {"area": "작업 시각화 데모", "use": "적심·적과 작업 시각화 사례 데모 및 대외 시연 자료", "owner": "비아"},
+      {"area": "디텍션 파이프라인 검증", "use": "ONNX YOLOv8 + HSV 보조 디텍션 결과의 좌표 역투영 및 PiP 오버레이 정합 검증", "owner": "비아"}
+    ],
+    "deliverables": [
+      {"name": "시뮬레이터 실행 빌드", "description": "지정 브라우저에서 실행 가능한 web bundle (정적 자산 + index.html + assets)", "file_hint": "01_Monitoring_Sim_Build.zip"},
+      {"name": "소스코드 패키지", "description": "TypeScript/React/Babylon.js 프로젝트 + 빌드 스크립트 + 의존성 명세(package.json/vite.config.ts/tsconfig.json 등)", "file_hint": "02_Source_Code.zip"},
+      {"name": "디텍션 모델 자산", "description": "ONNX YOLOv8 weights + HSV 보조 파라미터 + 모델 메타데이터(클래스, 입력 사양)", "file_hint": "03_Detection_Models.zip"},
+      {"name": "시나리오·데이터셋", "description": "식물 성장 시드 / 베드 레이아웃 / 관제 시나리오 (JSON·JSONC) — 시뮬레이션 재현 입력 일체", "file_hint": "04_Scenario_Datasets.zip"},
+      {"name": "시스템 아키텍처 설계서", "description": "모듈 계층, 스트림 프로토콜(WS MJPEG), Web Worker 디텍션 파이프라인, 좌표계/Mesh anchor 계약", "file_hint": "05_Architecture_Spec.pdf"},
+      {"name": "운용 매뉴얼", "description": "설치·실행·시나리오 선택·스트리밍 모드 토글·디텍션 결과 확인 절차", "file_hint": "06_User_Manual.pdf"},
+      {"name": "개발자/관리자 가이드", "description": "빌드·배포·확장(detector swap, scenario 추가)·디버그 옵션(`?debug=…`)", "file_hint": "07_Developer_Guide.pdf"},
+      {"name": "검수 플랜", "description": "시험 환경·도구·절차·항목별 합부 기준 분리 문서", "file_hint": "08_Inspection_Plan.pdf"},
+      {"name": "검수 시험 결과 보고서", "description": "자동/수동 시험 결과 + Playwright probe 출력 + 화면 캡처", "file_hint": "09_Test_Report.pdf"},
+      {"name": "운용 데모 녹화", "description": "관제 운용 시연(좌우 베드 페노타이핑 서베이 + PiP 디텍션) 영상", "file_hint": "10_Demo_Recording.zip"}
+    ],
+    "inspection_criteria": [
+      {"item": "시뮬레이터 실행 빌드", "criteria": "지정 브라우저(Chrome ≥120, Firefox ≥120) + WebGL2 활성 환경에서 무오류 부팅, 권장 사양 60fps 또는 최소 사양 30fps 유지"},
+      {"item": "소스코드 패키지", "criteria": "package-lock.json 포함 의존성 동결, npm run build 무오류, npx tsc --noEmit 무오류"},
+      {"item": "디텍션 모델 자산", "criteria": "ONNX 모델 파일 SHA-256 해시 명시, 입출력 텐서 사양 문서화, 최소 1건 추론 결과 캡처 포함"},
+      {"item": "시나리오·데이터셋", "criteria": "시드별 재현 일관성(같은 입력→같은 출력) 확인, 베드 레이아웃 스키마 유효성"},
+      {"item": "시스템 아키텍처 설계서", "criteria": "모듈 계층도/시퀀스/스트림 프로토콜 명세 포함 여부, README와 일치성"},
+      {"item": "운용 매뉴얼", "criteria": "설치→실행→시나리오 운용까지 절차 단계별 캡처 포함, 신규 인수자 기준 단독 실행 가능"},
+      {"item": "개발자/관리자 가이드", "criteria": "빌드/배포 명령 동작 확인, 디버그 옵션 목록 누락 없음"},
+      {"item": "검수 플랜", "criteria": "검수 환경·절차·합부 기준·시험 도구 4영역 누락 없음"},
+      {"item": "검수 시험 결과 보고서", "criteria": "검수 플랜의 모든 검수 항목에 대해 결과(적합/부적합/관찰필요) 기록, 자동화 probe 로그 포함"},
+      {"item": "운용 데모 녹화", "criteria": "관제 시나리오 3종(서베이/PiP/결과 시트)의 실시연 영상 포함, 화면·음성·자막 누락 없음"}
+    ],
+    "inspection_photos": [],
+    "expected_effects": [
+      "적심·적과 농작업 로봇 관제 화면·시나리오의 사전 시연 환경 확보",
+      "주관기관 관제 시스템 개발·실증과의 인터페이스 사전 검증",
+      "실증 사이트 운용 절차 점검 시간 및 리스크 단축"
+    ],
+    "followup_documents": [
+      "견적서",
+      "거래명세서",
+      "전자세금계산서",
+      "사업자등록증",
+      "통장사본",
+      "이체확인증"
+    ]
+  },
+  "vendor": {
+    "name": "업체명 미정",
+    "business_no": "",
+    "representative": "",
+    "address": ""
+  },
+  "schedule": {
+    "memo_date": "2026.02.09",
+    "task_order_date": "2026.02.10",
+    "quote_date": "2026.02.11",
+    "order_date": "2026.02.13",
+    "contract_date": "2026.02.16",
+    "contract_period": "2026.02.16 ~ 2026.06.15",
+    "delivery_due_date": "2026.06.15",
+    "delivery_date": "2026.06.16",
+    "inspection_date": "2026.06.17",
+    "completion_date": "2026.06.18",
+    "payment_date": ""
+  },
+  "money": {
+    "supply": 25400000,
+    "vat": 2540000,
+    "total": 27940000,
+    "budget_item": "직접비 / 연구활동비 / 소프트웨어 제작비"
+  },
+  "rules": {
+    "memo_exclude_vendor": true,
+    "memo_exclude_amount": true,
+    "task_order_exclude_amount": true,
+    "forbidden_terms": [
+      "무제한 유지보수", "상용 배포 포함",
+      "AMR", "통합제어기", "A-SW", "실차 시험", "무인자율", "ROS2", "자율주행",
+      "시제품 본체", "BOM", "도면자료", "전장회로도", "모터드라이버", "MDAS",
+      "외관 상태", "구동부 구성", "조작부 구성", "부품 모델"
+    ]
+  }
+}

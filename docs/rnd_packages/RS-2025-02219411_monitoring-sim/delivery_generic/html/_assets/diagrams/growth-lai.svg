@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 420" font-family="Apple SD Gothic Neo, -apple-system, Helvetica, sans-serif" font-size="11">
+  <style>
+    .ax { fill:none; stroke:#000; stroke-width:0.8; }
+    .grid { fill:none; stroke:#ccc; stroke-width:0.4; }
+    .lbl { fill:#000; }
+    .ax-lbl { fill:#000; font-weight:600; font-size:11px; }
+    .title { fill:#000; font-weight:700; font-size:14px; text-anchor:middle; }
+    .sim { fill:none; stroke:#000; stroke-width:1.6; }
+    .target-band { fill:#000; opacity:0.08; }
+    .target-line { fill:none; stroke:#000; stroke-width:0.6; stroke-dasharray:4,3; }
+    .anno { fill:#444; font-size:9px; }
+  </style>
+
+  <text x="360" y="22" class="title">차트 2.  LAI (Leaf Area Index) 곡선 — 시뮬레이션 vs Literature 목표</text>
+
+  <line x1="60" y1="60" x2="60" y2="360" class="ax"/>
+  <line x1="60" y1="360" x2="680" y2="360" class="ax"/>
+
+  <!-- X axis (day) -->
+  <g class="lbl" text-anchor="middle">
+    <line x1="60"  y1="360" x2="60"  y2="365" class="ax"/><text x="60"  y="380">0</text>
+    <line x1="184" y1="360" x2="184" y2="365" class="ax"/><text x="184" y="380">25</text>
+    <line x1="308" y1="360" x2="308" y2="365" class="ax"/><text x="308" y="380">50</text>
+    <line x1="432" y1="360" x2="432" y2="365" class="ax"/><text x="432" y="380">75</text>
+    <line x1="556" y1="360" x2="556" y2="365" class="ax"/><text x="556" y="380">100</text>
+    <line x1="680" y1="360" x2="680" y2="365" class="ax"/><text x="680" y="380">120</text>
+    <text x="370" y="400" class="ax-lbl">day after transplant</text>
+  </g>
+
+  <!-- Y axis (LAI 0..5) maps y 360..60 -->
+  <g class="lbl" text-anchor="end">
+    <line x1="55" y1="360" x2="60"  y2="360" class="ax"/><text x="50" y="364">0</text>
+    <line x1="55" y1="300" x2="60"  y2="300" class="ax"/><text x="50" y="304">1</text>
+    <line x1="55" y1="240" x2="60"  y2="240" class="ax"/><text x="50" y="244">2</text>
+    <line x1="55" y1="180" x2="60"  y2="180" class="ax"/><text x="50" y="184">3</text>
+    <line x1="55" y1="120" x2="60"  y2="120" class="ax"/><text x="50" y="124">4</text>
+    <line x1="55" y1="60"  x2="60"  y2="60"  class="ax"/><text x="50" y="64">5</text>
+  </g>
+  <text x="20" y="210" class="ax-lbl" transform="rotate(-90 20 210)">LAI (m² m⁻²)</text>
+
+  <g class="grid">
+    <line x1="60" y1="300" x2="680" y2="300"/>
+    <line x1="60" y1="240" x2="680" y2="240"/>
+    <line x1="60" y1="180" x2="680" y2="180"/>
+    <line x1="60" y1="120" x2="680" y2="120"/>
+  </g>
+
+  <!-- TOMSIM mature canopy target 3.0-4.0 horizontal band (day 100..120) -->
+  <rect x="60" y="120" width="620" height="60" class="target-band"/>
+  <line x1="60" y1="120" x2="680" y2="120" class="target-line"/>
+  <line x1="60" y1="180" x2="680" y2="180" class="target-line"/>
+  <text x="680" y="115" class="anno" text-anchor="end">LAI 4.0  (Heuvelink 1996 TOMSIM mature upper)</text>
+  <text x="680" y="195" class="anno" text-anchor="end">LAI 3.0  (Heuvelink 1996 TOMSIM mature lower)</text>
+
+  <!-- Simulation logistic-like curve approximating LAI growth -->
+  <!-- Mid point around day 50, asymptote ~3.5 -->
+  <!-- Map LAI v → y = 360 - v*60 -->
+  <!-- Sample points (day, LAI): -->
+  <!-- 0 → 0.05; 10 → 0.10; 20 → 0.25; 30 → 0.60; 40 → 1.20; 50 → 2.00; 60 → 2.65; 70 → 3.10; 80 → 3.35; 90 → 3.45; 100 → 3.50; 110 → 3.52; 120 → 3.53 -->
+  <polyline class="sim" points="
+    60,357
+    109.6,354
+    159.2,345
+    208.8,324
+    258.4,288
+    308.0,240
+    357.6,201
+    407.2,174
+    456.8,159
+    506.4,153
+    556.0,150
+    605.6,149
+    680,148.2
+  "/>
+
+  <!-- annotations: phyllochron and LAI calc note -->
+  <text x="80" y="80" class="anno">LAI(t) ≈ Σᵢ leafₐrea_i(t) · n_plants / m²_ground</text>
+  <text x="80" y="93" class="anno">— bulk-canopy form, packages/tomato-engine/src/CoreModel.ts</text>
+
+  <text x="500" y="270" class="anno" text-anchor="start">시뮬레이션 LAI(120d) ≈ 3.53</text>
+  <text x="500" y="282" class="anno" text-anchor="start">target band [3.0, 4.0] ✓</text>
+</svg>
